@@ -343,46 +343,58 @@ class Command(BaseCommand):
             ],
         )
 
-        # 5. Heritage Elegance Banquet — 3 BBQ + curry + rice (over-allocated)
+        # 5. Heritage Elegance Banquet — 3 BBQ + 2 curry + rice + sides
+        # Real data: 100 ppl. Shish Tawok 13kg, Afghani Boti 12kg, Fish 13kg,
+        # Rezala 12kg, Bombay Chicken 7kg, Kabuli Pulao 7kg, Mirchi Salan 3kg
         self._create_menu(
             'Heritage Elegance Banquet',
-            '3 BBQ items, curry, and rice — over-allocated, engine should correct',
+            '3 BBQ items, 2 curries, rice, and sides — real catering data',
             dishes,
             [
-                ('Whole Mutton Roast', 110),
-                ('Chicken Boti Tikka', 110),
-                ('Seekh Kabab', 110),
-                ('Mutton Qorma', 95),
-                ('Chicken Qorma', 95),
-                ('Chicken Biryani', 70),
-                ('Zarda', 140),
-                ('Fresh Green Salad', 50),
+                ('Shish Tawok', 130),
+                ('Beef Afghani Boti', 120),
+                ('Crumb Fried Fish', 130),
+                ('Mutton Rezala', 120),
+                ('Bombay Chicken', 70),
+                ('Veal Kabuli Pulao', 70),
+                ('Mirchi Ka Salan', 30),
+                ('Fresh Green Salad', 30),
+                ('Macaroni Salad', 40),
+                ('Cabbage Salad with Apple & Walnuts', 40),
                 ('Raita', 40),
                 ('Assorted Naan', 1),
+                ('Fruit Trifle', 30),
+                ('Halwa Petha', 80),
+                ('Caramel Crunch', 30),
                 ('Green Tea', 1),
             ],
         )
 
-        # 6. Timeless Royal Spread — heavy BBQ + curry + rice + veg (over-allocated)
+        # 6. Timeless Royal Spread — 3 BBQ + 2 curry + rice + sides + 4 desserts
+        # Real data: 100 ppl. Turkish 12kg, Lebanese 13kg, Veal Roast 16kg,
+        # Kunna 16kg, Handi 7kg, Bukhara Pulao 7kg, Bhagaray Baingan 6kg
         self._create_menu(
             'Timeless Royal Spread',
-            'Heavy BBQ, curry, rice, and veg sides — over-allocated, engine should correct',
+            'Heavy BBQ, curry, rice, veg sides, and 4 desserts — real catering data',
             dishes,
             [
-                ('Whole Mutton Roast', 100),
-                ('Chicken Boti Tikka', 100),
-                ('Mutton Seekh Kabab', 100),
-                ('Chicken Seekh Kabab', 100),
-                ('Mutton Kunna', 95),
-                ('Chicken Qorma', 95),
-                ('Chicken Biryani', 70),
-                ('Bhagaray Baingan', 30),
-                ('Khattay Aaloo', 30),
-                ('Zarda', 70),
-                ('Mutanjan (Special)', 70),
-                ('Fresh Green Salad', 50),
+                ('Turkish Kabab', 120),
+                ('Lebanese Boti', 130),
+                ('Veal Foil Roast', 160),
+                ('Mutton Kunna', 160),
+                ('Chicken Handi (With Bone)', 70),
+                ('Mutton Bukhara Pulao', 70),
+                ('Bhagaray Baingan', 60),
+                ('Fresh Green Salad', 20),
+                ('Greek Village Salad', 20),
+                ('Pasta Salad', 30),
+                ('Waldorf Salad', 30),
                 ('Raita', 40),
                 ('Assorted Naan', 1),
+                ('Fruit Trifle', 30),
+                ('Halwa Petha', 60),
+                ('Caramel Crunch', 30),
+                ('Cream Caramel', 30),
                 ('Green Tea', 1),
             ],
         )

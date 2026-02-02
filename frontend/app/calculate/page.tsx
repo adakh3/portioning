@@ -334,29 +334,16 @@ function CalculatePageInner() {
         onBigEatersPercentageChange={setBigEatersPercentage}
       />
 
-      {/* ── TOOLBAR ── */}
-      {selectedDishIds.size > 0 && (
-        <div className="flex items-center gap-3 flex-wrap">
-          {portionsDifferFromEngine && (
-            <button
-              onClick={applyEngineValues}
-              className="bg-gray-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors"
-            >
-              Apply Engine Values
-            </button>
-          )}
-          {calculating && (
-            <span className="text-sm text-gray-500">Calculating...</span>
-          )}
-        </div>
-      )}
-
       {/* ── ENGINE WARNINGS ── */}
       {(engineWarnings.length > 0 || engineAdjustments.length > 0) && (
         <WarningsBanner warnings={engineWarnings} adjustments={engineAdjustments} />
       )}
 
       {error && <p className="text-red-600 text-sm">{error}</p>}
+
+      {calculating && (
+        <span className="text-sm text-gray-500">Calculating...</span>
+      )}
 
       {/* ── PORTIONS TABLE ── */}
       <PortionsEditor
@@ -368,7 +355,7 @@ function CalculatePageInner() {
         onPortionChange={handlePortionChange}
       />
 
-      {/* ── VALIDATION ── */}
+      {/* ── ACTIONS ── */}
       {selectedDishIds.size > 0 && (
         <div className="flex items-center gap-3 flex-wrap">
           <button
@@ -378,10 +365,18 @@ function CalculatePageInner() {
           >
             {checkLoading ? "Validating..." : "Validate"}
           </button>
+          {portionsDifferFromEngine && (
+            <button
+              onClick={applyEngineValues}
+              className="bg-gray-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors"
+            >
+              Apply Engine Values
+            </button>
+          )}
           <button
             onClick={handleExportPDF}
             disabled={exporting}
-            className="bg-green-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50 transition-colors"
+            className="border border-gray-300 text-gray-700 bg-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-gray-50 disabled:opacity-50 transition-colors"
           >
             {exporting ? "Exporting..." : "Export PDF"}
           </button>
