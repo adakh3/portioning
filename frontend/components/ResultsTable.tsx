@@ -206,12 +206,6 @@ export default function ResultsTable({
                 {hasOverrides ? totalFoodRounded : totals.food_per_person_grams}g
               </td>
             </tr>
-            <tr className="font-semibold border-t border-gray-200">
-              <td className="px-4 py-3 text-gray-900">Protein per Person</td>
-              <td className="px-4 py-3 text-right text-gray-900">
-                {totals.protein_per_person_grams}g
-              </td>
-            </tr>
           </tfoot>
         </table>
       </div>
