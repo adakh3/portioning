@@ -18,6 +18,7 @@ export interface DishCategory {
   name: string;
   display_name: string;
   display_order: number;
+  pool: "protein" | "accompaniment" | "dessert" | "service";
   unit: "kg" | "qty";
 }
 

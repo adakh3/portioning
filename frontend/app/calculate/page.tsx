@@ -105,13 +105,18 @@ function CalculatePageInner() {
         big_eaters: bigEaters,
         big_eaters_percentage: bigEatersPercentage,
       });
-      const newPortions = new Map<number, number>();
       const newRecs = new Map<number, number>();
       for (const p of res.portions) {
-        newPortions.set(p.dish_id, p.grams_per_person);
         newRecs.set(p.dish_id, p.grams_per_person);
       }
-      setPortions(newPortions);
+      // Preserve existing user portions; new dishes start at 0
+      setPortions((prev) => {
+        const next = new Map<number, number>();
+        for (const p of res.portions) {
+          next.set(p.dish_id, prev.has(p.dish_id) ? (prev.get(p.dish_id) ?? 0) : 0);
+        }
+        return next;
+      });
       setEngineRecs(newRecs);
       setEngineWarnings(res.warnings);
       setEngineAdjustments(res.adjustments_applied);

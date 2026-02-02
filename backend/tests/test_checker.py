@@ -235,3 +235,45 @@ class TestCheckPortionsAPI(TestCase):
             'user_portions': user_portions,
         }, content_type='application/json')
         self.assertEqual(resp.status_code, 400)
+
+    def test_dynamic_category_cap_with_extended_cap(self):
+        """User enters 300g for 1 curry → under extended cap (~356g), no category_total violation.
+
+        With baseline=160g, absent BBQ(180)+Rice(100), redistribution_fraction=0.7:
+        extended cap = 160 + (180+100)*0.7 = 356g. User's 300g < 356g → no violation.
+        """
+        from dishes.models import Dish
+        curry = Dish.objects.filter(category__name='curry', is_active=True).first()
+        if not curry:
+            self.skipTest("Need curry dish seeded")
+
+        user_portions = [{'dish_id': curry.id, 'grams_per_person': 300}]
+        resp = self.client.post('/api/check-portions/', data={
+            'dish_ids': [curry.id],
+            'guests': {'gents': 50, 'ladies': 50},
+            'user_portions': user_portions,
+        }, content_type='application/json')
+        self.assertEqual(resp.status_code, 200)
+        body = resp.json()
+        cat_violations = [v for v in body['violations'] if v['type'] == 'category_total']
+        self.assertEqual(len(cat_violations), 0,
+                         "300g for 1 curry should be under extended cap of ~356g")
+
+    def test_portion_exceeds_extended_cap(self):
+        """User enters 400g for 1 curry → exceeds extended cap (~356g)."""
+        from dishes.models import Dish
+        curry = Dish.objects.filter(category__name='curry', is_active=True).first()
+        if not curry:
+            self.skipTest("Need curry dish seeded")
+
+        user_portions = [{'dish_id': curry.id, 'grams_per_person': 400}]
+        resp = self.client.post('/api/check-portions/', data={
+            'dish_ids': [curry.id],
+            'guests': {'gents': 50, 'ladies': 50},
+            'user_portions': user_portions,
+        }, content_type='application/json')
+        self.assertEqual(resp.status_code, 200)
+        body = resp.json()
+        cat_violations = [v for v in body['violations'] if v['type'] == 'category_total']
+        self.assertGreaterEqual(len(cat_violations), 1,
+                                "400g for 1 curry should exceed extended cap of ~356g")

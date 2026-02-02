@@ -1,6 +1,9 @@
 from django.test import TestCase
 from calculator.engine.models import DishInput
-from calculator.engine.baseline import establish_category_budgets, apply_pool_ceiling, split_by_popularity
+from calculator.engine.baseline import (
+    establish_category_budgets, apply_protein_redistribution,
+    apply_category_budget_caps, apply_pool_ceiling, split_by_popularity,
+)
 
 
 def make_dish(id, name, category_id, category_name, baseline_budget=190, min_per_dish=70,
@@ -80,23 +83,6 @@ class TestGrowthModel(TestCase):
         self.assertAlmostEqual(budgets[10], 350.0)
         self.assertTrue(any("budget increased" in a for a in adj))
 
-    def test_partial_redistribution(self):
-        """Absent budget only partially redistributes with fraction=0.7."""
-        dishes = [make_dish(1, "Curry", 10, "Curry", baseline_budget=160)]
-        pool_baselines = {10: 160, 20: 180}  # cat 20 absent (BBQ)
-        budgets, adj = establish_category_budgets(
-            dishes, pool_baselines, redistribution_fraction=0.7)
-        # absent_budget = 180 * 0.7 = 126, all goes to curry
-        self.assertAlmostEqual(budgets[10], 160 + 126, places=1)
-
-    def test_full_redistribution_backward_compat(self):
-        """redistribution_fraction=1.0 gives old behavior."""
-        dishes = [make_dish(1, "Curry", 10, "Curry", baseline_budget=160)]
-        pool_baselines = {10: 160, 20: 180}
-        budgets, adj = establish_category_budgets(
-            dishes, pool_baselines, redistribution_fraction=1.0)
-        self.assertAlmostEqual(budgets[10], 160 + 180, places=1)
-
     def test_zero_growth_rate_backward_compat(self):
         """growth_rate=0.0 gives old max(baseline, min_total) behavior."""
         dishes = [make_dish(i, f"Curry {i}", 10, "Curry", baseline_budget=160)
@@ -104,6 +90,63 @@ class TestGrowthModel(TestCase):
         budgets, adj = establish_category_budgets(dishes, growth_rate=0.0)
         # 2 dishes: max(160, 140) = 160 (old behavior)
         self.assertEqual(budgets[10], 160.0)
+
+
+class TestProteinRedistribution(TestCase):
+    """Test the protein-only redistribution function."""
+
+    def test_partial_redistribution(self):
+        """Absent budget only partially redistributes with fraction=0.7."""
+        dishes = [make_dish(1, "Curry", 10, "Curry", baseline_budget=160)]
+        budgets = {10: 160}
+        pool_baselines = {10: 160, 20: 180}  # cat 20 absent (BBQ)
+        extended, caps, adj = apply_protein_redistribution(
+            budgets, dishes, pool_baselines, redistribution_fraction=0.7)
+        # absent_budget = 180 * 0.7 = 126, all goes to curry
+        self.assertAlmostEqual(extended[10], 160 + 126, places=1)
+        # extended cap should equal extended budget
+        self.assertAlmostEqual(caps[10], 160 + 126, places=1)
+
+    def test_full_redistribution(self):
+        """redistribution_fraction=1.0 gives full absent budget."""
+        dishes = [make_dish(1, "Curry", 10, "Curry", baseline_budget=160)]
+        budgets = {10: 160}
+        pool_baselines = {10: 160, 20: 180}
+        extended, caps, adj = apply_protein_redistribution(
+            budgets, dishes, pool_baselines, redistribution_fraction=1.0)
+        self.assertAlmostEqual(extended[10], 160 + 180, places=1)
+        self.assertAlmostEqual(caps[10], 160 + 180, places=1)
+
+    def test_proportional_split_two_present(self):
+        """Two present categories get proportional shares of absent budget."""
+        dishes = [
+            make_dish(1, "Curry", 10, "Curry", baseline_budget=160),
+            make_dish(2, "Rice", 30, "Rice", baseline_budget=100),
+        ]
+        budgets = {10: 160, 30: 100}
+        pool_baselines = {10: 160, 20: 180, 30: 100}  # BBQ absent
+        extended, caps, adj = apply_protein_redistribution(
+            budgets, dishes, pool_baselines, redistribution_fraction=0.7)
+        # absent = 180 * 0.7 = 126
+        # curry share: 126 * (160/260) ≈ 77.5
+        # rice share: 126 * (100/260) ≈ 48.5
+        self.assertAlmostEqual(extended[10], 160 + 126 * (160 / 260), places=1)
+        self.assertAlmostEqual(extended[30], 100 + 126 * (100 / 260), places=1)
+
+    def test_no_absent_categories(self):
+        """All categories present → no redistribution, empty caps."""
+        dishes = [
+            make_dish(1, "Curry", 10, "Curry", baseline_budget=160),
+            make_dish(2, "BBQ", 20, "BBQ", baseline_budget=180),
+            make_dish(3, "Rice", 30, "Rice", baseline_budget=100),
+        ]
+        budgets = {10: 160, 20: 180, 30: 100}
+        pool_baselines = {10: 160, 20: 180, 30: 100}
+        extended, caps, adj = apply_protein_redistribution(
+            budgets, dishes, pool_baselines, redistribution_fraction=0.7)
+        self.assertEqual(extended, budgets)
+        self.assertEqual(caps, {})
+        self.assertEqual(adj, [])
 
 
 class TestApplyPoolCeiling(TestCase):
@@ -179,3 +222,78 @@ class TestSplitByPopularity(TestCase):
         portions, adj = split_by_popularity(dishes, budgets, 1.0, scale_factor=0.5)
         # min_per_dish = 70 * 0.5 = 35
         self.assertGreaterEqual(portions[2], 35.0)
+
+
+class TestApplyCategoryBudgetCaps(TestCase):
+    """Test the category budget cap function."""
+
+    def test_redistribution_capped_at_grown(self):
+        """Budget inflated by redistribution gets capped at grown budget (no extended_caps)."""
+        dishes = [make_dish(1, "Curry A", 10, "Curry", baseline_budget=160)]
+        budgets = {10: 300}  # inflated by redistribution
+        capped, adj = apply_category_budget_caps(budgets, dishes, 0.2)
+        # grown = 160 * (1 + 0.2 * 0) = 160, cap = 160
+        self.assertAlmostEqual(capped[10], 160.0)
+        self.assertTrue(any("capped" in a for a in adj))
+
+    def test_extended_caps_used_for_protein(self):
+        """When extended_caps provided, uses extended cap instead of grown budget."""
+        dishes = [make_dish(1, "Curry A", 10, "Curry", baseline_budget=160)]
+        budgets = {10: 286}  # after redistribution
+        extended_caps = {10: 286}  # extended cap from redistribution
+        capped, adj = apply_category_budget_caps(budgets, dishes, 0.2,
+                                                  extended_caps=extended_caps)
+        # Extended cap = 286, budget = 286 → not capped
+        self.assertAlmostEqual(capped[10], 286.0)
+        self.assertEqual(len(adj), 0)
+
+    def test_extended_cap_still_caps_if_exceeded(self):
+        """Budget exceeding extended cap still gets capped."""
+        dishes = [make_dish(1, "Curry A", 10, "Curry", baseline_budget=160)]
+        budgets = {10: 400}
+        extended_caps = {10: 286}
+        capped, adj = apply_category_budget_caps(budgets, dishes, 0.2,
+                                                  extended_caps=extended_caps)
+        self.assertAlmostEqual(capped[10], 286.0)
+        self.assertTrue(any("capped" in a for a in adj))
+
+    def test_budget_at_grown_unchanged(self):
+        """Budget equal to grown budget is not modified."""
+        dishes = [make_dish(1, "Curry A", 10, "Curry", baseline_budget=160)]
+        budgets = {10: 160}
+        capped, adj = apply_category_budget_caps(budgets, dishes, 0.2)
+        self.assertEqual(capped[10], 160)
+        self.assertEqual(len(adj), 0)
+
+    def test_two_dishes_cap_is_grown(self):
+        """2 dishes: cap = grown = 192g (no extended_caps)."""
+        dishes = [make_dish(i, f"Curry {i}", 10, "Curry", baseline_budget=160)
+                  for i in range(1, 3)]
+        budgets = {10: 250}
+        capped, adj = apply_category_budget_caps(budgets, dishes, 0.2)
+        # grown = 160 * (1 + 0.2 * 1) = 192
+        self.assertAlmostEqual(capped[10], 192.0)
+
+    def test_min_floor_overrides_cap(self):
+        """When min_per_dish × n > grown budget, the min floor wins."""
+        # 3 dishes with min_per_dish=100: min_floor = 300
+        # grown = 160 * (1 + 0.2 * 2) = 224
+        # cap = max(224, 300) = 300
+        dishes = [make_dish(i, f"Curry {i}", 10, "Curry", baseline_budget=160, min_per_dish=100)
+                  for i in range(1, 4)]
+        budgets = {10: 400}
+        capped, adj = apply_category_budget_caps(budgets, dishes, 0.2)
+        self.assertAlmostEqual(capped[10], 300.0)
+
+    def test_multiple_categories_capped_independently(self):
+        """Each category is capped independently."""
+        dishes = [
+            make_dish(1, "Curry A", 10, "Curry", baseline_budget=160),
+            make_dish(2, "BBQ A", 20, "BBQ", baseline_budget=180, min_per_dish=100),
+        ]
+        # Curry: grown=160, cap=160. BBQ: grown=180, cap=180.
+        budgets = {10: 300, 20: 170}
+        capped, adj = apply_category_budget_caps(budgets, dishes, 0.2)
+        self.assertAlmostEqual(capped[10], 160.0)  # curry capped
+        self.assertEqual(capped[20], 170)  # bbq under cap, unchanged
+        self.assertEqual(len(adj), 1)  # only curry adjustment

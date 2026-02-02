@@ -51,6 +51,57 @@ class CheckPortionsView(APIView):
         constraints = _resolve_constraints(constraint_overrides)
         guest_mix = GuestMix(**guests)
 
+        # Compute dynamic category budget caps
+        # Protein categories: extended cap = grown + proportional absent share
+        # Non-protein categories: cap = max(grown, n × min_per_dish)
+        by_category = {}
+        for d in dishes:
+            by_category.setdefault(d.category_id, []).append(d)
+
+        # Compute protein pool extended caps
+        from calculator.engine.calculator import _load_pool_baselines
+        protein_pool_baselines = _load_pool_baselines('protein')
+        protein_cat_ids = set()
+        protein_grown_budgets = {}
+        for cat_id, cat_dishes in by_category.items():
+            ref = cat_dishes[0]
+            if ref.pool != 'protein':
+                continue
+            protein_cat_ids.add(cat_id)
+            n = len(cat_dishes)
+            grown = ref.baseline_budget_grams * (1 + config.dish_growth_rate * (n - 1))
+            min_floor = n * ref.min_per_dish_grams
+            protein_grown_budgets[cat_id] = max(grown, min_floor)
+
+        # Compute absent budget and distribute proportionally to present protein categories
+        protein_extended_caps = {}
+        if protein_grown_budgets:
+            absent_budget_raw = sum(
+                baseline for cid, baseline in protein_pool_baselines.items()
+                if cid not in protein_cat_ids
+            )
+            absent_budget = absent_budget_raw * config.absent_redistribution_fraction
+            if absent_budget > 0:
+                sum_present = sum(protein_grown_budgets.values())
+                if sum_present > 0:
+                    for cat_id, budget in protein_grown_budgets.items():
+                        share = absent_budget * (budget / sum_present)
+                        protein_extended_caps[cat_id] = budget + share
+
+        for cat_id, cat_dishes in by_category.items():
+            ref = cat_dishes[0]
+            if ref.pool == 'service':
+                continue
+            n = len(cat_dishes)
+            if cat_id in protein_extended_caps:
+                cap = protein_extended_caps[cat_id]
+            else:
+                grown = ref.baseline_budget_grams * (1 + config.dish_growth_rate * (n - 1))
+                cap = max(grown, n * ref.min_per_dish_grams)
+            existing = constraints.category_max_totals.get(cat_id)
+            if existing is None or cap < existing:
+                constraints.category_max_totals[cat_id] = round(cap, 1)
+
         pool_ceilings = {
             'protein': protein_ceiling,
             'accompaniment': accompaniment_ceiling,

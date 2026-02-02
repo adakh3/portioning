@@ -129,7 +129,7 @@ class TestAPI(TestCase):
         self.assertEqual(dessert.baseline_budget_grams, 80)
 
     def test_redistribution_curry_rice_only(self):
-        """Curry + rice only: absent BBQ+sides budget redistributed."""
+        """Curry + rice only: absent BBQ budget redistributed (protein pool only)."""
         from dishes.models import Dish
         curry_dish = Dish.objects.filter(category__name='curry', is_active=True).first()
         rice_dish = Dish.objects.filter(category__name='rice', is_active=True).first()
@@ -140,11 +140,12 @@ class TestAPI(TestCase):
         self.assertEqual(res.status_code, 200)
         data = res.json()
         portions = {p['category']: p['grams_per_gent'] for p in data['portions']}
-        # With growth_rate=0.2, redistribution_fraction=0.7:
+        # With redistribution_fraction=0.7:
         # Curry=160, Rice=100, absent BBQ=180. Redistributed = 180*0.7 = 126g
-        # Curry: 160 + 126*(160/260) ≈ 237.5g, Rice: 100 + 126*(100/260) ≈ 148.5g
-        self.assertGreater(portions['Curry'], 220)
-        self.assertGreater(portions['Rice'], 130)
+        # Curry: 160 + 126*(160/260) ≈ 237.5g (extended cap = 237.5g, not capped)
+        # Rice: 100 + 126*(100/260) ≈ 148.5g (extended cap = 148.5g, not capped)
+        self.assertAlmostEqual(portions['Curry'], 238, delta=5)
+        self.assertAlmostEqual(portions['Rice'], 149, delta=5)
         # Total protein pool should be around 386g (under 590 ceiling)
         protein_total = sum(p['grams_per_gent'] for p in data['portions'] if p['pool'] == 'protein')
         self.assertLessEqual(protein_total, 590)
@@ -175,7 +176,7 @@ class TestAPI(TestCase):
 
     def test_full_menu_no_redistribution(self):
         """All 3 protein categories + accompaniment: no absent budget in protein pool.
-        Sides is now in accompaniment pool, so protein pool = curry+BBQ+rice = 440g."""
+        Sides is in accompaniment pool — no redistribution in accompaniment pool."""
         from dishes.models import Dish
         bbq_dish = Dish.objects.filter(category__name='dry_barbecue', is_active=True).first()
         curry_dish = Dish.objects.filter(category__name='curry', is_active=True).first()
@@ -188,13 +189,13 @@ class TestAPI(TestCase):
         self.assertEqual(res.status_code, 200)
         data = res.json()
         protein_total = sum(p['grams_per_gent'] for p in data['portions'] if p['pool'] == 'protein')
-        # Protein pool: 160+180+100 = 440g (sides is in accompaniment pool now)
+        # Protein pool: 160+180+100 = 440g
         self.assertAlmostEqual(protein_total, 440, delta=5)
-        # Sides should be in accompaniment pool (with absent veg_curry budget partially redistributed)
+        # Sides should be in accompaniment pool with no redistribution
         sides_portions = [p for p in data['portions'] if p['pool'] == 'accompaniment']
         self.assertEqual(len(sides_portions), 1)
-        # Sides baseline=60 + absent veg_curry(80)*0.7 = 60 + 56 = 116g
-        self.assertAlmostEqual(sides_portions[0]['grams_per_gent'], 116, delta=5)
+        # Sides baseline=60, no redistribution → 60g
+        self.assertAlmostEqual(sides_portions[0]['grams_per_gent'], 60, delta=5)
 
     def test_warning_no_curry(self):
         """Warning when menu has no curry."""
@@ -264,8 +265,8 @@ class TestAPI(TestCase):
         protein_total = sum(p['grams_per_gent'] for p in data['portions'] if p['pool'] == 'protein')
         self.assertLessEqual(protein_total, 590)
 
-    def test_veg_curry_only_gets_redistribution(self):
-        """Veg curry only (no sides): absent sides budget redistributed in accompaniment pool."""
+    def test_veg_curry_only_no_redistribution(self):
+        """Veg curry only (no sides): no redistribution in accompaniment pool."""
         from dishes.models import Dish
         veg_curry = Dish.objects.filter(category__name='veg_curry', is_active=True).first()
         res = self.client.post('/api/calculate/', {
@@ -276,5 +277,5 @@ class TestAPI(TestCase):
         data = res.json()
         acc_portions = [p for p in data['portions'] if p['pool'] == 'accompaniment']
         self.assertEqual(len(acc_portions), 1)
-        # Veg curry baseline 80 + absent sides 60*0.7 = 80 + 42 = 122g
-        self.assertAlmostEqual(acc_portions[0]['grams_per_gent'], 122, delta=5)
+        # Veg curry baseline 80, no redistribution → 80g
+        self.assertAlmostEqual(acc_portions[0]['grams_per_gent'], 80, delta=5)

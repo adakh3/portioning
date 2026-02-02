@@ -26,7 +26,7 @@ Rice stays in the protein pool regardless of whether it's meat or veg rice — r
 
 Categories: **Veg Curry, Sides**
 
-Veg curries (Daal, Palak Paneer, Lobia, etc.) and sides (Bhagaray Baingan, Bhindi Fry, etc.) are accompaniments to the main courses, not protein mains. They have their own independent pool with its own ceiling. Redistribution works within the accompaniment pool — if only veg curry is present, it absorbs the absent sides budget and vice versa.
+Veg curries (Daal, Palak Paneer, Lobia, etc.) and sides (Bhagaray Baingan, Bhindi Fry, etc.) are accompaniments to the main courses, not protein mains. They have their own independent pool with its own ceiling. There is no redistribution in the accompaniment pool — each category stays at its grown budget regardless of which other categories are present.
 
 ### Pool 3: Dessert
 
@@ -94,33 +94,70 @@ category_budget = max(grown_budget, number_of_dishes × min_per_dish)
 - 2 BBQ dishes: 180 × (1 + 0.2) = **216g** → 108g each
 - 3 BBQ dishes: 180 × (1 + 0.4) = **252g** → 84g each
 
-### Step 1b: Redistribute Absent-Category Budget
+### Step 1b: Redistribute Absent-Category Budget (Protein Pool Only)
 
-After computing present category budgets, the engine checks which categories in the pool are **absent** from the menu. The baselines of absent categories are summed, scaled by the **redistribution fraction**, and redistributed **proportionally** to the present categories.
+**This step only applies to the protein pool.** Accompaniment and dessert pools do not redistribute absent-category budgets.
+
+After computing present category budgets, the engine checks which protein categories are **absent** from the menu. The baselines of absent categories are summed, scaled by the **redistribution fraction**, and redistributed **proportionally** to the present protein categories. This redistributed amount extends both the budget AND the cap for each present category.
 
 ```
-absent_budget_raw = sum(baseline for each absent category in the pool)
+absent_budget_raw = sum(baseline for each absent protein category)
 redistributed = absent_budget_raw × redistribution_fraction
 
-for each present category:
-    budget += redistributed × (budget / sum_of_present_budgets)
+for each present protein category:
+    share = redistributed × (budget / sum_of_present_budgets)
+    budget += share
+    extended_cap = budget  (used in Step 1c instead of grown budget)
 ```
 
 - **redistribution_fraction** (default: 0.70) = 70% of the absent budget redistributes. This prevents over-inflation when many categories are absent. Admin-configurable.
 
 **Why this exists:** A menu with just curry + rice should get more food per category than one with curry + rice + BBQ. The absent BBQ budget doesn't vanish — a portion of it flows into the categories that are actually present. The partial redistribution (70% by default) prevents a simple two-dish menu from getting nearly as much food as a full spread.
 
+**Why protein-only:** Accompaniment items (veg curries, sides) are small side dishes — if one is absent, the other shouldn't absorb extra budget. A menu with only veg curry should give 80g of veg curry, not an inflated amount. The protein pool is where the main course budget lives, and redistribution makes sense there.
+
 **Example — Curry + Rice only (no BBQ), redistribution_fraction=0.7:**
 - Present: Curry = 160g, Rice = 100g (total present = 260g)
 - Absent: BBQ = 180g → redistributed = 180 × 0.7 = 126g
-- Curry: 160 + 126 × (160/260) = **238g**
-- Rice: 100 + 126 × (100/260) = **148g**
+- Curry: 160 + 126 × (160/260) = **238g** (extended cap = 238g)
+- Rice: 100 + 126 × (100/260) = **149g** (extended cap = 149g)
 - Pool total: **386g** (under 590g ceiling)
+
+**Example — Curry only (no BBQ, no Rice):**
+- Present: Curry = 160g
+- Absent: BBQ = 180g, Rice = 100g → redistributed = (180 + 100) × 0.7 = 196g
+- Curry: 160 + 196 = **356g** (extended cap = 356g)
+- Pool total: **356g** (under 590g ceiling — the pool ceiling is the backstop)
 
 **Example — All 3 protein categories present (BBQ + Curry + Rice):**
 - BBQ = 180, Curry = 160, Rice = 100 (total = 440g)
-- No absent categories → no redistribution
+- No absent categories → no redistribution, no extended caps
 - Pool total: **440g**
+
+### Step 1c: Apply Category Budget Caps
+
+After redistribution, each category's budget is capped. The cap depends on the pool:
+
+- **Protein pool with extended caps:** The cap is the **extended cap** from Step 1b (grown budget + proportional share of absent budget). This allows protein categories to benefit from redistribution up to the extended amount.
+- **All other cases** (no redistribution, or non-protein pools): The cap is the **grown budget** from Step 1.
+
+```
+# For protein categories with extended caps:
+cap = max(extended_cap, min_floor)
+
+# For all other categories:
+grown_budget = baseline × (1 + growth_rate × (num_dishes - 1))
+cap = max(grown_budget, min_floor)
+
+min_floor = num_dishes × min_per_dish
+
+if budget > cap:
+    budget = cap
+```
+
+- The **min floor** (num_dishes × min_per_dish) always wins — the cap never reduces a category below the minimum viable amount for its dishes.
+
+**Why this exists:** The cap prevents any category from exceeding its reasonable maximum. For protein categories, the extended cap is the natural limit — it's the grown budget plus the proportional share of absent categories. For non-protein categories, the grown budget is the limit since there's no redistribution.
 
 ### Step 2: Check the Pool Ceiling
 
@@ -178,19 +215,24 @@ final_portion = equal_share × (1 - strength) + popularity_share × strength
 
 ## How the Accompaniment Pool Works
 
-Same three-step process as protein, but with its own categories and ceiling:
+Similar to protein but **without redistribution** — each category stays at its grown budget regardless of which other accompaniment categories are present or absent:
 
 1. **Establish budgets:** Veg Curry baseline = 80g (min 30g), Sides baseline = 60g (min 30g). Growth model applies per category.
-2. **Redistribute absent budget:** If only veg curry is present, 70% of absent sides budget redistributes to veg curry. Vice versa.
-3. **Check ceiling:** Accompaniment ceiling = 150g (veg curry 80 + sides 60 = 140g fits under ceiling)
-4. **Split by popularity:** Same formula as protein
+2. **No redistribution:** Absent categories do not extend present categories' budgets. A menu with only veg curry gets 80g, not more.
+3. **Cap at grown budget:** Each category is capped at its grown budget (same as protein without extended caps).
+4. **Check ceiling:** Accompaniment ceiling = 150g (veg curry 80 + sides 60 = 140g fits under ceiling)
+5. **Split by popularity:** Same formula as protein
 
-**Example — Veg curry only (no sides), redistribution_fraction=0.7:**
-- Present: Veg Curry = 80g. Absent: Sides = 60g → redistributed = 60 × 0.7 = 42g.
-- Veg Curry: 80 + 42 = **122g** (under 150g ceiling)
+**Example — Veg curry only (no sides):**
+- Present: Veg Curry = 80g. No redistribution.
+- Veg Curry: **80g**
+
+**Example — Sides only (no veg curry):**
+- Present: Sides = 60g. No redistribution.
+- Sides: **60g**
 
 **Example — Both veg curry and sides:**
-- Veg Curry = 80g, Sides = 60g. No absent categories.
+- Veg Curry = 80g, Sides = 60g.
 - Total = 140g (under 150g ceiling, no compression)
 
 **Example — 3 veg curries + 1 sides (growth_rate=0.2):**
@@ -201,10 +243,10 @@ Same three-step process as protein, but with its own categories and ceiling:
 
 ## How the Dessert Pool Works
 
-Exactly the same three-step process as protein, but with its own numbers:
+Same as accompaniment — **no redistribution**. Each category stays at its grown budget:
 
 1. **Establish budget:** Dessert baseline = 80g, min per dish = 40g
-2. **Redistribute absent budget:** Only one category in this pool, so no redistribution possible
+2. **No redistribution:** Only one category in this pool, and dessert doesn't redistribute regardless
 3. **Check ceiling:** Dessert ceiling = 150g (so 1–3 desserts fit without compression; 4+ would compress)
 4. **Split by popularity:** Same formula as protein
 
@@ -328,7 +370,7 @@ The engine outputs two lists alongside the portions: **warnings** (red, importan
 | When | Example message |
 |------|----------------|
 | Category budget grew because many dishes need minimum portions | "Curry budget increased: 3 dishes need at least 70g each, so budget grew from 160g to 210g" |
-| Absent category budget redistributed | "No Dry / Barbecue on menu — their 180g budget was spread across the categories that are present" |
+| Absent protein category budget redistributed | "No Dry / Barbecue on menu — 70% of their 180g budget (126g) was spread across the categories that are present" |
 | Pool ceiling compressed portions | "Total exceeded 590g limit — all portions reduced by 5% (Curry 160g → 152g, Dry / Barbecue 300g → 286g, Rice 100g → 95g)" |
 | Non-default budget profile raised ceiling | "Large menu — combined Curry + Dry / Barbecue + Rice limit raised from 590g to 700g per person" |
 | Category total constraint applied | "Salad total reduced from 150g to 100g (category limit)" |
@@ -359,11 +401,15 @@ The engine outputs two lists alongside the portions: **warnings** (red, importan
 - Curry (1 dish): 160 × (1 + 0) = **160g**
 - Rice (1 dish): 100 × (1 + 0) = **100g**
 
-**Step 1b — Redistribution (redistribution_fraction=0.7):**
+**Step 1b — Protein redistribution (redistribution_fraction=0.7):**
 - Present total: 260g
 - Absent: BBQ = 180g → redistributed = 180 × 0.7 = 126g
-- Curry: 160 + 126 × (160/260) = **238g**
-- Rice: 100 + 126 × (100/260) = **148g**
+- Curry: 160 + 126 × (160/260) = **238g** (extended cap = 238g)
+- Rice: 100 + 126 × (100/260) = **149g** (extended cap = 149g)
+
+**Step 1c — Category budget caps (extended caps):**
+- Curry: extended cap = 238g. Budget = 238g → **no capping**
+- Rice: extended cap = 149g. Budget = 149g → **no capping**
 
 **Step 2 — Ceiling check:**
 - Total: 386g < 590g ceiling. No compression.
@@ -393,14 +439,14 @@ No veg curry or sides on menu → pool is empty, no allocation.
 | Dish | Category | Per Gent | Per Lady |
 |------|----------|----------|----------|
 | Mutton Qorma | Curry | 238g | 238g |
-| Chicken Biryani | Rice | 148g | 148g |
+| Chicken Biryani | Rice | 149g | 149g |
 | Fresh Green Salad | Salad | 50g | 50g |
 | Raita | Condiment | 40g | 40g |
 | Naan | Bread | 1 pc | 1 pc |
 | Fruit Trifle | Dessert | 80g | 80g |
 | Green Tea | Tea | 1 cup | 1 cup |
 
-**Grand total per gent: ~556g** (386 protein + 80 dessert + 90 service). Ladies receive the same portions (multiplier 1.0).
+**Grand total per gent: ~557g** (386 protein + 80 dessert + 90 service). Ladies receive the same portions (multiplier 1.0).
 
 ---
 
@@ -415,7 +461,7 @@ No veg curry or sides on menu → pool is empty, no allocation.
 - Curry (1 dish): 160 × (1 + 0) = **160g**
 - Rice (1 dish): 100 × (1 + 0) = **100g**
 
-**Step 1b — Redistribution:**
+**Step 1b — Protein redistribution:**
 - All 3 protein categories present → no absent budget → no redistribution
 - Total: 440g
 
@@ -437,7 +483,7 @@ No veg curry or sides on menu → pool is empty, no allocation.
 - Curry (2 dishes): 160 × (1 + 0.2) = **192g** → 96g each
 - Rice (1 dish): 100 × (1 + 0) = **100g**
 
-**Step 1b — Redistribution:**
+**Step 1b — Protein redistribution:**
 - All 3 protein categories present → no absent budget → no redistribution
 - Total: 508g
 
@@ -452,8 +498,7 @@ No veg curry or sides on menu → pool is empty, no allocation.
 - Veg Curry (1 dish): 80 × (1 + 0) = **80g**
 - Sides (1 dish): 60 × (1 + 0) = **60g**
 
-**Step 1b — Redistribution:**
-- Both categories present → no redistribution
+**No redistribution** in accompaniment pool — each category stays at its grown budget.
 - Total: 140g
 
 **Step 2 — Ceiling check:**
@@ -514,7 +559,7 @@ Violation messages use the appropriate unit label ("g" for weight, "pcs" for qty
 | Accompaniment pool ceiling | GlobalConfig (admin) | 150g | Max total for veg curry + sides combined |
 | Dessert pool ceiling | GlobalConfig (admin) | 150g | Max total for dessert category |
 | Dish growth rate | GlobalConfig (admin) | 0.20 | Each extra dish adds this fraction of baseline to category budget |
-| Absent redistribution fraction | GlobalConfig (admin) | 0.70 | Fraction of absent-category budget that redistributes (0-1) |
+| Absent redistribution fraction | GlobalConfig (admin) | 0.70 | Fraction of absent-category budget that redistributes to present categories (protein pool only, 0-1) |
 | Popularity strength | GlobalConfig (admin) | 0.3 | How much popularity affects within-category split |
 | Popularity per dish | Dish (admin) | 1.0 | Relative weight for popularity-based splitting |
 | Ladies multiplier | GuestProfile (admin) | 1.0 | Ladies get same portions as gents (configurable) |

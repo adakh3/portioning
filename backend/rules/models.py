@@ -26,7 +26,7 @@ class GlobalConfig(models.Model):
     )
     absent_redistribution_fraction = models.FloatField(
         default=0.70,
-        help_text="Fraction of absent-category budget that redistributes (0-1)",
+        help_text="Fraction of absent-category budget that redistributes to present categories (protein pool only, 0-1)",
     )
 
     class Meta:

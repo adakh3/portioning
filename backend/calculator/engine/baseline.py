@@ -1,23 +1,15 @@
 """Pool-based baseline allocation: category budgets, pool ceilings, popularity split."""
 
 
-def establish_category_budgets(dishes, pool_baselines=None,
-                               growth_rate=0.0, redistribution_fraction=1.0):
+def establish_category_budgets(dishes, growth_rate=0.0):
     """
-    Step 1: For each present category in the protein/dessert pool,
-    compute budget using growth model:
+    Step 1: For each present category, compute budget using growth model:
         grown_budget = baseline × (1 + growth_rate × (n - 1))
         budget = max(grown_budget, n × min_per_dish)
 
-    Then redistribute absent-category budget (scaled by redistribution_fraction)
-    proportionally to present categories.
-
     Args:
-        dishes: list of DishInput (only protein/dessert pool dishes)
-        pool_baselines: dict[category_id -> baseline_grams] for ALL categories in
-                        the same pool (present + absent). If None, no redistribution.
+        dishes: list of DishInput (only dishes in one pool)
         growth_rate: fraction of baseline added per extra dish (default 0.0 for backward compat)
-        redistribution_fraction: fraction of absent budget that redistributes (0-1, default 1.0)
 
     Returns:
         dict[category_id -> budget_grams], list[str] adjustments
@@ -51,33 +43,110 @@ def establish_category_budgets(dishes, pool_baselines=None,
                 f"{baseline:.0f}g to {grown_budget:.0f}g"
             )
 
-    # Redistribute absent-category budget proportionally
-    if pool_baselines:
-        present_ids = set(category_budgets.keys())
-        absent_budget_raw = sum(
-            baseline for cat_id, baseline in pool_baselines.items()
-            if cat_id not in present_ids
-        )
-        absent_budget = absent_budget_raw * redistribution_fraction
-        if absent_budget > 0:
-            sum_present = sum(category_budgets.values())
-            if sum_present > 0:
-                for cat_id in list(category_budgets.keys()):
-                    share = absent_budget * (category_budgets[cat_id] / sum_present)
-                    category_budgets[cat_id] += share
-                # Build absent category names for the message
-                from dishes.models import DishCategory
-                absent_cats = DishCategory.objects.filter(
-                    id__in=[cid for cid in pool_baselines if cid not in present_ids]
-                ).values_list('display_name', flat=True)
-                absent_names = ', '.join(absent_cats) or 'other categories'
-                pct = round(redistribution_fraction * 100)
-                adjustments.append(
-                    f"No {absent_names} on menu — {pct}% of their {absent_budget_raw:.0f}g budget "
-                    f"({absent_budget:.0f}g) was spread across the categories that are present"
-                )
-
     return category_budgets, adjustments
+
+
+def apply_protein_redistribution(category_budgets, dishes, pool_baselines,
+                                  redistribution_fraction):
+    """
+    Step 1b (protein pool only): Redistribute absent-category budget to present
+    categories. Each present category's budget AND cap are extended by its
+    proportional share of the absent budget.
+
+    Args:
+        category_budgets: dict[category_id -> budget_grams] (from establish_category_budgets)
+        dishes: list of DishInput (protein pool dishes)
+        pool_baselines: dict[category_id -> baseline_grams] for ALL categories in the protein pool
+        redistribution_fraction: fraction of absent budget that redistributes (0-1)
+
+    Returns:
+        (extended_budgets, extended_caps, list[str] adjustments)
+        extended_budgets: dict[cat_id -> extended budget]
+        extended_caps: dict[cat_id -> extended cap value] (used by apply_category_budget_caps)
+    """
+    adjustments = []
+    extended_budgets = dict(category_budgets)
+    extended_caps = {}
+
+    present_ids = set(category_budgets.keys())
+    absent_budget_raw = sum(
+        baseline for cat_id, baseline in pool_baselines.items()
+        if cat_id not in present_ids
+    )
+    absent_budget = absent_budget_raw * redistribution_fraction
+
+    if absent_budget > 0:
+        sum_present = sum(category_budgets.values())
+        if sum_present > 0:
+            for cat_id in list(category_budgets.keys()):
+                share = absent_budget * (category_budgets[cat_id] / sum_present)
+                extended_budgets[cat_id] += share
+                extended_caps[cat_id] = extended_budgets[cat_id]
+
+            # Build absent category names for the message
+            from dishes.models import DishCategory
+            absent_cats = DishCategory.objects.filter(
+                id__in=[cid for cid in pool_baselines if cid not in present_ids]
+            ).values_list('display_name', flat=True)
+            absent_names = ', '.join(absent_cats) or 'other categories'
+            pct = round(redistribution_fraction * 100)
+            adjustments.append(
+                f"No {absent_names} on menu — {pct}% of their {absent_budget_raw:.0f}g budget "
+                f"({absent_budget:.0f}g) was spread across the categories that are present"
+            )
+
+    return extended_budgets, extended_caps, adjustments
+
+
+def apply_category_budget_caps(category_budgets, dishes, growth_rate,
+                                extended_caps=None):
+    """
+    Step 1c: Cap each category's budget.
+
+    For protein-pool categories with extended_caps, the cap is the extended cap
+    (grown budget + proportional share of absent budget). For all other categories,
+    the cap is the grown budget.
+
+    If the cap conflicts with min_per_dish × num_dishes, the min floor wins.
+
+    Args:
+        category_budgets: dict[category_id -> budget_grams] (after redistribution)
+        dishes: list of DishInput
+        growth_rate: float
+        extended_caps: optional dict[category_id -> extended_cap_value] from
+                       apply_protein_redistribution. If provided, these values
+                       are used as caps instead of grown budget.
+
+    Returns:
+        (capped_budgets, list[str] adjustments)
+    """
+    adjustments = []
+    by_category = {}
+    for dish in dishes:
+        by_category.setdefault(dish.category_id, []).append(dish)
+
+    capped = dict(category_budgets)
+    for cat_id, cat_dishes in by_category.items():
+        current = capped.get(cat_id, 0)
+        ref = cat_dishes[0]
+        n = len(cat_dishes)
+        grown = ref.baseline_budget_grams * (1 + growth_rate * (n - 1))
+        min_floor = n * ref.min_per_dish_grams
+
+        if extended_caps and cat_id in extended_caps:
+            cap = max(extended_caps[cat_id], min_floor)
+        else:
+            cap = max(grown, min_floor)
+
+        if current > cap:
+            cat_name = ref.category_name
+            adjustments.append(
+                f"{cat_name} budget capped: redistribution pushed budget to "
+                f"{current:.0f}g, capped at {cap:.0f}g (grown budget)"
+            )
+            capped[cat_id] = cap
+
+    return capped, adjustments
 
 
 def apply_pool_ceiling(category_budgets, ceiling, dishes):

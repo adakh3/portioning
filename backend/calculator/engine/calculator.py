@@ -2,7 +2,7 @@
 from decimal import Decimal
 
 from .models import DishInput, GuestMix, ResolvedConstraints
-from .baseline import establish_category_budgets, apply_pool_ceiling, split_by_popularity
+from .baseline import establish_category_budgets, apply_protein_redistribution, apply_category_budget_caps, apply_pool_ceiling, split_by_popularity
 from .constraints import enforce_category_constraints, enforce_global_constraints
 
 
@@ -204,9 +204,20 @@ def calculate_portions(dish_ids, guests, constraint_overrides=None,
     if protein_dishes:
         protein_pool_baselines = _load_pool_baselines('protein')
         cat_budgets, adj = establish_category_budgets(
-            protein_dishes, protein_pool_baselines,
+            protein_dishes,
             growth_rate=config.dish_growth_rate,
-            redistribution_fraction=config.absent_redistribution_fraction,
+        )
+        all_adjustments.extend(adj)
+
+        cat_budgets, extended_caps, adj = apply_protein_redistribution(
+            cat_budgets, protein_dishes, protein_pool_baselines,
+            config.absent_redistribution_fraction,
+        )
+        all_adjustments.extend(adj)
+
+        cat_budgets, adj = apply_category_budget_caps(
+            cat_budgets, protein_dishes, config.dish_growth_rate,
+            extended_caps=extended_caps,
         )
         all_adjustments.extend(adj)
 
@@ -222,11 +233,14 @@ def calculate_portions(dish_ids, guests, constraint_overrides=None,
 
     # ── ACCOMPANIMENT POOL ──
     if accompaniment_dishes:
-        accompaniment_pool_baselines = _load_pool_baselines('accompaniment')
         cat_budgets, adj = establish_category_budgets(
-            accompaniment_dishes, accompaniment_pool_baselines,
+            accompaniment_dishes,
             growth_rate=config.dish_growth_rate,
-            redistribution_fraction=config.absent_redistribution_fraction,
+        )
+        all_adjustments.extend(adj)
+
+        cat_budgets, adj = apply_category_budget_caps(
+            cat_budgets, accompaniment_dishes, config.dish_growth_rate,
         )
         all_adjustments.extend(adj)
 
@@ -242,11 +256,14 @@ def calculate_portions(dish_ids, guests, constraint_overrides=None,
 
     # ── DESSERT POOL ──
     if dessert_dishes:
-        dessert_pool_baselines = _load_pool_baselines('dessert')
         cat_budgets, adj = establish_category_budgets(
-            dessert_dishes, dessert_pool_baselines,
+            dessert_dishes,
             growth_rate=config.dish_growth_rate,
-            redistribution_fraction=config.absent_redistribution_fraction,
+        )
+        all_adjustments.extend(adj)
+
+        cat_budgets, adj = apply_category_budget_caps(
+            cat_budgets, dessert_dishes, config.dish_growth_rate,
         )
         all_adjustments.extend(adj)
 

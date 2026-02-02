@@ -76,10 +76,30 @@ export default function PortionsEditor({
     );
   }
 
+  // Build a category lookup by id
+  const categoryById = new Map(categories.map((c) => [c.id, c]));
+
   const totalPortion = groups.reduce((sum, g) => sum + g.subtotal, 0);
   const totalEngine = engineRecs
     ? groups.reduce((sum, g) => sum + (g.engineSubtotal ?? 0), 0)
     : null;
+
+  // Compute protein per person totals (protein pool only, weight-based)
+  const proteinCatIds = new Set(
+    categories.filter((c) => c.pool === "protein" && c.unit !== "qty").map((c) => c.id)
+  );
+  let proteinUser = 0;
+  let proteinEngine: number | null = engineRecs ? 0 : null;
+  const selectedDishes = dishes.filter((d) => selectedDishIds.has(d.id));
+  for (const d of selectedDishes) {
+    if (!proteinCatIds.has(d.category)) continue;
+    proteinUser += portions.get(d.id) ?? 0;
+    if (engineRecs && proteinEngine !== null) {
+      proteinEngine += engineRecs.get(d.id) ?? 0;
+    }
+  }
+  proteinUser = Math.round(proteinUser * 10) / 10;
+  if (proteinEngine !== null) proteinEngine = Math.round(proteinEngine * 10) / 10;
 
   return (
     <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
@@ -87,12 +107,12 @@ export default function PortionsEditor({
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
-              <th className="text-left px-4 py-3 font-medium text-gray-700">Dish</th>
-              <th className="text-right px-4 py-3 font-medium text-gray-700 w-32">Your Portion</th>
+              <th className="text-left px-3 py-1.5 font-medium text-gray-700">Dish</th>
+              <th className="text-right px-3 py-1.5 font-medium text-gray-700 w-32">Your Portion</th>
               {engineRecs && (
                 <>
-                  <th className="text-right px-4 py-3 font-medium text-gray-700 w-28">Engine Rec</th>
-                  <th className="text-right px-4 py-3 font-medium text-gray-700 w-28">Delta</th>
+                  <th className="text-right px-3 py-1.5 font-medium text-gray-700 w-28">Engine Rec</th>
+                  <th className="text-right px-3 py-1.5 font-medium text-gray-700 w-28">Delta</th>
                 </>
               )}
             </tr>
@@ -107,7 +127,7 @@ export default function PortionsEditor({
                 <tr className="bg-gray-100 border-t border-gray-300">
                   <td
                     colSpan={engineRecs ? 4 : 2}
-                    className="px-4 py-2 font-semibold text-gray-800 text-xs uppercase tracking-wide"
+                    className="px-3 py-1 font-semibold text-gray-800 text-xs uppercase tracking-wide"
                   >
                     {group.category.display_name}
                   </td>
@@ -124,8 +144,8 @@ export default function PortionsEditor({
 
                   return (
                     <tr key={dish.id} className="hover:bg-gray-50 border-b border-gray-100">
-                      <td className="px-4 py-2.5 pl-8 text-gray-900">{dish.name}</td>
-                      <td className="px-4 py-2.5 text-right">
+                      <td className="px-3 py-0.5 pl-6 text-gray-900">{dish.name}</td>
+                      <td className="px-3 py-0.5 text-right">
                         <input
                           type="number"
                           min={0}
@@ -136,16 +156,16 @@ export default function PortionsEditor({
                             onPortionChange(dish.id, isNaN(val) ? 0 : val);
                           }}
                           placeholder="0"
-                          className="w-24 text-right border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                          className="w-24 text-right border border-gray-300 rounded px-2 py-0.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                         />
                         <span className="text-xs text-gray-400 ml-1">{suffix}</span>
                       </td>
                       {engineRecs && (
                         <>
-                          <td className="px-4 py-2.5 text-right font-mono text-gray-500">
+                          <td className="px-3 py-0.5 text-right font-mono text-gray-500">
                             {engineVal !== undefined ? `${engineVal}${suffix}` : "—"}
                           </td>
-                          <td className="px-4 py-2.5 text-right font-mono">
+                          <td className="px-3 py-0.5 text-right font-mono">
                             {deltaGrams !== null && deltaPct !== null ? (
                               <span className={deltaColor(Math.abs(deltaPct))}>
                                 {deltaGrams > 0 ? "+" : ""}
@@ -171,18 +191,18 @@ export default function PortionsEditor({
                 })}
                 {/* Subtotal row */}
                 <tr className="bg-gray-50 border-b border-gray-200">
-                  <td className="px-4 py-2.5 pl-8 text-gray-800 font-semibold text-sm">
+                  <td className="px-3 py-1 pl-6 text-gray-800 font-semibold text-sm">
                     {group.category.display_name} Subtotal
                   </td>
-                  <td className="px-4 py-2.5 text-right text-gray-800 font-semibold text-sm">
+                  <td className="px-3 py-1 text-right text-gray-800 font-semibold text-sm">
                     {group.subtotal}{suffix}
                   </td>
                   {engineRecs && (
                     <>
-                      <td className="px-4 py-2.5 text-right text-gray-500 font-semibold text-sm font-mono">
+                      <td className="px-3 py-1 text-right text-gray-500 font-semibold text-sm font-mono">
                         {group.engineSubtotal !== null ? `${group.engineSubtotal}${suffix}` : "—"}
                       </td>
-                      <td className="px-4 py-2.5" />
+                      <td className="px-3 py-1" />
                     </>
                   )}
                 </tr>
@@ -190,17 +210,46 @@ export default function PortionsEditor({
             );
           })}
           <tfoot className="bg-gray-50 border-t-2 border-gray-300">
+            {/* Protein per person row */}
+            {proteinCatIds.size > 0 && selectedDishes.some((d) => proteinCatIds.has(d.category)) && (
+              <tr className="font-semibold text-gray-700">
+                <td className="px-3 py-1.5">Protein per Person</td>
+                <td className="px-3 py-1.5 text-right">
+                  {proteinUser}g
+                </td>
+                {engineRecs && (
+                  <>
+                    <td className="px-3 py-1.5 text-right text-gray-500 font-mono">
+                      {proteinEngine !== null ? `${proteinEngine}g` : "—"}
+                    </td>
+                    <td className="px-3 py-1.5 text-right font-mono">
+                      {proteinEngine !== null && proteinEngine !== 0 ? (
+                        <span
+                          className={deltaColor(
+                            Math.abs(((proteinUser - proteinEngine) / proteinEngine) * 100)
+                          )}
+                        >
+                          {proteinUser - proteinEngine > 0 ? "+" : ""}
+                          {Math.round((proteinUser - proteinEngine) * 10) / 10}g
+                        </span>
+                      ) : null}
+                    </td>
+                  </>
+                )}
+              </tr>
+            )}
+            {/* Food per person row */}
             <tr className="font-semibold">
-              <td className="px-4 py-3 text-gray-900">Food per Person</td>
-              <td className="px-4 py-3 text-right text-gray-900">
+              <td className="px-3 py-1.5 text-gray-900">Food per Person</td>
+              <td className="px-3 py-1.5 text-right text-gray-900">
                 {Math.round(totalPortion * 10) / 10}g
               </td>
               {engineRecs && (
                 <>
-                  <td className="px-4 py-3 text-right text-gray-500 font-mono">
+                  <td className="px-3 py-1.5 text-right text-gray-500 font-mono">
                     {totalEngine !== null ? `${Math.round(totalEngine * 10) / 10}g` : "—"}
                   </td>
-                  <td className="px-4 py-3 text-right font-mono">
+                  <td className="px-3 py-1.5 text-right font-mono">
                     {totalEngine !== null && totalEngine !== 0 ? (
                       <span
                         className={deltaColor(

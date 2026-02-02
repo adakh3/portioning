@@ -126,6 +126,42 @@ class TestCalculatorIntegration(TestCase):
         self.assertIn('service', pools)
 
 
+class TestCategoryBudgetCapsIntegration(TestCase):
+    """Integration tests for category budget caps in the engine."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from django.core.management import call_command
+        call_command('seed_data', verbosity=0)
+
+    def test_single_curry_gets_extended_budget(self):
+        """Single curry with absent BBQ+Rice → curry gets extended budget via redistribution.
+
+        Curry baseline 160, absent BBQ(180)+Rice(100) redistribute 70%
+        = 196g extra → budget ~356g. Extended cap = 356g, no capping.
+        """
+        from dishes.models import Dish
+        curry = Dish.objects.filter(category__name='curry', is_active=True).first()
+        if not curry:
+            self.skipTest("Need curry dish seeded")
+
+        result = calculate_portions(
+            dish_ids=[curry.id],
+            guests={'gents': 50, 'ladies': 50},
+        )
+        curry_portion = None
+        for p in result['portions']:
+            if p['dish_id'] == curry.id:
+                curry_portion = p['grams_per_gent']
+                break
+        self.assertIsNotNone(curry_portion)
+        # Extended budget: 160 + (180+100)*0.7 = 160 + 196 = 356g
+        self.assertAlmostEqual(curry_portion, 356, delta=5)
+        # Should have redistribution adjustment but no cap adjustment
+        redist_adj = [a for a in result['adjustments_applied'] if 'was spread across' in a]
+        self.assertGreaterEqual(len(redist_adj), 1)
+
+
 class TestBudgetProfileSelection(TestCase):
 
     @classmethod
