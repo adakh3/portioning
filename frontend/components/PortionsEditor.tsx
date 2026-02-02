@@ -9,6 +9,8 @@ interface Props {
   portions: Map<number, number>;
   engineRecs: Map<number, number> | null;
   onPortionChange: (dishId: number, grams: number) => void;
+  dishComments?: Map<number, string>;
+  onDishCommentChange?: (dishId: number, comment: string) => void;
 }
 
 interface CategoryGroup {
@@ -65,6 +67,8 @@ export default function PortionsEditor({
   portions,
   engineRecs,
   onPortionChange,
+  dishComments,
+  onDishCommentChange,
 }: Props) {
   const groups = groupByCategory(dishes, categories, selectedDishIds, portions, engineRecs);
 
@@ -115,6 +119,9 @@ export default function PortionsEditor({
                   <th className="text-right px-3 py-1.5 font-medium text-gray-700 w-28">Delta</th>
                 </>
               )}
+              {onDishCommentChange && (
+                <th className="text-left px-3 py-1.5 font-medium text-gray-700 w-48">Comment</th>
+              )}
             </tr>
           </thead>
           {groups.map((group) => {
@@ -126,7 +133,7 @@ export default function PortionsEditor({
                 {/* Category header */}
                 <tr className="bg-gray-100 border-t border-gray-300">
                   <td
-                    colSpan={engineRecs ? 4 : 2}
+                    colSpan={(engineRecs ? 4 : 2) + (onDishCommentChange ? 1 : 0)}
                     className="px-3 py-1 font-semibold text-gray-800 text-xs uppercase tracking-wide"
                   >
                     {group.category.display_name}
@@ -186,6 +193,17 @@ export default function PortionsEditor({
                           </td>
                         </>
                       )}
+                      {onDishCommentChange && (
+                        <td className="px-3 py-0.5">
+                          <input
+                            type="text"
+                            value={dishComments?.get(dish.id) ?? ""}
+                            onChange={(e) => onDishCommentChange(dish.id, e.target.value)}
+                            placeholder="Add note..."
+                            className="w-full border border-gray-200 rounded px-2 py-0.5 text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                          />
+                        </td>
+                      )}
                     </tr>
                   );
                 })}
@@ -205,6 +223,7 @@ export default function PortionsEditor({
                       <td className="px-3 py-1" />
                     </>
                   )}
+                  {onDishCommentChange && <td />}
                 </tr>
               </tbody>
             );
@@ -236,6 +255,7 @@ export default function PortionsEditor({
                     </td>
                   </>
                 )}
+                {onDishCommentChange && <td />}
               </tr>
             )}
             {/* Food per person row */}
@@ -263,6 +283,7 @@ export default function PortionsEditor({
                   </td>
                 </>
               )}
+              {onDishCommentChange && <td />}
             </tr>
           </tfoot>
         </table>

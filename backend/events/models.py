@@ -29,3 +29,16 @@ class EventConstraintOverride(models.Model):
 
     def __str__(self):
         return f"Overrides for {self.event.name}"
+
+
+class EventDishComment(models.Model):
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='dish_comments')
+    dish = models.ForeignKey('dishes.Dish', on_delete=models.CASCADE)
+    comment = models.TextField(blank=True)
+    portion_grams = models.FloatField(null=True, blank=True)
+
+    class Meta:
+        unique_together = ('event', 'dish')
+
+    def __str__(self):
+        return f"{self.event.name} - {self.dish.name}"

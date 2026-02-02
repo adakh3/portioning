@@ -9,6 +9,7 @@ import {
   MenuTemplate,
   GuestMix,
   CheckResult,
+  EventDishComment,
 } from "@/lib/api";
 import DishSelector from "@/components/DishSelector";
 import GuestMixForm from "@/components/GuestMixForm";
@@ -27,6 +28,7 @@ export default function CalculatePage() {
 function CalculatePageInner() {
   const searchParams = useSearchParams();
   const templateId = searchParams.get("template");
+  const eventId = searchParams.get("event");
 
   // Reference data
   const [dishes, setDishes] = useState<Dish[]>([]);
@@ -56,12 +58,24 @@ function CalculatePageInner() {
   // Template tracking
   const [activeTemplateId, setActiveTemplateId] = useState<number | null>(null);
 
+  // Save event
+  const [editingEventId, setEditingEventId] = useState<number | null>(null);
+  const [eventName, setEventName] = useState("");
+  const [eventDate, setEventDate] = useState("");
+  const [eventNotes, setEventNotes] = useState("");
+  const [dishComments, setDishComments] = useState<Map<number, string>>(new Map());
+  const [saving, setSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
+  const [saveOpen, setSaveOpen] = useState(false);
+
   // Loading states
   const [calculating, setCalculating] = useState(false);
   const [exporting, setExporting] = useState(false);
 
-  // Track whether we've already loaded the URL template
+  // Track whether we've already loaded the URL template/event
   const urlTemplateLoaded = useRef(false);
+  const urlEventLoaded = useRef(false);
+  const eventLoadComplete = useRef(!eventId);  // true if no event to load
 
   // Load initial data
   useEffect(() => {
@@ -83,6 +97,71 @@ function CalculatePageInner() {
     }
   }, [templateId, dataLoading]);
 
+  // Load event from URL param
+  useEffect(() => {
+    if (eventId && !dataLoading && !urlEventLoaded.current) {
+      urlEventLoaded.current = true;
+      loadEvent(parseInt(eventId));
+    }
+  }, [eventId, dataLoading]);
+
+  const loadEvent = async (id: number) => {
+    try {
+      const event = await api.getEvent(id);
+      setEditingEventId(event.id);
+      setSelectedDishIds(new Set(event.dishes));
+      setGuests({ gents: event.gents, ladies: event.ladies });
+      setBigEaters(event.big_eaters);
+      setBigEatersPercentage(event.big_eaters_percentage);
+      setEventName(event.name);
+      setEventDate(event.date);
+      setEventNotes(event.notes || "");
+      setSaveOpen(true);
+
+      // Load dish comments and portions from saved snapshot
+      const commentMap = new Map<number, string>();
+      const portionMap = new Map<number, number>();
+      if (event.dish_comments) {
+        for (const dc of event.dish_comments) {
+          if (dc.comment) commentMap.set(dc.dish_id, dc.comment);
+          if (dc.portion_grams != null) portionMap.set(dc.dish_id, dc.portion_grams);
+        }
+      }
+      setDishComments(commentMap);
+      setPortions(portionMap);
+
+      // Fetch engine recs for reference
+      const engineResult = await api.calculate({
+        dish_ids: event.dishes,
+        guests: { gents: event.gents, ladies: event.ladies },
+        big_eaters: event.big_eaters,
+        big_eaters_percentage: event.big_eaters_percentage,
+      });
+      const recs = new Map<number, number>();
+      for (const p of engineResult.portions) {
+        recs.set(p.dish_id, p.grams_per_person);
+      }
+      setEngineRecs(recs);
+      setEngineWarnings(engineResult.warnings);
+      setEngineAdjustments(engineResult.adjustments_applied);
+
+      // Fill in portions for any dishes that didn't have a snapshot
+      setPortions((prev) => {
+        const next = new Map(prev);
+        for (const dishId of event.dishes) {
+          if (!next.has(dishId)) next.set(dishId, 0);
+        }
+        return next;
+      });
+
+      setError(null);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed to load event");
+    } finally {
+      eventLoadComplete.current = true;
+    }
+  };
+
   // Auto-calculate when dishes or guests change for custom menus (no template)
   const prevSelectionRef = useRef<string>("");
   useEffect(() => {
@@ -90,7 +169,7 @@ function CalculatePageInner() {
     if (key === prevSelectionRef.current) return;
     prevSelectionRef.current = key;
 
-    if (selectedDishIds.size > 0 && !activeTemplateId) {
+    if (selectedDishIds.size > 0 && !activeTemplateId && eventLoadComplete.current) {
       autoCalculate();
     }
   }, [selectedDishIds, guests, bigEaters, bigEatersPercentage, activeTemplateId]);
@@ -259,6 +338,56 @@ function CalculatePageInner() {
     }
   };
 
+  const handleDishCommentChange = useCallback((dishId: number, comment: string) => {
+    setDishComments((prev) => {
+      const next = new Map(prev);
+      next.set(dishId, comment);
+      return next;
+    });
+  }, []);
+
+  const handleSaveEvent = async () => {
+    if (!eventName.trim() || !eventDate) return;
+    setSaving(true);
+    setError(null);
+    setSaveSuccess(null);
+    try {
+      const dishIds = Array.from(selectedDishIds);
+      const comments: EventDishComment[] = dishIds
+        .map((id) => ({
+          dish_id: id,
+          comment: dishComments.get(id) ?? "",
+          portion_grams: portions.get(id) ?? 0,
+        }));
+      const payload = {
+        name: eventName.trim(),
+        date: eventDate,
+        gents: guests.gents,
+        ladies: guests.ladies,
+        big_eaters: bigEaters,
+        big_eaters_percentage: bigEatersPercentage,
+        dish_ids: dishIds,
+        notes: eventNotes,
+        dish_comments: comments,
+      };
+      if (editingEventId) {
+        await api.updateEvent(editingEventId, payload);
+        setSaveSuccess(`Event "${eventName.trim()}" updated.`);
+      } else {
+        await api.createEvent(payload);
+        setSaveSuccess(`Event "${eventName.trim()}" saved.`);
+        setEventName("");
+        setEventDate("");
+        setEventNotes("");
+        setSaveOpen(false);
+      }
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Save failed");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleExportPDF = async () => {
     setExporting(true);
     try {
@@ -297,7 +426,9 @@ function CalculatePageInner() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900">Portioning</h1>
+      <h1 className="text-2xl font-bold text-gray-900">
+        {editingEventId ? `Editing: ${eventName}` : "Portioning"}
+      </h1>
 
       {/* ── SETUP SECTION ── */}
       <div className="bg-white border border-gray-200 rounded-lg p-4">
@@ -353,6 +484,8 @@ function CalculatePageInner() {
         portions={portions}
         engineRecs={engineRecs}
         onPortionChange={handlePortionChange}
+        dishComments={dishComments}
+        onDishCommentChange={handleDishCommentChange}
       />
 
       {/* ── ACTIONS ── */}
@@ -384,6 +517,71 @@ function CalculatePageInner() {
       )}
 
       {checkResult && <ValidationBanner result={checkResult} />}
+
+      {/* ── SAVE EVENT ── */}
+      {saveSuccess && (
+        <p className="text-green-600 text-sm font-medium">{saveSuccess}</p>
+      )}
+      {selectedDishIds.size > 0 && (
+        <div className="bg-white border border-gray-200 rounded-lg">
+          <button
+            type="button"
+            onClick={() => setSaveOpen((o) => !o)}
+            className="w-full flex items-center justify-between px-4 py-3 text-left font-medium text-gray-900 hover:bg-gray-50 transition-colors"
+          >
+            <span>{editingEventId ? "Update Event" : "Save as Event"}</span>
+            <span className="text-gray-400 text-sm">{saveOpen ? "▲" : "▼"}</span>
+          </button>
+          {saveOpen && (
+            <div className="px-4 pb-4 space-y-3 border-t border-gray-100">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Event Name <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={eventName}
+                    onChange={(e) => setEventName(e.target.value)}
+                    placeholder="e.g. Wedding Reception"
+                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Date <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={eventDate}
+                    onChange={(e) => setEventDate(e.target.value)}
+                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Event Notes
+                </label>
+                <textarea
+                  value={eventNotes}
+                  onChange={(e) => setEventNotes(e.target.value)}
+                  placeholder="Overall notes about this event..."
+                  rows={2}
+                  className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+              <button
+                onClick={handleSaveEvent}
+                disabled={saving || !eventName.trim() || !eventDate}
+                className="bg-green-600 text-white px-6 py-2.5 rounded-lg font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {saving ? "Saving..." : editingEventId ? "Update Event" : "Save Event"}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

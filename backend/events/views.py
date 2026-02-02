@@ -6,12 +6,12 @@ from .serializers import EventSerializer
 
 
 class EventListCreateView(generics.ListCreateAPIView):
-    queryset = Event.objects.all().prefetch_related('dishes')
+    queryset = Event.objects.all().prefetch_related('dishes', 'dish_comments', 'dish_comments__dish')
     serializer_class = EventSerializer
 
 
 class EventDetailView(generics.RetrieveUpdateAPIView):
-    queryset = Event.objects.all().prefetch_related('dishes')
+    queryset = Event.objects.all().prefetch_related('dishes', 'dish_comments', 'dish_comments__dish')
     serializer_class = EventSerializer
 
 

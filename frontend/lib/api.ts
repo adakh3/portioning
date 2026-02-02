@@ -91,6 +91,13 @@ export interface CalculationResult {
   source?: string;
 }
 
+export interface EventDishComment {
+  dish_id: number;
+  dish_name?: string;
+  comment: string;
+  portion_grams?: number;
+}
+
 export interface EventData {
   id: number;
   name: string;
@@ -102,6 +109,7 @@ export interface EventData {
   dishes: number[];
   based_on_template: number | null;
   notes: string;
+  dish_comments?: EventDishComment[];
   constraint_override?: {
     max_total_food_per_person_grams?: number;
     min_portion_per_dish_grams?: number;
@@ -180,12 +188,17 @@ export const api = {
       body: JSON.stringify(data),
     }),
   getEvents: () => fetchApi<EventData[]>("/events/"),
-  createEvent: (data: Partial<EventData> & { dish_ids?: number[] }) =>
+  createEvent: (data: Partial<EventData> & { dish_ids?: number[]; dish_comments?: EventDishComment[] }) =>
     fetchApi<EventData>("/events/", {
       method: "POST",
       body: JSON.stringify(data),
     }),
   getEvent: (id: number) => fetchApi<EventData>(`/events/${id}/`),
+  updateEvent: (id: number, data: Partial<EventData> & { dish_ids?: number[]; dish_comments?: EventDishComment[] }) =>
+    fetchApi<EventData>(`/events/${id}/`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
   calculateEvent: (id: number) =>
     fetchApi<CalculationResult>(`/events/${id}/calculate/`, { method: "POST" }),
   exportPDF: async (data: {

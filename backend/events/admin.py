@@ -1,9 +1,14 @@
 from django.contrib import admin
-from .models import Event, EventConstraintOverride
+from .models import Event, EventConstraintOverride, EventDishComment
 
 
 class EventConstraintOverrideInline(admin.StackedInline):
     model = EventConstraintOverride
+    extra = 0
+
+
+class EventDishCommentInline(admin.TabularInline):
+    model = EventDishComment
     extra = 0
 
 
@@ -13,4 +18,4 @@ class EventAdmin(admin.ModelAdmin):
     list_filter = ['date']
     search_fields = ['name']
     filter_horizontal = ['dishes']
-    inlines = [EventConstraintOverrideInline]
+    inlines = [EventConstraintOverrideInline, EventDishCommentInline]

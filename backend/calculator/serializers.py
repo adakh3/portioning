@@ -16,7 +16,10 @@ class CalculateRequestSerializer(serializers.Serializer):
     guests = GuestMixSerializer()
     big_eaters = serializers.BooleanField(default=False)
     big_eaters_percentage = serializers.FloatField(default=20.0, min_value=0, max_value=100)
-    constraint_overrides = ConstraintOverrideSerializer(required=False, default={})
+    constraint_overrides = ConstraintOverrideSerializer(required=False, default={}, allow_null=True)
+
+    def validate_constraint_overrides(self, value):
+        return value or {}
 
 
 class UserPortionSerializer(serializers.Serializer):
