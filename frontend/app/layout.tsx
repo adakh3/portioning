@@ -39,6 +39,9 @@ export default function RootLayout({
             <Link href="/events" className="text-sm text-gray-600 hover:text-gray-900">
               Events
             </Link>
+            <Link href="/help" className="text-sm text-gray-600 hover:text-gray-900">
+              Help
+            </Link>
           </div>
         </nav>
         <main className="max-w-7xl mx-auto px-6 py-8">{children}</main>
