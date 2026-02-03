@@ -78,21 +78,21 @@ grown_budget = baseline × (1 + growth_rate × (number_of_dishes - 1))
 category_budget = max(grown_budget, number_of_dishes × min_per_dish)
 ```
 
-- **growth_rate** (default: 0.20) = each extra dish adds 20% of the baseline to the category budget. This is admin-configurable.
+- **growth_rate** (default: 0.40) = each extra dish adds 40% of the baseline to the category budget. This is admin-configurable.
 - The **min_per_dish floor** is kept as a safety net — if many dishes push the minimum total above the grown budget, the minimum wins.
 
-**What this means in plain English:** The budget grows with each additional dish (rather than staying fixed at the baseline). Each extra dish adds a fraction of the baseline. But if you've added so many dishes that even the grown budget can't give each dish its minimum viable portion, the budget expands further to fit.
+**What this means in plain English:** The budget grows with each additional dish (rather than staying fixed at the baseline). Each extra dish adds 40% of the baseline. But if you've added so many dishes that even the grown budget can't give each dish its minimum viable portion, the budget expands further to fit.
 
-**Example — Curry category (baseline 160g, growth_rate 0.2):**
+**Example — Curry category (baseline 160g, growth_rate 0.4):**
 - 1 curry: 160 × (1 + 0) = **160g** → 160g each
-- 2 curries: 160 × (1 + 0.2) = **192g** → 96g each
-- 3 curries: 160 × (1 + 0.4) = **224g** → ~75g each
-- 5 curries: grown = 160 × (1 + 0.8) = 288g, but min = 5 × 70 = **350g** (min floor wins)
+- 2 curries: 160 × (1 + 0.4) = **224g** → 112g each
+- 3 curries: 160 × (1 + 0.8) = **288g** → 96g each
+- 5 curries: grown = 160 × (1 + 1.6) = 416g, min = 5 × 70 = 350g → **416g** (grown wins)
 
-**Example — BBQ category (baseline 180g, growth_rate 0.2):**
+**Example — BBQ category (baseline 180g, growth_rate 0.4):**
 - 1 BBQ dish: 180 × (1 + 0) = **180g**
-- 2 BBQ dishes: 180 × (1 + 0.2) = **216g** → 108g each
-- 3 BBQ dishes: 180 × (1 + 0.4) = **252g** → 84g each
+- 2 BBQ dishes: 180 × (1 + 0.4) = **252g** → 126g each
+- 3 BBQ dishes: 180 × (1 + 0.8) = **324g** → 108g each
 
 ### Step 1b: Redistribute Absent-Category Budget (Protein Pool Only)
 
@@ -174,16 +174,18 @@ if pool_total > ceiling:
 
 **Why this exists:** Without a ceiling, a menu with many expanded categories could give a guest an unreasonable amount of protein food. The ceiling forces everything to scale down proportionally.
 
-**Example — Over-allocated menu (growth_rate=0.2):**
-- BBQ (3 dishes): grown = 180 × 1.4 = 252g, min = 300g → **300g**. Curry (2): 160 × 1.2 = **192g**. Rice: **100g**.
-- After redistribution: no absent categories, total = 592g > 590g ceiling → slight compression.
-- Scale = 590 / 592 ≈ 0.997 → barely noticeable.
+**Example — Over-allocated menu (growth_rate=0.4):**
+- BBQ (3 dishes): grown = 180 × 1.8 = 324g, min = 300g → **324g**. Curry (2): 160 × 1.4 = **224g**. Rice: **100g**.
+- After redistribution: no absent categories, total = 648g > 590g ceiling → compression.
+- Scale = 590 / 648 ≈ 0.911
+- BBQ: 324 × 0.911 = 295g, Curry: 224 × 0.911 = 204g, Rice: 100 × 0.911 = 91g
+- **Protein total: 590g** (at ceiling)
 
 **Example — Even more over-allocated:**
-- BBQ (4 dishes): grown = 180 × 1.6 = 288g, min = 400g → **400g**. Curry (3): grown = 160 × 1.4 = 224g, min = 210g → **224g**. Rice: **100g**.
-- Total = 724g > 590g ceiling
-- Scale = 590 / 724 = 0.815
-- BBQ: 400 × 0.815 = 326g, Curry: 224 × 0.815 = 183g, Rice: 100 × 0.815 = 82g
+- BBQ (4 dishes): grown = 180 × 2.2 = 396g, min = 400g → **400g**. Curry (3): grown = 160 × 1.8 = 288g, min = 210g → **288g**. Rice: **100g**.
+- Total = 788g > 590g ceiling
+- Scale = 590 / 788 = 0.749
+- BBQ: 400 × 0.749 = 300g, Curry: 288 × 0.749 = 216g, Rice: 100 × 0.749 = 75g
 - **Protein total: 590g** (at ceiling)
 
 ### Step 3: Split Within Categories by Popularity
@@ -235,9 +237,9 @@ Similar to protein but **without redistribution** — each category stays at its
 - Veg Curry = 80g, Sides = 60g.
 - Total = 140g (under 150g ceiling, no compression)
 
-**Example — 3 veg curries + 1 sides (growth_rate=0.2):**
-- Veg Curry: grown = 80 × (1 + 0.4) = 112g, min = 90g → **112g**. Sides: 60g. Total = 172g > 150g ceiling → compression.
-- Scale = 150 / 172 = 0.872. Veg Curry: 98g, Sides: 52g.
+**Example — 3 veg curries + 1 sides (growth_rate=0.4):**
+- Veg Curry: grown = 80 × (1 + 0.8) = 144g, min = 90g → **144g**. Sides: 60g. Total = 204g > 150g ceiling → compression.
+- Scale = 150 / 204 = 0.735. Veg Curry: 106g, Sides: 44g.
 
 ---
 
@@ -253,11 +255,11 @@ Same as accompaniment — **no redistribution**. Each category stays at its grow
 **Example — 1 dessert:**
 - grown = 80 × (1 + 0) = 80g, budget = max(80, 40) = **80g**.
 
-**Example — 2 desserts (growth_rate=0.2):**
-- grown = 80 × (1 + 0.2) = 96g, min = 80g → budget = **96g**. Each gets 48g.
+**Example — 2 desserts (growth_rate=0.4):**
+- grown = 80 × (1 + 0.4) = 112g, min = 80g → budget = **112g**. Each gets 56g.
 
 **Example — 4 desserts:**
-- grown = 80 × (1 + 0.6) = 128g, min = 160g → budget = **160g** (min floor wins) > 150g ceiling
+- grown = 80 × (1 + 1.2) = 176g, min = 160g → budget = **176g** (grown wins) > 150g ceiling
 - Scale to 150g. Each gets ~37.5g.
 
 ---
@@ -397,7 +399,7 @@ The engine outputs two lists alongside the portions: **warnings** (red, importan
 
 ### Protein Pool
 
-**Step 1 — Category budgets (growth_rate=0.2):**
+**Step 1 — Category budgets (growth_rate=0.4):**
 - Curry (1 dish): 160 × (1 + 0) = **160g**
 - Rice (1 dish): 100 × (1 + 0) = **100g**
 
@@ -456,7 +458,7 @@ No veg curry or sides on menu → pool is empty, no allocation.
 
 ### Protein Pool
 
-**Step 1 — Category budgets (growth_rate=0.2):**
+**Step 1 — Category budgets (growth_rate=0.4):**
 - BBQ (1 dish): 180 × (1 + 0) = **180g**
 - Curry (1 dish): 160 × (1 + 0) = **160g**
 - Rice (1 dish): 100 × (1 + 0) = **100g**
@@ -478,23 +480,23 @@ No veg curry or sides on menu → pool is empty, no allocation.
 
 ### Protein Pool
 
-**Step 1 — Category budgets (growth_rate=0.2):**
-- BBQ (2 dishes): 180 × (1 + 0.2) = **216g** → 108g each
-- Curry (2 dishes): 160 × (1 + 0.2) = **192g** → 96g each
+**Step 1 — Category budgets (growth_rate=0.4):**
+- BBQ (2 dishes): 180 × (1 + 0.4) = **252g** → 126g each
+- Curry (2 dishes): 160 × (1 + 0.4) = **224g** → 112g each
 - Rice (1 dish): 100 × (1 + 0) = **100g**
 
 **Step 1b — Protein redistribution:**
 - All 3 protein categories present → no absent budget → no redistribution
-- Total: 508g
+- Total: 576g
 
 **Step 2 — Ceiling enforcement:**
-- 508g < 590g ceiling → no compression
+- 576g < 590g ceiling → no compression
 
-**Protein total: 508g per gent**
+**Protein total: 576g per gent**
 
 ### Accompaniment Pool
 
-**Step 1 — Category budgets (growth_rate=0.2):**
+**Step 1 — Category budgets (growth_rate=0.4):**
 - Veg Curry (1 dish): 80 × (1 + 0) = **80g**
 - Sides (1 dish): 60 × (1 + 0) = **60g**
 
@@ -558,7 +560,7 @@ Violation messages use the appropriate unit label ("g" for weight, "pcs" for qty
 | Protein pool ceiling | GlobalConfig (admin) | 590g | Max total for all protein categories combined |
 | Accompaniment pool ceiling | GlobalConfig (admin) | 150g | Max total for veg curry + sides combined |
 | Dessert pool ceiling | GlobalConfig (admin) | 150g | Max total for dessert category |
-| Dish growth rate | GlobalConfig (admin) | 0.20 | Each extra dish adds this fraction of baseline to category budget |
+| Dish growth rate | GlobalConfig (admin) | 0.40 | Each extra dish adds this fraction of baseline to category budget |
 | Absent redistribution fraction | GlobalConfig (admin) | 0.70 | Fraction of absent-category budget that redistributes to present categories (protein pool only, 0-1) |
 | Popularity strength | GlobalConfig (admin) | 0.3 | How much popularity affects within-category split |
 | Popularity per dish | Dish (admin) | 1.0 | Relative weight for popularity-based splitting |

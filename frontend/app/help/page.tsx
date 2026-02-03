@@ -137,12 +137,12 @@ export default function HelpPage() {
           <strong> grows</strong> — but each individual dish gets a smaller share.
         </p>
         <p>
-          For example, one curry gets the full 160g budget. Two curries share a slightly
-          larger budget (~192g), so each gets ~96g. Three curries share ~224g, so each gets
-          ~75g.
+          For example, one curry gets the full 160g budget. Two curries share a larger
+          budget (~224g), so each gets ~112g. Three curries share ~288g, so each gets
+          ~96g.
         </p>
         <p>
-          Each extra dish adds roughly <strong>20%</strong> of the baseline to the category
+          Each extra dish adds roughly <strong>40%</strong> of the baseline to the category
           budget. This growth rate is configurable.
         </p>
         <p>
