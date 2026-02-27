@@ -14,8 +14,9 @@ class EventDishCommentInline(admin.TabularInline):
 
 @admin.register(Event)
 class EventAdmin(admin.ModelAdmin):
-    list_display = ['name', 'date', 'gents', 'ladies', 'big_eaters', 'big_eaters_percentage', 'based_on_template']
-    list_filter = ['date']
-    search_fields = ['name']
+    list_display = ['name', 'date', 'status', 'account', 'venue', 'gents', 'ladies', 'event_type', 'service_style']
+    list_filter = ['date', 'status', 'event_type', 'service_style']
+    search_fields = ['name', 'account__name', 'venue__name', 'notes']
     filter_horizontal = ['dishes']
+    raw_id_fields = ['account', 'primary_contact', 'venue']
     inlines = [EventConstraintOverrideInline, EventDishCommentInline]

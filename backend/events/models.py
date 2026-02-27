@@ -1,4 +1,25 @@
+from decimal import Decimal
+
 from django.db import models
+
+from bookings.models.leads import EventType, ServiceStyle
+
+
+class EventStatus(models.TextChoices):
+    TENTATIVE = 'tentative', 'Tentative'
+    CONFIRMED = 'confirmed', 'Confirmed'
+    IN_PROGRESS = 'in_progress', 'In Progress'
+    COMPLETED = 'completed', 'Completed'
+    CANCELLED = 'cancelled', 'Cancelled'
+
+
+EVENT_STATUS_TRANSITIONS = {
+    EventStatus.TENTATIVE: [EventStatus.CONFIRMED, EventStatus.CANCELLED],
+    EventStatus.CONFIRMED: [EventStatus.IN_PROGRESS, EventStatus.CANCELLED],
+    EventStatus.IN_PROGRESS: [EventStatus.COMPLETED, EventStatus.CANCELLED],
+    EventStatus.COMPLETED: [],
+    EventStatus.CANCELLED: [EventStatus.TENTATIVE],
+}
 
 
 class Event(models.Model):
@@ -14,6 +35,39 @@ class Event(models.Model):
     )
     notes = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+
+    # Booking fields
+    account = models.ForeignKey(
+        'bookings.Account', null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='events',
+    )
+    primary_contact = models.ForeignKey(
+        'bookings.Contact', null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='events',
+    )
+    venue = models.ForeignKey(
+        'bookings.Venue', null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='events',
+    )
+    venue_address = models.TextField(blank=True, help_text='Freeform address for ad-hoc locations')
+    event_type = models.CharField(max_length=20, choices=EventType.choices, blank=True)
+    service_style = models.CharField(max_length=20, choices=ServiceStyle.choices, blank=True)
+    price_per_head = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True,
+        help_text='Food/menu price per head',
+    )
+    status = models.CharField(max_length=20, choices=EventStatus.choices, default=EventStatus.TENTATIVE)
+
+    # Timeline
+    setup_time = models.DateTimeField(null=True, blank=True)
+    guest_arrival_time = models.DateTimeField(null=True, blank=True)
+    meal_time = models.DateTimeField(null=True, blank=True)
+    end_time = models.DateTimeField(null=True, blank=True)
+
+    # Guest counts
+    guaranteed_count = models.IntegerField(null=True, blank=True)
+    final_count = models.IntegerField(null=True, blank=True)
+    final_count_due = models.DateField(null=True, blank=True)
 
     class Meta:
         ordering = ['-date']

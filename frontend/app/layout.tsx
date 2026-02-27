@@ -33,12 +33,34 @@ export default function RootLayout({
             <Link href="/" className="text-lg font-bold text-gray-900">
               Portioning
             </Link>
-            <Link href="/calculate" className="text-sm text-gray-600 hover:text-gray-900">
-              Calculate
-            </Link>
             <Link href="/events" className="text-sm text-gray-600 hover:text-gray-900">
               Events
             </Link>
+            <span className="border-l border-gray-300 h-4" />
+            <Link href="/accounts" className="text-sm text-gray-600 hover:text-gray-900">
+              Accounts
+            </Link>
+            <Link href="/leads" className="text-sm text-gray-600 hover:text-gray-900">
+              Leads
+            </Link>
+            <Link href="/quotes" className="text-sm text-gray-600 hover:text-gray-900">
+              Quotes
+            </Link>
+            <Link href="/venues" className="text-sm text-gray-600 hover:text-gray-900">
+              Venues
+            </Link>
+            <span className="border-l border-gray-300 h-4" />
+            <Link href="/staff" className="text-sm text-gray-600 hover:text-gray-900">
+              Staff
+            </Link>
+            <Link href="/equipment" className="text-sm text-gray-600 hover:text-gray-900">
+              Equipment
+            </Link>
+            <span className="border-l border-gray-300 h-4" />
+            <Link href="/invoices" className="text-sm text-gray-600 hover:text-gray-900">
+              Invoices
+            </Link>
+            <span className="border-l border-gray-300 h-4" />
             <Link href="/help" className="text-sm text-gray-600 hover:text-gray-900">
               Help
             </Link>
