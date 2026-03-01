@@ -38,8 +38,8 @@ class Event(models.Model):
 
     # Booking fields
     account = models.ForeignKey(
-        'bookings.Account', null=True, blank=True,
-        on_delete=models.SET_NULL, related_name='events',
+        'bookings.Account',
+        on_delete=models.PROTECT, related_name='events',
     )
     primary_contact = models.ForeignKey(
         'bookings.Contact', null=True, blank=True,
