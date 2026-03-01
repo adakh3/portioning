@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   api,
@@ -58,8 +58,18 @@ function ChevronIcon({ open }: { open: boolean }) {
   );
 }
 
+function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div>
+      <dt className="text-sm font-medium text-gray-500">{label}</dt>
+      <dd className="text-sm text-gray-900 mt-0.5">{value || "—"}</dd>
+    </div>
+  );
+}
+
 export default function EventDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const eventId = Number(params.id);
 
   // Core state
@@ -67,6 +77,8 @@ export default function EventDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   // Lookup data
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -75,10 +87,6 @@ export default function EventDetailPage() {
   const [staffList, setStaffList] = useState<StaffMember[]>([]);
   const [equipmentItems, setEquipmentItems] = useState<EquipmentItem[]>([]);
   const [settings, setSettings] = useState<SiteSettingsData>({ currency_symbol: "£", currency_code: "GBP", default_price_per_head: "0.00", target_food_cost_percentage: "30.00", price_rounding_step: "50" });
-
-  // Inline name editing
-  const [editingName, setEditingName] = useState(false);
-  const [draftName, setDraftName] = useState("");
 
   // Section collapse
   const [sections, setSections] = useState({
@@ -94,7 +102,9 @@ export default function EventDetailPage() {
   // Venue mode
   const [venueMode, setVenueMode] = useState<"saved" | "custom">("saved");
 
-  // Customer & Venue form fields
+  // Form fields (used in edit mode)
+  const [formName, setFormName] = useState("");
+  const [formDate, setFormDate] = useState("");
   const [formAccount, setFormAccount] = useState<number | null>(null);
   const [formContact, setFormContact] = useState<number | null>(null);
   const [formVenue, setFormVenue] = useState<number | null>(null);
@@ -104,6 +114,7 @@ export default function EventDetailPage() {
   const [formPricePerHead, setFormPricePerHead] = useState("");
   const [suggestedPrice, setSuggestedPrice] = useState<number | null>(null);
   const handleSuggestedPriceChange = useCallback((price: number | null) => setSuggestedPrice(price), []);
+  const [formNotes, setFormNotes] = useState("");
 
   // Guest form fields
   const [formGents, setFormGents] = useState(0);
@@ -134,35 +145,40 @@ export default function EventDetailPage() {
     setSections((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
+  const syncFormToEvent = useCallback((data: EventData) => {
+    setFormName(data.name);
+    setFormDate(data.date);
+    setFormAccount(data.account);
+    setFormContact(data.primary_contact);
+    setFormVenue(data.venue);
+    setFormVenueAddress(data.venue_address || "");
+    setFormEventType(data.event_type || "");
+    setFormServiceStyle(data.service_style || "");
+    setFormPricePerHead(data.price_per_head || "");
+    setFormNotes(data.notes || "");
+    setVenueMode(data.venue ? "saved" : data.venue_address ? "custom" : "saved");
+    setFormGents(data.gents);
+    setFormLadies(data.ladies);
+    setFormGuaranteed(data.guaranteed_count);
+    setFormFinalCount(data.final_count);
+    setFormFinalCountDue(data.final_count_due || "");
+    setFormBigEaters(data.big_eaters);
+    setFormBigEatersPercent(data.big_eaters_percentage);
+    setFormSetupTime(data.setup_time ? data.setup_time.slice(0, 16) : "");
+    setFormArrivalTime(data.guest_arrival_time ? data.guest_arrival_time.slice(0, 16) : "");
+    setFormMealTime(data.meal_time ? data.meal_time.slice(0, 16) : "");
+    setFormEndTime(data.end_time ? data.end_time.slice(0, 16) : "");
+  }, []);
+
   const refreshEvent = useCallback(async () => {
     try {
       const data = await api.getEvent(eventId);
       setEvent(data);
-      // Sync form state
-      setDraftName(data.name);
-      setFormAccount(data.account);
-      setFormContact(data.primary_contact);
-      setFormVenue(data.venue);
-      setFormVenueAddress(data.venue_address || "");
-      setFormEventType(data.event_type || "");
-      setFormServiceStyle(data.service_style || "");
-      setFormPricePerHead(data.price_per_head || "");
-      setVenueMode(data.venue ? "saved" : data.venue_address ? "custom" : "saved");
-      setFormGents(data.gents);
-      setFormLadies(data.ladies);
-      setFormGuaranteed(data.guaranteed_count);
-      setFormFinalCount(data.final_count);
-      setFormFinalCountDue(data.final_count_due || "");
-      setFormBigEaters(data.big_eaters);
-      setFormBigEatersPercent(data.big_eaters_percentage);
-      setFormSetupTime(data.setup_time ? data.setup_time.slice(0, 16) : "");
-      setFormArrivalTime(data.guest_arrival_time ? data.guest_arrival_time.slice(0, 16) : "");
-      setFormMealTime(data.meal_time ? data.meal_time.slice(0, 16) : "");
-      setFormEndTime(data.end_time ? data.end_time.slice(0, 16) : "");
+      syncFormToEvent(data);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to load event");
     }
-  }, [eventId]);
+  }, [eventId, syncFormToEvent]);
 
   useEffect(() => {
     if (isNaN(eventId)) return;
@@ -178,12 +194,36 @@ export default function EventDetailPage() {
     ]).finally(() => setLoading(false));
   }, [eventId, refreshEvent]);
 
-  const saveField = async (data: Partial<EventData> & { dish_ids?: number[] }) => {
+  const handleSaveAll = async () => {
     if (!event) return;
     setSaving(true);
     try {
-      const updated = await api.updateEvent(event.id, data);
+      const updated = await api.updateEvent(event.id, {
+        name: formName,
+        date: formDate,
+        account: formAccount,
+        primary_contact: formContact,
+        venue: venueMode === "saved" ? formVenue : null,
+        venue_address: venueMode === "custom" ? formVenueAddress : "",
+        event_type: formEventType,
+        service_style: formServiceStyle,
+        price_per_head: formPricePerHead || null,
+        notes: formNotes,
+        gents: formGents,
+        ladies: formLadies,
+        guaranteed_count: formGuaranteed,
+        final_count: formFinalCount,
+        final_count_due: formFinalCountDue || null,
+        big_eaters: formBigEaters,
+        big_eaters_percentage: formBigEatersPercent,
+        setup_time: formSetupTime || null,
+        guest_arrival_time: formArrivalTime || null,
+        meal_time: formMealTime || null,
+        end_time: formEndTime || null,
+      } as Partial<EventData>);
       setEvent(updated);
+      syncFormToEvent(updated);
+      setEditing(false);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Save failed");
     } finally {
@@ -191,8 +231,51 @@ export default function EventDetailPage() {
     }
   };
 
+  const handleCancelEdit = () => {
+    if (event) syncFormToEvent(event);
+    setEditing(false);
+  };
+
   const handleStatusTransition = async (newStatus: string) => {
-    await saveField({ status: newStatus } as Partial<EventData>);
+    if (!event) return;
+    setSaving(true);
+    try {
+      const updated = await api.updateEvent(event.id, { status: newStatus } as Partial<EventData>);
+      setEvent(updated);
+      syncFormToEvent(updated);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Status change failed");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!event) return;
+    setSaving(true);
+    try {
+      await api.deleteEvent(event.id);
+      router.push("/events");
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Delete failed");
+      setSaving(false);
+    }
+  };
+
+  const handleMenuSave = async (data: { dish_ids: number[]; based_on_template: number | null }) => {
+    if (!event) return;
+    setSaving(true);
+    try {
+      const updated = await api.updateEvent(event.id, {
+        dish_ids: data.dish_ids,
+        based_on_template: data.based_on_template,
+      });
+      setEvent(updated);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Save failed");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleAddShift = async () => {
@@ -288,7 +371,7 @@ export default function EventDetailPage() {
   };
 
   // Contacts for selected account
-  const selectedAccount = accounts.find((a) => a.id === formAccount);
+  const selectedAccount = accounts.find((a) => a.id === (editing ? formAccount : event?.account));
   const contactsForAccount: Contact[] = selectedAccount?.contacts || [];
 
   if (loading) {
@@ -317,6 +400,11 @@ export default function EventDetailPage() {
     0
   );
 
+  const formatDateTime = (dt: string | null) => {
+    if (!dt) return "—";
+    return new Date(dt).toLocaleString();
+  };
+
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
       {/* Error banner */}
@@ -336,45 +424,28 @@ export default function EventDetailPage() {
       <div className="bg-white border border-gray-200 rounded-lg p-5">
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-3 flex-1 min-w-0">
-            {editingName ? (
+            {editing ? (
               <input
                 type="text"
-                value={draftName}
-                onChange={(e) => setDraftName(e.target.value)}
-                onBlur={() => {
-                  setEditingName(false);
-                  if (draftName.trim() && draftName !== event.name) {
-                    saveField({ name: draftName.trim() });
-                  }
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    setEditingName(false);
-                    if (draftName.trim() && draftName !== event.name) {
-                      saveField({ name: draftName.trim() });
-                    }
-                  }
-                  if (e.key === "Escape") {
-                    setEditingName(false);
-                    setDraftName(event.name);
-                  }
-                }}
-                autoFocus
-                className="text-2xl font-bold text-gray-900 border border-blue-400 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full"
+                value={formName}
+                onChange={(e) => setFormName(e.target.value)}
+                className="text-2xl font-bold text-gray-900 border border-blue-400 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full max-w-md"
               />
             ) : (
-              <h1
-                onClick={() => {
-                  setDraftName(event.name);
-                  setEditingName(true);
-                }}
-                className="text-2xl font-bold text-gray-900 cursor-pointer hover:bg-gray-50 rounded px-2 py-1 truncate"
-                title="Click to edit name"
-              >
+              <h1 className="text-2xl font-bold text-gray-900 truncate">
                 {event.name}
               </h1>
             )}
-            <span className="text-gray-500 text-sm whitespace-nowrap">{event.date}</span>
+            {editing ? (
+              <input
+                type="date"
+                value={formDate}
+                onChange={(e) => setFormDate(e.target.value)}
+                className="text-sm border border-gray-300 rounded px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            ) : (
+              <span className="text-gray-500 text-sm whitespace-nowrap">{event.date}</span>
+            )}
             <span
               className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${
                 statusColors[event.status] || "bg-gray-100 text-gray-800"
@@ -384,64 +455,121 @@ export default function EventDetailPage() {
             </span>
           </div>
           <div className="flex gap-2 flex-shrink-0">
-            {event.status === "tentative" && (
-              <button
-                onClick={() => handleStatusTransition("confirmed")}
-                disabled={saving}
-                className="bg-blue-600 text-white px-3 py-1.5 rounded text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
-              >
-                Confirm
-              </button>
-            )}
-            {event.status === "confirmed" && (
-              <button
-                onClick={() => handleStatusTransition("in_progress")}
-                disabled={saving}
-                className="bg-orange-600 text-white px-3 py-1.5 rounded text-sm font-medium hover:bg-orange-700 disabled:opacity-50"
-              >
-                Start
-              </button>
-            )}
-            {event.status === "in_progress" && (
-              <button
-                onClick={() => handleStatusTransition("completed")}
-                disabled={saving}
-                className="bg-green-600 text-white px-3 py-1.5 rounded text-sm font-medium hover:bg-green-700 disabled:opacity-50"
-              >
-                Complete
-              </button>
-            )}
-            {event.status === "cancelled" && (
-              <button
-                onClick={() => handleStatusTransition("tentative")}
-                disabled={saving}
-                className="bg-yellow-600 text-white px-3 py-1.5 rounded text-sm font-medium hover:bg-yellow-700 disabled:opacity-50"
-              >
-                Reactivate
-              </button>
-            )}
-            {(event.status === "tentative" ||
-              event.status === "confirmed" ||
-              event.status === "in_progress") && (
-              <button
-                onClick={() => handleStatusTransition("cancelled")}
-                disabled={saving}
-                className="border border-red-300 text-red-700 bg-white px-3 py-1.5 rounded text-sm font-medium hover:bg-red-50 disabled:opacity-50"
-              >
-                Cancel
-              </button>
-            )}
-            {event.source_quote_id && (
-              <Link
-                href={`/quotes/${event.source_quote_id}`}
-                className="text-blue-600 hover:text-blue-800 text-sm font-medium whitespace-nowrap self-center"
-              >
-                View Quote &rarr;
-              </Link>
+            {editing ? (
+              <>
+                <button
+                  onClick={handleCancelEdit}
+                  className="border border-gray-300 text-gray-700 bg-white px-3 py-1.5 rounded text-sm font-medium hover:bg-gray-50"
+                >
+                  Discard
+                </button>
+                <button
+                  onClick={handleSaveAll}
+                  disabled={saving}
+                  className="bg-blue-600 text-white px-4 py-1.5 rounded text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {saving ? "Saving..." : "Save"}
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={() => setEditing(true)}
+                  className="bg-blue-600 text-white px-3 py-1.5 rounded text-sm font-medium hover:bg-blue-700"
+                >
+                  Edit
+                </button>
+                {/* Status transitions */}
+                {event.status === "tentative" && (
+                  <button
+                    onClick={() => handleStatusTransition("confirmed")}
+                    disabled={saving}
+                    className="bg-green-600 text-white px-3 py-1.5 rounded text-sm font-medium hover:bg-green-700 disabled:opacity-50"
+                  >
+                    Confirm
+                  </button>
+                )}
+                {event.status === "confirmed" && (
+                  <button
+                    onClick={() => handleStatusTransition("in_progress")}
+                    disabled={saving}
+                    className="bg-orange-600 text-white px-3 py-1.5 rounded text-sm font-medium hover:bg-orange-700 disabled:opacity-50"
+                  >
+                    Start
+                  </button>
+                )}
+                {event.status === "in_progress" && (
+                  <button
+                    onClick={() => handleStatusTransition("completed")}
+                    disabled={saving}
+                    className="bg-green-600 text-white px-3 py-1.5 rounded text-sm font-medium hover:bg-green-700 disabled:opacity-50"
+                  >
+                    Complete
+                  </button>
+                )}
+                {event.status === "cancelled" && (
+                  <button
+                    onClick={() => handleStatusTransition("tentative")}
+                    disabled={saving}
+                    className="bg-yellow-600 text-white px-3 py-1.5 rounded text-sm font-medium hover:bg-yellow-700 disabled:opacity-50"
+                  >
+                    Reactivate
+                  </button>
+                )}
+                {(event.status === "tentative" ||
+                  event.status === "confirmed" ||
+                  event.status === "in_progress") && (
+                  <button
+                    onClick={() => handleStatusTransition("cancelled")}
+                    disabled={saving}
+                    className="border border-gray-300 text-gray-700 bg-white px-3 py-1.5 rounded text-sm font-medium hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    Archive
+                  </button>
+                )}
+                <button
+                  onClick={() => setShowDeleteConfirm(true)}
+                  className="border border-red-300 text-red-700 bg-white px-3 py-1.5 rounded text-sm font-medium hover:bg-red-50"
+                >
+                  Delete
+                </button>
+                {event.source_quote_id && (
+                  <Link
+                    href={`/quotes/${event.source_quote_id}`}
+                    className="text-blue-600 hover:text-blue-800 text-sm font-medium whitespace-nowrap self-center"
+                  >
+                    View Quote &rarr;
+                  </Link>
+                )}
+              </>
             )}
           </div>
         </div>
       </div>
+
+      {/* Delete confirmation */}
+      {showDeleteConfirm && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center justify-between">
+          <p className="text-red-700 text-sm">
+            Are you sure you want to delete this event? This cannot be undone.
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowDeleteConfirm(false)}
+              className="border border-gray-300 text-gray-700 bg-white px-3 py-1.5 rounded text-sm font-medium hover:bg-gray-50"
+            >
+              No, keep it
+            </button>
+            <button
+              onClick={handleDelete}
+              disabled={saving}
+              className="bg-red-600 text-white px-3 py-1.5 rounded text-sm font-medium hover:bg-red-700 disabled:opacity-50"
+            >
+              {saving ? "Deleting..." : "Yes, delete"}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Customer & Venue Section */}
       <div className="bg-white border border-gray-200 rounded-lg">
@@ -454,207 +582,144 @@ export default function EventDetailPage() {
         </button>
         {sections.customer && (
           <div className="px-5 pb-5 border-t border-gray-100 pt-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Account */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Account</label>
-                <select
-                  value={formAccount ?? ""}
-                  onChange={(e) => {
-                    const val = e.target.value ? Number(e.target.value) : null;
-                    setFormAccount(val);
-                    setFormContact(null);
-                  }}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">-- No Account --</option>
-                  {accounts.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.name}
-                    </option>
-                  ))}
-                </select>
-                {formAccount && (
-                  <Link
-                    href="/accounts"
-                    className="text-xs text-blue-600 hover:text-blue-800 mt-1 inline-block"
-                  >
-                    View accounts
-                  </Link>
-                )}
-              </div>
-
-              {/* Contact */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Primary Contact
-                </label>
-                <select
-                  value={formContact ?? ""}
-                  onChange={(e) => {
-                    setFormContact(e.target.value ? Number(e.target.value) : null);
-                  }}
-                  disabled={!formAccount}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-400"
-                >
-                  <option value="">-- Select Contact --</option>
-                  {contactsForAccount.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name} {c.role ? `(${c.role})` : ""}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Venue toggle */}
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Venue</label>
-                <div className="flex gap-4 mb-2">
-                  <label className="flex items-center gap-1.5 text-sm">
-                    <input
-                      type="radio"
-                      name="venueMode"
-                      checked={venueMode === "saved"}
-                      onChange={() => setVenueMode("saved")}
-                      className="text-blue-600"
-                    />
-                    Saved Venue
-                  </label>
-                  <label className="flex items-center gap-1.5 text-sm">
-                    <input
-                      type="radio"
-                      name="venueMode"
-                      checked={venueMode === "custom"}
-                      onChange={() => setVenueMode("custom")}
-                      className="text-blue-600"
-                    />
-                    Custom Address
-                  </label>
-                </div>
-                {venueMode === "saved" ? (
+            {editing ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Account</label>
                   <select
-                    value={formVenue ?? ""}
+                    value={formAccount ?? ""}
                     onChange={(e) => {
-                      setFormVenue(e.target.value ? Number(e.target.value) : null);
+                      const val = e.target.value ? Number(e.target.value) : null;
+                      setFormAccount(val);
+                      setFormContact(null);
                     }}
                     className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
-                    <option value="">-- Select Venue --</option>
-                    {venues.map((v) => (
-                      <option key={v.id} value={v.id}>
-                        {v.name} - {v.city}
-                      </option>
+                    <option value="">-- No Account --</option>
+                    {accounts.map((a) => (
+                      <option key={a.id} value={a.id}>{a.name}</option>
                     ))}
                   </select>
-                ) : (
-                  <textarea
-                    value={formVenueAddress}
-                    onChange={(e) => setFormVenueAddress(e.target.value)}
-                    onBlur={() => {
-                      if (formVenueAddress !== event.venue_address) {
-                        saveField({ venue_address: formVenueAddress, venue: null } as Partial<EventData>);
-                      }
-                    }}
-                    rows={3}
-                    placeholder="Enter venue address..."
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                )}
-              </div>
-
-              {/* Event Type */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Event Type</label>
-                <select
-                  value={formEventType}
-                  onChange={(e) => setFormEventType(e.target.value)}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">-- Select --</option>
-                  {Object.entries(eventTypeLabels).map(([key, label]) => (
-                    <option key={key} value={key}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Service Style */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Service Style
-                </label>
-                <select
-                  value={formServiceStyle}
-                  onChange={(e) => setFormServiceStyle(e.target.value)}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">-- Select --</option>
-                  {Object.entries(serviceStyleLabels).map(([key, label]) => (
-                    <option key={key} value={key}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Price Per Head */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Price Per Head ({settings.currency_symbol})
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={formPricePerHead}
-                    onChange={(e) => setFormPricePerHead(e.target.value)}
-                    placeholder="0.00"
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  {suggestedPrice !== null && (
-                    <button
-                      type="button"
-                      onClick={() => setFormPricePerHead(suggestedPrice.toFixed(2))}
-                      className="whitespace-nowrap border border-green-300 text-green-700 bg-green-50 px-3 py-2 rounded text-sm hover:bg-green-100"
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Primary Contact</label>
+                  <select
+                    value={formContact ?? ""}
+                    onChange={(e) => setFormContact(e.target.value ? Number(e.target.value) : null)}
+                    disabled={!formAccount}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-400"
+                  >
+                    <option value="">-- Select Contact --</option>
+                    {contactsForAccount.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name} {c.role ? `(${c.role})` : ""}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Venue</label>
+                  <div className="flex gap-4 mb-2">
+                    <label className="flex items-center gap-1.5 text-sm">
+                      <input type="radio" name="venueMode" checked={venueMode === "saved"} onChange={() => setVenueMode("saved")} className="text-blue-600" />
+                      Saved Venue
+                    </label>
+                    <label className="flex items-center gap-1.5 text-sm">
+                      <input type="radio" name="venueMode" checked={venueMode === "custom"} onChange={() => setVenueMode("custom")} className="text-blue-600" />
+                      Custom Address
+                    </label>
+                  </div>
+                  {venueMode === "saved" ? (
+                    <select
+                      value={formVenue ?? ""}
+                      onChange={(e) => setFormVenue(e.target.value ? Number(e.target.value) : null)}
+                      className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
-                      Use {settings.currency_symbol}{suggestedPrice.toFixed(2)}
-                    </button>
+                      <option value="">-- Select Venue --</option>
+                      {venues.map((v) => (
+                        <option key={v.id} value={v.id}>{v.name} - {v.city}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <textarea
+                      value={formVenueAddress}
+                      onChange={(e) => setFormVenueAddress(e.target.value)}
+                      rows={3}
+                      placeholder="Enter venue address..."
+                      className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
                   )}
                 </div>
-                {suggestedPrice !== null && (
-                  <p className="text-xs text-green-600 mt-1">
-                    Suggested: {settings.currency_symbol}{suggestedPrice.toFixed(2)}/head
-                  </p>
-                )}
-                {formPricePerHead && event && (event.gents + event.ladies) > 0 && (
-                  <p className="text-xs text-gray-500 mt-1">
-                    Food total: {settings.currency_symbol}{(parseFloat(formPricePerHead) * (event.gents + event.ladies)).toFixed(2)} ({event.gents + event.ladies} guests)
-                  </p>
-                )}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Event Type</label>
+                  <select
+                    value={formEventType}
+                    onChange={(e) => setFormEventType(e.target.value)}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">-- Select --</option>
+                    {Object.entries(eventTypeLabels).map(([key, label]) => (
+                      <option key={key} value={key}>{label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Service Style</label>
+                  <select
+                    value={formServiceStyle}
+                    onChange={(e) => setFormServiceStyle(e.target.value)}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">-- Select --</option>
+                    {Object.entries(serviceStyleLabels).map(([key, label]) => (
+                      <option key={key} value={key}>{label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Price Per Head ({settings.currency_symbol})
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={formPricePerHead}
+                      onChange={(e) => setFormPricePerHead(e.target.value)}
+                      placeholder="0.00"
+                      className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    {suggestedPrice !== null && (
+                      <button
+                        type="button"
+                        onClick={() => setFormPricePerHead(suggestedPrice.toFixed(2))}
+                        className="whitespace-nowrap border border-green-300 text-green-700 bg-green-50 px-3 py-2 rounded text-sm hover:bg-green-100"
+                      >
+                        Use {settings.currency_symbol}{suggestedPrice.toFixed(2)}
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                  <textarea
+                    value={formNotes}
+                    onChange={(e) => setFormNotes(e.target.value)}
+                    rows={2}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
               </div>
-            </div>
-
-            <div className="mt-4 flex justify-end">
-              <button
-                onClick={() =>
-                  saveField({
-                    account: formAccount,
-                    primary_contact: formContact,
-                    venue: venueMode === "saved" ? formVenue : null,
-                    venue_address: venueMode === "custom" ? formVenueAddress : "",
-                    event_type: formEventType,
-                    service_style: formServiceStyle,
-                    price_per_head: formPricePerHead || null,
-                  } as Partial<EventData>)
-                }
-                disabled={saving}
-                className="bg-blue-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
-              >
-                {saving ? "Saving..." : "Save"}
-              </button>
-            </div>
+            ) : (
+              <dl className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <InfoRow label="Account" value={event.account_name} />
+                <InfoRow label="Primary Contact" value={event.contact_name} />
+                <InfoRow label="Venue" value={event.venue_name || event.venue_address || null} />
+                <InfoRow label="Event Type" value={eventTypeLabels[event.event_type] || event.event_type} />
+                <InfoRow label="Service Style" value={serviceStyleLabels[event.service_style] || event.service_style} />
+                <InfoRow label="Price Per Head" value={event.price_per_head ? `${settings.currency_symbol}${event.price_per_head}` : null} />
+                {event.notes && <div className="col-span-full"><InfoRow label="Notes" value={event.notes} /></div>}
+              </dl>
+            )}
           </div>
         )}
       </div>
@@ -673,12 +738,7 @@ export default function EventDetailPage() {
             <MenuBuilder
               selectedDishIds={event.dishes}
               basedOnTemplate={event.based_on_template}
-              onSave={async (data) => {
-                await saveField({
-                  dish_ids: data.dish_ids,
-                  based_on_template: data.based_on_template,
-                });
-              }}
+              onSave={handleMenuSave}
               onSuggestedPriceChange={handleSuggestedPriceChange}
               onUseSuggestedPrice={(price) => setFormPricePerHead(price.toFixed(2))}
               currencySymbol={settings.currency_symbol}
@@ -698,108 +758,52 @@ export default function EventDetailPage() {
         </button>
         {sections.guests && (
           <div className="px-5 pb-5 border-t border-gray-100 pt-4">
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Gents</label>
-                <input
-                  type="number"
-                  min={0}
-                  value={formGents}
-                  onChange={(e) => setFormGents(Number(e.target.value))}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+            {editing ? (
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Gents</label>
+                  <input type="number" min={0} value={formGents} onChange={(e) => setFormGents(Number(e.target.value))} className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Ladies</label>
+                  <input type="number" min={0} value={formLadies} onChange={(e) => setFormLadies(Number(e.target.value))} className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Guaranteed Count</label>
+                  <input type="number" min={0} value={formGuaranteed ?? ""} onChange={(e) => setFormGuaranteed(e.target.value ? Number(e.target.value) : null)} className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Final Count</label>
+                  <input type="number" min={0} value={formFinalCount ?? ""} onChange={(e) => setFormFinalCount(e.target.value ? Number(e.target.value) : null)} className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Final Count Due</label>
+                  <input type="date" value={formFinalCountDue} onChange={(e) => setFormFinalCountDue(e.target.value)} className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div className="flex flex-col justify-end">
+                  <label className="flex items-center gap-2 text-sm">
+                    <input type="checkbox" checked={formBigEaters} onChange={(e) => setFormBigEaters(e.target.checked)} className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                    <span className="font-medium text-gray-700">Big Eaters</span>
+                  </label>
+                  {formBigEaters && (
+                    <div className="mt-2">
+                      <label className="block text-xs text-gray-500 mb-0.5">Percentage (%)</label>
+                      <input type="number" min={0} max={100} value={formBigEatersPercent} onChange={(e) => setFormBigEatersPercent(Number(e.target.value))} className="w-full border border-gray-300 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    </div>
+                  )}
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Ladies</label>
-                <input
-                  type="number"
-                  min={0}
-                  value={formLadies}
-                  onChange={(e) => setFormLadies(Number(e.target.value))}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Guaranteed Count
-                </label>
-                <input
-                  type="number"
-                  min={0}
-                  value={formGuaranteed ?? ""}
-                  onChange={(e) =>
-                    setFormGuaranteed(e.target.value ? Number(e.target.value) : null)
-                  }
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Final Count</label>
-                <input
-                  type="number"
-                  min={0}
-                  value={formFinalCount ?? ""}
-                  onChange={(e) =>
-                    setFormFinalCount(e.target.value ? Number(e.target.value) : null)
-                  }
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Final Count Due
-                </label>
-                <input
-                  type="date"
-                  value={formFinalCountDue}
-                  onChange={(e) => setFormFinalCountDue(e.target.value)}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div className="flex flex-col justify-end">
-                <label className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={formBigEaters}
-                    onChange={(e) => setFormBigEaters(e.target.checked)}
-                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                  />
-                  <span className="font-medium text-gray-700">Big Eaters</span>
-                </label>
-                {formBigEaters && (
-                  <div className="mt-2">
-                    <label className="block text-xs text-gray-500 mb-0.5">Percentage (%)</label>
-                    <input
-                      type="number"
-                      min={0}
-                      max={100}
-                      value={formBigEatersPercent}
-                      onChange={(e) => setFormBigEatersPercent(Number(e.target.value))}
-                      className="w-full border border-gray-300 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                )}
-              </div>
-            </div>
-            <div className="mt-4 flex justify-end">
-              <button
-                onClick={() =>
-                  saveField({
-                    gents: formGents,
-                    ladies: formLadies,
-                    guaranteed_count: formGuaranteed,
-                    final_count: formFinalCount,
-                    final_count_due: formFinalCountDue || null,
-                    big_eaters: formBigEaters,
-                    big_eaters_percentage: formBigEatersPercent,
-                  } as Partial<EventData>)
-                }
-                disabled={saving}
-                className="bg-blue-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
-              >
-                {saving ? "Saving..." : "Save"}
-              </button>
-            </div>
+            ) : (
+              <dl className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <InfoRow label="Gents" value={event.gents} />
+                <InfoRow label="Ladies" value={event.ladies} />
+                <InfoRow label="Total" value={event.gents + event.ladies} />
+                <InfoRow label="Guaranteed Count" value={event.guaranteed_count} />
+                <InfoRow label="Final Count" value={event.final_count} />
+                <InfoRow label="Final Count Due" value={event.final_count_due} />
+                <InfoRow label="Big Eaters" value={event.big_eaters ? `Yes (+${event.big_eaters_percentage}%)` : "No"} />
+              </dl>
+            )}
           </div>
         )}
       </div>
@@ -815,62 +819,33 @@ export default function EventDetailPage() {
         </button>
         {sections.timeline && (
           <div className="px-5 pb-5 border-t border-gray-100 pt-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Setup Time</label>
-                <input
-                  type="datetime-local"
-                  value={formSetupTime}
-                  onChange={(e) => setFormSetupTime(e.target.value)}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+            {editing ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Setup Time</label>
+                  <input type="datetime-local" value={formSetupTime} onChange={(e) => setFormSetupTime(e.target.value)} className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Guest Arrival Time</label>
+                  <input type="datetime-local" value={formArrivalTime} onChange={(e) => setFormArrivalTime(e.target.value)} className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Meal Time</label>
+                  <input type="datetime-local" value={formMealTime} onChange={(e) => setFormMealTime(e.target.value)} className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">End Time</label>
+                  <input type="datetime-local" value={formEndTime} onChange={(e) => setFormEndTime(e.target.value)} className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Guest Arrival Time
-                </label>
-                <input
-                  type="datetime-local"
-                  value={formArrivalTime}
-                  onChange={(e) => setFormArrivalTime(e.target.value)}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Meal Time</label>
-                <input
-                  type="datetime-local"
-                  value={formMealTime}
-                  onChange={(e) => setFormMealTime(e.target.value)}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">End Time</label>
-                <input
-                  type="datetime-local"
-                  value={formEndTime}
-                  onChange={(e) => setFormEndTime(e.target.value)}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-            </div>
-            <div className="mt-4 flex justify-end">
-              <button
-                onClick={() =>
-                  saveField({
-                    setup_time: formSetupTime || null,
-                    guest_arrival_time: formArrivalTime || null,
-                    meal_time: formMealTime || null,
-                    end_time: formEndTime || null,
-                  } as Partial<EventData>)
-                }
-                disabled={saving}
-                className="bg-blue-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
-              >
-                {saving ? "Saving..." : "Save"}
-              </button>
-            </div>
+            ) : (
+              <dl className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <InfoRow label="Setup Time" value={formatDateTime(event.setup_time)} />
+                <InfoRow label="Guest Arrival" value={formatDateTime(event.guest_arrival_time)} />
+                <InfoRow label="Meal Time" value={formatDateTime(event.meal_time)} />
+                <InfoRow label="End Time" value={formatDateTime(event.end_time)} />
+              </dl>
+            )}
           </div>
         )}
       </div>
@@ -904,44 +879,23 @@ export default function EventDetailPage() {
                     {event.shifts.map((shift) => (
                       <tr key={shift.id} className="border-b border-gray-100 hover:bg-gray-50">
                         <td className="px-3 py-2 text-gray-900">{shift.role_name}</td>
-                        <td className="px-3 py-2 text-gray-900">
-                          {shift.staff_member_name || "Unassigned"}
-                        </td>
-                        <td className="px-3 py-2 text-gray-600 text-xs">
-                          {shift.start_time ? new Date(shift.start_time).toLocaleString() : "-"}
-                        </td>
-                        <td className="px-3 py-2 text-gray-600 text-xs">
-                          {shift.end_time ? new Date(shift.end_time).toLocaleString() : "-"}
-                        </td>
-                        <td className="px-3 py-2 text-right text-gray-900">
-                          {parseFloat(shift.shift_cost).toFixed(2)}
+                        <td className="px-3 py-2 text-gray-900">{shift.staff_member_name || "Unassigned"}</td>
+                        <td className="px-3 py-2 text-gray-600 text-xs">{formatDateTime(shift.start_time)}</td>
+                        <td className="px-3 py-2 text-gray-600 text-xs">{formatDateTime(shift.end_time)}</td>
+                        <td className="px-3 py-2 text-right text-gray-900">{parseFloat(shift.shift_cost).toFixed(2)}</td>
+                        <td className="px-3 py-2 text-center">
+                          <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">{shift.status}</span>
                         </td>
                         <td className="px-3 py-2 text-center">
-                          <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
-                            {shift.status}
-                          </span>
-                        </td>
-                        <td className="px-3 py-2 text-center">
-                          <button
-                            onClick={() => handleDeleteShift(shift.id)}
-                            disabled={saving}
-                            className="text-red-500 hover:text-red-700 text-sm font-medium disabled:opacity-50"
-                            title="Delete shift"
-                          >
-                            X
-                          </button>
+                          <button onClick={() => handleDeleteShift(shift.id)} disabled={saving} className="text-red-500 hover:text-red-700 text-sm font-medium disabled:opacity-50" title="Delete shift">X</button>
                         </td>
                       </tr>
                     ))}
                   </tbody>
                   <tfoot className="bg-gray-50 border-t border-gray-300">
                     <tr className="font-semibold">
-                      <td colSpan={4} className="px-3 py-2 text-gray-900">
-                        Total Labor Cost
-                      </td>
-                      <td className="px-3 py-2 text-right text-gray-900">
-                        {totalLaborCost.toFixed(2)}
-                      </td>
+                      <td colSpan={4} className="px-3 py-2 text-gray-900">Total Labor Cost</td>
+                      <td className="px-3 py-2 text-right text-gray-900">{totalLaborCost.toFixed(2)}</td>
                       <td colSpan={2}></td>
                     </tr>
                   </tfoot>
@@ -955,49 +909,17 @@ export default function EventDetailPage() {
             <div className="mt-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
               <p className="text-sm font-medium text-gray-700 mb-2">Add Shift</p>
               <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-                <select
-                  value={newShiftRole}
-                  onChange={(e) => setNewShiftRole(e.target.value ? Number(e.target.value) : "")}
-                  className="border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
+                <select value={newShiftRole} onChange={(e) => setNewShiftRole(e.target.value ? Number(e.target.value) : "")} className="border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
                   <option value="">Role...</option>
-                  {laborRoles.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      {r.name}
-                    </option>
-                  ))}
+                  {laborRoles.map((r) => (<option key={r.id} value={r.id}>{r.name}</option>))}
                 </select>
-                <select
-                  value={newShiftStaff}
-                  onChange={(e) => setNewShiftStaff(e.target.value ? Number(e.target.value) : "")}
-                  className="border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
+                <select value={newShiftStaff} onChange={(e) => setNewShiftStaff(e.target.value ? Number(e.target.value) : "")} className="border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
                   <option value="">Staff (optional)...</option>
-                  {staffList.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name}
-                    </option>
-                  ))}
+                  {staffList.map((s) => (<option key={s.id} value={s.id}>{s.name}</option>))}
                 </select>
-                <input
-                  type="datetime-local"
-                  value={newShiftStart}
-                  onChange={(e) => setNewShiftStart(e.target.value)}
-                  className="border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Start"
-                />
-                <input
-                  type="datetime-local"
-                  value={newShiftEnd}
-                  onChange={(e) => setNewShiftEnd(e.target.value)}
-                  className="border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="End"
-                />
-                <button
-                  onClick={handleAddShift}
-                  disabled={saving || newShiftRole === "" || !newShiftStart || !newShiftEnd}
-                  className="bg-blue-600 text-white px-3 py-1.5 rounded text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
-                >
+                <input type="datetime-local" value={newShiftStart} onChange={(e) => setNewShiftStart(e.target.value)} className="border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Start" />
+                <input type="datetime-local" value={newShiftEnd} onChange={(e) => setNewShiftEnd(e.target.value)} className="border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="End" />
+                <button onClick={handleAddShift} disabled={saving || newShiftRole === "" || !newShiftStart || !newShiftEnd} className="bg-blue-600 text-white px-3 py-1.5 rounded text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
                   Add
                 </button>
               </div>
@@ -1033,30 +955,17 @@ export default function EventDetailPage() {
                       <tr key={res.id} className="border-b border-gray-100 hover:bg-gray-50">
                         <td className="px-3 py-2 text-gray-900">{res.equipment_name}</td>
                         <td className="px-3 py-2 text-right text-gray-900">{res.quantity_out}</td>
-                        <td className="px-3 py-2 text-right text-gray-900">
-                          {parseFloat(res.line_cost).toFixed(2)}
-                        </td>
+                        <td className="px-3 py-2 text-right text-gray-900">{parseFloat(res.line_cost).toFixed(2)}</td>
                         <td className="px-3 py-2 text-center">
-                          <button
-                            onClick={() => handleDeleteReservation(res.id)}
-                            disabled={saving}
-                            className="text-red-500 hover:text-red-700 text-sm font-medium disabled:opacity-50"
-                            title="Delete reservation"
-                          >
-                            X
-                          </button>
+                          <button onClick={() => handleDeleteReservation(res.id)} disabled={saving} className="text-red-500 hover:text-red-700 text-sm font-medium disabled:opacity-50" title="Delete reservation">X</button>
                         </td>
                       </tr>
                     ))}
                   </tbody>
                   <tfoot className="bg-gray-50 border-t border-gray-300">
                     <tr className="font-semibold">
-                      <td colSpan={2} className="px-3 py-2 text-gray-900">
-                        Total Equipment Cost
-                      </td>
-                      <td className="px-3 py-2 text-right text-gray-900">
-                        {totalEquipmentCost.toFixed(2)}
-                      </td>
+                      <td colSpan={2} className="px-3 py-2 text-gray-900">Total Equipment Cost</td>
+                      <td className="px-3 py-2 text-right text-gray-900">{totalEquipmentCost.toFixed(2)}</td>
                       <td></td>
                     </tr>
                   </tfoot>
@@ -1070,33 +979,12 @@ export default function EventDetailPage() {
             <div className="mt-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
               <p className="text-sm font-medium text-gray-700 mb-2">Add Equipment</p>
               <div className="grid grid-cols-3 gap-2">
-                <select
-                  value={newEquipId}
-                  onChange={(e) => setNewEquipId(e.target.value ? Number(e.target.value) : "")}
-                  className="border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
+                <select value={newEquipId} onChange={(e) => setNewEquipId(e.target.value ? Number(e.target.value) : "")} className="border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
                   <option value="">Equipment...</option>
-                  {equipmentItems.map((eq) => (
-                    <option key={eq.id} value={eq.id}>
-                      {eq.name}
-                    </option>
-                  ))}
+                  {equipmentItems.map((eq) => (<option key={eq.id} value={eq.id}>{eq.name}</option>))}
                 </select>
-                <input
-                  type="number"
-                  min={1}
-                  value={newEquipQty}
-                  onChange={(e) => setNewEquipQty(Number(e.target.value))}
-                  className="border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Quantity"
-                />
-                <button
-                  onClick={handleAddEquipment}
-                  disabled={saving || newEquipId === ""}
-                  className="bg-blue-600 text-white px-3 py-1.5 rounded text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
-                >
-                  Add
-                </button>
+                <input type="number" min={1} value={newEquipQty} onChange={(e) => setNewEquipQty(Number(e.target.value))} className="border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Quantity" />
+                <button onClick={handleAddEquipment} disabled={saving || newEquipId === ""} className="bg-blue-600 text-white px-3 py-1.5 rounded text-sm font-medium hover:bg-blue-700 disabled:opacity-50">Add</button>
               </div>
             </div>
           </div>
@@ -1123,44 +1011,26 @@ export default function EventDetailPage() {
                       <th className="text-left px-3 py-2 font-medium text-gray-700">Type</th>
                       <th className="text-right px-3 py-2 font-medium text-gray-700">Total</th>
                       <th className="text-center px-3 py-2 font-medium text-gray-700">Status</th>
-                      <th className="text-right px-3 py-2 font-medium text-gray-700">
-                        Balance Due
-                      </th>
+                      <th className="text-right px-3 py-2 font-medium text-gray-700">Balance Due</th>
                     </tr>
                   </thead>
                   <tbody>
                     {event.invoices.map((inv) => (
                       <tr key={inv.id} className="border-b border-gray-100 hover:bg-gray-50">
                         <td className="px-3 py-2">
-                          <Link
-                            href={`/invoices/${inv.id}`}
-                            className="text-blue-600 hover:text-blue-800 font-medium"
-                          >
-                            {inv.invoice_number}
-                          </Link>
+                          <Link href={`/invoices/${inv.id}`} className="text-blue-600 hover:text-blue-800 font-medium">{inv.invoice_number}</Link>
                         </td>
                         <td className="px-3 py-2 text-gray-700 capitalize">{inv.invoice_type}</td>
-                        <td className="px-3 py-2 text-right text-gray-900">
-                          {parseFloat(inv.total).toFixed(2)}
-                        </td>
+                        <td className="px-3 py-2 text-right text-gray-900">{parseFloat(inv.total).toFixed(2)}</td>
                         <td className="px-3 py-2 text-center">
-                          <span
-                            className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
-                              inv.status === "paid"
-                                ? "bg-green-100 text-green-800"
-                                : inv.status === "overdue"
-                                  ? "bg-red-100 text-red-800"
-                                  : inv.status === "sent"
-                                    ? "bg-blue-100 text-blue-800"
-                                    : "bg-gray-100 text-gray-700"
-                            }`}
-                          >
-                            {inv.status}
-                          </span>
+                          <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
+                            inv.status === "paid" ? "bg-green-100 text-green-800" :
+                            inv.status === "overdue" ? "bg-red-100 text-red-800" :
+                            inv.status === "sent" ? "bg-blue-100 text-blue-800" :
+                            "bg-gray-100 text-gray-700"
+                          }`}>{inv.status}</span>
                         </td>
-                        <td className="px-3 py-2 text-right text-gray-900">
-                          {parseFloat(inv.balance_due).toFixed(2)}
-                        </td>
+                        <td className="px-3 py-2 text-right text-gray-900">{parseFloat(inv.balance_due).toFixed(2)}</td>
                       </tr>
                     ))}
                   </tbody>

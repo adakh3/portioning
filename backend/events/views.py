@@ -1,14 +1,31 @@
+from datetime import date
+
+from django.db.models import Q
 from rest_framework import generics
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from .models import Event
+from .models import Event, EventStatus
 from .serializers import EventSerializer
+
+
+def _auto_advance_event_statuses():
+    """Move confirmed events to in_progress on event day, and to completed the day after."""
+    today = date.today()
+    Event.objects.filter(
+        status=EventStatus.CONFIRMED,
+        date__lte=today,
+    ).update(status=EventStatus.IN_PROGRESS)
+    Event.objects.filter(
+        status=EventStatus.IN_PROGRESS,
+        date__lt=today,
+    ).update(status=EventStatus.COMPLETED)
 
 
 class EventListCreateView(generics.ListCreateAPIView):
     serializer_class = EventSerializer
 
     def get_queryset(self):
+        _auto_advance_event_statuses()
         qs = Event.objects.select_related(
             'account', 'primary_contact', 'venue', 'based_on_template',
         ).prefetch_related(
@@ -29,16 +46,19 @@ class EventListCreateView(generics.ListCreateAPIView):
         return qs
 
 
-class EventDetailView(generics.RetrieveUpdateAPIView):
+class EventDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = EventSerializer
-    queryset = Event.objects.select_related(
-        'account', 'primary_contact', 'venue', 'based_on_template',
-    ).prefetch_related(
-        'dishes', 'dish_comments', 'dish_comments__dish',
-        'shifts', 'shifts__staff_member', 'shifts__role',
-        'equipment_reservations', 'equipment_reservations__equipment',
-        'invoices', 'invoices__payments',
-    ).all()
+
+    def get_queryset(self):
+        _auto_advance_event_statuses()
+        return Event.objects.select_related(
+            'account', 'primary_contact', 'venue', 'based_on_template',
+        ).prefetch_related(
+            'dishes', 'dish_comments', 'dish_comments__dish',
+            'shifts', 'shifts__staff_member', 'shifts__role',
+            'equipment_reservations', 'equipment_reservations__equipment',
+            'invoices', 'invoices__payments',
+        ).all()
 
 
 class EventCalculateView(APIView):

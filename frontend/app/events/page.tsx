@@ -1,11 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { api, EventData, CalculationResult } from "@/lib/api";
-import ResultsTable from "@/components/ResultsTable";
-import WarningsBanner from "@/components/WarningsBanner";
+import { api, EventData } from "@/lib/api";
 
 const statusColors: Record<string, string> = {
   tentative: "bg-yellow-100 text-yellow-800",
@@ -19,11 +16,7 @@ export default function EventsPage() {
   const [events, setEvents] = useState<EventData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [calcResult, setCalcResult] = useState<{ id: number; result: CalculationResult } | null>(null);
-  const [calcLoading, setCalcLoading] = useState(false);
-  const [exportingId, setExportingId] = useState<number | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("");
-  const router = useRouter();
 
   const loadEvents = () => {
     setLoading(true);
@@ -37,43 +30,6 @@ export default function EventsPage() {
     loadEvents();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statusFilter]);
-
-  const calculateEvent = async (id: number) => {
-    setCalcLoading(true);
-    try {
-      const res = await api.calculateEvent(id);
-      setCalcResult({ id, result: res });
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Calculation failed");
-    } finally {
-      setCalcLoading(false);
-    }
-  };
-
-  const handleExportPDF = async (event: EventData) => {
-    setExportingId(event.id);
-    try {
-      const blob = await api.exportPDF({
-        dish_ids: event.dishes,
-        guests: { gents: event.gents, ladies: event.ladies },
-        big_eaters: event.big_eaters,
-        big_eaters_percentage: event.big_eaters_percentage,
-        menu_name: event.name,
-        date: event.date,
-        constraint_overrides: event.constraint_override ?? undefined,
-      });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${event.name.replace(/\s+/g, "-").toLowerCase()}-portioning.pdf`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "PDF export failed");
-    } finally {
-      setExportingId(null);
-    }
-  };
 
   const statuses = ["", "tentative", "confirmed", "in_progress", "completed", "cancelled"];
   const statusLabels: Record<string, string> = {
@@ -174,38 +130,16 @@ export default function EventsPage() {
                 >
                   Details
                 </Link>
-                <button
-                  onClick={() => router.push(`/calculate?event=${event.id}`)}
-                  className="border border-gray-300 text-gray-700 bg-white px-3 py-1.5 rounded text-sm font-medium hover:bg-gray-50 transition-colors"
-                >
-                  Edit Menu
-                </button>
-                <button
-                  onClick={() => calculateEvent(event.id)}
-                  disabled={calcLoading}
-                  className="bg-blue-600 text-white px-3 py-1.5 rounded text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
-                >
-                  {calcLoading && calcResult?.id === event.id ? "Calculating..." : "Calculate"}
-                </button>
-                <button
-                  onClick={() => handleExportPDF(event)}
-                  disabled={exportingId === event.id}
-                  className="bg-green-600 text-white px-3 py-1.5 rounded text-sm font-medium hover:bg-green-700 disabled:opacity-50 transition-colors"
-                >
-                  {exportingId === event.id ? "Exporting..." : "PDF"}
-                </button>
+                {event.status !== "completed" && event.status !== "cancelled" && (
+                  <Link
+                    href={`/events/${event.id}`}
+                    className="bg-blue-600 text-white px-3 py-1.5 rounded text-sm font-medium hover:bg-blue-700 transition-colors"
+                  >
+                    Edit Event
+                  </Link>
+                )}
               </div>
             </div>
-
-            {calcResult?.id === event.id && (
-              <div className="mt-4 space-y-3">
-                <WarningsBanner
-                  warnings={calcResult.result.warnings}
-                  adjustments={calcResult.result.adjustments_applied}
-                />
-                <ResultsTable result={calcResult.result} />
-              </div>
-            )}
           </div>
         ))}
       </div>

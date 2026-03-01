@@ -552,6 +552,8 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify(data),
     }),
+  deleteEvent: (id: number) =>
+    fetchApi<void>(`/events/${id}/`, { method: "DELETE" }),
   calculateEvent: (id: number) =>
     fetchApi<CalculationResult>(`/events/${id}/calculate/`, { method: "POST" }),
   exportPDF: async (data: {
