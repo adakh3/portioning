@@ -73,9 +73,9 @@ class Dish(models.Model):
     protein_type = models.CharField(max_length=20, choices=ProteinType.choices, default=ProteinType.NONE)
     default_portion_grams = models.FloatField(help_text="Baseline portion in grams")
     popularity = models.FloatField(default=1.0, help_text="Relative popularity weight")
-    cost_per_gram = models.DecimalField(max_digits=6, decimal_places=4, default=0)
+    cost_per_gram = models.DecimalField(max_digits=10, decimal_places=4, default=0)
     selling_price_per_gram = models.DecimalField(
-        max_digits=8, decimal_places=4, null=True, blank=True,
+        max_digits=10, decimal_places=4, null=True, blank=True,
         help_text='Selling price per gram; auto-calculated unless overridden',
     )
     selling_price_override = models.BooleanField(
