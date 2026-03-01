@@ -1,0 +1,4963 @@
+[
+{
+  "model": "dishes.dishcategory",
+  "pk": 86,
+  "fields": {
+    "name": "curry",
+    "display_name": "Curry",
+    "display_order": 1,
+    "protein_is_additive": false,
+    "pool": "protein",
+    "unit": "kg",
+    "baseline_budget_grams": 160.0,
+    "min_per_dish_grams": 70.0,
+    "fixed_portion_grams": null
+  }
+},
+{
+  "model": "dishes.dishcategory",
+  "pk": 87,
+  "fields": {
+    "name": "dry_barbecue",
+    "display_name": "Dry / Barbecue",
+    "display_order": 0,
+    "protein_is_additive": false,
+    "pool": "protein",
+    "unit": "kg",
+    "baseline_budget_grams": 180.0,
+    "min_per_dish_grams": 100.0,
+    "fixed_portion_grams": null
+  }
+},
+{
+  "model": "dishes.dishcategory",
+  "pk": 88,
+  "fields": {
+    "name": "rice",
+    "display_name": "Rice",
+    "display_order": 2,
+    "protein_is_additive": true,
+    "pool": "protein",
+    "unit": "kg",
+    "baseline_budget_grams": 100.0,
+    "min_per_dish_grams": 70.0,
+    "fixed_portion_grams": null
+  }
+},
+{
+  "model": "dishes.dishcategory",
+  "pk": 89,
+  "fields": {
+    "name": "veg_curry",
+    "display_name": "Veg Curry",
+    "display_order": 3,
+    "protein_is_additive": false,
+    "pool": "accompaniment",
+    "unit": "kg",
+    "baseline_budget_grams": 80.0,
+    "min_per_dish_grams": 30.0,
+    "fixed_portion_grams": null
+  }
+},
+{
+  "model": "dishes.dishcategory",
+  "pk": 90,
+  "fields": {
+    "name": "sides",
+    "display_name": "Sides",
+    "display_order": 4,
+    "protein_is_additive": false,
+    "pool": "accompaniment",
+    "unit": "kg",
+    "baseline_budget_grams": 60.0,
+    "min_per_dish_grams": 30.0,
+    "fixed_portion_grams": null
+  }
+},
+{
+  "model": "dishes.dishcategory",
+  "pk": 91,
+  "fields": {
+    "name": "dessert",
+    "display_name": "Dessert",
+    "display_order": 5,
+    "protein_is_additive": false,
+    "pool": "dessert",
+    "unit": "kg",
+    "baseline_budget_grams": 80.0,
+    "min_per_dish_grams": 40.0,
+    "fixed_portion_grams": null
+  }
+},
+{
+  "model": "dishes.dishcategory",
+  "pk": 92,
+  "fields": {
+    "name": "salad",
+    "display_name": "Salad",
+    "display_order": 6,
+    "protein_is_additive": false,
+    "pool": "service",
+    "unit": "kg",
+    "baseline_budget_grams": 0.0,
+    "min_per_dish_grams": 0.0,
+    "fixed_portion_grams": 50.0
+  }
+},
+{
+  "model": "dishes.dishcategory",
+  "pk": 93,
+  "fields": {
+    "name": "condiment",
+    "display_name": "Condiment",
+    "display_order": 7,
+    "protein_is_additive": false,
+    "pool": "service",
+    "unit": "kg",
+    "baseline_budget_grams": 0.0,
+    "min_per_dish_grams": 0.0,
+    "fixed_portion_grams": 40.0
+  }
+},
+{
+  "model": "dishes.dishcategory",
+  "pk": 94,
+  "fields": {
+    "name": "bread",
+    "display_name": "Bread",
+    "display_order": 8,
+    "protein_is_additive": false,
+    "pool": "service",
+    "unit": "qty",
+    "baseline_budget_grams": 0.0,
+    "min_per_dish_grams": 0.0,
+    "fixed_portion_grams": 1.0
+  }
+},
+{
+  "model": "dishes.dishcategory",
+  "pk": 95,
+  "fields": {
+    "name": "tea",
+    "display_name": "Tea",
+    "display_order": 9,
+    "protein_is_additive": false,
+    "pool": "service",
+    "unit": "qty",
+    "baseline_budget_grams": 0.0,
+    "min_per_dish_grams": 0.0,
+    "fixed_portion_grams": 1.0
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 903,
+  "fields": {
+    "name": "Mutton Qorma",
+    "category": 86,
+    "protein_type": "mutton",
+    "default_portion_grams": 120.0,
+    "popularity": 1.0,
+    "cost_per_gram": "2.5580",
+    "selling_price_per_gram": "8.5267",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.223Z",
+    "updated_at": "2026-03-01T09:47:30.396Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 904,
+  "fields": {
+    "name": "Mutton Badami Qorma",
+    "category": 86,
+    "protein_type": "mutton",
+    "default_portion_grams": 120.0,
+    "popularity": 1.0,
+    "cost_per_gram": "2.6620",
+    "selling_price_per_gram": "8.8733",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.224Z",
+    "updated_at": "2026-03-01T09:47:29.274Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 905,
+  "fields": {
+    "name": "Mutton White Qorma",
+    "category": 86,
+    "protein_type": "mutton",
+    "default_portion_grams": 120.0,
+    "popularity": 1.0,
+    "cost_per_gram": "2.7800",
+    "selling_price_per_gram": "9.2667",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.225Z",
+    "updated_at": "2026-03-01T09:47:31.250Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 906,
+  "fields": {
+    "name": "Mutton Kunna",
+    "category": 86,
+    "protein_type": "mutton",
+    "default_portion_grams": 120.0,
+    "popularity": 1.0,
+    "cost_per_gram": "3.4370",
+    "selling_price_per_gram": "11.4567",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.226Z",
+    "updated_at": "2026-03-01T09:47:29.827Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 907,
+  "fields": {
+    "name": "Mutton Paye",
+    "category": 86,
+    "protein_type": "mutton",
+    "default_portion_grams": 130.0,
+    "popularity": 1.0,
+    "cost_per_gram": "2.0640",
+    "selling_price_per_gram": "6.8800",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.227Z",
+    "updated_at": "2026-03-01T09:47:30.112Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 908,
+  "fields": {
+    "name": "Mutton Rezala",
+    "category": 86,
+    "protein_type": "mutton",
+    "default_portion_grams": 120.0,
+    "popularity": 1.0,
+    "cost_per_gram": "2.6000",
+    "selling_price_per_gram": "8.6667",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.227Z",
+    "updated_at": "2026-03-01T09:47:30.669Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 909,
+  "fields": {
+    "name": "Mutton Karahi",
+    "category": 86,
+    "protein_type": "mutton",
+    "default_portion_grams": 120.0,
+    "popularity": 1.0,
+    "cost_per_gram": "2.6060",
+    "selling_price_per_gram": "8.6867",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.228Z",
+    "updated_at": "2026-03-01T09:47:29.550Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 910,
+  "fields": {
+    "name": "Mutton Shinwari Karahi",
+    "category": 86,
+    "protein_type": "mutton",
+    "default_portion_grams": 120.0,
+    "popularity": 1.0,
+    "cost_per_gram": "2.6170",
+    "selling_price_per_gram": "8.7233",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.229Z",
+    "updated_at": "2026-03-01T09:47:30.961Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 911,
+  "fields": {
+    "name": "Lamb Shinwari Karahi",
+    "category": 86,
+    "protein_type": "lamb",
+    "default_portion_grams": 120.0,
+    "popularity": 1.0,
+    "cost_per_gram": "3.0770",
+    "selling_price_per_gram": "10.2567",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.230Z",
+    "updated_at": "2026-03-01T09:47:28.995Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 912,
+  "fields": {
+    "name": "Palak Paneer",
+    "category": 89,
+    "protein_type": "none",
+    "default_portion_grams": 110.0,
+    "popularity": 1.0,
+    "cost_per_gram": "0.5060",
+    "selling_price_per_gram": "1.6867",
+    "selling_price_override": false,
+    "is_vegetarian": true,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.231Z",
+    "updated_at": "2026-03-01T09:47:39.418Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 913,
+  "fields": {
+    "name": "Chicken Qorma",
+    "category": 86,
+    "protein_type": "chicken",
+    "default_portion_grams": 120.0,
+    "popularity": 1.0,
+    "cost_per_gram": "0.9230",
+    "selling_price_per_gram": "3.0767",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.232Z",
+    "updated_at": "2026-03-01T09:47:28.138Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 914,
+  "fields": {
+    "name": "Bombay Chicken",
+    "category": 86,
+    "protein_type": "chicken",
+    "default_portion_grams": 120.0,
+    "popularity": 1.0,
+    "cost_per_gram": "1.1000",
+    "selling_price_per_gram": "3.6667",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.233Z",
+    "updated_at": "2026-03-01T09:47:26.467Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 915,
+  "fields": {
+    "name": "Chicken Curry",
+    "category": 86,
+    "protein_type": "chicken",
+    "default_portion_grams": 120.0,
+    "popularity": 1.0,
+    "cost_per_gram": "0.8320",
+    "selling_price_per_gram": "2.7733",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.234Z",
+    "updated_at": "2026-03-01T09:47:27.017Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 916,
+  "fields": {
+    "name": "Aaloo Chicken",
+    "category": 86,
+    "protein_type": "chicken",
+    "default_portion_grams": 120.0,
+    "popularity": 1.0,
+    "cost_per_gram": "0.8570",
+    "selling_price_per_gram": "2.8567",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.235Z",
+    "updated_at": "2026-03-01T09:47:25.884Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 917,
+  "fields": {
+    "name": "Chicken Chanay",
+    "category": 86,
+    "protein_type": "chicken",
+    "default_portion_grams": 120.0,
+    "popularity": 1.0,
+    "cost_per_gram": "1.0330",
+    "selling_price_per_gram": "3.4433",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.235Z",
+    "updated_at": "2026-03-01T09:47:26.742Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 918,
+  "fields": {
+    "name": "Veal Qorma",
+    "category": 86,
+    "protein_type": "veal",
+    "default_portion_grams": 120.0,
+    "popularity": 1.0,
+    "cost_per_gram": "1.5380",
+    "selling_price_per_gram": "5.1267",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.236Z",
+    "updated_at": "2026-03-01T09:47:31.526Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 919,
+  "fields": {
+    "name": "Mix Daal",
+    "category": 89,
+    "protein_type": "none",
+    "default_portion_grams": 110.0,
+    "popularity": 1.0,
+    "cost_per_gram": "0.5750",
+    "selling_price_per_gram": "1.9167",
+    "selling_price_override": false,
+    "is_vegetarian": true,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.237Z",
+    "updated_at": "2026-03-01T09:47:39.143Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 920,
+  "fields": {
+    "name": "Lahori Chicken Karahi",
+    "category": 86,
+    "protein_type": "chicken",
+    "default_portion_grams": 120.0,
+    "popularity": 1.0,
+    "cost_per_gram": "0.9720",
+    "selling_price_per_gram": "3.2400",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.238Z",
+    "updated_at": "2026-03-01T09:47:28.717Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 921,
+  "fields": {
+    "name": "Chicken Handi",
+    "category": 86,
+    "protein_type": "chicken",
+    "default_portion_grams": 120.0,
+    "popularity": 1.0,
+    "cost_per_gram": "1.2910",
+    "selling_price_per_gram": "4.3033",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.239Z",
+    "updated_at": "2026-03-01T09:47:27.571Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 922,
+  "fields": {
+    "name": "Chicken Haleem",
+    "category": 86,
+    "protein_type": "chicken",
+    "default_portion_grams": 130.0,
+    "popularity": 1.0,
+    "cost_per_gram": "0.5370",
+    "selling_price_per_gram": "1.7900",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.240Z",
+    "updated_at": "2026-03-01T09:47:27.298Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 923,
+  "fields": {
+    "name": "Beef Haleem",
+    "category": 86,
+    "protein_type": "beef",
+    "default_portion_grams": 130.0,
+    "popularity": 1.0,
+    "cost_per_gram": "0.9670",
+    "selling_price_per_gram": "3.2233",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.241Z",
+    "updated_at": "2026-03-01T09:47:26.189Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 924,
+  "fields": {
+    "name": "Curry Pakora",
+    "category": 89,
+    "protein_type": "none",
+    "default_portion_grams": 100.0,
+    "popularity": 1.0,
+    "cost_per_gram": "0.3830",
+    "selling_price_per_gram": "1.2767",
+    "selling_price_override": false,
+    "is_vegetarian": true,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.242Z",
+    "updated_at": "2026-03-01T09:47:38.025Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 925,
+  "fields": {
+    "name": "Daal Chana",
+    "category": 89,
+    "protein_type": "none",
+    "default_portion_grams": 110.0,
+    "popularity": 1.0,
+    "cost_per_gram": "0.5750",
+    "selling_price_per_gram": "1.9167",
+    "selling_price_override": false,
+    "is_vegetarian": true,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.243Z",
+    "updated_at": "2026-03-01T09:47:38.309Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 926,
+  "fields": {
+    "name": "Lobia",
+    "category": 89,
+    "protein_type": "none",
+    "default_portion_grams": 110.0,
+    "popularity": 1.0,
+    "cost_per_gram": "0.4660",
+    "selling_price_per_gram": "1.5533",
+    "selling_price_override": false,
+    "is_vegetarian": true,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.244Z",
+    "updated_at": "2026-03-01T09:47:38.857Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 927,
+  "fields": {
+    "name": "Kofta Curry",
+    "category": 86,
+    "protein_type": "beef",
+    "default_portion_grams": 120.0,
+    "popularity": 1.0,
+    "cost_per_gram": "1.5180",
+    "selling_price_per_gram": "5.0600",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.245Z",
+    "updated_at": "2026-03-01T09:47:28.441Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 928,
+  "fields": {
+    "name": "Aaloo Achari",
+    "category": 89,
+    "protein_type": "none",
+    "default_portion_grams": 100.0,
+    "popularity": 1.0,
+    "cost_per_gram": "0.3200",
+    "selling_price_per_gram": "1.0667",
+    "selling_price_override": false,
+    "is_vegetarian": true,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.246Z",
+    "updated_at": "2026-03-01T09:47:37.751Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 929,
+  "fields": {
+    "name": "Lahori Chanay",
+    "category": 89,
+    "protein_type": "none",
+    "default_portion_grams": 110.0,
+    "popularity": 1.0,
+    "cost_per_gram": "1.2430",
+    "selling_price_per_gram": "4.1433",
+    "selling_price_override": false,
+    "is_vegetarian": true,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.247Z",
+    "updated_at": "2026-03-01T09:47:38.583Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 930,
+  "fields": {
+    "name": "Chicken Handi (With Bone)",
+    "category": 86,
+    "protein_type": "chicken",
+    "default_portion_grams": 130.0,
+    "popularity": 1.0,
+    "cost_per_gram": "1.4290",
+    "selling_price_per_gram": "4.7633",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.248Z",
+    "updated_at": "2026-03-01T09:47:27.850Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 931,
+  "fields": {
+    "name": "Chicken Biryani",
+    "category": 88,
+    "protein_type": "chicken",
+    "default_portion_grams": 180.0,
+    "popularity": 1.0,
+    "cost_per_gram": "1.3770",
+    "selling_price_per_gram": "4.5900",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.249Z",
+    "updated_at": "2026-03-01T09:47:33.525Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 932,
+  "fields": {
+    "name": "Chicken Sindhi Biryani",
+    "category": 88,
+    "protein_type": "chicken",
+    "default_portion_grams": 180.0,
+    "popularity": 1.0,
+    "cost_per_gram": "1.3920",
+    "selling_price_per_gram": "4.6400",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.250Z",
+    "updated_at": "2026-03-01T09:47:34.382Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 933,
+  "fields": {
+    "name": "Vegetable Biryani",
+    "category": 88,
+    "protein_type": "none",
+    "default_portion_grams": 170.0,
+    "popularity": 1.0,
+    "cost_per_gram": "0.7580",
+    "selling_price_per_gram": "2.5267",
+    "selling_price_override": false,
+    "is_vegetarian": true,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.251Z",
+    "updated_at": "2026-03-01T09:47:36.922Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 934,
+  "fields": {
+    "name": "Matka Biryani",
+    "category": 88,
+    "protein_type": "chicken",
+    "default_portion_grams": 180.0,
+    "popularity": 1.0,
+    "cost_per_gram": "1.6760",
+    "selling_price_per_gram": "5.5867",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.252Z",
+    "updated_at": "2026-03-01T09:47:34.957Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 935,
+  "fields": {
+    "name": "Chicken Pulao",
+    "category": 88,
+    "protein_type": "chicken",
+    "default_portion_grams": 170.0,
+    "popularity": 1.0,
+    "cost_per_gram": "1.3230",
+    "selling_price_per_gram": "4.4100",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.253Z",
+    "updated_at": "2026-03-01T09:47:34.087Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 936,
+  "fields": {
+    "name": "Mutton Pulao",
+    "category": 88,
+    "protein_type": "mutton",
+    "default_portion_grams": 170.0,
+    "popularity": 1.0,
+    "cost_per_gram": "2.9570",
+    "selling_price_per_gram": "9.8567",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.254Z",
+    "updated_at": "2026-03-01T09:47:35.526Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 937,
+  "fields": {
+    "name": "Mutton Bukhara Pulao",
+    "category": 88,
+    "protein_type": "mutton",
+    "default_portion_grams": 170.0,
+    "popularity": 1.0,
+    "cost_per_gram": "2.9470",
+    "selling_price_per_gram": "9.8233",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.255Z",
+    "updated_at": "2026-03-01T09:47:35.248Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 938,
+  "fields": {
+    "name": "Veal Kabuli Pulao",
+    "category": 88,
+    "protein_type": "veal",
+    "default_portion_grams": 170.0,
+    "popularity": 1.0,
+    "cost_per_gram": "1.7760",
+    "selling_price_per_gram": "5.9200",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.255Z",
+    "updated_at": "2026-03-01T09:47:36.649Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 939,
+  "fields": {
+    "name": "Peas Pulao",
+    "category": 88,
+    "protein_type": "none",
+    "default_portion_grams": 160.0,
+    "popularity": 1.0,
+    "cost_per_gram": "0.6870",
+    "selling_price_per_gram": "2.2900",
+    "selling_price_override": false,
+    "is_vegetarian": true,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.256Z",
+    "updated_at": "2026-03-01T09:47:35.806Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 940,
+  "fields": {
+    "name": "Chana Pulao",
+    "category": 88,
+    "protein_type": "none",
+    "default_portion_grams": 160.0,
+    "popularity": 1.0,
+    "cost_per_gram": "0.7270",
+    "selling_price_per_gram": "2.4233",
+    "selling_price_override": false,
+    "is_vegetarian": true,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.258Z",
+    "updated_at": "2026-03-01T09:47:33.246Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 941,
+  "fields": {
+    "name": "Vegetable Pulao",
+    "category": 88,
+    "protein_type": "none",
+    "default_portion_grams": 160.0,
+    "popularity": 1.0,
+    "cost_per_gram": "0.7050",
+    "selling_price_per_gram": "2.3500",
+    "selling_price_override": false,
+    "is_vegetarian": true,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.259Z",
+    "updated_at": "2026-03-01T09:47:37.478Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 942,
+  "fields": {
+    "name": "Singaporean Rice",
+    "category": 88,
+    "protein_type": "none",
+    "default_portion_grams": 160.0,
+    "popularity": 1.0,
+    "cost_per_gram": "1.1340",
+    "selling_price_per_gram": "3.7800",
+    "selling_price_override": false,
+    "is_vegetarian": true,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.260Z",
+    "updated_at": "2026-03-01T09:47:36.093Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 943,
+  "fields": {
+    "name": "Arabic Rice",
+    "category": 88,
+    "protein_type": "none",
+    "default_portion_grams": 160.0,
+    "popularity": 1.0,
+    "cost_per_gram": "0.4530",
+    "selling_price_per_gram": "1.5100",
+    "selling_price_override": false,
+    "is_vegetarian": true,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.260Z",
+    "updated_at": "2026-03-01T09:47:32.964Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 944,
+  "fields": {
+    "name": "Vegetable Fried Rice",
+    "category": 88,
+    "protein_type": "none",
+    "default_portion_grams": 160.0,
+    "popularity": 1.0,
+    "cost_per_gram": "0.5570",
+    "selling_price_per_gram": "1.8567",
+    "selling_price_override": false,
+    "is_vegetarian": true,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.261Z",
+    "updated_at": "2026-03-01T09:47:37.198Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 945,
+  "fields": {
+    "name": "Egg Fried Rice",
+    "category": 88,
+    "protein_type": "none",
+    "default_portion_grams": 160.0,
+    "popularity": 1.0,
+    "cost_per_gram": "0.6070",
+    "selling_price_per_gram": "2.0233",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.262Z",
+    "updated_at": "2026-03-01T09:47:34.661Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 946,
+  "fields": {
+    "name": "Chicken Fried Rice",
+    "category": 88,
+    "protein_type": "chicken",
+    "default_portion_grams": 170.0,
+    "popularity": 1.0,
+    "cost_per_gram": "0.8330",
+    "selling_price_per_gram": "2.7767",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.263Z",
+    "updated_at": "2026-03-01T09:47:33.805Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 947,
+  "fields": {
+    "name": "Veal Biryani",
+    "category": 88,
+    "protein_type": "veal",
+    "default_portion_grams": 180.0,
+    "popularity": 1.0,
+    "cost_per_gram": "1.8400",
+    "selling_price_per_gram": "6.1333",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.264Z",
+    "updated_at": "2026-03-01T09:47:36.375Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 948,
+  "fields": {
+    "name": "Whole Mutton Roast",
+    "category": 87,
+    "protein_type": "mutton",
+    "default_portion_grams": 100.0,
+    "popularity": 1.0,
+    "cost_per_gram": "3.0670",
+    "selling_price_per_gram": "10.2233",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.265Z",
+    "updated_at": "2026-03-01T09:47:22.557Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 949,
+  "fields": {
+    "name": "Whole Lamb Roast",
+    "category": 87,
+    "protein_type": "lamb",
+    "default_portion_grams": 100.0,
+    "popularity": 1.0,
+    "cost_per_gram": "3.0160",
+    "selling_price_per_gram": "10.0533",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.266Z",
+    "updated_at": "2026-03-01T09:47:22.286Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 950,
+  "fields": {
+    "name": "Mutton Foil Roast",
+    "category": 87,
+    "protein_type": "mutton",
+    "default_portion_grams": 100.0,
+    "popularity": 1.0,
+    "cost_per_gram": "2.9300",
+    "selling_price_per_gram": "9.7667",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.267Z",
+    "updated_at": "2026-03-01T09:47:19.188Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 951,
+  "fields": {
+    "name": "Mutton Leg",
+    "category": 87,
+    "protein_type": "mutton",
+    "default_portion_grams": 100.0,
+    "popularity": 1.0,
+    "cost_per_gram": "3.5990",
+    "selling_price_per_gram": "11.9967",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.268Z",
+    "updated_at": "2026-03-01T09:47:19.466Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 952,
+  "fields": {
+    "name": "Veal Foil Roast",
+    "category": 87,
+    "protein_type": "veal",
+    "default_portion_grams": 100.0,
+    "popularity": 1.0,
+    "cost_per_gram": "1.8800",
+    "selling_price_per_gram": "6.2667",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.269Z",
+    "updated_at": "2026-03-01T09:47:21.725Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 953,
+  "fields": {
+    "name": "Chicken with Almond",
+    "category": 87,
+    "protein_type": "chicken",
+    "default_portion_grams": 100.0,
+    "popularity": 1.0,
+    "cost_per_gram": "1.3670",
+    "selling_price_per_gram": "4.5567",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.270Z",
+    "updated_at": "2026-03-01T09:47:17.799Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 954,
+  "fields": {
+    "name": "Steam Roast",
+    "category": 87,
+    "protein_type": "chicken",
+    "default_portion_grams": 100.0,
+    "popularity": 1.0,
+    "cost_per_gram": "0.9810",
+    "selling_price_per_gram": "3.2700",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.271Z",
+    "updated_at": "2026-03-01T09:47:20.884Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 955,
+  "fields": {
+    "name": "Whole Chicken",
+    "category": 87,
+    "protein_type": "chicken",
+    "default_portion_grams": 100.0,
+    "popularity": 1.0,
+    "cost_per_gram": "0.9810",
+    "selling_price_per_gram": "3.2700",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.272Z",
+    "updated_at": "2026-03-01T09:47:22.005Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 956,
+  "fields": {
+    "name": "Lahori Fried Fish",
+    "category": 87,
+    "protein_type": "fish",
+    "default_portion_grams": 90.0,
+    "popularity": 1.0,
+    "cost_per_gram": "2.0810",
+    "selling_price_per_gram": "6.9367",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.272Z",
+    "updated_at": "2026-03-01T09:47:18.363Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 957,
+  "fields": {
+    "name": "Crumb Fried Fish",
+    "category": 87,
+    "protein_type": "fish",
+    "default_portion_grams": 90.0,
+    "popularity": 1.0,
+    "cost_per_gram": "2.2130",
+    "selling_price_per_gram": "7.3767",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.273Z",
+    "updated_at": "2026-03-01T09:47:18.088Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 958,
+  "fields": {
+    "name": "Tawa Fish",
+    "category": 87,
+    "protein_type": "fish",
+    "default_portion_grams": 90.0,
+    "popularity": 1.0,
+    "cost_per_gram": "2.4700",
+    "selling_price_per_gram": "8.2333",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.274Z",
+    "updated_at": "2026-03-01T09:47:21.178Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 959,
+  "fields": {
+    "name": "Chicken Boti Tikka",
+    "category": 87,
+    "protein_type": "chicken",
+    "default_portion_grams": 100.0,
+    "popularity": 1.0,
+    "cost_per_gram": "0.8110",
+    "selling_price_per_gram": "2.7033",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.275Z",
+    "updated_at": "2026-03-01T09:47:16.922Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 960,
+  "fields": {
+    "name": "Seekh Kabab",
+    "category": 87,
+    "protein_type": "beef",
+    "default_portion_grams": 100.0,
+    "popularity": 1.0,
+    "cost_per_gram": "1.2720",
+    "selling_price_per_gram": "4.2400",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.276Z",
+    "updated_at": "2026-03-01T09:47:20.017Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 961,
+  "fields": {
+    "name": "Mix Vegetable Bhujiyya",
+    "category": 87,
+    "protein_type": "none",
+    "default_portion_grams": 80.0,
+    "popularity": 1.0,
+    "cost_per_gram": "0.2750",
+    "selling_price_per_gram": "0.9167",
+    "selling_price_override": false,
+    "is_vegetarian": true,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.277Z",
+    "updated_at": "2026-03-01T09:47:18.909Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 962,
+  "fields": {
+    "name": "Spring Roll",
+    "category": 87,
+    "protein_type": "none",
+    "default_portion_grams": 70.0,
+    "popularity": 1.0,
+    "cost_per_gram": "1.8330",
+    "selling_price_per_gram": "6.1100",
+    "selling_price_override": false,
+    "is_vegetarian": true,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.278Z",
+    "updated_at": "2026-03-01T09:47:20.610Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 963,
+  "fields": {
+    "name": "Chicken Seekh Kabab",
+    "category": 87,
+    "protein_type": "chicken",
+    "default_portion_grams": 100.0,
+    "popularity": 1.0,
+    "cost_per_gram": "0.7990",
+    "selling_price_per_gram": "2.6633",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.279Z",
+    "updated_at": "2026-03-01T09:47:17.206Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 964,
+  "fields": {
+    "name": "Mutton Seekh Kabab",
+    "category": 87,
+    "protein_type": "mutton",
+    "default_portion_grams": 100.0,
+    "popularity": 1.0,
+    "cost_per_gram": "2.0440",
+    "selling_price_per_gram": "6.8133",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.280Z",
+    "updated_at": "2026-03-01T09:47:19.737Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 965,
+  "fields": {
+    "name": "Chicken Tandoori Boti",
+    "category": 87,
+    "protein_type": "chicken",
+    "default_portion_grams": 100.0,
+    "popularity": 1.0,
+    "cost_per_gram": "0.8110",
+    "selling_price_per_gram": "2.7033",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.281Z",
+    "updated_at": "2026-03-01T09:47:17.495Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 966,
+  "fields": {
+    "name": "Turkish Kabab",
+    "category": 87,
+    "protein_type": "beef",
+    "default_portion_grams": 100.0,
+    "popularity": 1.0,
+    "cost_per_gram": "1.4690",
+    "selling_price_per_gram": "4.8967",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.282Z",
+    "updated_at": "2026-03-01T09:47:21.451Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 967,
+  "fields": {
+    "name": "Lebanese Boti",
+    "category": 87,
+    "protein_type": "chicken",
+    "default_portion_grams": 100.0,
+    "popularity": 1.0,
+    "cost_per_gram": "1.1810",
+    "selling_price_per_gram": "3.9367",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.283Z",
+    "updated_at": "2026-03-01T09:47:18.636Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 968,
+  "fields": {
+    "name": "Shish Tawok",
+    "category": 87,
+    "protein_type": "chicken",
+    "default_portion_grams": 100.0,
+    "popularity": 1.0,
+    "cost_per_gram": "1.6290",
+    "selling_price_per_gram": "5.4300",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.284Z",
+    "updated_at": "2026-03-01T09:47:20.332Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 969,
+  "fields": {
+    "name": "Beef Afghani Boti",
+    "category": 87,
+    "protein_type": "beef",
+    "default_portion_grams": 100.0,
+    "popularity": 1.0,
+    "cost_per_gram": "2.8270",
+    "selling_price_per_gram": "9.4233",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.285Z",
+    "updated_at": "2026-03-01T09:47:16.638Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 970,
+  "fields": {
+    "name": "Zarda",
+    "category": 91,
+    "protein_type": "none",
+    "default_portion_grams": 80.0,
+    "popularity": 1.0,
+    "cost_per_gram": "0.8760",
+    "selling_price_per_gram": "2.9200",
+    "selling_price_override": false,
+    "is_vegetarian": true,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.285Z",
+    "updated_at": "2026-03-01T09:47:45.635Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 971,
+  "fields": {
+    "name": "Mutanjan (Special)",
+    "category": 91,
+    "protein_type": "none",
+    "default_portion_grams": 80.0,
+    "popularity": 1.0,
+    "cost_per_gram": "0.8760",
+    "selling_price_per_gram": "2.9200",
+    "selling_price_override": false,
+    "is_vegetarian": true,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.286Z",
+    "updated_at": "2026-03-01T09:47:45.358Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 972,
+  "fields": {
+    "name": "Fruit Trifle",
+    "category": 91,
+    "protein_type": "none",
+    "default_portion_grams": 80.0,
+    "popularity": 1.0,
+    "cost_per_gram": "0.6670",
+    "selling_price_per_gram": "2.2233",
+    "selling_price_override": false,
+    "is_vegetarian": true,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.287Z",
+    "updated_at": "2026-03-01T09:47:43.077Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 973,
+  "fields": {
+    "name": "Kheer",
+    "category": 91,
+    "protein_type": "none",
+    "default_portion_grams": 80.0,
+    "popularity": 1.0,
+    "cost_per_gram": "0.3400",
+    "selling_price_per_gram": "1.1333",
+    "selling_price_override": false,
+    "is_vegetarian": true,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.288Z",
+    "updated_at": "2026-03-01T09:47:45.066Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 974,
+  "fields": {
+    "name": "Hyderabadi Shahi Tukray",
+    "category": 91,
+    "protein_type": "none",
+    "default_portion_grams": 80.0,
+    "popularity": 1.0,
+    "cost_per_gram": "0.7060",
+    "selling_price_per_gram": "2.3533",
+    "selling_price_override": false,
+    "is_vegetarian": true,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.289Z",
+    "updated_at": "2026-03-01T09:47:44.493Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 975,
+  "fields": {
+    "name": "Chocolate Mousse",
+    "category": 91,
+    "protein_type": "none",
+    "default_portion_grams": 70.0,
+    "popularity": 1.0,
+    "cost_per_gram": "1.8250",
+    "selling_price_per_gram": "6.0833",
+    "selling_price_override": false,
+    "is_vegetarian": true,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.290Z",
+    "updated_at": "2026-03-01T09:47:42.518Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 976,
+  "fields": {
+    "name": "Ice Cream",
+    "category": 91,
+    "protein_type": "none",
+    "default_portion_grams": 80.0,
+    "popularity": 1.0,
+    "cost_per_gram": "0.4360",
+    "selling_price_per_gram": "1.4533",
+    "selling_price_override": false,
+    "is_vegetarian": true,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.291Z",
+    "updated_at": "2026-03-01T09:47:44.774Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 977,
+  "fields": {
+    "name": "Halwa Petha",
+    "category": 91,
+    "protein_type": "none",
+    "default_portion_grams": 70.0,
+    "popularity": 1.0,
+    "cost_per_gram": "0.8730",
+    "selling_price_per_gram": "2.9100",
+    "selling_price_override": false,
+    "is_vegetarian": true,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.292Z",
+    "updated_at": "2026-03-01T09:47:43.912Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 978,
+  "fields": {
+    "name": "Gajar Halwa",
+    "category": 91,
+    "protein_type": "none",
+    "default_portion_grams": 80.0,
+    "popularity": 1.0,
+    "cost_per_gram": "0.6740",
+    "selling_price_per_gram": "2.2467",
+    "selling_price_override": false,
+    "is_vegetarian": true,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.293Z",
+    "updated_at": "2026-03-01T09:47:43.360Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 979,
+  "fields": {
+    "name": "Gulab Jaman",
+    "category": 91,
+    "protein_type": "none",
+    "default_portion_grams": 60.0,
+    "popularity": 1.0,
+    "cost_per_gram": "0.6950",
+    "selling_price_per_gram": "2.3167",
+    "selling_price_override": false,
+    "is_vegetarian": true,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.294Z",
+    "updated_at": "2026-03-01T09:47:43.632Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 980,
+  "fields": {
+    "name": "Halwa Suji",
+    "category": 91,
+    "protein_type": "none",
+    "default_portion_grams": 70.0,
+    "popularity": 1.0,
+    "cost_per_gram": "0.3500",
+    "selling_price_per_gram": "1.1667",
+    "selling_price_override": false,
+    "is_vegetarian": true,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.294Z",
+    "updated_at": "2026-03-01T09:47:44.200Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 981,
+  "fields": {
+    "name": "Cream Caramel",
+    "category": 91,
+    "protein_type": "none",
+    "default_portion_grams": 80.0,
+    "popularity": 1.0,
+    "cost_per_gram": "0.9240",
+    "selling_price_per_gram": "3.0800",
+    "selling_price_override": false,
+    "is_vegetarian": true,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.295Z",
+    "updated_at": "2026-03-01T09:47:42.796Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 982,
+  "fields": {
+    "name": "Bread Pudding",
+    "category": 91,
+    "protein_type": "none",
+    "default_portion_grams": 80.0,
+    "popularity": 1.0,
+    "cost_per_gram": "1.2440",
+    "selling_price_per_gram": "4.1467",
+    "selling_price_override": false,
+    "is_vegetarian": true,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.296Z",
+    "updated_at": "2026-03-01T09:47:41.961Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 983,
+  "fields": {
+    "name": "Caramel Crunch",
+    "category": 91,
+    "protein_type": "none",
+    "default_portion_grams": 70.0,
+    "popularity": 1.0,
+    "cost_per_gram": "0.4660",
+    "selling_price_per_gram": "1.5533",
+    "selling_price_override": false,
+    "is_vegetarian": true,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.297Z",
+    "updated_at": "2026-03-01T09:47:42.242Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 984,
+  "fields": {
+    "name": "Bhagaray Baingan",
+    "category": 90,
+    "protein_type": "none",
+    "default_portion_grams": 60.0,
+    "popularity": 1.0,
+    "cost_per_gram": "0.7680",
+    "selling_price_per_gram": "2.5600",
+    "selling_price_override": false,
+    "is_vegetarian": true,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.297Z",
+    "updated_at": "2026-03-01T09:47:40.818Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 985,
+  "fields": {
+    "name": "Bhindi Fry",
+    "category": 90,
+    "protein_type": "none",
+    "default_portion_grams": 60.0,
+    "popularity": 1.0,
+    "cost_per_gram": "0.4950",
+    "selling_price_per_gram": "1.6500",
+    "selling_price_override": false,
+    "is_vegetarian": true,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.299Z",
+    "updated_at": "2026-03-01T09:47:41.096Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 986,
+  "fields": {
+    "name": "Mirchi Ka Salan",
+    "category": 90,
+    "protein_type": "none",
+    "default_portion_grams": 50.0,
+    "popularity": 1.0,
+    "cost_per_gram": "0.8740",
+    "selling_price_per_gram": "2.9133",
+    "selling_price_override": false,
+    "is_vegetarian": true,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.300Z",
+    "updated_at": "2026-03-01T09:47:41.683Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 987,
+  "fields": {
+    "name": "Khattay Aaloo",
+    "category": 90,
+    "protein_type": "none",
+    "default_portion_grams": 60.0,
+    "popularity": 1.0,
+    "cost_per_gram": "0.2670",
+    "selling_price_per_gram": "0.8900",
+    "selling_price_override": false,
+    "is_vegetarian": true,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.301Z",
+    "updated_at": "2026-03-01T09:47:41.378Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 988,
+  "fields": {
+    "name": "Aaloo Bukharay ke Chutney",
+    "category": 90,
+    "protein_type": "none",
+    "default_portion_grams": 40.0,
+    "popularity": 1.0,
+    "cost_per_gram": "1.5000",
+    "selling_price_per_gram": "5.0000",
+    "selling_price_override": false,
+    "is_vegetarian": true,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.302Z",
+    "updated_at": "2026-03-01T09:47:40.531Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 989,
+  "fields": {
+    "name": "Fresh Green Salad",
+    "category": 92,
+    "protein_type": "none",
+    "default_portion_grams": 50.0,
+    "popularity": 1.0,
+    "cost_per_gram": "0.1790",
+    "selling_price_per_gram": "0.5967",
+    "selling_price_override": false,
+    "is_vegetarian": true,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.303Z",
+    "updated_at": "2026-03-01T09:47:47.598Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 990,
+  "fields": {
+    "name": "Macaroni Salad",
+    "category": 92,
+    "protein_type": "none",
+    "default_portion_grams": 50.0,
+    "popularity": 1.0,
+    "cost_per_gram": "0.7480",
+    "selling_price_per_gram": "2.4933",
+    "selling_price_override": false,
+    "is_vegetarian": true,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.304Z",
+    "updated_at": "2026-03-01T09:47:48.165Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 991,
+  "fields": {
+    "name": "Greek Village Salad",
+    "category": 92,
+    "protein_type": "none",
+    "default_portion_grams": 50.0,
+    "popularity": 1.0,
+    "cost_per_gram": "0.7260",
+    "selling_price_per_gram": "2.4200",
+    "selling_price_override": false,
+    "is_vegetarian": true,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.305Z",
+    "updated_at": "2026-03-01T09:47:47.871Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 992,
+  "fields": {
+    "name": "Caesar Salad",
+    "category": 92,
+    "protein_type": "none",
+    "default_portion_grams": 50.0,
+    "popularity": 1.0,
+    "cost_per_gram": "2.1690",
+    "selling_price_per_gram": "7.2300",
+    "selling_price_override": false,
+    "is_vegetarian": true,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.306Z",
+    "updated_at": "2026-03-01T09:47:47.320Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 993,
+  "fields": {
+    "name": "Pasta Salad",
+    "category": 92,
+    "protein_type": "none",
+    "default_portion_grams": 50.0,
+    "popularity": 1.0,
+    "cost_per_gram": "0.7380",
+    "selling_price_per_gram": "2.4600",
+    "selling_price_override": false,
+    "is_vegetarian": true,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.307Z",
+    "updated_at": "2026-03-01T09:47:48.441Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 994,
+  "fields": {
+    "name": "Waldorf Salad",
+    "category": 92,
+    "protein_type": "none",
+    "default_portion_grams": 50.0,
+    "popularity": 1.0,
+    "cost_per_gram": "1.5470",
+    "selling_price_per_gram": "5.1567",
+    "selling_price_override": false,
+    "is_vegetarian": true,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.309Z",
+    "updated_at": "2026-03-01T09:47:48.713Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 995,
+  "fields": {
+    "name": "Cabbage Salad with Apple & Walnuts",
+    "category": 92,
+    "protein_type": "none",
+    "default_portion_grams": 50.0,
+    "popularity": 1.0,
+    "cost_per_gram": "0.5670",
+    "selling_price_per_gram": "1.8900",
+    "selling_price_override": false,
+    "is_vegetarian": true,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.310Z",
+    "updated_at": "2026-03-01T09:47:47.028Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 996,
+  "fields": {
+    "name": "Raita",
+    "category": 93,
+    "protein_type": "none",
+    "default_portion_grams": 40.0,
+    "popularity": 1.0,
+    "cost_per_gram": "0.2490",
+    "selling_price_per_gram": "0.8300",
+    "selling_price_override": false,
+    "is_vegetarian": true,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.311Z",
+    "updated_at": "2026-03-01T09:47:49.567Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 997,
+  "fields": {
+    "name": "Assorted Naan",
+    "category": 94,
+    "protein_type": "none",
+    "default_portion_grams": 1.0,
+    "popularity": 1.0,
+    "cost_per_gram": "35.0000",
+    "selling_price_per_gram": "116.6667",
+    "selling_price_override": false,
+    "is_vegetarian": true,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.312Z",
+    "updated_at": "2026-03-01T09:47:50.681Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 998,
+  "fields": {
+    "name": "Puri",
+    "category": 94,
+    "protein_type": "none",
+    "default_portion_grams": 1.0,
+    "popularity": 1.0,
+    "cost_per_gram": "36.0000",
+    "selling_price_per_gram": "120.0000",
+    "selling_price_override": false,
+    "is_vegetarian": true,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.313Z",
+    "updated_at": "2026-03-01T09:47:50.967Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 999,
+  "fields": {
+    "name": "Green Tea",
+    "category": 95,
+    "protein_type": "none",
+    "default_portion_grams": 1.0,
+    "popularity": 1.0,
+    "cost_per_gram": "22.0000",
+    "selling_price_per_gram": "73.3333",
+    "selling_price_override": false,
+    "is_vegetarian": true,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-02-02T15:59:31.314Z",
+    "updated_at": "2026-03-01T09:47:51.530Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 1000,
+  "fields": {
+    "name": "Reshmi Seekh Kabab",
+    "category": 87,
+    "protein_type": "chicken",
+    "default_portion_grams": 100.0,
+    "popularity": 1.0,
+    "cost_per_gram": "0.8710",
+    "selling_price_per_gram": "2.9033",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-03-01T09:45:37.882Z",
+    "updated_at": "2026-03-01T09:47:22.832Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 1001,
+  "fields": {
+    "name": "Chicken Malai Boti",
+    "category": 87,
+    "protein_type": "chicken",
+    "default_portion_grams": 100.0,
+    "popularity": 1.0,
+    "cost_per_gram": "1.1810",
+    "selling_price_per_gram": "3.9367",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-03-01T09:45:38.284Z",
+    "updated_at": "2026-03-01T09:47:23.106Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 1002,
+  "fields": {
+    "name": "Chicken Shashlik BBQ",
+    "category": 87,
+    "protein_type": "chicken",
+    "default_portion_grams": 100.0,
+    "popularity": 1.0,
+    "cost_per_gram": "1.4120",
+    "selling_price_per_gram": "4.7067",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-03-01T09:45:38.638Z",
+    "updated_at": "2026-03-01T09:47:23.383Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 1003,
+  "fields": {
+    "name": "Meerath Kabab",
+    "category": 87,
+    "protein_type": "veal",
+    "default_portion_grams": 100.0,
+    "popularity": 1.0,
+    "cost_per_gram": "1.5110",
+    "selling_price_per_gram": "5.0367",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-03-01T09:45:39.001Z",
+    "updated_at": "2026-03-01T09:47:23.653Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 1004,
+  "fields": {
+    "name": "Kafta Kabab",
+    "category": 87,
+    "protein_type": "beef",
+    "default_portion_grams": 100.0,
+    "popularity": 1.0,
+    "cost_per_gram": "1.1820",
+    "selling_price_per_gram": "3.9400",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-03-01T09:45:39.369Z",
+    "updated_at": "2026-03-01T09:47:23.939Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 1005,
+  "fields": {
+    "name": "Gola Kabab",
+    "category": 87,
+    "protein_type": "chicken",
+    "default_portion_grams": 100.0,
+    "popularity": 1.0,
+    "cost_per_gram": "1.0290",
+    "selling_price_per_gram": "3.4300",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-03-01T09:45:39.737Z",
+    "updated_at": "2026-03-01T09:47:24.216Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 1006,
+  "fields": {
+    "name": "Chicken Hazari Kabab",
+    "category": 87,
+    "protein_type": "chicken",
+    "default_portion_grams": 100.0,
+    "popularity": 1.0,
+    "cost_per_gram": "0.7990",
+    "selling_price_per_gram": "2.6633",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-03-01T09:45:40.105Z",
+    "updated_at": "2026-03-01T09:47:24.493Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 1007,
+  "fields": {
+    "name": "Behari Kabab",
+    "category": 87,
+    "protein_type": "chicken",
+    "default_portion_grams": 100.0,
+    "popularity": 1.0,
+    "cost_per_gram": "1.2280",
+    "selling_price_per_gram": "4.0933",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-03-01T09:45:40.476Z",
+    "updated_at": "2026-03-01T09:47:24.764Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 1008,
+  "fields": {
+    "name": "Tawa Lacha Chicken",
+    "category": 87,
+    "protein_type": "chicken",
+    "default_portion_grams": 100.0,
+    "popularity": 1.0,
+    "cost_per_gram": "0.9720",
+    "selling_price_per_gram": "3.2400",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-03-01T09:45:40.846Z",
+    "updated_at": "2026-03-01T09:47:25.044Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 1009,
+  "fields": {
+    "name": "Chicken Satay",
+    "category": 87,
+    "protein_type": "chicken",
+    "default_portion_grams": 100.0,
+    "popularity": 1.0,
+    "cost_per_gram": "1.4650",
+    "selling_price_per_gram": "4.8833",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-03-01T09:45:41.224Z",
+    "updated_at": "2026-03-01T09:47:25.323Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 1010,
+  "fields": {
+    "name": "Chicken Haryali Boti",
+    "category": 87,
+    "protein_type": "chicken",
+    "default_portion_grams": 100.0,
+    "popularity": 1.0,
+    "cost_per_gram": "1.1810",
+    "selling_price_per_gram": "3.9367",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-03-01T09:45:41.594Z",
+    "updated_at": "2026-03-01T09:47:25.596Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 1011,
+  "fields": {
+    "name": "Chicken White Karahi",
+    "category": 86,
+    "protein_type": "chicken",
+    "default_portion_grams": 120.0,
+    "popularity": 1.0,
+    "cost_per_gram": "1.1830",
+    "selling_price_per_gram": "3.9433",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-03-01T09:45:42.073Z",
+    "updated_at": "2026-03-01T09:47:31.816Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 1012,
+  "fields": {
+    "name": "Mutton Shahi Qorma",
+    "category": 86,
+    "protein_type": "mutton",
+    "default_portion_grams": 120.0,
+    "popularity": 1.0,
+    "cost_per_gram": "2.6000",
+    "selling_price_per_gram": "8.6667",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-03-01T09:45:42.441Z",
+    "updated_at": "2026-03-01T09:47:32.107Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 1013,
+  "fields": {
+    "name": "Chicken Karahi",
+    "category": 86,
+    "protein_type": "chicken",
+    "default_portion_grams": 120.0,
+    "popularity": 1.0,
+    "cost_per_gram": "1.2250",
+    "selling_price_per_gram": "4.0833",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-03-01T09:45:42.815Z",
+    "updated_at": "2026-03-01T09:47:32.392Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 1014,
+  "fields": {
+    "name": "Dum Qeema",
+    "category": 86,
+    "protein_type": "chicken",
+    "default_portion_grams": 120.0,
+    "popularity": 1.0,
+    "cost_per_gram": "1.2250",
+    "selling_price_per_gram": "4.0833",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-03-01T09:45:43.183Z",
+    "updated_at": "2026-03-01T09:47:32.675Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 1015,
+  "fields": {
+    "name": "Mian Jee Daal",
+    "category": 89,
+    "protein_type": "none",
+    "default_portion_grams": 110.0,
+    "popularity": 1.0,
+    "cost_per_gram": "0.6500",
+    "selling_price_per_gram": "2.1667",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-03-01T09:45:43.638Z",
+    "updated_at": "2026-03-01T09:47:39.684Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 1016,
+  "fields": {
+    "name": "Makhani Chanay",
+    "category": 89,
+    "protein_type": "none",
+    "default_portion_grams": 110.0,
+    "popularity": 1.0,
+    "cost_per_gram": "1.2430",
+    "selling_price_per_gram": "4.1433",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-03-01T09:45:44.026Z",
+    "updated_at": "2026-03-01T09:47:39.966Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 1017,
+  "fields": {
+    "name": "Bombay Chanay",
+    "category": 89,
+    "protein_type": "none",
+    "default_portion_grams": 110.0,
+    "popularity": 1.0,
+    "cost_per_gram": "1.2430",
+    "selling_price_per_gram": "4.1433",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-03-01T09:45:44.385Z",
+    "updated_at": "2026-03-01T09:47:40.254Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 1018,
+  "fields": {
+    "name": "Potato Salad",
+    "category": 92,
+    "protein_type": "none",
+    "default_portion_grams": 50.0,
+    "popularity": 1.0,
+    "cost_per_gram": "0.5240",
+    "selling_price_per_gram": "1.7467",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-03-01T09:45:44.871Z",
+    "updated_at": "2026-03-01T09:47:48.991Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 1019,
+  "fields": {
+    "name": "Bean Salad",
+    "category": 92,
+    "protein_type": "none",
+    "default_portion_grams": 50.0,
+    "popularity": 1.0,
+    "cost_per_gram": "0.8070",
+    "selling_price_per_gram": "2.6900",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-03-01T09:45:45.235Z",
+    "updated_at": "2026-03-01T09:47:49.278Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 1020,
+  "fields": {
+    "name": "Mint Raita",
+    "category": 93,
+    "protein_type": "none",
+    "default_portion_grams": 40.0,
+    "popularity": 1.0,
+    "cost_per_gram": "0.2490",
+    "selling_price_per_gram": "0.8300",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-03-01T09:45:45.688Z",
+    "updated_at": "2026-03-01T09:47:49.849Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 1021,
+  "fields": {
+    "name": "Zeera Raita",
+    "category": 93,
+    "protein_type": "none",
+    "default_portion_grams": 40.0,
+    "popularity": 1.0,
+    "cost_per_gram": "0.2490",
+    "selling_price_per_gram": "0.8300",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-03-01T09:45:46.051Z",
+    "updated_at": "2026-03-01T09:47:50.128Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 1022,
+  "fields": {
+    "name": "Kachumer Raita",
+    "category": 93,
+    "protein_type": "none",
+    "default_portion_grams": 40.0,
+    "popularity": 1.0,
+    "cost_per_gram": "0.2490",
+    "selling_price_per_gram": "0.8300",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-03-01T09:45:46.420Z",
+    "updated_at": "2026-03-01T09:47:50.405Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 1023,
+  "fields": {
+    "name": "Puri Paratha",
+    "category": 94,
+    "protein_type": "none",
+    "default_portion_grams": 1.0,
+    "popularity": 1.0,
+    "cost_per_gram": "120.0000",
+    "selling_price_per_gram": "400.0000",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-03-01T09:45:46.863Z",
+    "updated_at": "2026-03-01T09:47:51.249Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 1024,
+  "fields": {
+    "name": "Halwa Suji Badami",
+    "category": 91,
+    "protein_type": "none",
+    "default_portion_grams": 70.0,
+    "popularity": 1.0,
+    "cost_per_gram": "0.3000",
+    "selling_price_per_gram": "1.0000",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-03-01T09:45:47.320Z",
+    "updated_at": "2026-03-01T09:47:45.921Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 1025,
+  "fields": {
+    "name": "Halwa Suji (Gulabi)",
+    "category": 91,
+    "protein_type": "none",
+    "default_portion_grams": 70.0,
+    "popularity": 1.0,
+    "cost_per_gram": "0.3600",
+    "selling_price_per_gram": "1.2000",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-03-01T09:45:47.703Z",
+    "updated_at": "2026-03-01T09:47:46.202Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 1026,
+  "fields": {
+    "name": "Caramel Crunch Ice Cream",
+    "category": 91,
+    "protein_type": "none",
+    "default_portion_grams": 80.0,
+    "popularity": 1.0,
+    "cost_per_gram": "0.4830",
+    "selling_price_per_gram": "1.6100",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-03-01T09:45:48.059Z",
+    "updated_at": "2026-03-01T09:47:46.474Z"
+  }
+},
+{
+  "model": "dishes.dish",
+  "pk": 1027,
+  "fields": {
+    "name": "Fruit Custard",
+    "category": 91,
+    "protein_type": "none",
+    "default_portion_grams": 80.0,
+    "popularity": 1.0,
+    "cost_per_gram": "0.2900",
+    "selling_price_per_gram": "0.9667",
+    "selling_price_override": false,
+    "is_vegetarian": false,
+    "is_active": true,
+    "notes": "",
+    "created_at": "2026-03-01T09:45:48.422Z",
+    "updated_at": "2026-03-01T09:47:46.747Z"
+  }
+},
+{
+  "model": "menus.menutemplate",
+  "pk": 55,
+  "fields": {
+    "name": "Golden Elegance Feast",
+    "description": "BBQ, curry, and rice — standard tier",
+    "menu_type": "barat",
+    "is_active": true,
+    "default_gents": 50,
+    "default_ladies": 50,
+    "created_at": "2026-02-02T15:59:31.324Z"
+  }
+},
+{
+  "model": "menus.menutemplate",
+  "pk": 56,
+  "fields": {
+    "name": "Royal Heritage Spread",
+    "description": "Curry and rice — simple baseline",
+    "menu_type": "barat",
+    "is_active": true,
+    "default_gents": 50,
+    "default_ladies": 50,
+    "created_at": "2026-02-02T15:59:31.331Z"
+  }
+},
+{
+  "model": "menus.menutemplate",
+  "pk": 57,
+  "fields": {
+    "name": "Majestic Celebration Banquet",
+    "description": "Heavy BBQ and curry — the standard baseline menu",
+    "menu_type": "barat",
+    "is_active": true,
+    "default_gents": 50,
+    "default_ladies": 50,
+    "created_at": "2026-02-02T15:59:31.337Z"
+  }
+},
+{
+  "model": "menus.menutemplate",
+  "pk": 58,
+  "fields": {
+    "name": "Golden Evening Feast",
+    "description": "BBQ with veg sides — casual style",
+    "menu_type": "mehndi",
+    "is_active": true,
+    "default_gents": 50,
+    "default_ladies": 50,
+    "created_at": "2026-02-02T15:59:31.345Z"
+  }
+},
+{
+  "model": "menus.menutemplate",
+  "pk": 59,
+  "fields": {
+    "name": "Heritage Elegance Banquet",
+    "description": "3 BBQ items, 2 curries, rice, and sides — real catering data",
+    "menu_type": "barat",
+    "is_active": true,
+    "default_gents": 50,
+    "default_ladies": 50,
+    "created_at": "2026-02-02T15:59:31.351Z"
+  }
+},
+{
+  "model": "menus.menutemplate",
+  "pk": 60,
+  "fields": {
+    "name": "Timeless Royal Spread",
+    "description": "Heavy BBQ, curry, rice, veg sides, and 4 desserts — real catering data",
+    "menu_type": "barat",
+    "is_active": true,
+    "default_gents": 50,
+    "default_ladies": 50,
+    "created_at": "2026-02-02T15:59:31.361Z"
+  }
+},
+{
+  "model": "menus.menutemplate",
+  "pk": 61,
+  "fields": {
+    "name": "Opulent Legacy Feast",
+    "description": "",
+    "menu_type": "barat",
+    "is_active": true,
+    "default_gents": 50,
+    "default_ladies": 50,
+    "created_at": "2026-02-28T14:44:58.502Z"
+  }
+},
+{
+  "model": "menus.menutemplate",
+  "pk": 62,
+  "fields": {
+    "name": "Grand Imperial Feast",
+    "description": "",
+    "menu_type": "barat",
+    "is_active": true,
+    "default_gents": 50,
+    "default_ladies": 50,
+    "created_at": "2026-02-28T14:44:59.947Z"
+  }
+},
+{
+  "model": "menus.menutemplate",
+  "pk": 63,
+  "fields": {
+    "name": "Colors of Tradition",
+    "description": "",
+    "menu_type": "mehndi",
+    "is_active": true,
+    "default_gents": 50,
+    "default_ladies": 50,
+    "created_at": "2026-02-28T14:45:05.527Z"
+  }
+},
+{
+  "model": "menus.menutemplate",
+  "pk": 64,
+  "fields": {
+    "name": "Moonlit Celebration",
+    "description": "",
+    "menu_type": "mehndi",
+    "is_active": true,
+    "default_gents": 50,
+    "default_ladies": 50,
+    "created_at": "2026-02-28T14:45:07.517Z"
+  }
+},
+{
+  "model": "menus.menutemplate",
+  "pk": 65,
+  "fields": {
+    "name": "Blossoms of Joy",
+    "description": "",
+    "menu_type": "mehndi",
+    "is_active": true,
+    "default_gents": 50,
+    "default_ladies": 50,
+    "created_at": "2026-02-28T14:45:10.149Z"
+  }
+},
+{
+  "model": "menus.menutemplate",
+  "pk": 66,
+  "fields": {
+    "name": "Royal Festive Banquet",
+    "description": "",
+    "menu_type": "mehndi",
+    "is_active": true,
+    "default_gents": 50,
+    "default_ladies": 50,
+    "created_at": "2026-02-28T14:45:13.215Z"
+  }
+},
+{
+  "model": "menus.menutemplate",
+  "pk": 67,
+  "fields": {
+    "name": "Magic of Celebration",
+    "description": "",
+    "menu_type": "mehndi",
+    "is_active": true,
+    "default_gents": 50,
+    "default_ladies": 50,
+    "created_at": "2026-02-28T14:45:15.960Z"
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 561,
+  "fields": {
+    "menu": 55,
+    "dish": 963,
+    "portion_grams": 180.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 562,
+  "fields": {
+    "menu": 55,
+    "dish": 913,
+    "portion_grams": 160.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 563,
+  "fields": {
+    "menu": 55,
+    "dish": 931,
+    "portion_grams": 100.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 564,
+  "fields": {
+    "menu": 55,
+    "dish": 989,
+    "portion_grams": 40.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 565,
+  "fields": {
+    "menu": 55,
+    "dish": 990,
+    "portion_grams": 60.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 566,
+  "fields": {
+    "menu": 55,
+    "dish": 996,
+    "portion_grams": 40.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 567,
+  "fields": {
+    "menu": 55,
+    "dish": 997,
+    "portion_grams": 1.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 568,
+  "fields": {
+    "menu": 55,
+    "dish": 972,
+    "portion_grams": 80.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 569,
+  "fields": {
+    "menu": 55,
+    "dish": 999,
+    "portion_grams": 1.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 570,
+  "fields": {
+    "menu": 56,
+    "dish": 903,
+    "portion_grams": 240.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 571,
+  "fields": {
+    "menu": 56,
+    "dish": 931,
+    "portion_grams": 100.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 572,
+  "fields": {
+    "menu": 56,
+    "dish": 989,
+    "portion_grams": 40.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 573,
+  "fields": {
+    "menu": 56,
+    "dish": 990,
+    "portion_grams": 60.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 574,
+  "fields": {
+    "menu": 56,
+    "dish": 996,
+    "portion_grams": 40.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 575,
+  "fields": {
+    "menu": 56,
+    "dish": 997,
+    "portion_grams": 1.25
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 576,
+  "fields": {
+    "menu": 56,
+    "dish": 972,
+    "portion_grams": 80.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 577,
+  "fields": {
+    "menu": 56,
+    "dish": 999,
+    "portion_grams": 1.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 578,
+  "fields": {
+    "menu": 57,
+    "dish": 964,
+    "portion_grams": 130.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 579,
+  "fields": {
+    "menu": 57,
+    "dish": 965,
+    "portion_grams": 200.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 580,
+  "fields": {
+    "menu": 57,
+    "dish": 903,
+    "portion_grams": 120.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 581,
+  "fields": {
+    "menu": 57,
+    "dish": 920,
+    "portion_grams": 70.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 582,
+  "fields": {
+    "menu": 57,
+    "dish": 934,
+    "portion_grams": 70.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 583,
+  "fields": {
+    "menu": 57,
+    "dish": 989,
+    "portion_grams": 50.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 584,
+  "fields": {
+    "menu": 57,
+    "dish": 990,
+    "portion_grams": 50.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 585,
+  "fields": {
+    "menu": 57,
+    "dish": 996,
+    "portion_grams": 40.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 586,
+  "fields": {
+    "menu": 57,
+    "dish": 997,
+    "portion_grams": 1.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 587,
+  "fields": {
+    "menu": 57,
+    "dish": 975,
+    "portion_grams": 40.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 588,
+  "fields": {
+    "menu": 57,
+    "dish": 977,
+    "portion_grams": 100.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 589,
+  "fields": {
+    "menu": 57,
+    "dish": 999,
+    "portion_grams": 1.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 590,
+  "fields": {
+    "menu": 58,
+    "dish": 963,
+    "portion_grams": 200.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 591,
+  "fields": {
+    "menu": 58,
+    "dish": 928,
+    "portion_grams": 140.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 592,
+  "fields": {
+    "menu": 58,
+    "dish": 929,
+    "portion_grams": 30.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 593,
+  "fields": {
+    "menu": 58,
+    "dish": 989,
+    "portion_grams": 80.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 594,
+  "fields": {
+    "menu": 58,
+    "dish": 998,
+    "portion_grams": 1.5
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 595,
+  "fields": {
+    "menu": 58,
+    "dish": 997,
+    "portion_grams": 1.25
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 596,
+  "fields": {
+    "menu": 58,
+    "dish": 980,
+    "portion_grams": 120.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 597,
+  "fields": {
+    "menu": 58,
+    "dish": 999,
+    "portion_grams": 1.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 599,
+  "fields": {
+    "menu": 59,
+    "dish": 969,
+    "portion_grams": 120.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 600,
+  "fields": {
+    "menu": 59,
+    "dish": 957,
+    "portion_grams": 130.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 601,
+  "fields": {
+    "menu": 59,
+    "dish": 908,
+    "portion_grams": 120.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 602,
+  "fields": {
+    "menu": 59,
+    "dish": 914,
+    "portion_grams": 70.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 603,
+  "fields": {
+    "menu": 59,
+    "dish": 938,
+    "portion_grams": 70.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 604,
+  "fields": {
+    "menu": 59,
+    "dish": 986,
+    "portion_grams": 30.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 605,
+  "fields": {
+    "menu": 59,
+    "dish": 989,
+    "portion_grams": 30.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 606,
+  "fields": {
+    "menu": 59,
+    "dish": 990,
+    "portion_grams": 40.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 607,
+  "fields": {
+    "menu": 59,
+    "dish": 995,
+    "portion_grams": 40.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 608,
+  "fields": {
+    "menu": 59,
+    "dish": 996,
+    "portion_grams": 40.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 609,
+  "fields": {
+    "menu": 59,
+    "dish": 997,
+    "portion_grams": 1.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 610,
+  "fields": {
+    "menu": 59,
+    "dish": 972,
+    "portion_grams": 30.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 611,
+  "fields": {
+    "menu": 59,
+    "dish": 977,
+    "portion_grams": 80.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 612,
+  "fields": {
+    "menu": 59,
+    "dish": 983,
+    "portion_grams": 30.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 613,
+  "fields": {
+    "menu": 59,
+    "dish": 999,
+    "portion_grams": 1.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 614,
+  "fields": {
+    "menu": 60,
+    "dish": 966,
+    "portion_grams": 120.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 615,
+  "fields": {
+    "menu": 60,
+    "dish": 967,
+    "portion_grams": 130.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 616,
+  "fields": {
+    "menu": 60,
+    "dish": 952,
+    "portion_grams": 160.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 617,
+  "fields": {
+    "menu": 60,
+    "dish": 906,
+    "portion_grams": 160.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 618,
+  "fields": {
+    "menu": 60,
+    "dish": 930,
+    "portion_grams": 70.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 619,
+  "fields": {
+    "menu": 60,
+    "dish": 937,
+    "portion_grams": 70.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 620,
+  "fields": {
+    "menu": 60,
+    "dish": 984,
+    "portion_grams": 60.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 621,
+  "fields": {
+    "menu": 60,
+    "dish": 989,
+    "portion_grams": 20.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 622,
+  "fields": {
+    "menu": 60,
+    "dish": 991,
+    "portion_grams": 20.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 623,
+  "fields": {
+    "menu": 60,
+    "dish": 993,
+    "portion_grams": 30.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 624,
+  "fields": {
+    "menu": 60,
+    "dish": 994,
+    "portion_grams": 30.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 625,
+  "fields": {
+    "menu": 60,
+    "dish": 996,
+    "portion_grams": 40.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 626,
+  "fields": {
+    "menu": 60,
+    "dish": 997,
+    "portion_grams": 1.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 627,
+  "fields": {
+    "menu": 60,
+    "dish": 972,
+    "portion_grams": 30.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 628,
+  "fields": {
+    "menu": 60,
+    "dish": 977,
+    "portion_grams": 60.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 629,
+  "fields": {
+    "menu": 60,
+    "dish": 983,
+    "portion_grams": 30.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 630,
+  "fields": {
+    "menu": 60,
+    "dish": 981,
+    "portion_grams": 30.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 631,
+  "fields": {
+    "menu": 60,
+    "dish": 999,
+    "portion_grams": 1.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 632,
+  "fields": {
+    "menu": 61,
+    "dish": 1001,
+    "portion_grams": 100.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 633,
+  "fields": {
+    "menu": 61,
+    "dish": 1000,
+    "portion_grams": 100.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 634,
+  "fields": {
+    "menu": 61,
+    "dish": 1012,
+    "portion_grams": 120.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 635,
+  "fields": {
+    "menu": 61,
+    "dish": 938,
+    "portion_grams": 170.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 636,
+  "fields": {
+    "menu": 61,
+    "dish": 912,
+    "portion_grams": 110.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 637,
+  "fields": {
+    "menu": 61,
+    "dish": 983,
+    "portion_grams": 70.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 638,
+  "fields": {
+    "menu": 61,
+    "dish": 977,
+    "portion_grams": 70.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 639,
+  "fields": {
+    "menu": 61,
+    "dish": 989,
+    "portion_grams": 50.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 640,
+  "fields": {
+    "menu": 61,
+    "dish": 990,
+    "portion_grams": 50.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 641,
+  "fields": {
+    "menu": 61,
+    "dish": 1018,
+    "portion_grams": 50.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 642,
+  "fields": {
+    "menu": 61,
+    "dish": 996,
+    "portion_grams": 40.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 643,
+  "fields": {
+    "menu": 61,
+    "dish": 997,
+    "portion_grams": 1.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 644,
+  "fields": {
+    "menu": 61,
+    "dish": 999,
+    "portion_grams": 1.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 645,
+  "fields": {
+    "menu": 62,
+    "dish": 1002,
+    "portion_grams": 100.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 646,
+  "fields": {
+    "menu": 62,
+    "dish": 956,
+    "portion_grams": 90.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 647,
+  "fields": {
+    "menu": 62,
+    "dish": 1003,
+    "portion_grams": 100.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 648,
+  "fields": {
+    "menu": 62,
+    "dish": 1011,
+    "portion_grams": 120.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 649,
+  "fields": {
+    "menu": 62,
+    "dish": 904,
+    "portion_grams": 120.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 650,
+  "fields": {
+    "menu": 62,
+    "dish": 936,
+    "portion_grams": 170.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 651,
+  "fields": {
+    "menu": 62,
+    "dish": 1015,
+    "portion_grams": 110.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 652,
+  "fields": {
+    "menu": 62,
+    "dish": 983,
+    "portion_grams": 70.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 653,
+  "fields": {
+    "menu": 62,
+    "dish": 972,
+    "portion_grams": 80.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 654,
+  "fields": {
+    "menu": 62,
+    "dish": 977,
+    "portion_grams": 70.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 655,
+  "fields": {
+    "menu": 62,
+    "dish": 989,
+    "portion_grams": 50.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 656,
+  "fields": {
+    "menu": 62,
+    "dish": 990,
+    "portion_grams": 50.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 657,
+  "fields": {
+    "menu": 62,
+    "dish": 1018,
+    "portion_grams": 50.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 658,
+  "fields": {
+    "menu": 62,
+    "dish": 996,
+    "portion_grams": 40.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 659,
+  "fields": {
+    "menu": 62,
+    "dish": 997,
+    "portion_grams": 1.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 660,
+  "fields": {
+    "menu": 62,
+    "dish": 999,
+    "portion_grams": 1.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 661,
+  "fields": {
+    "menu": 59,
+    "dish": 1004,
+    "portion_grams": 100.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 662,
+  "fields": {
+    "menu": 63,
+    "dish": 1000,
+    "portion_grams": 100.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 663,
+  "fields": {
+    "menu": 63,
+    "dish": 931,
+    "portion_grams": 180.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 664,
+  "fields": {
+    "menu": 63,
+    "dish": 1016,
+    "portion_grams": 110.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 665,
+  "fields": {
+    "menu": 63,
+    "dish": 987,
+    "portion_grams": 60.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 666,
+  "fields": {
+    "menu": 63,
+    "dish": 972,
+    "portion_grams": 80.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 667,
+  "fields": {
+    "menu": 63,
+    "dish": 1024,
+    "portion_grams": 70.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 668,
+  "fields": {
+    "menu": 63,
+    "dish": 1019,
+    "portion_grams": 50.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 669,
+  "fields": {
+    "menu": 63,
+    "dish": 989,
+    "portion_grams": 50.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 670,
+  "fields": {
+    "menu": 63,
+    "dish": 1020,
+    "portion_grams": 40.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 671,
+  "fields": {
+    "menu": 63,
+    "dish": 997,
+    "portion_grams": 1.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 672,
+  "fields": {
+    "menu": 63,
+    "dish": 998,
+    "portion_grams": 1.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 673,
+  "fields": {
+    "menu": 63,
+    "dish": 999,
+    "portion_grams": 1.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 674,
+  "fields": {
+    "menu": 64,
+    "dish": 1005,
+    "portion_grams": 100.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 675,
+  "fields": {
+    "menu": 64,
+    "dish": 920,
+    "portion_grams": 120.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 676,
+  "fields": {
+    "menu": 64,
+    "dish": 932,
+    "portion_grams": 180.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 677,
+  "fields": {
+    "menu": 64,
+    "dish": 1017,
+    "portion_grams": 110.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 678,
+  "fields": {
+    "menu": 64,
+    "dish": 978,
+    "portion_grams": 80.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 679,
+  "fields": {
+    "menu": 64,
+    "dish": 1025,
+    "portion_grams": 70.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 680,
+  "fields": {
+    "menu": 64,
+    "dish": 1019,
+    "portion_grams": 50.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 681,
+  "fields": {
+    "menu": 64,
+    "dish": 989,
+    "portion_grams": 50.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 682,
+  "fields": {
+    "menu": 64,
+    "dish": 1022,
+    "portion_grams": 40.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 683,
+  "fields": {
+    "menu": 64,
+    "dish": 997,
+    "portion_grams": 1.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 684,
+  "fields": {
+    "menu": 64,
+    "dish": 998,
+    "portion_grams": 1.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 685,
+  "fields": {
+    "menu": 64,
+    "dish": 999,
+    "portion_grams": 1.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 686,
+  "fields": {
+    "menu": 65,
+    "dish": 959,
+    "portion_grams": 100.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 687,
+  "fields": {
+    "menu": 65,
+    "dish": 1006,
+    "portion_grams": 100.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 688,
+  "fields": {
+    "menu": 65,
+    "dish": 1013,
+    "portion_grams": 120.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 689,
+  "fields": {
+    "menu": 65,
+    "dish": 934,
+    "portion_grams": 180.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 690,
+  "fields": {
+    "menu": 65,
+    "dish": 929,
+    "portion_grams": 110.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 691,
+  "fields": {
+    "menu": 65,
+    "dish": 978,
+    "portion_grams": 80.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 692,
+  "fields": {
+    "menu": 65,
+    "dish": 980,
+    "portion_grams": 70.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 693,
+  "fields": {
+    "menu": 65,
+    "dish": 1019,
+    "portion_grams": 50.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 694,
+  "fields": {
+    "menu": 65,
+    "dish": 989,
+    "portion_grams": 50.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 695,
+  "fields": {
+    "menu": 65,
+    "dish": 990,
+    "portion_grams": 50.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 696,
+  "fields": {
+    "menu": 65,
+    "dish": 1021,
+    "portion_grams": 40.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 697,
+  "fields": {
+    "menu": 65,
+    "dish": 997,
+    "portion_grams": 1.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 698,
+  "fields": {
+    "menu": 65,
+    "dish": 998,
+    "portion_grams": 1.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 699,
+  "fields": {
+    "menu": 65,
+    "dish": 999,
+    "portion_grams": 1.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 700,
+  "fields": {
+    "menu": 66,
+    "dish": 1007,
+    "portion_grams": 100.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 701,
+  "fields": {
+    "menu": 66,
+    "dish": 1001,
+    "portion_grams": 100.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 702,
+  "fields": {
+    "menu": 66,
+    "dish": 1008,
+    "portion_grams": 100.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 703,
+  "fields": {
+    "menu": 66,
+    "dish": 914,
+    "portion_grams": 120.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 704,
+  "fields": {
+    "menu": 66,
+    "dish": 935,
+    "portion_grams": 170.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 705,
+  "fields": {
+    "menu": 66,
+    "dish": 1026,
+    "portion_grams": 80.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 706,
+  "fields": {
+    "menu": 66,
+    "dish": 979,
+    "portion_grams": 60.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 707,
+  "fields": {
+    "menu": 66,
+    "dish": 989,
+    "portion_grams": 50.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 708,
+  "fields": {
+    "menu": 66,
+    "dish": 993,
+    "portion_grams": 50.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 709,
+  "fields": {
+    "menu": 66,
+    "dish": 1018,
+    "portion_grams": 50.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 710,
+  "fields": {
+    "menu": 66,
+    "dish": 1021,
+    "portion_grams": 40.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 711,
+  "fields": {
+    "menu": 66,
+    "dish": 997,
+    "portion_grams": 1.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 712,
+  "fields": {
+    "menu": 66,
+    "dish": 1023,
+    "portion_grams": 1.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 713,
+  "fields": {
+    "menu": 66,
+    "dish": 999,
+    "portion_grams": 1.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 714,
+  "fields": {
+    "menu": 67,
+    "dish": 1010,
+    "portion_grams": 100.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 715,
+  "fields": {
+    "menu": 67,
+    "dish": 1009,
+    "portion_grams": 100.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 716,
+  "fields": {
+    "menu": 67,
+    "dish": 966,
+    "portion_grams": 100.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 717,
+  "fields": {
+    "menu": 67,
+    "dish": 1014,
+    "portion_grams": 120.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 718,
+  "fields": {
+    "menu": 67,
+    "dish": 909,
+    "portion_grams": 120.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 719,
+  "fields": {
+    "menu": 67,
+    "dish": 931,
+    "portion_grams": 180.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 720,
+  "fields": {
+    "menu": 67,
+    "dish": 1027,
+    "portion_grams": 80.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 721,
+  "fields": {
+    "menu": 67,
+    "dish": 978,
+    "portion_grams": 80.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 722,
+  "fields": {
+    "menu": 67,
+    "dish": 973,
+    "portion_grams": 80.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 723,
+  "fields": {
+    "menu": 67,
+    "dish": 989,
+    "portion_grams": 50.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 724,
+  "fields": {
+    "menu": 67,
+    "dish": 990,
+    "portion_grams": 50.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 725,
+  "fields": {
+    "menu": 67,
+    "dish": 994,
+    "portion_grams": 50.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 726,
+  "fields": {
+    "menu": 67,
+    "dish": 996,
+    "portion_grams": 40.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 727,
+  "fields": {
+    "menu": 67,
+    "dish": 997,
+    "portion_grams": 1.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 728,
+  "fields": {
+    "menu": 67,
+    "dish": 1023,
+    "portion_grams": 1.0
+  }
+},
+{
+  "model": "menus.menudishportion",
+  "pk": 729,
+  "fields": {
+    "menu": 67,
+    "dish": 999,
+    "portion_grams": 1.0
+  }
+},
+{
+  "model": "menus.menutemplatepricetier",
+  "pk": 1,
+  "fields": {
+    "menu": 55,
+    "min_guests": 50,
+    "price_per_head": "2750.00"
+  }
+},
+{
+  "model": "menus.menutemplatepricetier",
+  "pk": 2,
+  "fields": {
+    "menu": 55,
+    "min_guests": 100,
+    "price_per_head": "2450.00"
+  }
+},
+{
+  "model": "menus.menutemplatepricetier",
+  "pk": 3,
+  "fields": {
+    "menu": 55,
+    "min_guests": 200,
+    "price_per_head": "2350.00"
+  }
+},
+{
+  "model": "menus.menutemplatepricetier",
+  "pk": 4,
+  "fields": {
+    "menu": 56,
+    "min_guests": 50,
+    "price_per_head": "3250.00"
+  }
+},
+{
+  "model": "menus.menutemplatepricetier",
+  "pk": 5,
+  "fields": {
+    "menu": 56,
+    "min_guests": 100,
+    "price_per_head": "3000.00"
+  }
+},
+{
+  "model": "menus.menutemplatepricetier",
+  "pk": 6,
+  "fields": {
+    "menu": 56,
+    "min_guests": 200,
+    "price_per_head": "2500.00"
+  }
+},
+{
+  "model": "menus.menutemplatepricetier",
+  "pk": 7,
+  "fields": {
+    "menu": 57,
+    "min_guests": 50,
+    "price_per_head": "3800.00"
+  }
+},
+{
+  "model": "menus.menutemplatepricetier",
+  "pk": 8,
+  "fields": {
+    "menu": 57,
+    "min_guests": 100,
+    "price_per_head": "3600.00"
+  }
+},
+{
+  "model": "menus.menutemplatepricetier",
+  "pk": 9,
+  "fields": {
+    "menu": 57,
+    "min_guests": 200,
+    "price_per_head": "3050.00"
+  }
+},
+{
+  "model": "menus.menutemplatepricetier",
+  "pk": 10,
+  "fields": {
+    "menu": 61,
+    "min_guests": 50,
+    "price_per_head": "4150.00"
+  }
+},
+{
+  "model": "menus.menutemplatepricetier",
+  "pk": 11,
+  "fields": {
+    "menu": 61,
+    "min_guests": 100,
+    "price_per_head": "3900.00"
+  }
+},
+{
+  "model": "menus.menutemplatepricetier",
+  "pk": 12,
+  "fields": {
+    "menu": 61,
+    "min_guests": 200,
+    "price_per_head": "3400.00"
+  }
+},
+{
+  "model": "menus.menutemplatepricetier",
+  "pk": 13,
+  "fields": {
+    "menu": 62,
+    "min_guests": 50,
+    "price_per_head": "4650.00"
+  }
+},
+{
+  "model": "menus.menutemplatepricetier",
+  "pk": 14,
+  "fields": {
+    "menu": 62,
+    "min_guests": 100,
+    "price_per_head": "4400.00"
+  }
+},
+{
+  "model": "menus.menutemplatepricetier",
+  "pk": 15,
+  "fields": {
+    "menu": 62,
+    "min_guests": 200,
+    "price_per_head": "3900.00"
+  }
+},
+{
+  "model": "menus.menutemplatepricetier",
+  "pk": 16,
+  "fields": {
+    "menu": 59,
+    "min_guests": 50,
+    "price_per_head": "5000.00"
+  }
+},
+{
+  "model": "menus.menutemplatepricetier",
+  "pk": 17,
+  "fields": {
+    "menu": 59,
+    "min_guests": 100,
+    "price_per_head": "4750.00"
+  }
+},
+{
+  "model": "menus.menutemplatepricetier",
+  "pk": 18,
+  "fields": {
+    "menu": 59,
+    "min_guests": 200,
+    "price_per_head": "4250.00"
+  }
+},
+{
+  "model": "menus.menutemplatepricetier",
+  "pk": 19,
+  "fields": {
+    "menu": 60,
+    "min_guests": 50,
+    "price_per_head": "5500.00"
+  }
+},
+{
+  "model": "menus.menutemplatepricetier",
+  "pk": 20,
+  "fields": {
+    "menu": 60,
+    "min_guests": 100,
+    "price_per_head": "5000.00"
+  }
+},
+{
+  "model": "menus.menutemplatepricetier",
+  "pk": 21,
+  "fields": {
+    "menu": 60,
+    "min_guests": 200,
+    "price_per_head": "4500.00"
+  }
+},
+{
+  "model": "menus.menutemplatepricetier",
+  "pk": 22,
+  "fields": {
+    "menu": 58,
+    "min_guests": 50,
+    "price_per_head": "2500.00"
+  }
+},
+{
+  "model": "menus.menutemplatepricetier",
+  "pk": 23,
+  "fields": {
+    "menu": 58,
+    "min_guests": 100,
+    "price_per_head": "2250.00"
+  }
+},
+{
+  "model": "menus.menutemplatepricetier",
+  "pk": 24,
+  "fields": {
+    "menu": 58,
+    "min_guests": 200,
+    "price_per_head": "2000.00"
+  }
+},
+{
+  "model": "menus.menutemplatepricetier",
+  "pk": 25,
+  "fields": {
+    "menu": 58,
+    "min_guests": 300,
+    "price_per_head": "1750.00"
+  }
+},
+{
+  "model": "menus.menutemplatepricetier",
+  "pk": 26,
+  "fields": {
+    "menu": 63,
+    "min_guests": 50,
+    "price_per_head": "3000.00"
+  }
+},
+{
+  "model": "menus.menutemplatepricetier",
+  "pk": 27,
+  "fields": {
+    "menu": 63,
+    "min_guests": 100,
+    "price_per_head": "2850.00"
+  }
+},
+{
+  "model": "menus.menutemplatepricetier",
+  "pk": 28,
+  "fields": {
+    "menu": 63,
+    "min_guests": 200,
+    "price_per_head": "2500.00"
+  }
+},
+{
+  "model": "menus.menutemplatepricetier",
+  "pk": 29,
+  "fields": {
+    "menu": 63,
+    "min_guests": 300,
+    "price_per_head": "2250.00"
+  }
+},
+{
+  "model": "menus.menutemplatepricetier",
+  "pk": 30,
+  "fields": {
+    "menu": 64,
+    "min_guests": 50,
+    "price_per_head": "3200.00"
+  }
+},
+{
+  "model": "menus.menutemplatepricetier",
+  "pk": 31,
+  "fields": {
+    "menu": 64,
+    "min_guests": 100,
+    "price_per_head": "2950.00"
+  }
+},
+{
+  "model": "menus.menutemplatepricetier",
+  "pk": 32,
+  "fields": {
+    "menu": 64,
+    "min_guests": 200,
+    "price_per_head": "2650.00"
+  }
+},
+{
+  "model": "menus.menutemplatepricetier",
+  "pk": 33,
+  "fields": {
+    "menu": 64,
+    "min_guests": 300,
+    "price_per_head": "2450.00"
+  }
+},
+{
+  "model": "menus.menutemplatepricetier",
+  "pk": 34,
+  "fields": {
+    "menu": 65,
+    "min_guests": 50,
+    "price_per_head": "3600.00"
+  }
+},
+{
+  "model": "menus.menutemplatepricetier",
+  "pk": 35,
+  "fields": {
+    "menu": 65,
+    "min_guests": 100,
+    "price_per_head": "3350.00"
+  }
+},
+{
+  "model": "menus.menutemplatepricetier",
+  "pk": 36,
+  "fields": {
+    "menu": 65,
+    "min_guests": 200,
+    "price_per_head": "3100.00"
+  }
+},
+{
+  "model": "menus.menutemplatepricetier",
+  "pk": 37,
+  "fields": {
+    "menu": 65,
+    "min_guests": 300,
+    "price_per_head": "2850.00"
+  }
+},
+{
+  "model": "menus.menutemplatepricetier",
+  "pk": 38,
+  "fields": {
+    "menu": 66,
+    "min_guests": 50,
+    "price_per_head": "4100.00"
+  }
+},
+{
+  "model": "menus.menutemplatepricetier",
+  "pk": 39,
+  "fields": {
+    "menu": 66,
+    "min_guests": 100,
+    "price_per_head": "3850.00"
+  }
+},
+{
+  "model": "menus.menutemplatepricetier",
+  "pk": 40,
+  "fields": {
+    "menu": 66,
+    "min_guests": 200,
+    "price_per_head": "3600.00"
+  }
+},
+{
+  "model": "menus.menutemplatepricetier",
+  "pk": 41,
+  "fields": {
+    "menu": 66,
+    "min_guests": 300,
+    "price_per_head": "3350.00"
+  }
+},
+{
+  "model": "menus.menutemplatepricetier",
+  "pk": 42,
+  "fields": {
+    "menu": 67,
+    "min_guests": 50,
+    "price_per_head": "5000.00"
+  }
+},
+{
+  "model": "menus.menutemplatepricetier",
+  "pk": 43,
+  "fields": {
+    "menu": 67,
+    "min_guests": 100,
+    "price_per_head": "4450.00"
+  }
+},
+{
+  "model": "menus.menutemplatepricetier",
+  "pk": 44,
+  "fields": {
+    "menu": 67,
+    "min_guests": 200,
+    "price_per_head": "4200.00"
+  }
+},
+{
+  "model": "menus.menutemplatepricetier",
+  "pk": 45,
+  "fields": {
+    "menu": 67,
+    "min_guests": 300,
+    "price_per_head": "3950.00"
+  }
+},
+{
+  "model": "rules.globalconfig",
+  "pk": 1,
+  "fields": {
+    "popularity_enabled": true,
+    "popularity_strength": 0.3,
+    "protein_pool_ceiling_grams": 590.0,
+    "accompaniment_pool_ceiling_grams": 150.0,
+    "dessert_pool_ceiling_grams": 150.0,
+    "dish_growth_rate": 0.4,
+    "absent_redistribution_fraction": 0.7
+  }
+},
+{
+  "model": "rules.budgetprofile",
+  "pk": 22,
+  "fields": {
+    "name": "Standard",
+    "description": "Standard protein ceiling (590g)",
+    "is_default": true,
+    "protein_pool_ceiling_grams": 700.0,
+    "accompaniment_pool_ceiling_grams": null,
+    "dessert_pool_ceiling_grams": null,
+    "categories": [
+      87,
+      86,
+      88
+    ]
+  }
+},
+{
+  "model": "rules.budgetprofile",
+  "pk": 23,
+  "fields": {
+    "name": "Grand",
+    "description": "Grand tier with expanded ceiling (700g)",
+    "is_default": false,
+    "protein_pool_ceiling_grams": 800.0,
+    "accompaniment_pool_ceiling_grams": null,
+    "dessert_pool_ceiling_grams": null,
+    "categories": [
+      87,
+      86,
+      88,
+      91
+    ]
+  }
+},
+{
+  "model": "rules.guestprofile",
+  "pk": 21,
+  "fields": {
+    "name": "gents",
+    "portion_multiplier": 1.0
+  }
+},
+{
+  "model": "rules.guestprofile",
+  "pk": 22,
+  "fields": {
+    "name": "ladies",
+    "portion_multiplier": 1.0
+  }
+},
+{
+  "model": "rules.globalconstraint",
+  "pk": 1,
+  "fields": {
+    "max_total_food_per_person_grams": 1000.0,
+    "min_portion_per_dish_grams": 30.0
+  }
+},
+{
+  "model": "rules.categoryconstraint",
+  "pk": 8,
+  "fields": {
+    "category": 92,
+    "min_portion_grams": 30.0,
+    "max_portion_grams": null,
+    "max_total_category_grams": 100.0
+  }
+},
+{
+  "model": "bookings.account",
+  "pk": 1,
+  "fields": {
+    "name": "hello tet",
+    "account_type": "individual",
+    "billing_address_line1": "",
+    "billing_address_line2": "",
+    "billing_city": "",
+    "billing_postcode": "",
+    "billing_country": "UK",
+    "vat_number": "",
+    "payment_terms": "immediate",
+    "notes": "",
+    "created_at": "2026-02-12T20:30:28.916Z",
+    "updated_at": "2026-02-12T20:30:28.916Z"
+  }
+},
+{
+  "model": "bookings.account",
+  "pk": 2,
+  "fields": {
+    "name": "someone",
+    "account_type": "individual",
+    "billing_address_line1": "",
+    "billing_address_line2": "",
+    "billing_city": "",
+    "billing_postcode": "",
+    "billing_country": "UK",
+    "vat_number": "",
+    "payment_terms": "immediate",
+    "notes": "",
+    "created_at": "2026-02-14T09:08:01.147Z",
+    "updated_at": "2026-02-14T09:08:01.147Z"
+  }
+},
+{
+  "model": "bookings.lead",
+  "pk": 1,
+  "fields": {
+    "account": 2,
+    "contact_name": "someone",
+    "contact_email": "someone@gmail.com",
+    "contact_phone": "k080908",
+    "source": "website",
+    "event_date": null,
+    "guest_estimate": 100,
+    "budget_range": null,
+    "event_type": "other",
+    "service_style": "",
+    "notes": "lets see what happens",
+    "status": "converted",
+    "converted_to_quote": 1,
+    "lost_reason": "",
+    "contacted_at": "2026-02-14T09:07:43.153Z",
+    "qualified_at": "2026-02-14T09:07:53.362Z",
+    "converted_at": "2026-02-14T09:08:01.681Z",
+    "lost_at": null,
+    "created_at": "2026-02-14T09:07:22.209Z",
+    "updated_at": "2026-02-14T09:08:01.682Z"
+  }
+},
+{
+  "model": "bookings.lead",
+  "pk": 2,
+  "fields": {
+    "account": null,
+    "contact_name": "new name",
+    "contact_email": "mlkasdjf@lksdflk.com",
+    "contact_phone": "kflksadflk",
+    "source": "website",
+    "event_date": null,
+    "guest_estimate": 100,
+    "budget_range": 4,
+    "event_type": "other",
+    "service_style": "",
+    "notes": "",
+    "status": "qualified",
+    "converted_to_quote": null,
+    "lost_reason": "",
+    "contacted_at": "2026-02-17T14:35:49.278Z",
+    "qualified_at": "2026-02-27T15:56:10.426Z",
+    "converted_at": null,
+    "lost_at": null,
+    "created_at": "2026-02-17T14:35:36.058Z",
+    "updated_at": "2026-02-27T15:56:10.426Z"
+  }
+},
+{
+  "model": "bookings.quote",
+  "pk": 1,
+  "fields": {
+    "lead": 1,
+    "account": 2,
+    "primary_contact": null,
+    "version": 1,
+    "status": "accepted",
+    "event_date": "2026-02-14",
+    "venue": null,
+    "venue_address": "",
+    "guest_count": 100,
+    "price_per_head": null,
+    "event_type": "other",
+    "service_style": "",
+    "valid_until": null,
+    "subtotal": "0.00",
+    "tax_rate": "0.2000",
+    "tax_amount": "0.00",
+    "total": "0.00",
+    "event": 2,
+    "based_on_template": null,
+    "notes": "",
+    "internal_notes": "",
+    "sent_at": "2026-02-14T09:09:52.788Z",
+    "accepted_at": "2026-02-14T09:10:01.141Z",
+    "created_at": "2026-02-14T09:08:01.453Z",
+    "updated_at": "2026-02-14T09:10:02.040Z",
+    "dishes": []
+  }
+},
+{
+  "model": "bookings.quote",
+  "pk": 2,
+  "fields": {
+    "lead": null,
+    "account": 1,
+    "primary_contact": null,
+    "version": 1,
+    "status": "draft",
+    "event_date": "2026-02-27",
+    "venue": null,
+    "venue_address": "kj;flkjs;alfkjmj;lsakjf",
+    "guest_count": 50,
+    "price_per_head": null,
+    "event_type": "wedding",
+    "service_style": "buffet",
+    "valid_until": null,
+    "subtotal": "2500.00",
+    "tax_rate": "0.0500",
+    "tax_amount": "125.00",
+    "total": "2625.00",
+    "event": null,
+    "based_on_template": 55,
+    "notes": "",
+    "internal_notes": "",
+    "sent_at": null,
+    "accepted_at": null,
+    "created_at": "2026-02-27T16:10:49.729Z",
+    "updated_at": "2026-02-27T16:34:42.717Z",
+    "dishes": [
+      963,
+      913,
+      931,
+      972,
+      989,
+      990,
+      996,
+      997
+    ]
+  }
+},
+{
+  "model": "bookings.quote",
+  "pk": 3,
+  "fields": {
+    "lead": null,
+    "account": 1,
+    "primary_contact": null,
+    "version": 1,
+    "status": "draft",
+    "event_date": "2026-02-27",
+    "venue": null,
+    "venue_address": "asfasdfasdf",
+    "guest_count": 20,
+    "price_per_head": "5000.00",
+    "event_type": "other",
+    "service_style": "",
+    "valid_until": null,
+    "subtotal": "100000.00",
+    "tax_rate": "0.2000",
+    "tax_amount": "20000.00",
+    "total": "120000.00",
+    "event": null,
+    "based_on_template": 58,
+    "notes": "",
+    "internal_notes": "",
+    "sent_at": null,
+    "accepted_at": null,
+    "created_at": "2026-02-27T17:16:05.609Z",
+    "updated_at": "2026-02-27T17:16:06.237Z",
+    "dishes": [
+      963,
+      928,
+      929,
+      980,
+      989,
+      997,
+      998,
+      999
+    ]
+  }
+},
+{
+  "model": "bookings.quotelineitem",
+  "pk": 1,
+  "fields": {
+    "quote": 2,
+    "category": "rental",
+    "description": "kjsalkfm;klaf;lasnfk",
+    "quantity": "50.00",
+    "unit": "each",
+    "unit_price": "50.00",
+    "is_taxable": true,
+    "line_total": "2500.00",
+    "sort_order": 0,
+    "menu_item": null,
+    "equipment_item": null,
+    "labor_role": null,
+    "created_at": "2026-02-27T16:11:28.669Z"
+  }
+},
+{
+  "model": "bookings.budgetrangeoption",
+  "pk": 1,
+  "fields": {
+    "label": "Under £1,000",
+    "sort_order": 1,
+    "is_active": true
+  }
+},
+{
+  "model": "bookings.budgetrangeoption",
+  "pk": 2,
+  "fields": {
+    "label": "£1,000 – £5,000",
+    "sort_order": 2,
+    "is_active": true
+  }
+},
+{
+  "model": "bookings.budgetrangeoption",
+  "pk": 3,
+  "fields": {
+    "label": "£5,000 – £10,000",
+    "sort_order": 3,
+    "is_active": true
+  }
+},
+{
+  "model": "bookings.budgetrangeoption",
+  "pk": 4,
+  "fields": {
+    "label": "£10,000+",
+    "sort_order": 4,
+    "is_active": true
+  }
+},
+{
+  "model": "bookings.sitesettings",
+  "pk": 1,
+  "fields": {
+    "currency_symbol": "Rs.",
+    "currency_code": "PKR",
+    "default_price_per_head": "0.00",
+    "target_food_cost_percentage": "30.00",
+    "price_rounding_step": 50
+  }
+}
+]
