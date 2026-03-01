@@ -16,7 +16,7 @@ source venv/bin/activate
 cd backend
 pip install -r requirements.txt
 python manage.py migrate
-python manage.py seed_data  # Load sample data
+python manage.py loaddata seed.json  # Load all seed data (dishes, menus, tiers, rules, bookings, settings)
 python manage.py runserver
 ```
 
@@ -40,6 +40,7 @@ npm run dev
 
 - **Any change to calculation logic** (engine, pools, categories, baselines, ceilings) **must also update PORTIONING_LOGIC.md** to keep documentation in sync with the code.
 - **Any change to PORTIONING_LOGIC.md** must also update **`frontend/app/help/page.tsx`** — the help page is static content distilled from the logic doc.
+- **Any change to seed data** (new dishes, menus, categories, rules, cost data, surcharges, etc.) **must regenerate `backend/seed.json`** by running: `cd backend && python manage.py dumpdata dishes menus rules bookings events --indent 2 -o seed.json`
 
 ## Running Tests
 ```bash

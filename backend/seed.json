@@ -11,7 +11,9 @@
     "unit": "kg",
     "baseline_budget_grams": 160.0,
     "min_per_dish_grams": 70.0,
-    "fixed_portion_grams": null
+    "fixed_portion_grams": null,
+    "addition_surcharge": "0.00",
+    "removal_discount": "0.00"
   }
 },
 {
@@ -26,7 +28,9 @@
     "unit": "kg",
     "baseline_budget_grams": 180.0,
     "min_per_dish_grams": 100.0,
-    "fixed_portion_grams": null
+    "fixed_portion_grams": null,
+    "addition_surcharge": "0.00",
+    "removal_discount": "0.00"
   }
 },
 {
@@ -41,7 +45,9 @@
     "unit": "kg",
     "baseline_budget_grams": 100.0,
     "min_per_dish_grams": 70.0,
-    "fixed_portion_grams": null
+    "fixed_portion_grams": null,
+    "addition_surcharge": "0.00",
+    "removal_discount": "0.00"
   }
 },
 {
@@ -56,7 +62,9 @@
     "unit": "kg",
     "baseline_budget_grams": 80.0,
     "min_per_dish_grams": 30.0,
-    "fixed_portion_grams": null
+    "fixed_portion_grams": null,
+    "addition_surcharge": "0.00",
+    "removal_discount": "0.00"
   }
 },
 {
@@ -71,7 +79,9 @@
     "unit": "kg",
     "baseline_budget_grams": 60.0,
     "min_per_dish_grams": 30.0,
-    "fixed_portion_grams": null
+    "fixed_portion_grams": null,
+    "addition_surcharge": "0.00",
+    "removal_discount": "0.00"
   }
 },
 {
@@ -86,7 +96,9 @@
     "unit": "kg",
     "baseline_budget_grams": 80.0,
     "min_per_dish_grams": 40.0,
-    "fixed_portion_grams": null
+    "fixed_portion_grams": null,
+    "addition_surcharge": "0.00",
+    "removal_discount": "0.00"
   }
 },
 {
@@ -101,7 +113,9 @@
     "unit": "kg",
     "baseline_budget_grams": 0.0,
     "min_per_dish_grams": 0.0,
-    "fixed_portion_grams": 50.0
+    "fixed_portion_grams": 50.0,
+    "addition_surcharge": "0.00",
+    "removal_discount": "0.00"
   }
 },
 {
@@ -116,7 +130,9 @@
     "unit": "kg",
     "baseline_budget_grams": 0.0,
     "min_per_dish_grams": 0.0,
-    "fixed_portion_grams": 40.0
+    "fixed_portion_grams": 40.0,
+    "addition_surcharge": "0.00",
+    "removal_discount": "0.00"
   }
 },
 {
@@ -131,7 +147,9 @@
     "unit": "qty",
     "baseline_budget_grams": 0.0,
     "min_per_dish_grams": 0.0,
-    "fixed_portion_grams": 1.0
+    "fixed_portion_grams": 1.0,
+    "addition_surcharge": "0.00",
+    "removal_discount": "0.00"
   }
 },
 {
@@ -146,7 +164,9 @@
     "unit": "qty",
     "baseline_budget_grams": 0.0,
     "min_per_dish_grams": 0.0,
-    "fixed_portion_grams": 1.0
+    "fixed_portion_grams": 1.0,
+    "addition_surcharge": "0.00",
+    "removal_discount": "0.00"
   }
 },
 {
@@ -161,11 +181,14 @@
     "cost_per_gram": "2.5580",
     "selling_price_per_gram": "8.5267",
     "selling_price_override": false,
+    "addition_surcharge": "1364.27",
+    "removal_discount": "682.14",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.223Z",
-    "updated_at": "2026-03-01T09:47:30.396Z"
+    "updated_at": "2026-03-01T19:24:11.482Z"
   }
 },
 {
@@ -180,11 +203,14 @@
     "cost_per_gram": "2.6620",
     "selling_price_per_gram": "8.8733",
     "selling_price_override": false,
+    "addition_surcharge": "1419.73",
+    "removal_discount": "709.86",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.224Z",
-    "updated_at": "2026-03-01T09:47:29.274Z"
+    "updated_at": "2026-03-01T19:24:10.749Z"
   }
 },
 {
@@ -199,11 +225,14 @@
     "cost_per_gram": "2.7800",
     "selling_price_per_gram": "9.2667",
     "selling_price_override": false,
+    "addition_surcharge": "1482.67",
+    "removal_discount": "741.34",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.225Z",
-    "updated_at": "2026-03-01T09:47:31.250Z"
+    "updated_at": "2026-03-01T19:24:12.222Z"
   }
 },
 {
@@ -218,11 +247,14 @@
     "cost_per_gram": "3.4370",
     "selling_price_per_gram": "11.4567",
     "selling_price_override": false,
+    "addition_surcharge": "1833.07",
+    "removal_discount": "916.54",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.226Z",
-    "updated_at": "2026-03-01T09:47:29.827Z"
+    "updated_at": "2026-03-01T19:24:11.110Z"
   }
 },
 {
@@ -237,11 +269,14 @@
     "cost_per_gram": "2.0640",
     "selling_price_per_gram": "6.8800",
     "selling_price_override": false,
+    "addition_surcharge": "1100.80",
+    "removal_discount": "550.40",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.227Z",
-    "updated_at": "2026-03-01T09:47:30.112Z"
+    "updated_at": "2026-03-01T19:24:11.289Z"
   }
 },
 {
@@ -256,11 +291,14 @@
     "cost_per_gram": "2.6000",
     "selling_price_per_gram": "8.6667",
     "selling_price_override": false,
+    "addition_surcharge": "1386.67",
+    "removal_discount": "693.34",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.227Z",
-    "updated_at": "2026-03-01T09:47:30.669Z"
+    "updated_at": "2026-03-01T19:24:11.666Z"
   }
 },
 {
@@ -275,11 +313,14 @@
     "cost_per_gram": "2.6060",
     "selling_price_per_gram": "8.6867",
     "selling_price_override": false,
+    "addition_surcharge": "1389.87",
+    "removal_discount": "694.94",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.228Z",
-    "updated_at": "2026-03-01T09:47:29.550Z"
+    "updated_at": "2026-03-01T19:24:10.926Z"
   }
 },
 {
@@ -294,11 +335,14 @@
     "cost_per_gram": "2.6170",
     "selling_price_per_gram": "8.7233",
     "selling_price_override": false,
+    "addition_surcharge": "1395.73",
+    "removal_discount": "697.86",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.229Z",
-    "updated_at": "2026-03-01T09:47:30.961Z"
+    "updated_at": "2026-03-01T19:24:12.037Z"
   }
 },
 {
@@ -313,11 +357,14 @@
     "cost_per_gram": "3.0770",
     "selling_price_per_gram": "10.2567",
     "selling_price_override": false,
+    "addition_surcharge": "1641.07",
+    "removal_discount": "820.54",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.230Z",
-    "updated_at": "2026-03-01T09:47:28.995Z"
+    "updated_at": "2026-03-01T19:24:10.564Z"
   }
 },
 {
@@ -332,11 +379,14 @@
     "cost_per_gram": "0.5060",
     "selling_price_per_gram": "1.6867",
     "selling_price_override": false,
+    "addition_surcharge": "134.93",
+    "removal_discount": "67.46",
+    "surcharge_override": false,
     "is_vegetarian": true,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.231Z",
-    "updated_at": "2026-03-01T09:47:39.418Z"
+    "updated_at": "2026-03-01T19:24:17.459Z"
   }
 },
 {
@@ -351,11 +401,14 @@
     "cost_per_gram": "0.9230",
     "selling_price_per_gram": "3.0767",
     "selling_price_override": false,
+    "addition_surcharge": "492.27",
+    "removal_discount": "246.14",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.232Z",
-    "updated_at": "2026-03-01T09:47:28.138Z"
+    "updated_at": "2026-03-01T19:24:09.622Z"
   }
 },
 {
@@ -370,11 +423,14 @@
     "cost_per_gram": "1.1000",
     "selling_price_per_gram": "3.6667",
     "selling_price_override": false,
+    "addition_surcharge": "586.67",
+    "removal_discount": "293.34",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.233Z",
-    "updated_at": "2026-03-01T09:47:26.467Z"
+    "updated_at": "2026-03-01T19:24:08.327Z"
   }
 },
 {
@@ -389,11 +445,14 @@
     "cost_per_gram": "0.8320",
     "selling_price_per_gram": "2.7733",
     "selling_price_override": false,
+    "addition_surcharge": "443.73",
+    "removal_discount": "221.86",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.234Z",
-    "updated_at": "2026-03-01T09:47:27.017Z"
+    "updated_at": "2026-03-01T19:24:08.697Z"
   }
 },
 {
@@ -408,11 +467,14 @@
     "cost_per_gram": "0.8570",
     "selling_price_per_gram": "2.8567",
     "selling_price_override": false,
+    "addition_surcharge": "457.07",
+    "removal_discount": "228.54",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.235Z",
-    "updated_at": "2026-03-01T09:47:25.884Z"
+    "updated_at": "2026-03-01T19:24:07.922Z"
   }
 },
 {
@@ -427,11 +489,14 @@
     "cost_per_gram": "1.0330",
     "selling_price_per_gram": "3.4433",
     "selling_price_override": false,
+    "addition_surcharge": "550.93",
+    "removal_discount": "275.46",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.235Z",
-    "updated_at": "2026-03-01T09:47:26.742Z"
+    "updated_at": "2026-03-01T19:24:08.511Z"
   }
 },
 {
@@ -446,11 +511,14 @@
     "cost_per_gram": "1.5380",
     "selling_price_per_gram": "5.1267",
     "selling_price_override": false,
+    "addition_surcharge": "820.27",
+    "removal_discount": "410.14",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.236Z",
-    "updated_at": "2026-03-01T09:47:31.526Z"
+    "updated_at": "2026-03-01T19:24:12.411Z"
   }
 },
 {
@@ -465,11 +533,14 @@
     "cost_per_gram": "0.5750",
     "selling_price_per_gram": "1.9167",
     "selling_price_override": false,
+    "addition_surcharge": "153.33",
+    "removal_discount": "76.66",
+    "surcharge_override": false,
     "is_vegetarian": true,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.237Z",
-    "updated_at": "2026-03-01T09:47:39.143Z"
+    "updated_at": "2026-03-01T19:24:17.273Z"
   }
 },
 {
@@ -484,11 +555,14 @@
     "cost_per_gram": "0.9720",
     "selling_price_per_gram": "3.2400",
     "selling_price_override": false,
+    "addition_surcharge": "518.40",
+    "removal_discount": "259.20",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.238Z",
-    "updated_at": "2026-03-01T09:47:28.717Z"
+    "updated_at": "2026-03-01T19:24:10.369Z"
   }
 },
 {
@@ -503,11 +577,14 @@
     "cost_per_gram": "1.2910",
     "selling_price_per_gram": "4.3033",
     "selling_price_override": false,
+    "addition_surcharge": "688.53",
+    "removal_discount": "344.26",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.239Z",
-    "updated_at": "2026-03-01T09:47:27.571Z"
+    "updated_at": "2026-03-01T19:24:09.072Z"
   }
 },
 {
@@ -522,11 +599,14 @@
     "cost_per_gram": "0.5370",
     "selling_price_per_gram": "1.7900",
     "selling_price_override": false,
+    "addition_surcharge": "286.40",
+    "removal_discount": "143.20",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.240Z",
-    "updated_at": "2026-03-01T09:47:27.298Z"
+    "updated_at": "2026-03-01T19:24:08.878Z"
   }
 },
 {
@@ -541,11 +621,14 @@
     "cost_per_gram": "0.9670",
     "selling_price_per_gram": "3.2233",
     "selling_price_override": false,
+    "addition_surcharge": "515.73",
+    "removal_discount": "257.86",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.241Z",
-    "updated_at": "2026-03-01T09:47:26.189Z"
+    "updated_at": "2026-03-01T19:24:08.106Z"
   }
 },
 {
@@ -560,11 +643,14 @@
     "cost_per_gram": "0.3830",
     "selling_price_per_gram": "1.2767",
     "selling_price_override": false,
+    "addition_surcharge": "102.13",
+    "removal_discount": "51.06",
+    "surcharge_override": false,
     "is_vegetarian": true,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.242Z",
-    "updated_at": "2026-03-01T09:47:38.025Z"
+    "updated_at": "2026-03-01T19:24:16.142Z"
   }
 },
 {
@@ -579,11 +665,14 @@
     "cost_per_gram": "0.5750",
     "selling_price_per_gram": "1.9167",
     "selling_price_override": false,
+    "addition_surcharge": "153.33",
+    "removal_discount": "76.66",
+    "surcharge_override": false,
     "is_vegetarian": true,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.243Z",
-    "updated_at": "2026-03-01T09:47:38.309Z"
+    "updated_at": "2026-03-01T19:24:16.341Z"
   }
 },
 {
@@ -598,11 +687,14 @@
     "cost_per_gram": "0.4660",
     "selling_price_per_gram": "1.5533",
     "selling_price_override": false,
+    "addition_surcharge": "124.27",
+    "removal_discount": "62.14",
+    "surcharge_override": false,
     "is_vegetarian": true,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.244Z",
-    "updated_at": "2026-03-01T09:47:38.857Z"
+    "updated_at": "2026-03-01T19:24:16.712Z"
   }
 },
 {
@@ -617,11 +709,14 @@
     "cost_per_gram": "1.5180",
     "selling_price_per_gram": "5.0600",
     "selling_price_override": false,
+    "addition_surcharge": "809.60",
+    "removal_discount": "404.80",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.245Z",
-    "updated_at": "2026-03-01T09:47:28.441Z"
+    "updated_at": "2026-03-01T19:24:10.179Z"
   }
 },
 {
@@ -636,11 +731,14 @@
     "cost_per_gram": "0.3200",
     "selling_price_per_gram": "1.0667",
     "selling_price_override": false,
+    "addition_surcharge": "85.33",
+    "removal_discount": "42.66",
+    "surcharge_override": false,
     "is_vegetarian": true,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.246Z",
-    "updated_at": "2026-03-01T09:47:37.751Z"
+    "updated_at": "2026-03-01T19:24:15.763Z"
   }
 },
 {
@@ -655,11 +753,14 @@
     "cost_per_gram": "1.2430",
     "selling_price_per_gram": "4.1433",
     "selling_price_override": false,
+    "addition_surcharge": "331.47",
+    "removal_discount": "165.74",
+    "surcharge_override": false,
     "is_vegetarian": true,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.247Z",
-    "updated_at": "2026-03-01T09:47:38.583Z"
+    "updated_at": "2026-03-01T19:24:16.528Z"
   }
 },
 {
@@ -674,11 +775,14 @@
     "cost_per_gram": "1.4290",
     "selling_price_per_gram": "4.7633",
     "selling_price_override": false,
+    "addition_surcharge": "762.13",
+    "removal_discount": "381.06",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.248Z",
-    "updated_at": "2026-03-01T09:47:27.850Z"
+    "updated_at": "2026-03-01T19:24:09.252Z"
   }
 },
 {
@@ -693,11 +797,14 @@
     "cost_per_gram": "1.3770",
     "selling_price_per_gram": "4.5900",
     "selling_price_override": false,
+    "addition_surcharge": "459.00",
+    "removal_discount": "229.50",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.249Z",
-    "updated_at": "2026-03-01T09:47:33.525Z"
+    "updated_at": "2026-03-01T19:24:12.971Z"
   }
 },
 {
@@ -712,11 +819,14 @@
     "cost_per_gram": "1.3920",
     "selling_price_per_gram": "4.6400",
     "selling_price_override": false,
+    "addition_surcharge": "464.00",
+    "removal_discount": "232.00",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.250Z",
-    "updated_at": "2026-03-01T09:47:34.382Z"
+    "updated_at": "2026-03-01T19:24:13.540Z"
   }
 },
 {
@@ -731,11 +841,14 @@
     "cost_per_gram": "0.7580",
     "selling_price_per_gram": "2.5267",
     "selling_price_override": false,
+    "addition_surcharge": "252.67",
+    "removal_discount": "126.34",
+    "surcharge_override": false,
     "is_vegetarian": true,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.251Z",
-    "updated_at": "2026-03-01T09:47:36.922Z"
+    "updated_at": "2026-03-01T19:24:15.207Z"
   }
 },
 {
@@ -750,11 +863,14 @@
     "cost_per_gram": "1.6760",
     "selling_price_per_gram": "5.5867",
     "selling_price_override": false,
+    "addition_surcharge": "558.67",
+    "removal_discount": "279.34",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.252Z",
-    "updated_at": "2026-03-01T09:47:34.957Z"
+    "updated_at": "2026-03-01T19:24:13.913Z"
   }
 },
 {
@@ -769,11 +885,14 @@
     "cost_per_gram": "1.3230",
     "selling_price_per_gram": "4.4100",
     "selling_price_override": false,
+    "addition_surcharge": "441.00",
+    "removal_discount": "220.50",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.253Z",
-    "updated_at": "2026-03-01T09:47:34.087Z"
+    "updated_at": "2026-03-01T19:24:13.351Z"
   }
 },
 {
@@ -788,11 +907,14 @@
     "cost_per_gram": "2.9570",
     "selling_price_per_gram": "9.8567",
     "selling_price_override": false,
+    "addition_surcharge": "985.67",
+    "removal_discount": "492.84",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.254Z",
-    "updated_at": "2026-03-01T09:47:35.526Z"
+    "updated_at": "2026-03-01T19:24:14.282Z"
   }
 },
 {
@@ -807,11 +929,14 @@
     "cost_per_gram": "2.9470",
     "selling_price_per_gram": "9.8233",
     "selling_price_override": false,
+    "addition_surcharge": "982.33",
+    "removal_discount": "491.16",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.255Z",
-    "updated_at": "2026-03-01T09:47:35.248Z"
+    "updated_at": "2026-03-01T19:24:14.096Z"
   }
 },
 {
@@ -826,11 +951,14 @@
     "cost_per_gram": "1.7760",
     "selling_price_per_gram": "5.9200",
     "selling_price_override": false,
+    "addition_surcharge": "592.00",
+    "removal_discount": "296.00",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.255Z",
-    "updated_at": "2026-03-01T09:47:36.649Z"
+    "updated_at": "2026-03-01T19:24:15.019Z"
   }
 },
 {
@@ -845,11 +973,14 @@
     "cost_per_gram": "0.6870",
     "selling_price_per_gram": "2.2900",
     "selling_price_override": false,
+    "addition_surcharge": "229.00",
+    "removal_discount": "114.50",
+    "surcharge_override": false,
     "is_vegetarian": true,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.256Z",
-    "updated_at": "2026-03-01T09:47:35.806Z"
+    "updated_at": "2026-03-01T19:24:14.474Z"
   }
 },
 {
@@ -864,11 +995,14 @@
     "cost_per_gram": "0.7270",
     "selling_price_per_gram": "2.4233",
     "selling_price_override": false,
+    "addition_surcharge": "242.33",
+    "removal_discount": "121.16",
+    "surcharge_override": false,
     "is_vegetarian": true,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.258Z",
-    "updated_at": "2026-03-01T09:47:33.246Z"
+    "updated_at": "2026-03-01T19:24:12.787Z"
   }
 },
 {
@@ -883,11 +1017,14 @@
     "cost_per_gram": "0.7050",
     "selling_price_per_gram": "2.3500",
     "selling_price_override": false,
+    "addition_surcharge": "235.00",
+    "removal_discount": "117.50",
+    "surcharge_override": false,
     "is_vegetarian": true,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.259Z",
-    "updated_at": "2026-03-01T09:47:37.478Z"
+    "updated_at": "2026-03-01T19:24:15.575Z"
   }
 },
 {
@@ -902,11 +1039,14 @@
     "cost_per_gram": "1.1340",
     "selling_price_per_gram": "3.7800",
     "selling_price_override": false,
+    "addition_surcharge": "378.00",
+    "removal_discount": "189.00",
+    "surcharge_override": false,
     "is_vegetarian": true,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.260Z",
-    "updated_at": "2026-03-01T09:47:36.093Z"
+    "updated_at": "2026-03-01T19:24:14.657Z"
   }
 },
 {
@@ -921,11 +1061,14 @@
     "cost_per_gram": "0.4530",
     "selling_price_per_gram": "1.5100",
     "selling_price_override": false,
+    "addition_surcharge": "151.00",
+    "removal_discount": "75.50",
+    "surcharge_override": false,
     "is_vegetarian": true,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.260Z",
-    "updated_at": "2026-03-01T09:47:32.964Z"
+    "updated_at": "2026-03-01T19:24:12.601Z"
   }
 },
 {
@@ -940,11 +1083,14 @@
     "cost_per_gram": "0.5570",
     "selling_price_per_gram": "1.8567",
     "selling_price_override": false,
+    "addition_surcharge": "185.67",
+    "removal_discount": "92.84",
+    "surcharge_override": false,
     "is_vegetarian": true,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.261Z",
-    "updated_at": "2026-03-01T09:47:37.198Z"
+    "updated_at": "2026-03-01T19:24:15.390Z"
   }
 },
 {
@@ -959,11 +1105,14 @@
     "cost_per_gram": "0.6070",
     "selling_price_per_gram": "2.0233",
     "selling_price_override": false,
+    "addition_surcharge": "202.33",
+    "removal_discount": "101.16",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.262Z",
-    "updated_at": "2026-03-01T09:47:34.661Z"
+    "updated_at": "2026-03-01T19:24:13.723Z"
   }
 },
 {
@@ -978,11 +1127,14 @@
     "cost_per_gram": "0.8330",
     "selling_price_per_gram": "2.7767",
     "selling_price_override": false,
+    "addition_surcharge": "277.67",
+    "removal_discount": "138.84",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.263Z",
-    "updated_at": "2026-03-01T09:47:33.805Z"
+    "updated_at": "2026-03-01T19:24:13.159Z"
   }
 },
 {
@@ -997,11 +1149,14 @@
     "cost_per_gram": "1.8400",
     "selling_price_per_gram": "6.1333",
     "selling_price_override": false,
+    "addition_surcharge": "613.33",
+    "removal_discount": "306.66",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.264Z",
-    "updated_at": "2026-03-01T09:47:36.375Z"
+    "updated_at": "2026-03-01T19:24:14.836Z"
   }
 },
 {
@@ -1016,11 +1171,14 @@
     "cost_per_gram": "3.0670",
     "selling_price_per_gram": "10.2233",
     "selling_price_override": false,
+    "addition_surcharge": "1840.20",
+    "removal_discount": "920.10",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.265Z",
-    "updated_at": "2026-03-01T09:47:22.557Z"
+    "updated_at": "2026-03-01T19:24:07.739Z"
   }
 },
 {
@@ -1035,11 +1193,14 @@
     "cost_per_gram": "3.0160",
     "selling_price_per_gram": "10.0533",
     "selling_price_override": false,
+    "addition_surcharge": "1809.60",
+    "removal_discount": "904.80",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.266Z",
-    "updated_at": "2026-03-01T09:47:22.286Z"
+    "updated_at": "2026-03-01T19:24:07.554Z"
   }
 },
 {
@@ -1054,11 +1215,14 @@
     "cost_per_gram": "2.9300",
     "selling_price_per_gram": "9.7667",
     "selling_price_override": false,
+    "addition_surcharge": "1758.00",
+    "removal_discount": "879.00",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.267Z",
-    "updated_at": "2026-03-01T09:47:19.188Z"
+    "updated_at": "2026-03-01T19:24:05.040Z"
   }
 },
 {
@@ -1073,11 +1237,14 @@
     "cost_per_gram": "3.5990",
     "selling_price_per_gram": "11.9967",
     "selling_price_override": false,
+    "addition_surcharge": "2159.40",
+    "removal_discount": "1079.70",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.268Z",
-    "updated_at": "2026-03-01T09:47:19.466Z"
+    "updated_at": "2026-03-01T19:24:05.228Z"
   }
 },
 {
@@ -1092,11 +1259,14 @@
     "cost_per_gram": "1.8800",
     "selling_price_per_gram": "6.2667",
     "selling_price_override": false,
+    "addition_surcharge": "1128.00",
+    "removal_discount": "564.00",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.269Z",
-    "updated_at": "2026-03-01T09:47:21.725Z"
+    "updated_at": "2026-03-01T19:24:07.183Z"
   }
 },
 {
@@ -1111,11 +1281,14 @@
     "cost_per_gram": "1.3670",
     "selling_price_per_gram": "4.5567",
     "selling_price_override": false,
+    "addition_surcharge": "820.20",
+    "removal_discount": "410.10",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.270Z",
-    "updated_at": "2026-03-01T09:47:17.799Z"
+    "updated_at": "2026-03-01T19:24:03.522Z"
   }
 },
 {
@@ -1130,11 +1303,14 @@
     "cost_per_gram": "0.9810",
     "selling_price_per_gram": "3.2700",
     "selling_price_override": false,
+    "addition_surcharge": "588.60",
+    "removal_discount": "294.30",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.271Z",
-    "updated_at": "2026-03-01T09:47:20.884Z"
+    "updated_at": "2026-03-01T19:24:06.407Z"
   }
 },
 {
@@ -1149,11 +1325,14 @@
     "cost_per_gram": "0.9810",
     "selling_price_per_gram": "3.2700",
     "selling_price_override": false,
+    "addition_surcharge": "588.60",
+    "removal_discount": "294.30",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.272Z",
-    "updated_at": "2026-03-01T09:47:22.005Z"
+    "updated_at": "2026-03-01T19:24:07.367Z"
   }
 },
 {
@@ -1168,11 +1347,14 @@
     "cost_per_gram": "2.0810",
     "selling_price_per_gram": "6.9367",
     "selling_price_override": false,
+    "addition_surcharge": "1248.60",
+    "removal_discount": "624.30",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.272Z",
-    "updated_at": "2026-03-01T09:47:18.363Z"
+    "updated_at": "2026-03-01T19:24:04.271Z"
   }
 },
 {
@@ -1187,11 +1369,14 @@
     "cost_per_gram": "2.2130",
     "selling_price_per_gram": "7.3767",
     "selling_price_override": false,
+    "addition_surcharge": "1327.80",
+    "removal_discount": "663.90",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.273Z",
-    "updated_at": "2026-03-01T09:47:18.088Z"
+    "updated_at": "2026-03-01T19:24:03.711Z"
   }
 },
 {
@@ -1206,11 +1391,14 @@
     "cost_per_gram": "2.4700",
     "selling_price_per_gram": "8.2333",
     "selling_price_override": false,
+    "addition_surcharge": "1482.00",
+    "removal_discount": "741.00",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.274Z",
-    "updated_at": "2026-03-01T09:47:21.178Z"
+    "updated_at": "2026-03-01T19:24:06.604Z"
   }
 },
 {
@@ -1225,11 +1413,14 @@
     "cost_per_gram": "0.8110",
     "selling_price_per_gram": "2.7033",
     "selling_price_override": false,
+    "addition_surcharge": "486.60",
+    "removal_discount": "243.30",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.275Z",
-    "updated_at": "2026-03-01T09:47:16.922Z"
+    "updated_at": "2026-03-01T19:24:01.943Z"
   }
 },
 {
@@ -1244,11 +1435,14 @@
     "cost_per_gram": "1.2720",
     "selling_price_per_gram": "4.2400",
     "selling_price_override": false,
+    "addition_surcharge": "763.20",
+    "removal_discount": "381.60",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.276Z",
-    "updated_at": "2026-03-01T09:47:20.017Z"
+    "updated_at": "2026-03-01T19:24:05.808Z"
   }
 },
 {
@@ -1263,11 +1457,14 @@
     "cost_per_gram": "0.2750",
     "selling_price_per_gram": "0.9167",
     "selling_price_override": false,
+    "addition_surcharge": "165.00",
+    "removal_discount": "82.50",
+    "surcharge_override": false,
     "is_vegetarian": true,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.277Z",
-    "updated_at": "2026-03-01T09:47:18.909Z"
+    "updated_at": "2026-03-01T19:24:04.850Z"
   }
 },
 {
@@ -1282,11 +1479,14 @@
     "cost_per_gram": "1.8330",
     "selling_price_per_gram": "6.1100",
     "selling_price_override": false,
+    "addition_surcharge": "1099.80",
+    "removal_discount": "549.90",
+    "surcharge_override": false,
     "is_vegetarian": true,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.278Z",
-    "updated_at": "2026-03-01T09:47:20.610Z"
+    "updated_at": "2026-03-01T19:24:06.208Z"
   }
 },
 {
@@ -1301,11 +1501,14 @@
     "cost_per_gram": "0.7990",
     "selling_price_per_gram": "2.6633",
     "selling_price_override": false,
+    "addition_surcharge": "479.40",
+    "removal_discount": "239.70",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.279Z",
-    "updated_at": "2026-03-01T09:47:17.206Z"
+    "updated_at": "2026-03-01T19:24:02.928Z"
   }
 },
 {
@@ -1320,11 +1523,14 @@
     "cost_per_gram": "2.0440",
     "selling_price_per_gram": "6.8133",
     "selling_price_override": false,
+    "addition_surcharge": "1226.40",
+    "removal_discount": "613.20",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.280Z",
-    "updated_at": "2026-03-01T09:47:19.737Z"
+    "updated_at": "2026-03-01T19:24:05.417Z"
   }
 },
 {
@@ -1339,11 +1545,14 @@
     "cost_per_gram": "0.8110",
     "selling_price_per_gram": "2.7033",
     "selling_price_override": false,
+    "addition_surcharge": "486.60",
+    "removal_discount": "243.30",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.281Z",
-    "updated_at": "2026-03-01T09:47:17.495Z"
+    "updated_at": "2026-03-01T19:24:03.316Z"
   }
 },
 {
@@ -1358,11 +1567,14 @@
     "cost_per_gram": "1.4690",
     "selling_price_per_gram": "4.8967",
     "selling_price_override": false,
+    "addition_surcharge": "881.40",
+    "removal_discount": "440.70",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.282Z",
-    "updated_at": "2026-03-01T09:47:21.451Z"
+    "updated_at": "2026-03-01T19:24:06.986Z"
   }
 },
 {
@@ -1377,11 +1589,14 @@
     "cost_per_gram": "1.1810",
     "selling_price_per_gram": "3.9367",
     "selling_price_override": false,
+    "addition_surcharge": "708.60",
+    "removal_discount": "354.30",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.283Z",
-    "updated_at": "2026-03-01T09:47:18.636Z"
+    "updated_at": "2026-03-01T19:24:04.465Z"
   }
 },
 {
@@ -1396,11 +1611,14 @@
     "cost_per_gram": "1.6290",
     "selling_price_per_gram": "5.4300",
     "selling_price_override": false,
+    "addition_surcharge": "977.40",
+    "removal_discount": "488.70",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.284Z",
-    "updated_at": "2026-03-01T09:47:20.332Z"
+    "updated_at": "2026-03-01T19:24:06.015Z"
   }
 },
 {
@@ -1415,11 +1633,14 @@
     "cost_per_gram": "2.8270",
     "selling_price_per_gram": "9.4233",
     "selling_price_override": false,
+    "addition_surcharge": "1696.20",
+    "removal_discount": "848.10",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.285Z",
-    "updated_at": "2026-03-01T09:47:16.638Z"
+    "updated_at": "2026-03-01T19:24:01.527Z"
   }
 },
 {
@@ -1434,11 +1655,14 @@
     "cost_per_gram": "0.8760",
     "selling_price_per_gram": "2.9200",
     "selling_price_override": false,
+    "addition_surcharge": "233.60",
+    "removal_discount": "116.80",
+    "surcharge_override": false,
     "is_vegetarian": true,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.285Z",
-    "updated_at": "2026-03-01T09:47:45.635Z"
+    "updated_at": "2026-03-01T19:24:21.756Z"
   }
 },
 {
@@ -1453,11 +1677,14 @@
     "cost_per_gram": "0.8760",
     "selling_price_per_gram": "2.9200",
     "selling_price_override": false,
+    "addition_surcharge": "233.60",
+    "removal_discount": "116.80",
+    "surcharge_override": false,
     "is_vegetarian": true,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.286Z",
-    "updated_at": "2026-03-01T09:47:45.358Z"
+    "updated_at": "2026-03-01T19:24:21.565Z"
   }
 },
 {
@@ -1472,11 +1699,14 @@
     "cost_per_gram": "0.6670",
     "selling_price_per_gram": "2.2233",
     "selling_price_override": false,
+    "addition_surcharge": "177.87",
+    "removal_discount": "88.94",
+    "surcharge_override": false,
     "is_vegetarian": true,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.287Z",
-    "updated_at": "2026-03-01T09:47:43.077Z"
+    "updated_at": "2026-03-01T19:24:19.675Z"
   }
 },
 {
@@ -1491,11 +1721,14 @@
     "cost_per_gram": "0.3400",
     "selling_price_per_gram": "1.1333",
     "selling_price_override": false,
+    "addition_surcharge": "90.67",
+    "removal_discount": "45.34",
+    "surcharge_override": false,
     "is_vegetarian": true,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.288Z",
-    "updated_at": "2026-03-01T09:47:45.066Z"
+    "updated_at": "2026-03-01T19:24:21.370Z"
   }
 },
 {
@@ -1510,11 +1743,14 @@
     "cost_per_gram": "0.7060",
     "selling_price_per_gram": "2.3533",
     "selling_price_override": false,
+    "addition_surcharge": "188.27",
+    "removal_discount": "94.14",
+    "surcharge_override": false,
     "is_vegetarian": true,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.289Z",
-    "updated_at": "2026-03-01T09:47:44.493Z"
+    "updated_at": "2026-03-01T19:24:20.989Z"
   }
 },
 {
@@ -1529,11 +1765,14 @@
     "cost_per_gram": "1.8250",
     "selling_price_per_gram": "6.0833",
     "selling_price_override": false,
+    "addition_surcharge": "486.67",
+    "removal_discount": "243.34",
+    "surcharge_override": false,
     "is_vegetarian": true,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.290Z",
-    "updated_at": "2026-03-01T09:47:42.518Z"
+    "updated_at": "2026-03-01T19:24:19.127Z"
   }
 },
 {
@@ -1548,11 +1787,14 @@
     "cost_per_gram": "0.4360",
     "selling_price_per_gram": "1.4533",
     "selling_price_override": false,
+    "addition_surcharge": "116.27",
+    "removal_discount": "58.14",
+    "surcharge_override": false,
     "is_vegetarian": true,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.291Z",
-    "updated_at": "2026-03-01T09:47:44.774Z"
+    "updated_at": "2026-03-01T19:24:21.185Z"
   }
 },
 {
@@ -1567,11 +1809,14 @@
     "cost_per_gram": "0.8730",
     "selling_price_per_gram": "2.9100",
     "selling_price_override": false,
+    "addition_surcharge": "232.80",
+    "removal_discount": "116.40",
+    "surcharge_override": false,
     "is_vegetarian": true,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.292Z",
-    "updated_at": "2026-03-01T09:47:43.912Z"
+    "updated_at": "2026-03-01T19:24:20.233Z"
   }
 },
 {
@@ -1586,11 +1831,14 @@
     "cost_per_gram": "0.6740",
     "selling_price_per_gram": "2.2467",
     "selling_price_override": false,
+    "addition_surcharge": "179.73",
+    "removal_discount": "89.86",
+    "surcharge_override": false,
     "is_vegetarian": true,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.293Z",
-    "updated_at": "2026-03-01T09:47:43.360Z"
+    "updated_at": "2026-03-01T19:24:19.857Z"
   }
 },
 {
@@ -1605,11 +1853,14 @@
     "cost_per_gram": "0.6950",
     "selling_price_per_gram": "2.3167",
     "selling_price_override": false,
+    "addition_surcharge": "185.33",
+    "removal_discount": "92.66",
+    "surcharge_override": false,
     "is_vegetarian": true,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.294Z",
-    "updated_at": "2026-03-01T09:47:43.632Z"
+    "updated_at": "2026-03-01T19:24:20.042Z"
   }
 },
 {
@@ -1624,11 +1875,14 @@
     "cost_per_gram": "0.3500",
     "selling_price_per_gram": "1.1667",
     "selling_price_override": false,
+    "addition_surcharge": "93.33",
+    "removal_discount": "46.66",
+    "surcharge_override": false,
     "is_vegetarian": true,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.294Z",
-    "updated_at": "2026-03-01T09:47:44.200Z"
+    "updated_at": "2026-03-01T19:24:20.420Z"
   }
 },
 {
@@ -1643,11 +1897,14 @@
     "cost_per_gram": "0.9240",
     "selling_price_per_gram": "3.0800",
     "selling_price_override": false,
+    "addition_surcharge": "246.40",
+    "removal_discount": "123.20",
+    "surcharge_override": false,
     "is_vegetarian": true,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.295Z",
-    "updated_at": "2026-03-01T09:47:42.796Z"
+    "updated_at": "2026-03-01T19:24:19.310Z"
   }
 },
 {
@@ -1662,11 +1919,14 @@
     "cost_per_gram": "1.2440",
     "selling_price_per_gram": "4.1467",
     "selling_price_override": false,
+    "addition_surcharge": "331.73",
+    "removal_discount": "165.86",
+    "surcharge_override": false,
     "is_vegetarian": true,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.296Z",
-    "updated_at": "2026-03-01T09:47:41.961Z"
+    "updated_at": "2026-03-01T19:24:18.564Z"
   }
 },
 {
@@ -1681,11 +1941,14 @@
     "cost_per_gram": "0.4660",
     "selling_price_per_gram": "1.5533",
     "selling_price_override": false,
+    "addition_surcharge": "124.27",
+    "removal_discount": "62.14",
+    "surcharge_override": false,
     "is_vegetarian": true,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.297Z",
-    "updated_at": "2026-03-01T09:47:42.242Z"
+    "updated_at": "2026-03-01T19:24:18.749Z"
   }
 },
 {
@@ -1700,11 +1963,14 @@
     "cost_per_gram": "0.7680",
     "selling_price_per_gram": "2.5600",
     "selling_price_override": false,
+    "addition_surcharge": "153.60",
+    "removal_discount": "76.80",
+    "surcharge_override": false,
     "is_vegetarian": true,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.297Z",
-    "updated_at": "2026-03-01T09:47:40.818Z"
+    "updated_at": "2026-03-01T19:24:17.836Z"
   }
 },
 {
@@ -1719,11 +1985,14 @@
     "cost_per_gram": "0.4950",
     "selling_price_per_gram": "1.6500",
     "selling_price_override": false,
+    "addition_surcharge": "99.00",
+    "removal_discount": "49.50",
+    "surcharge_override": false,
     "is_vegetarian": true,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.299Z",
-    "updated_at": "2026-03-01T09:47:41.096Z"
+    "updated_at": "2026-03-01T19:24:18.019Z"
   }
 },
 {
@@ -1738,11 +2007,14 @@
     "cost_per_gram": "0.8740",
     "selling_price_per_gram": "2.9133",
     "selling_price_override": false,
+    "addition_surcharge": "174.80",
+    "removal_discount": "87.40",
+    "surcharge_override": false,
     "is_vegetarian": true,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.300Z",
-    "updated_at": "2026-03-01T09:47:41.683Z"
+    "updated_at": "2026-03-01T19:24:18.383Z"
   }
 },
 {
@@ -1757,11 +2029,14 @@
     "cost_per_gram": "0.2670",
     "selling_price_per_gram": "0.8900",
     "selling_price_override": false,
+    "addition_surcharge": "53.40",
+    "removal_discount": "26.70",
+    "surcharge_override": false,
     "is_vegetarian": true,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.301Z",
-    "updated_at": "2026-03-01T09:47:41.378Z"
+    "updated_at": "2026-03-01T19:24:18.201Z"
   }
 },
 {
@@ -1776,11 +2051,14 @@
     "cost_per_gram": "1.5000",
     "selling_price_per_gram": "5.0000",
     "selling_price_override": false,
+    "addition_surcharge": "300.00",
+    "removal_discount": "150.00",
+    "surcharge_override": false,
     "is_vegetarian": true,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.302Z",
-    "updated_at": "2026-03-01T09:47:40.531Z"
+    "updated_at": "2026-03-01T19:24:17.646Z"
   }
 },
 {
@@ -1795,11 +2073,14 @@
     "cost_per_gram": "0.1790",
     "selling_price_per_gram": "0.5967",
     "selling_price_override": false,
+    "addition_surcharge": "0.00",
+    "removal_discount": "0.00",
+    "surcharge_override": false,
     "is_vegetarian": true,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.303Z",
-    "updated_at": "2026-03-01T09:47:47.598Z"
+    "updated_at": "2026-03-01T19:24:22.502Z"
   }
 },
 {
@@ -1814,11 +2095,14 @@
     "cost_per_gram": "0.7480",
     "selling_price_per_gram": "2.4933",
     "selling_price_override": false,
+    "addition_surcharge": "0.00",
+    "removal_discount": "0.00",
+    "surcharge_override": false,
     "is_vegetarian": true,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.304Z",
-    "updated_at": "2026-03-01T09:47:48.165Z"
+    "updated_at": "2026-03-01T19:24:22.870Z"
   }
 },
 {
@@ -1833,11 +2117,14 @@
     "cost_per_gram": "0.7260",
     "selling_price_per_gram": "2.4200",
     "selling_price_override": false,
+    "addition_surcharge": "0.00",
+    "removal_discount": "0.00",
+    "surcharge_override": false,
     "is_vegetarian": true,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.305Z",
-    "updated_at": "2026-03-01T09:47:47.871Z"
+    "updated_at": "2026-03-01T19:24:22.684Z"
   }
 },
 {
@@ -1852,11 +2139,14 @@
     "cost_per_gram": "2.1690",
     "selling_price_per_gram": "7.2300",
     "selling_price_override": false,
+    "addition_surcharge": "0.00",
+    "removal_discount": "0.00",
+    "surcharge_override": false,
     "is_vegetarian": true,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.306Z",
-    "updated_at": "2026-03-01T09:47:47.320Z"
+    "updated_at": "2026-03-01T19:24:22.317Z"
   }
 },
 {
@@ -1871,11 +2161,14 @@
     "cost_per_gram": "0.7380",
     "selling_price_per_gram": "2.4600",
     "selling_price_override": false,
+    "addition_surcharge": "0.00",
+    "removal_discount": "0.00",
+    "surcharge_override": false,
     "is_vegetarian": true,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.307Z",
-    "updated_at": "2026-03-01T09:47:48.441Z"
+    "updated_at": "2026-03-01T19:24:23.063Z"
   }
 },
 {
@@ -1890,11 +2183,14 @@
     "cost_per_gram": "1.5470",
     "selling_price_per_gram": "5.1567",
     "selling_price_override": false,
+    "addition_surcharge": "0.00",
+    "removal_discount": "0.00",
+    "surcharge_override": false,
     "is_vegetarian": true,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.309Z",
-    "updated_at": "2026-03-01T09:47:48.713Z"
+    "updated_at": "2026-03-01T19:24:23.433Z"
   }
 },
 {
@@ -1909,11 +2205,14 @@
     "cost_per_gram": "0.5670",
     "selling_price_per_gram": "1.8900",
     "selling_price_override": false,
+    "addition_surcharge": "0.00",
+    "removal_discount": "0.00",
+    "surcharge_override": false,
     "is_vegetarian": true,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.310Z",
-    "updated_at": "2026-03-01T09:47:47.028Z"
+    "updated_at": "2026-03-01T19:24:22.125Z"
   }
 },
 {
@@ -1928,11 +2227,14 @@
     "cost_per_gram": "0.2490",
     "selling_price_per_gram": "0.8300",
     "selling_price_override": false,
+    "addition_surcharge": "0.00",
+    "removal_discount": "0.00",
+    "surcharge_override": false,
     "is_vegetarian": true,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.311Z",
-    "updated_at": "2026-03-01T09:47:49.567Z"
+    "updated_at": "2026-03-01T19:24:24.010Z"
   }
 },
 {
@@ -1947,11 +2249,14 @@
     "cost_per_gram": "35.0000",
     "selling_price_per_gram": "116.6667",
     "selling_price_override": false,
+    "addition_surcharge": "0.00",
+    "removal_discount": "0.00",
+    "surcharge_override": false,
     "is_vegetarian": true,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.312Z",
-    "updated_at": "2026-03-01T09:47:50.681Z"
+    "updated_at": "2026-03-01T19:24:24.380Z"
   }
 },
 {
@@ -1966,11 +2271,14 @@
     "cost_per_gram": "36.0000",
     "selling_price_per_gram": "120.0000",
     "selling_price_override": false,
+    "addition_surcharge": "0.00",
+    "removal_discount": "0.00",
+    "surcharge_override": false,
     "is_vegetarian": true,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.313Z",
-    "updated_at": "2026-03-01T09:47:50.967Z"
+    "updated_at": "2026-03-01T19:24:24.566Z"
   }
 },
 {
@@ -1985,11 +2293,14 @@
     "cost_per_gram": "22.0000",
     "selling_price_per_gram": "73.3333",
     "selling_price_override": false,
+    "addition_surcharge": "0.00",
+    "removal_discount": "0.00",
+    "surcharge_override": false,
     "is_vegetarian": true,
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.314Z",
-    "updated_at": "2026-03-01T09:47:51.530Z"
+    "updated_at": "2026-03-01T19:24:24.943Z"
   }
 },
 {
@@ -2004,11 +2315,14 @@
     "cost_per_gram": "0.8710",
     "selling_price_per_gram": "2.9033",
     "selling_price_override": false,
+    "addition_surcharge": "522.60",
+    "removal_discount": "261.30",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-01T09:45:37.882Z",
-    "updated_at": "2026-03-01T09:47:22.832Z"
+    "updated_at": "2026-03-01T19:24:05.607Z"
   }
 },
 {
@@ -2023,11 +2337,14 @@
     "cost_per_gram": "1.1810",
     "selling_price_per_gram": "3.9367",
     "selling_price_override": false,
+    "addition_surcharge": "708.60",
+    "removal_discount": "354.30",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-01T09:45:38.284Z",
-    "updated_at": "2026-03-01T09:47:23.106Z"
+    "updated_at": "2026-03-01T19:24:02.532Z"
   }
 },
 {
@@ -2042,11 +2359,14 @@
     "cost_per_gram": "1.4120",
     "selling_price_per_gram": "4.7067",
     "selling_price_override": false,
+    "addition_surcharge": "847.20",
+    "removal_discount": "423.60",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-01T09:45:38.638Z",
-    "updated_at": "2026-03-01T09:47:23.383Z"
+    "updated_at": "2026-03-01T19:24:03.116Z"
   }
 },
 {
@@ -2061,11 +2381,14 @@
     "cost_per_gram": "1.5110",
     "selling_price_per_gram": "5.0367",
     "selling_price_override": false,
+    "addition_surcharge": "906.60",
+    "removal_discount": "453.30",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-01T09:45:39.001Z",
-    "updated_at": "2026-03-01T09:47:23.653Z"
+    "updated_at": "2026-03-01T19:24:04.657Z"
   }
 },
 {
@@ -2080,11 +2403,14 @@
     "cost_per_gram": "1.1820",
     "selling_price_per_gram": "3.9400",
     "selling_price_override": false,
+    "addition_surcharge": "709.20",
+    "removal_discount": "354.60",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-01T09:45:39.369Z",
-    "updated_at": "2026-03-01T09:47:23.939Z"
+    "updated_at": "2026-03-01T19:24:04.088Z"
   }
 },
 {
@@ -2099,11 +2425,14 @@
     "cost_per_gram": "1.0290",
     "selling_price_per_gram": "3.4300",
     "selling_price_override": false,
+    "addition_surcharge": "617.40",
+    "removal_discount": "308.70",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-01T09:45:39.737Z",
-    "updated_at": "2026-03-01T09:47:24.216Z"
+    "updated_at": "2026-03-01T19:24:03.897Z"
   }
 },
 {
@@ -2118,11 +2447,14 @@
     "cost_per_gram": "0.7990",
     "selling_price_per_gram": "2.6633",
     "selling_price_override": false,
+    "addition_surcharge": "479.40",
+    "removal_discount": "239.70",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-01T09:45:40.105Z",
-    "updated_at": "2026-03-01T09:47:24.493Z"
+    "updated_at": "2026-03-01T19:24:02.336Z"
   }
 },
 {
@@ -2137,11 +2469,14 @@
     "cost_per_gram": "1.2280",
     "selling_price_per_gram": "4.0933",
     "selling_price_override": false,
+    "addition_surcharge": "736.80",
+    "removal_discount": "368.40",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-01T09:45:40.476Z",
-    "updated_at": "2026-03-01T09:47:24.764Z"
+    "updated_at": "2026-03-01T19:24:01.724Z"
   }
 },
 {
@@ -2156,11 +2491,14 @@
     "cost_per_gram": "0.9720",
     "selling_price_per_gram": "3.2400",
     "selling_price_override": false,
+    "addition_surcharge": "583.20",
+    "removal_discount": "291.60",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-01T09:45:40.846Z",
-    "updated_at": "2026-03-01T09:47:25.044Z"
+    "updated_at": "2026-03-01T19:24:06.803Z"
   }
 },
 {
@@ -2175,11 +2513,14 @@
     "cost_per_gram": "1.4650",
     "selling_price_per_gram": "4.8833",
     "selling_price_override": false,
+    "addition_surcharge": "879.00",
+    "removal_discount": "439.50",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-01T09:45:41.224Z",
-    "updated_at": "2026-03-01T09:47:25.323Z"
+    "updated_at": "2026-03-01T19:24:02.734Z"
   }
 },
 {
@@ -2194,11 +2535,14 @@
     "cost_per_gram": "1.1810",
     "selling_price_per_gram": "3.9367",
     "selling_price_override": false,
+    "addition_surcharge": "708.60",
+    "removal_discount": "354.30",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-01T09:45:41.594Z",
-    "updated_at": "2026-03-01T09:47:25.596Z"
+    "updated_at": "2026-03-01T19:24:02.141Z"
   }
 },
 {
@@ -2213,11 +2557,14 @@
     "cost_per_gram": "1.1830",
     "selling_price_per_gram": "3.9433",
     "selling_price_override": false,
+    "addition_surcharge": "630.93",
+    "removal_discount": "315.46",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-01T09:45:42.073Z",
-    "updated_at": "2026-03-01T09:47:31.816Z"
+    "updated_at": "2026-03-01T19:24:09.815Z"
   }
 },
 {
@@ -2232,11 +2579,14 @@
     "cost_per_gram": "2.6000",
     "selling_price_per_gram": "8.6667",
     "selling_price_override": false,
+    "addition_surcharge": "1386.67",
+    "removal_discount": "693.34",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-01T09:45:42.441Z",
-    "updated_at": "2026-03-01T09:47:32.107Z"
+    "updated_at": "2026-03-01T19:24:11.851Z"
   }
 },
 {
@@ -2251,11 +2601,14 @@
     "cost_per_gram": "1.2250",
     "selling_price_per_gram": "4.0833",
     "selling_price_override": false,
+    "addition_surcharge": "653.33",
+    "removal_discount": "326.66",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-01T09:45:42.815Z",
-    "updated_at": "2026-03-01T09:47:32.392Z"
+    "updated_at": "2026-03-01T19:24:09.441Z"
   }
 },
 {
@@ -2270,11 +2623,14 @@
     "cost_per_gram": "1.2250",
     "selling_price_per_gram": "4.0833",
     "selling_price_override": false,
+    "addition_surcharge": "653.33",
+    "removal_discount": "326.66",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-01T09:45:43.183Z",
-    "updated_at": "2026-03-01T09:47:32.675Z"
+    "updated_at": "2026-03-01T19:24:09.996Z"
   }
 },
 {
@@ -2289,11 +2645,14 @@
     "cost_per_gram": "0.6500",
     "selling_price_per_gram": "2.1667",
     "selling_price_override": false,
+    "addition_surcharge": "173.33",
+    "removal_discount": "86.66",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-01T09:45:43.638Z",
-    "updated_at": "2026-03-01T09:47:39.684Z"
+    "updated_at": "2026-03-01T19:24:17.088Z"
   }
 },
 {
@@ -2308,11 +2667,14 @@
     "cost_per_gram": "1.2430",
     "selling_price_per_gram": "4.1433",
     "selling_price_override": false,
+    "addition_surcharge": "331.47",
+    "removal_discount": "165.74",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-01T09:45:44.026Z",
-    "updated_at": "2026-03-01T09:47:39.966Z"
+    "updated_at": "2026-03-01T19:24:16.907Z"
   }
 },
 {
@@ -2327,11 +2689,14 @@
     "cost_per_gram": "1.2430",
     "selling_price_per_gram": "4.1433",
     "selling_price_override": false,
+    "addition_surcharge": "331.47",
+    "removal_discount": "165.74",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-01T09:45:44.385Z",
-    "updated_at": "2026-03-01T09:47:40.254Z"
+    "updated_at": "2026-03-01T19:24:15.954Z"
   }
 },
 {
@@ -2346,11 +2711,14 @@
     "cost_per_gram": "0.5240",
     "selling_price_per_gram": "1.7467",
     "selling_price_override": false,
+    "addition_surcharge": "0.00",
+    "removal_discount": "0.00",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-01T09:45:44.871Z",
-    "updated_at": "2026-03-01T09:47:48.991Z"
+    "updated_at": "2026-03-01T19:24:23.244Z"
   }
 },
 {
@@ -2365,11 +2733,14 @@
     "cost_per_gram": "0.8070",
     "selling_price_per_gram": "2.6900",
     "selling_price_override": false,
+    "addition_surcharge": "0.00",
+    "removal_discount": "0.00",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-01T09:45:45.235Z",
-    "updated_at": "2026-03-01T09:47:49.278Z"
+    "updated_at": "2026-03-01T19:24:21.936Z"
   }
 },
 {
@@ -2384,11 +2755,14 @@
     "cost_per_gram": "0.2490",
     "selling_price_per_gram": "0.8300",
     "selling_price_override": false,
+    "addition_surcharge": "0.00",
+    "removal_discount": "0.00",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-01T09:45:45.688Z",
-    "updated_at": "2026-03-01T09:47:49.849Z"
+    "updated_at": "2026-03-01T19:24:23.823Z"
   }
 },
 {
@@ -2403,11 +2777,14 @@
     "cost_per_gram": "0.2490",
     "selling_price_per_gram": "0.8300",
     "selling_price_override": false,
+    "addition_surcharge": "0.00",
+    "removal_discount": "0.00",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-01T09:45:46.051Z",
-    "updated_at": "2026-03-01T09:47:50.128Z"
+    "updated_at": "2026-03-01T19:24:24.194Z"
   }
 },
 {
@@ -2422,11 +2799,14 @@
     "cost_per_gram": "0.2490",
     "selling_price_per_gram": "0.8300",
     "selling_price_override": false,
+    "addition_surcharge": "0.00",
+    "removal_discount": "0.00",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-01T09:45:46.420Z",
-    "updated_at": "2026-03-01T09:47:50.405Z"
+    "updated_at": "2026-03-01T19:24:23.625Z"
   }
 },
 {
@@ -2441,11 +2821,14 @@
     "cost_per_gram": "120.0000",
     "selling_price_per_gram": "400.0000",
     "selling_price_override": false,
+    "addition_surcharge": "0.00",
+    "removal_discount": "0.00",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-01T09:45:46.863Z",
-    "updated_at": "2026-03-01T09:47:51.249Z"
+    "updated_at": "2026-03-01T19:24:24.756Z"
   }
 },
 {
@@ -2460,11 +2843,14 @@
     "cost_per_gram": "0.3000",
     "selling_price_per_gram": "1.0000",
     "selling_price_override": false,
+    "addition_surcharge": "80.00",
+    "removal_discount": "40.00",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-01T09:45:47.320Z",
-    "updated_at": "2026-03-01T09:47:45.921Z"
+    "updated_at": "2026-03-01T19:24:20.803Z"
   }
 },
 {
@@ -2479,11 +2865,14 @@
     "cost_per_gram": "0.3600",
     "selling_price_per_gram": "1.2000",
     "selling_price_override": false,
+    "addition_surcharge": "96.00",
+    "removal_discount": "48.00",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-01T09:45:47.703Z",
-    "updated_at": "2026-03-01T09:47:46.202Z"
+    "updated_at": "2026-03-01T19:24:20.607Z"
   }
 },
 {
@@ -2498,11 +2887,14 @@
     "cost_per_gram": "0.4830",
     "selling_price_per_gram": "1.6100",
     "selling_price_override": false,
+    "addition_surcharge": "128.80",
+    "removal_discount": "64.40",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-01T09:45:48.059Z",
-    "updated_at": "2026-03-01T09:47:46.474Z"
+    "updated_at": "2026-03-01T19:24:18.945Z"
   }
 },
 {
@@ -2517,11 +2909,14 @@
     "cost_per_gram": "0.2900",
     "selling_price_per_gram": "0.9667",
     "selling_price_override": false,
+    "addition_surcharge": "77.33",
+    "removal_discount": "38.66",
+    "surcharge_override": false,
     "is_vegetarian": false,
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-01T09:45:48.422Z",
-    "updated_at": "2026-03-01T09:47:46.747Z"
+    "updated_at": "2026-03-01T19:24:19.493Z"
   }
 },
 {
@@ -4958,6 +5353,168 @@
     "default_price_per_head": "0.00",
     "target_food_cost_percentage": "30.00",
     "price_rounding_step": 50
+  }
+},
+{
+  "model": "events.event",
+  "pk": 1,
+  "fields": {
+    "name": "as 1",
+    "date": "2026-02-02",
+    "gents": 50,
+    "ladies": 50,
+    "big_eaters": false,
+    "big_eaters_percentage": 20.0,
+    "based_on_template": null,
+    "notes": "lknkbkjb",
+    "created_at": "2026-02-02T16:49:57.539Z",
+    "account": null,
+    "primary_contact": null,
+    "venue": null,
+    "venue_address": "",
+    "event_type": "",
+    "service_style": "",
+    "price_per_head": null,
+    "status": "tentative",
+    "setup_time": null,
+    "guest_arrival_time": null,
+    "meal_time": null,
+    "end_time": null,
+    "guaranteed_count": null,
+    "final_count": null,
+    "final_count_due": null,
+    "dishes": [
+      963,
+      913,
+      931,
+      972,
+      989,
+      990,
+      996,
+      997,
+      999
+    ]
+  }
+},
+{
+  "model": "events.event",
+  "pk": 2,
+  "fields": {
+    "name": "someone — Other",
+    "date": "2026-02-14",
+    "gents": 50,
+    "ladies": 50,
+    "big_eaters": false,
+    "big_eaters_percentage": 20.0,
+    "based_on_template": null,
+    "notes": "",
+    "created_at": "2026-02-14T09:10:01.362Z",
+    "account": null,
+    "primary_contact": null,
+    "venue": null,
+    "venue_address": "some address really ...",
+    "event_type": "",
+    "service_style": "",
+    "price_per_head": null,
+    "status": "tentative",
+    "setup_time": null,
+    "guest_arrival_time": null,
+    "meal_time": null,
+    "end_time": null,
+    "guaranteed_count": null,
+    "final_count": null,
+    "final_count_due": null,
+    "dishes": []
+  }
+},
+{
+  "model": "events.eventdishcomment",
+  "pk": 10,
+  "fields": {
+    "event": 1,
+    "dish": 963,
+    "comment": "afasf",
+    "portion_grams": 180.0
+  }
+},
+{
+  "model": "events.eventdishcomment",
+  "pk": 11,
+  "fields": {
+    "event": 1,
+    "dish": 913,
+    "comment": "asdfa",
+    "portion_grams": 160.0
+  }
+},
+{
+  "model": "events.eventdishcomment",
+  "pk": 12,
+  "fields": {
+    "event": 1,
+    "dish": 931,
+    "comment": "adgrt",
+    "portion_grams": 100.0
+  }
+},
+{
+  "model": "events.eventdishcomment",
+  "pk": 13,
+  "fields": {
+    "event": 1,
+    "dish": 972,
+    "comment": "wetrw",
+    "portion_grams": 80.0
+  }
+},
+{
+  "model": "events.eventdishcomment",
+  "pk": 14,
+  "fields": {
+    "event": 1,
+    "dish": 989,
+    "comment": "wertew",
+    "portion_grams": 40.0
+  }
+},
+{
+  "model": "events.eventdishcomment",
+  "pk": 15,
+  "fields": {
+    "event": 1,
+    "dish": 990,
+    "comment": "wret",
+    "portion_grams": 60.0
+  }
+},
+{
+  "model": "events.eventdishcomment",
+  "pk": 16,
+  "fields": {
+    "event": 1,
+    "dish": 996,
+    "comment": "wert",
+    "portion_grams": 40.0
+  }
+},
+{
+  "model": "events.eventdishcomment",
+  "pk": 17,
+  "fields": {
+    "event": 1,
+    "dish": 997,
+    "comment": "wert",
+    "portion_grams": 1.0
+  }
+},
+{
+  "model": "events.eventdishcomment",
+  "pk": 18,
+  "fields": {
+    "event": 1,
+    "dish": 999,
+    "comment": "wert",
+    "portion_grams": 1.0
   }
 }
 ]

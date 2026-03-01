@@ -6,9 +6,10 @@ from .models import DishCategory, Dish
 class DishCategoryAdmin(admin.ModelAdmin):
     list_display = ['display_name', 'name', 'pool', 'unit', 'display_order',
                     'baseline_budget_grams', 'min_per_dish_grams', 'fixed_portion_grams',
-                    'protein_is_additive']
+                    'protein_is_additive', 'addition_surcharge', 'removal_discount']
     list_editable = ['display_order', 'baseline_budget_grams', 'min_per_dish_grams',
-                     'fixed_portion_grams', 'protein_is_additive']
+                     'fixed_portion_grams', 'protein_is_additive',
+                     'addition_surcharge', 'removal_discount']
     list_filter = ['pool', 'unit']
     ordering = ['display_order']
 
@@ -17,11 +18,15 @@ class DishCategoryAdmin(admin.ModelAdmin):
 class DishAdmin(admin.ModelAdmin):
     list_display = ['name', 'category', 'protein_type', 'default_portion_grams',
                     'popularity', 'cost_per_gram', 'selling_price_per_gram',
-                    'selling_price_override', 'is_vegetarian', 'is_active']
-    list_filter = ['category', 'protein_type', 'is_vegetarian', 'is_active', 'selling_price_override']
+                    'selling_price_override', 'addition_surcharge', 'removal_discount',
+                    'surcharge_override', 'is_vegetarian', 'is_active']
+    list_filter = ['category', 'protein_type', 'is_vegetarian', 'is_active',
+                   'selling_price_override', 'surcharge_override']
     search_fields = ['name']
-    list_editable = ['popularity', 'selling_price_per_gram', 'is_active']
-    actions = ['recalculate_selling_prices']
+    list_editable = ['popularity', 'selling_price_per_gram',
+                     'addition_surcharge', 'removal_discount',
+                     'surcharge_override', 'is_active']
+    actions = ['recalculate_selling_prices', 'recalculate_surcharges']
 
     @admin.action(description='Recalculate selling prices (non-overridden dishes)')
     def recalculate_selling_prices(self, request, queryset):
@@ -39,3 +44,19 @@ class DishAdmin(admin.ModelAdmin):
             dish.save(update_fields=['selling_price_per_gram'])
             updated += 1
         self.message_user(request, f'Recalculated selling prices for {updated} dish(es).')
+
+    @admin.action(description='Recalculate surcharges (non-overridden dishes)')
+    def recalculate_surcharges(self, request, queryset):
+        from decimal import Decimal
+        dishes = queryset.filter(surcharge_override=False).select_related('category')
+        updated = 0
+        for dish in dishes:
+            if not dish.selling_price_per_gram:
+                continue
+            portion = Decimal(str(dish.category.baseline_budget_grams))
+            surcharge = (portion * dish.selling_price_per_gram).quantize(Decimal('0.01'))
+            dish.addition_surcharge = surcharge
+            dish.removal_discount = (surcharge / 2).quantize(Decimal('0.01'))
+            dish.save(update_fields=['addition_surcharge', 'removal_discount'])
+            updated += 1
+        self.message_user(request, f'Recalculated surcharges for {updated} dish(es).')

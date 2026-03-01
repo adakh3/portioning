@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
-import { api, Dish, DishCategory, MenuTemplate, MenuTemplateDetail, PriceTier, PriceCheckResult, PriceEstimateResult } from "@/lib/api";
+import { api, Dish, DishCategory, MenuTemplate, MenuTemplateDetail, PriceTier, PriceCheckResult, PriceCheckBreakdownItem, PriceEstimateResult } from "@/lib/api";
 
 interface CalculatedPrice {
   price: number;
   source: "tier" | "template_adjusted" | "computed";
   tierLabel?: string;
-  delta?: number;
+  breakdown?: PriceCheckBreakdownItem[];
+  totalAdjustment?: number;
   hasUnpriced: boolean;
 }
 
@@ -65,6 +66,9 @@ export default function MenuBuilder({
   const [calculatedPrice, setCalculatedPrice] = useState<CalculatedPrice | null>(null);
   const [priceLoading, setPriceLoading] = useState(false);
 
+  // Extra food % markup
+  const [extraFoodPercent, setExtraFoodPercent] = useState(0);
+
   useEffect(() => {
     Promise.all([api.getDishes(), api.getCategories(), api.getMenus()])
       .then(([d, c, t]) => {
@@ -97,12 +101,19 @@ export default function MenuBuilder({
     };
   }, [guestCount, templateId, dishesModified, templatePriceTiers, priceRoundingStep]);
 
+  // Apply extra food % markup to a base price
+  const applyExtra = (base: number) => {
+    const marked = base * (1 + extraFoodPercent / 100);
+    return roundToStep(marked, priceRoundingStep);
+  };
+
   // Determine active price for parent notification
   const activePrice = useMemo(() => {
-    if (tierPrice) return tierPrice.price;
-    if (calculatedPrice) return calculatedPrice.price;
+    if (tierPrice) return applyExtra(tierPrice.price);
+    if (calculatedPrice) return applyExtra(calculatedPrice.price);
     return null;
-  }, [tierPrice, calculatedPrice]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tierPrice, calculatedPrice, extraFoodPercent]);
 
   // Notify parent of price changes
   useEffect(() => {
@@ -167,8 +178,9 @@ export default function MenuBuilder({
           price: roundToStep(result.adjusted_price, priceRoundingStep),
           source: "template_adjusted",
           tierLabel: result.tier_label,
-          delta: result.delta,
-          hasUnpriced: result.has_unpriced,
+          breakdown: result.breakdown,
+          totalAdjustment: result.total_adjustment,
+          hasUnpriced: false,
         });
       } else {
         // Custom menu — use price-estimate endpoint
@@ -325,15 +337,29 @@ export default function MenuBuilder({
             /* Template, unmodified, has tier */
             <div className="flex items-center gap-3 flex-wrap bg-green-50 border border-green-200 rounded-lg px-4 py-2.5">
               <span className="text-sm font-medium text-green-800">
-                {currencySymbol}{tierPrice.price.toLocaleString()}/head
+                {currencySymbol}{applyExtra(tierPrice.price).toLocaleString()}/head
               </span>
               <span className="text-xs text-green-600">
                 ({tierPrice.label} tier)
               </span>
+              <label className="inline-flex items-center gap-1.5 text-xs text-gray-600">
+                Extra food
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  step={5}
+                  value={extraFoodPercent || ""}
+                  onChange={(e) => setExtraFoodPercent(Number(e.target.value) || 0)}
+                  placeholder="0"
+                  className="w-14 border border-gray-300 rounded px-1.5 py-0.5 text-xs text-center"
+                />
+                %
+              </label>
               {onUseSuggestedPrice && (
                 <button
                   type="button"
-                  onClick={() => onUseSuggestedPrice(tierPrice.price)}
+                  onClick={() => onUseSuggestedPrice(applyExtra(tierPrice.price))}
                   className="ml-auto whitespace-nowrap border border-green-300 text-green-700 bg-white px-3 py-1 rounded text-sm font-medium hover:bg-green-100"
                 >
                   Use as price/head
@@ -344,30 +370,65 @@ export default function MenuBuilder({
             /* Need to calculate */
             <div className="flex items-center gap-3 flex-wrap bg-gray-50 border border-gray-200 rounded-lg px-4 py-2.5">
               {calculatedPrice ? (
-                <>
-                  <span className="text-sm font-medium text-green-800">
-                    {currencySymbol}{calculatedPrice.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/head
-                  </span>
-                  {calculatedPrice.hasUnpriced && (
-                    <span className="inline-flex items-center bg-amber-100 text-amber-800 text-xs font-medium px-2 py-0.5 rounded">
-                      Some dishes unpriced
+                <div className="flex flex-col gap-1.5 w-full">
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <span className="text-sm font-medium text-green-800">
+                      {currencySymbol}{applyExtra(calculatedPrice.price).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/head
                     </span>
+                    {calculatedPrice.hasUnpriced && (
+                      <span className="inline-flex items-center bg-amber-100 text-amber-800 text-xs font-medium px-2 py-0.5 rounded">
+                        Some dishes unpriced
+                      </span>
+                    )}
+                    {calculatedPrice.source === "template_adjusted" && (
+                      <span className="text-xs text-green-600">
+                        ({calculatedPrice.tierLabel} tier {calculatedPrice.totalAdjustment !== undefined && calculatedPrice.totalAdjustment >= 0 ? "+" : ""}{currencySymbol}{calculatedPrice.totalAdjustment?.toFixed(2)})
+                      </span>
+                    )}
+                    {calculatedPrice.source === "computed" && (
+                      <span className="text-xs text-green-600">(computed from engine)</span>
+                    )}
+                    <label className="inline-flex items-center gap-1.5 text-xs text-gray-600">
+                      Extra food
+                      <input
+                        type="number"
+                        min={0}
+                        max={100}
+                        step={5}
+                        value={extraFoodPercent || ""}
+                        onChange={(e) => setExtraFoodPercent(Number(e.target.value) || 0)}
+                        placeholder="0"
+                        className="w-14 border border-gray-300 rounded px-1.5 py-0.5 text-xs text-center"
+                      />
+                      %
+                    </label>
+                    {onUseSuggestedPrice && (
+                      <button
+                        type="button"
+                        onClick={() => onUseSuggestedPrice(applyExtra(calculatedPrice.price))}
+                        className="ml-auto whitespace-nowrap border border-green-300 text-green-700 bg-white px-3 py-1 rounded text-sm font-medium hover:bg-green-100"
+                      >
+                        Use as price/head
+                      </button>
+                    )}
+                  </div>
+                  {calculatedPrice.breakdown && calculatedPrice.breakdown.length > 0 && (
+                    <div className="flex flex-wrap gap-2 text-xs">
+                      {calculatedPrice.breakdown.map((item, i) => (
+                        <span
+                          key={i}
+                          className={`px-2 py-0.5 rounded ${
+                            item.type === "addition"
+                              ? "bg-amber-50 text-amber-700 border border-amber-200"
+                              : "bg-blue-50 text-blue-700 border border-blue-200"
+                          }`}
+                        >
+                          {item.amount >= 0 ? "+" : ""}{currencySymbol}{item.amount} {item.dish}
+                        </span>
+                      ))}
+                    </div>
                   )}
-                  <span className="text-xs text-green-600">
-                    {calculatedPrice.source === "template_adjusted"
-                      ? `(${calculatedPrice.tierLabel} tier ${calculatedPrice.delta !== undefined && calculatedPrice.delta >= 0 ? "+" : ""}${currencySymbol}${calculatedPrice.delta?.toFixed(2)})`
-                      : "(computed from engine)"}
-                  </span>
-                  {onUseSuggestedPrice && (
-                    <button
-                      type="button"
-                      onClick={() => onUseSuggestedPrice(calculatedPrice.price)}
-                      className="ml-auto whitespace-nowrap border border-green-300 text-green-700 bg-white px-3 py-1 rounded text-sm font-medium hover:bg-green-100"
-                    >
-                      Use as price/head
-                    </button>
-                  )}
-                </>
+                </div>
               ) : (
                 <>
                   <button

@@ -48,6 +48,14 @@ class DishCategory(models.Model):
         null=True, blank=True,
         help_text="For service pool only: fixed per-person amount",
     )
+    addition_surcharge = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0,
+        help_text="Per-head surcharge when adding a dish in this category",
+    )
+    removal_discount = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0,
+        help_text="Per-head discount when removing a dish from this category",
+    )
 
     class Meta:
         ordering = ['display_order', 'name']
@@ -82,6 +90,18 @@ class Dish(models.Model):
         default=False,
         help_text='If True, selling_price_per_gram is manually set and not auto-calculated',
     )
+    addition_surcharge = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0,
+        help_text="Per-head surcharge when adding this dish; auto-calculated unless overridden",
+    )
+    removal_discount = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0,
+        help_text="Per-head discount when removing this dish; auto-calculated unless overridden",
+    )
+    surcharge_override = models.BooleanField(
+        default=False,
+        help_text="If True, surcharges are manually set and not auto-calculated",
+    )
     is_vegetarian = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
     notes = models.TextField(blank=True)
@@ -115,4 +135,12 @@ class Dish(models.Model):
                 self.selling_price_per_gram = cost / (
                     settings.target_food_cost_percentage / Decimal('100')
                 )
+
+        # Auto-calculate surcharges: baseline_budget_grams × selling_price_per_gram
+        if not self.surcharge_override and self.selling_price_per_gram:
+            portion = Decimal(str(self.category.baseline_budget_grams))
+            surcharge = (portion * self.selling_price_per_gram).quantize(Decimal('0.01'))
+            self.addition_surcharge = surcharge
+            self.removal_discount = (surcharge / 2).quantize(Decimal('0.01'))
+
         super().save(*args, **kwargs)

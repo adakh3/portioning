@@ -100,11 +100,10 @@ class MenuTemplatePreviewView(APIView):
 
 
 class MenuPriceCheckView(APIView):
-    """Return pricing anchored to template tier price, adjusted by engine delta."""
+    """Return pricing anchored to template tier price, adjusted by per-dish surcharges."""
 
     def post(self, request, pk):
         from dishes.models import Dish
-        from calculator.engine.calculator import calculate_portions
 
         menu = MenuTemplate.objects.filter(is_active=True, pk=pk).first()
         if menu is None:
@@ -121,12 +120,7 @@ class MenuPriceCheckView(APIView):
         guest_count = int(guest_count)
         dish_ids = [int(d) for d in dish_ids]
 
-        # 1. Original dish IDs from template
-        original_dish_ids = list(
-            menu.portions.values_list('dish__id', flat=True)
-        )
-
-        # 2. Select tier: highest where min_guests <= guest_count
+        # 1. Select tier: highest where min_guests <= guest_count
         tier = (
             MenuTemplatePriceTier.objects
             .filter(menu=menu, min_guests__lte=guest_count)
@@ -142,45 +136,49 @@ class MenuPriceCheckView(APIView):
         tier_price = float(tier.price_per_head)
         tier_label = f"{tier.min_guests}+ pax"
 
-        # 3. Build guest mix using template's default ratio scaled to guest_count
-        total_default = menu.default_gents + menu.default_ladies
-        if total_default > 0:
-            ratio = menu.default_gents / total_default
-        else:
-            ratio = 0.5
-        gents = round(guest_count * ratio)
-        ladies = guest_count - gents
-        guests = {'gents': gents, 'ladies': ladies}
+        # 2. Diff original vs modified dish sets
+        original_ids = set(
+            menu.portions.values_list('dish__id', flat=True)
+        )
+        modified_ids = set(dish_ids)
+        added_ids = modified_ids - original_ids
+        removed_ids = original_ids - modified_ids
 
-        # 4. Run engine on original dishes
-        original_result = calculate_portions(original_dish_ids, guests)
+        # 3. Load added and removed dishes with their categories
+        added_dishes = (
+            Dish.objects.filter(id__in=added_ids).select_related('category')
+            if added_ids else []
+        )
+        removed_dishes = (
+            Dish.objects.filter(id__in=removed_ids).select_related('category')
+            if removed_ids else []
+        )
 
-        # 5. Run engine on modified dishes
-        modified_result = calculate_portions(dish_ids, guests)
+        # 4. Compute per-dish adjustments (dish-level surcharge, fallback to category)
+        breakdown = []
+        total_adjustment = 0.0
 
-        # 6. Compute selling costs from engine portions
-        # Load selling prices for all relevant dishes
-        all_dish_ids = set(original_dish_ids) | set(dish_ids)
-        selling_prices = {}
-        has_unpriced = False
-        for d in Dish.objects.filter(id__in=all_dish_ids):
-            if d.selling_price_per_gram and d.selling_price_per_gram > 0:
-                selling_prices[d.id] = float(d.selling_price_per_gram)
-            else:
-                if d.id in dish_ids:
-                    has_unpriced = True
+        for dish in added_dishes:
+            surcharge = float(dish.addition_surcharge) or float(dish.category.addition_surcharge)
+            breakdown.append({
+                'dish': dish.name,
+                'category': dish.category.display_name,
+                'type': 'addition',
+                'amount': surcharge,
+            })
+            total_adjustment += surcharge
 
-        def compute_selling_cost(result):
-            total = 0.0
-            for p in result['portions']:
-                spg = selling_prices.get(p['dish_id'], 0)
-                total += p['grams_per_person'] * spg
-            return round(total, 2)
+        for dish in removed_dishes:
+            discount = float(dish.removal_discount) or float(dish.category.removal_discount)
+            breakdown.append({
+                'dish': dish.name,
+                'category': dish.category.display_name,
+                'type': 'removal',
+                'amount': -discount,
+            })
+            total_adjustment -= discount
 
-        original_cost = compute_selling_cost(original_result)
-        modified_cost = compute_selling_cost(modified_result)
-        delta = round(modified_cost - original_cost, 2)
-        adjusted_price = round(tier_price + delta, 2)
+        adjusted_price = tier_price + total_adjustment
 
         # Apply rounding step from settings
         from bookings.models import SiteSettings
@@ -191,9 +189,7 @@ class MenuPriceCheckView(APIView):
         return Response({
             'tier_price': tier_price,
             'tier_label': tier_label,
-            'original_cost': original_cost,
-            'modified_cost': modified_cost,
-            'delta': delta,
-            'adjusted_price': adjusted_price,
-            'has_unpriced': has_unpriced,
+            'breakdown': breakdown,
+            'total_adjustment': round(total_adjustment, 2),
+            'adjusted_price': round(adjusted_price, 2),
         })

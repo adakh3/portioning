@@ -20,6 +20,8 @@ export interface DishCategory {
   display_order: number;
   pool: "protein" | "accompaniment" | "dessert" | "service";
   unit: "kg" | "qty";
+  addition_surcharge: string;
+  removal_discount: string;
 }
 
 export interface Dish {
@@ -479,14 +481,19 @@ export interface CheckResult {
 }
 
 // Price check types
+export interface PriceCheckBreakdownItem {
+  dish: string;
+  category: string;
+  type: "addition" | "removal";
+  amount: number;
+}
+
 export interface PriceCheckResult {
   tier_price: number;
   tier_label: string;
-  original_cost: number;
-  modified_cost: number;
-  delta: number;
+  breakdown: PriceCheckBreakdownItem[];
+  total_adjustment: number;
   adjusted_price: number;
-  has_unpriced: boolean;
 }
 
 export interface PriceEstimateResult {

@@ -7,7 +7,7 @@ class DishCategorySerializer(serializers.ModelSerializer):
         model = DishCategory
         fields = ['id', 'name', 'display_name', 'display_order', 'pool', 'unit',
                   'baseline_budget_grams', 'min_per_dish_grams', 'fixed_portion_grams',
-                  'protein_is_additive']
+                  'protein_is_additive', 'addition_surcharge', 'removal_discount']
 
 
 class DishSerializer(serializers.ModelSerializer):
@@ -20,6 +20,7 @@ class DishSerializer(serializers.ModelSerializer):
             'id', 'name', 'category', 'category_name', 'protein_type',
             'default_portion_grams', 'popularity',
             'cost_per_gram', 'selling_price_per_gram', 'selling_price_override',
+            'addition_surcharge', 'removal_discount', 'surcharge_override',
             'margin_percent', 'is_vegetarian', 'notes',
         ]
 
