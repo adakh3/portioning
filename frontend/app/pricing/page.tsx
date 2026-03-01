@@ -31,6 +31,7 @@ export default function PricingPage() {
   // Custom pricer state
   const [customDishIds, setCustomDishIds] = useState<number[]>([]);
   const [customTemplate, setCustomTemplate] = useState<number | null>(null);
+  const [customGuestCount, setCustomGuestCount] = useState<string>("");
 
   useEffect(() => {
     Promise.all([api.getMenus(), api.getDishes(), api.getSiteSettings()])
@@ -92,8 +93,6 @@ export default function PricingPage() {
     },
     []
   );
-
-  const customDishes = dishes.filter((d) => customDishIds.includes(d.id));
 
   if (loading) {
     return <p className="text-gray-500">Loading...</p>;
@@ -157,6 +156,7 @@ export default function PricingPage() {
                         detail={expandedId === t.id ? expandedDetail : null}
                         detailLoading={expandedId === t.id && expandLoading}
                         onToggle={() => handleExpandTemplate(t.id)}
+                        priceRoundingStep={settings?.price_rounding_step ? Number(settings.price_rounding_step) : 50}
                       />
                     );
                   })}
@@ -222,92 +222,42 @@ export default function PricingPage() {
           Custom Menu Pricer
         </h2>
         <p className="text-sm text-gray-500 mb-4">
-          Pick dishes to see a live price estimate. No event or quote needed.
+          Pick dishes and enter a guest count, then click &quot;Calculate Rate&quot; to see a price estimate.
         </p>
 
-        <div className="bg-white border border-gray-200 rounded-lg p-5">
+        <div className="bg-white border border-gray-200 rounded-lg p-5 space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Guest Count</label>
+            <input
+              type="number"
+              min="1"
+              value={customGuestCount}
+              onChange={(e) => setCustomGuestCount(e.target.value)}
+              placeholder="e.g. 150"
+              className="border border-gray-300 rounded px-3 py-2 text-sm w-40"
+            />
+          </div>
           <MenuBuilder
             selectedDishIds={customDishIds}
             basedOnTemplate={customTemplate}
+            guestCount={customGuestCount ? Number(customGuestCount) : undefined}
             onChange={handleCustomChange}
             currencySymbol={currencySymbol}
+            priceRoundingStep={settings?.price_rounding_step ? Number(settings.price_rounding_step) : 50}
           />
         </div>
 
-        {customDishes.length > 0 && (
-          <div className="mt-4 bg-white border border-gray-200 rounded-lg overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-gray-50 border-b border-gray-200 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  <th className="px-4 py-3">Dish</th>
-                  <th className="px-4 py-3">Category</th>
-                  <th className="px-4 py-3 text-right">Price/Head</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {customDishes.map((dish) => {
-                  const pricePerGram = dish.selling_price_per_gram
-                    ? parseFloat(dish.selling_price_per_gram)
-                    : null;
-                  const lineCost =
-                    pricePerGram !== null
-                      ? pricePerGram * dish.default_portion_grams
-                      : null;
-                  return (
-                    <tr key={dish.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-2.5 font-medium text-gray-900">
-                        {dish.name}
-                        {dish.is_vegetarian && (
-                          <span className="ml-1 text-green-600 text-xs">V</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-2.5 text-gray-600">
-                        {dish.category_name}
-                      </td>
-                      <td className="px-4 py-2.5 text-right font-medium">
-                        {lineCost !== null ? (
-                          <span className="text-gray-900">
-                            {currencySymbol}
-                            {lineCost.toFixed(2)}
-                          </span>
-                        ) : (
-                          <span className="text-amber-600">Unpriced</span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-              <tfoot>
-                <tr className="bg-gray-50 border-t border-gray-200">
-                  <td
-                    colSpan={2}
-                    className="px-4 py-2.5 text-right font-medium text-gray-700"
-                  >
-                    Total / Head
-                  </td>
-                  <td className="px-4 py-2.5 text-right font-bold text-gray-900">
-                    {currencySymbol}
-                    {customDishes
-                      .reduce((sum, d) => {
-                        const ppg = d.selling_price_per_gram
-                          ? parseFloat(d.selling_price_per_gram)
-                          : 0;
-                        return sum + ppg * d.default_portion_grams;
-                      }, 0)
-                      .toFixed(2)}
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-        )}
       </section>
     </div>
   );
 }
 
 /* ── Tier Template Row with expandable dish list ── */
+
+function roundToStep(value: number, step: number): number {
+  if (step <= 1) return value;
+  return Math.round(value / step) * step;
+}
 
 function TierTemplateRow({
   template,
@@ -319,6 +269,7 @@ function TierTemplateRow({
   detail,
   detailLoading,
   onToggle,
+  priceRoundingStep = 1,
 }: {
   template: MenuTemplate;
   thresholds: number[];
@@ -329,6 +280,7 @@ function TierTemplateRow({
   detail: MenuTemplateDetail | null;
   detailLoading: boolean;
   onToggle: () => void;
+  priceRoundingStep?: number;
 }) {
   return (
     <>
@@ -352,7 +304,7 @@ function TierTemplateRow({
               {price ? (
                 <span className="text-gray-900">
                   {currencySymbol}
-                  {parseFloat(price).toLocaleString()}
+                  {roundToStep(parseFloat(price), priceRoundingStep).toLocaleString()}
                 </span>
               ) : (
                 <span className="text-gray-400">—</span>

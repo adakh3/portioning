@@ -1,28 +1,45 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
-import { api, Dish, DishCategory, MenuTemplate, MenuTemplateDetail } from "@/lib/api";
+import { api, Dish, DishCategory, MenuTemplate, MenuTemplateDetail, PriceTier, PriceCheckResult, PriceEstimateResult } from "@/lib/api";
+
+interface CalculatedPrice {
+  price: number;
+  source: "tier" | "template_adjusted" | "computed";
+  tierLabel?: string;
+  delta?: number;
+  hasUnpriced: boolean;
+}
+
+function roundToStep(value: number, step: number): number {
+  if (step <= 1) return value;
+  return Math.round(value / step) * step;
+}
 
 interface Props {
   selectedDishIds: number[];
   basedOnTemplate: number | null;
+  guestCount?: number;
   onSave?: (data: { dish_ids: number[]; based_on_template: number | null }) => Promise<void>;
   onChange?: (data: { dish_ids: number[]; based_on_template: number | null }) => void;
   onSuggestedPriceChange?: (price: number | null) => void;
   onUseSuggestedPrice?: (price: number) => void;
   currencySymbol?: string;
   disabled?: boolean;
+  priceRoundingStep?: number;
 }
 
 export default function MenuBuilder({
   selectedDishIds,
   basedOnTemplate,
+  guestCount,
   onSave,
   onChange,
   onSuggestedPriceChange,
   onUseSuggestedPrice,
   currencySymbol = "£",
   disabled = false,
+  priceRoundingStep = 1,
 }: Props) {
   const [dishes, setDishes] = useState<Dish[]>([]);
   const [categories, setCategories] = useState<DishCategory[]>([]);
@@ -38,11 +55,15 @@ export default function MenuBuilder({
   // Track if changes have been made
   const [dirty, setDirty] = useState(false);
 
-  // Template pricing from backend
-  const [templatePrice, setTemplatePrice] = useState<number | null>(null);
-  const [templateHasUnpriced, setTemplateHasUnpriced] = useState(false);
+  // Template pricing state
+  const [templatePriceTiers, setTemplatePriceTiers] = useState<PriceTier[]>([]);
+  const [originalDishIds, setOriginalDishIds] = useState<Set<number>>(new Set());
   // Whether user has modified dishes since loading template
   const [dishesModified, setDishesModified] = useState(false);
+
+  // Calculate Rate state
+  const [calculatedPrice, setCalculatedPrice] = useState<CalculatedPrice | null>(null);
+  const [priceLoading, setPriceLoading] = useState(false);
 
   useEffect(() => {
     Promise.all([api.getDishes(), api.getCategories(), api.getMenus()])
@@ -62,40 +83,33 @@ export default function MenuBuilder({
     setDirty(false);
   }, [selectedDishIds, basedOnTemplate]);
 
-  // Compute suggested price from default portions (fallback when dishes modified)
-  const computedPrice = useMemo(() => {
-    const selectedDishes = dishes.filter((d) => selected.has(d.id));
-    if (selectedDishes.length === 0) return null;
+  // Client-side tier selection (no API) for unmodified template + guest count
+  const tierPrice = useMemo(() => {
+    if (!guestCount || !templateId || dishesModified || templatePriceTiers.length === 0) return null;
+    const matching = templatePriceTiers
+      .filter((t) => t.min_guests <= guestCount)
+      .sort((a, b) => b.min_guests - a.min_guests);
+    if (matching.length === 0) return null;
+    const tier = matching[0];
+    return {
+      price: roundToStep(parseFloat(tier.price_per_head), priceRoundingStep),
+      label: `${tier.min_guests}+ pax`,
+    };
+  }, [guestCount, templateId, dishesModified, templatePriceTiers, priceRoundingStep]);
 
-    let total = 0;
-    let hasUnpriced = false;
-    for (const dish of selectedDishes) {
-      if (dish.selling_price_per_gram && parseFloat(dish.selling_price_per_gram) > 0) {
-        total += parseFloat(dish.selling_price_per_gram) * dish.default_portion_grams;
-      } else {
-        hasUnpriced = true;
-      }
-    }
-    if (total === 0) return null;
-    return { price: Math.round(total * 100) / 100, hasUnpriced };
-  }, [dishes, selected]);
-
-  // Determine which price to show
-  const suggestedPrice = useMemo(() => {
-    if (!dishesModified && templatePrice !== null) {
-      return { price: templatePrice, hasUnpriced: templateHasUnpriced, source: "template" as const };
-    }
-    if (computedPrice) {
-      return { price: computedPrice.price, hasUnpriced: computedPrice.hasUnpriced, source: "default" as const };
-    }
+  // Determine active price for parent notification
+  const activePrice = useMemo(() => {
+    if (tierPrice) return tierPrice.price;
+    if (calculatedPrice) return calculatedPrice.price;
     return null;
-  }, [dishesModified, templatePrice, templateHasUnpriced, computedPrice]);
+  }, [tierPrice, calculatedPrice]);
 
   // Notify parent of price changes
   useEffect(() => {
-    onSuggestedPriceChange?.(suggestedPrice?.price ?? null);
-  }, [suggestedPrice?.price, onSuggestedPriceChange]);
+    onSuggestedPriceChange?.(activePrice);
+  }, [activePrice, onSuggestedPriceChange]);
 
+  // Reset calculated price when dishes change
   const toggleDish = (id: number) => {
     const next = new Set(selected);
     if (next.has(id)) {
@@ -106,6 +120,7 @@ export default function MenuBuilder({
     setSelected(next);
     setDirty(true);
     setDishesModified(true);
+    setCalculatedPrice(null);
     onChange?.({ dish_ids: Array.from(next), based_on_template: templateId });
   };
 
@@ -117,9 +132,9 @@ export default function MenuBuilder({
       setTemplateId(tid);
       setDirty(true);
       setDishesModified(false);
-      // Use backend's suggested price from template
-      setTemplatePrice(detail.suggested_price_per_head ?? null);
-      setTemplateHasUnpriced(detail.has_unpriced_dishes ?? false);
+      setTemplatePriceTiers(detail.price_tiers || []);
+      setOriginalDishIds(new Set(dishIds));
+      setCalculatedPrice(null);
       onChange?.({ dish_ids: dishIds, based_on_template: tid });
     } catch {
       // ignore
@@ -131,9 +146,47 @@ export default function MenuBuilder({
     setTemplateId(null);
     setDirty(true);
     setDishesModified(true);
-    setTemplatePrice(null);
-    setTemplateHasUnpriced(false);
+    setTemplatePriceTiers([]);
+    setOriginalDishIds(new Set());
+    setCalculatedPrice(null);
     onChange?.({ dish_ids: [], based_on_template: null });
+  };
+
+  const handleCalculateRate = async () => {
+    if (!guestCount || selected.size === 0) return;
+    setPriceLoading(true);
+    try {
+      const dishIds = Array.from(selected);
+      if (templateId && dishesModified) {
+        // Template with modifications — use price-check endpoint
+        const result: PriceCheckResult = await api.menuPriceCheck(templateId, {
+          guest_count: guestCount,
+          dish_ids: dishIds,
+        });
+        setCalculatedPrice({
+          price: roundToStep(result.adjusted_price, priceRoundingStep),
+          source: "template_adjusted",
+          tierLabel: result.tier_label,
+          delta: result.delta,
+          hasUnpriced: result.has_unpriced,
+        });
+      } else {
+        // Custom menu — use price-estimate endpoint
+        const result: PriceEstimateResult = await api.priceEstimate({
+          dish_ids: dishIds,
+          guest_count: guestCount,
+        });
+        setCalculatedPrice({
+          price: roundToStep(result.price_per_head, priceRoundingStep),
+          source: "computed",
+          hasUnpriced: result.has_unpriced,
+        });
+      }
+    } catch {
+      // ignore
+    } finally {
+      setPriceLoading(false);
+    }
   };
 
   const handleSave = async () => {
@@ -165,6 +218,13 @@ export default function MenuBuilder({
       dishes: filtered.filter((d) => d.category === cat.id),
     }))
     .filter((g) => g.dishes.length > 0);
+
+  // Determine pricing bar state
+  const hasDishes = selected.size > 0;
+  const hasGuestCount = !!guestCount && guestCount > 0;
+  const isTemplate = !!templateId;
+  const showTierPrice = hasGuestCount && isTemplate && !dishesModified && tierPrice !== null;
+  const showCalculateButton = hasGuestCount && hasDishes && !showTierPrice;
 
   if (loading) {
     return <p className="text-sm text-gray-500">Loading menu options...</p>;
@@ -252,31 +312,92 @@ export default function MenuBuilder({
       )}
 
       {/* Pricing Summary Bar */}
-      {suggestedPrice && (
-        <div className="flex items-center gap-3 flex-wrap bg-green-50 border border-green-200 rounded-lg px-4 py-2.5">
-          <span className="text-sm font-medium text-green-800">
-            Estimated food price/head: {currencySymbol}{suggestedPrice.price.toFixed(2)}
-          </span>
-          {suggestedPrice.hasUnpriced && (
-            <span className="inline-flex items-center bg-amber-100 text-amber-800 text-xs font-medium px-2 py-0.5 rounded">
-              Some dishes unpriced
-            </span>
-          )}
-          <span className="text-xs text-green-600">
-            {suggestedPrice.source === "template"
-              ? "(from template portions)"
-              : "(based on default portions)"}
-          </span>
-          {onUseSuggestedPrice && (
-            <button
-              type="button"
-              onClick={() => onUseSuggestedPrice(suggestedPrice.price)}
-              className="ml-auto whitespace-nowrap border border-green-300 text-green-700 bg-white px-3 py-1 rounded text-sm font-medium hover:bg-green-100"
-            >
-              Use as price/head
-            </button>
-          )}
-        </div>
+      {hasDishes && (
+        <>
+          {!hasGuestCount ? (
+            /* No guest count */
+            <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-lg px-4 py-2.5">
+              <span className="text-sm text-gray-500">
+                Enter guest count to see pricing
+              </span>
+            </div>
+          ) : showTierPrice && tierPrice ? (
+            /* Template, unmodified, has tier */
+            <div className="flex items-center gap-3 flex-wrap bg-green-50 border border-green-200 rounded-lg px-4 py-2.5">
+              <span className="text-sm font-medium text-green-800">
+                {currencySymbol}{tierPrice.price.toLocaleString()}/head
+              </span>
+              <span className="text-xs text-green-600">
+                ({tierPrice.label} tier)
+              </span>
+              {onUseSuggestedPrice && (
+                <button
+                  type="button"
+                  onClick={() => onUseSuggestedPrice(tierPrice.price)}
+                  className="ml-auto whitespace-nowrap border border-green-300 text-green-700 bg-white px-3 py-1 rounded text-sm font-medium hover:bg-green-100"
+                >
+                  Use as price/head
+                </button>
+              )}
+            </div>
+          ) : showCalculateButton ? (
+            /* Need to calculate */
+            <div className="flex items-center gap-3 flex-wrap bg-gray-50 border border-gray-200 rounded-lg px-4 py-2.5">
+              {calculatedPrice ? (
+                <>
+                  <span className="text-sm font-medium text-green-800">
+                    {currencySymbol}{calculatedPrice.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/head
+                  </span>
+                  {calculatedPrice.hasUnpriced && (
+                    <span className="inline-flex items-center bg-amber-100 text-amber-800 text-xs font-medium px-2 py-0.5 rounded">
+                      Some dishes unpriced
+                    </span>
+                  )}
+                  <span className="text-xs text-green-600">
+                    {calculatedPrice.source === "template_adjusted"
+                      ? `(${calculatedPrice.tierLabel} tier ${calculatedPrice.delta !== undefined && calculatedPrice.delta >= 0 ? "+" : ""}${currencySymbol}${calculatedPrice.delta?.toFixed(2)})`
+                      : "(computed from engine)"}
+                  </span>
+                  {onUseSuggestedPrice && (
+                    <button
+                      type="button"
+                      onClick={() => onUseSuggestedPrice(calculatedPrice.price)}
+                      className="ml-auto whitespace-nowrap border border-green-300 text-green-700 bg-white px-3 py-1 rounded text-sm font-medium hover:bg-green-100"
+                    >
+                      Use as price/head
+                    </button>
+                  )}
+                </>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleCalculateRate}
+                    disabled={priceLoading || disabled}
+                    className="border border-blue-300 text-blue-700 bg-white px-4 py-1.5 rounded text-sm font-medium hover:bg-blue-50 disabled:opacity-50"
+                  >
+                    {priceLoading ? (
+                      <span className="inline-flex items-center gap-2">
+                        <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                        </svg>
+                        Calculating...
+                      </span>
+                    ) : (
+                      "Calculate Rate"
+                    )}
+                  </button>
+                  <span className="text-xs text-gray-500">
+                    {isTemplate && dishesModified
+                      ? "Menu modified — click to recalculate"
+                      : "Click to compute price from engine"}
+                  </span>
+                </>
+              )}
+            </div>
+          ) : null}
+        </>
       )}
 
       {/* Dish Selector (expandable) */}

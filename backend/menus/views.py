@@ -1,7 +1,7 @@
-from rest_framework import generics
+from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from .models import MenuTemplate
+from .models import MenuTemplate, MenuTemplatePriceTier
 from .serializers import MenuTemplateListSerializer, MenuTemplateDetailSerializer
 
 
@@ -96,4 +96,104 @@ class MenuTemplatePreviewView(APIView):
                 f"Showing stored template portions for '{menu.name}'",
             ],
             'source': 'template',
+        })
+
+
+class MenuPriceCheckView(APIView):
+    """Return pricing anchored to template tier price, adjusted by engine delta."""
+
+    def post(self, request, pk):
+        from dishes.models import Dish
+        from calculator.engine.calculator import calculate_portions
+
+        menu = MenuTemplate.objects.filter(is_active=True, pk=pk).first()
+        if menu is None:
+            return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        guest_count = request.data.get('guest_count')
+        dish_ids = request.data.get('dish_ids')
+        if not guest_count or not dish_ids:
+            return Response(
+                {'detail': 'guest_count and dish_ids are required.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        guest_count = int(guest_count)
+        dish_ids = [int(d) for d in dish_ids]
+
+        # 1. Original dish IDs from template
+        original_dish_ids = list(
+            menu.portions.values_list('dish__id', flat=True)
+        )
+
+        # 2. Select tier: highest where min_guests <= guest_count
+        tier = (
+            MenuTemplatePriceTier.objects
+            .filter(menu=menu, min_guests__lte=guest_count)
+            .order_by('-min_guests')
+            .first()
+        )
+        if tier is None:
+            return Response(
+                {'detail': 'No price tier found for this guest count.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        tier_price = float(tier.price_per_head)
+        tier_label = f"{tier.min_guests}+ pax"
+
+        # 3. Build guest mix using template's default ratio scaled to guest_count
+        total_default = menu.default_gents + menu.default_ladies
+        if total_default > 0:
+            ratio = menu.default_gents / total_default
+        else:
+            ratio = 0.5
+        gents = round(guest_count * ratio)
+        ladies = guest_count - gents
+        guests = {'gents': gents, 'ladies': ladies}
+
+        # 4. Run engine on original dishes
+        original_result = calculate_portions(original_dish_ids, guests)
+
+        # 5. Run engine on modified dishes
+        modified_result = calculate_portions(dish_ids, guests)
+
+        # 6. Compute selling costs from engine portions
+        # Load selling prices for all relevant dishes
+        all_dish_ids = set(original_dish_ids) | set(dish_ids)
+        selling_prices = {}
+        has_unpriced = False
+        for d in Dish.objects.filter(id__in=all_dish_ids):
+            if d.selling_price_per_gram and d.selling_price_per_gram > 0:
+                selling_prices[d.id] = float(d.selling_price_per_gram)
+            else:
+                if d.id in dish_ids:
+                    has_unpriced = True
+
+        def compute_selling_cost(result):
+            total = 0.0
+            for p in result['portions']:
+                spg = selling_prices.get(p['dish_id'], 0)
+                total += p['grams_per_person'] * spg
+            return round(total, 2)
+
+        original_cost = compute_selling_cost(original_result)
+        modified_cost = compute_selling_cost(modified_result)
+        delta = round(modified_cost - original_cost, 2)
+        adjusted_price = round(tier_price + delta, 2)
+
+        # Apply rounding step from settings
+        from bookings.models import SiteSettings
+        step = SiteSettings.load().price_rounding_step
+        if step > 1:
+            adjusted_price = round(adjusted_price / step) * step
+
+        return Response({
+            'tier_price': tier_price,
+            'tier_label': tier_label,
+            'original_cost': original_cost,
+            'modified_cost': modified_cost,
+            'delta': delta,
+            'adjusted_price': adjusted_price,
+            'has_unpriced': has_unpriced,
         })

@@ -173,6 +173,56 @@ class CheckPortionsView(APIView):
         })
 
 
+class PriceEstimateView(APIView):
+    """Compute selling price/head for a custom menu (no template)."""
+
+    def post(self, request):
+        from dishes.models import Dish
+
+        dish_ids = request.data.get('dish_ids')
+        guest_count = request.data.get('guest_count')
+        if not dish_ids or not guest_count:
+            return Response(
+                {'detail': 'dish_ids and guest_count are required.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        dish_ids = [int(d) for d in dish_ids]
+        guest_count = int(guest_count)
+
+        # 50/50 split
+        gents = guest_count // 2
+        ladies = guest_count - gents
+        guests = {'gents': gents, 'ladies': ladies}
+
+        result = calculate_portions(dish_ids, guests)
+
+        # Load selling prices
+        selling_prices = {}
+        has_unpriced = False
+        for d in Dish.objects.filter(id__in=dish_ids):
+            if d.selling_price_per_gram and d.selling_price_per_gram > 0:
+                selling_prices[d.id] = float(d.selling_price_per_gram)
+            else:
+                has_unpriced = True
+
+        price_per_head = 0.0
+        for p in result['portions']:
+            spg = selling_prices.get(p['dish_id'], 0)
+            price_per_head += p['grams_per_person'] * spg
+
+        # Apply rounding step from settings
+        from bookings.models import SiteSettings
+        step = SiteSettings.load().price_rounding_step
+        if step > 1:
+            price_per_head = round(price_per_head / step) * step
+
+        return Response({
+            'price_per_head': round(price_per_head, 2),
+            'has_unpriced': has_unpriced,
+        })
+
+
 class ExportPDFView(APIView):
     def post(self, request):
         serializer = ExportPDFRequestSerializer(data=request.data)

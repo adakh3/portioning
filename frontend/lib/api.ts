@@ -380,6 +380,7 @@ export interface SiteSettingsData {
   currency_code: string;
   default_price_per_head: string;
   target_food_cost_percentage: string;
+  price_rounding_step: string;
 }
 
 // Event type (updated with booking fields)
@@ -477,6 +478,22 @@ export interface CheckResult {
   engine_totals: CalculationResult["totals"];
 }
 
+// Price check types
+export interface PriceCheckResult {
+  tier_price: number;
+  tier_label: string;
+  original_cost: number;
+  modified_cost: number;
+  delta: number;
+  adjusted_price: number;
+  has_unpriced: boolean;
+}
+
+export interface PriceEstimateResult {
+  price_per_head: number;
+  has_unpriced: boolean;
+}
+
 // API functions
 export const api = {
   getDishes: () => fetchApi<Dish[]>("/dishes/"),
@@ -484,6 +501,16 @@ export const api = {
   getMenus: () => fetchApi<MenuTemplate[]>("/menus/"),
   getMenu: (id: number) => fetchApi<MenuTemplateDetail>(`/menus/${id}/`),
   getMenuPreview: (id: number) => fetchApi<CalculationResult>(`/menus/${id}/preview/`),
+  menuPriceCheck: (templateId: number, data: { guest_count: number; dish_ids: number[] }) =>
+    fetchApi<PriceCheckResult>(`/menus/${templateId}/price-check/`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  priceEstimate: (data: { dish_ids: number[]; guest_count: number }) =>
+    fetchApi<PriceEstimateResult>("/price-estimate/", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   calculate: (data: {
     dish_ids: number[];
     guests: GuestMix;

@@ -13,7 +13,7 @@ export default function NewQuotePage() {
   const [venues, setVenues] = useState<Venue[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const [settings, setSettings] = useState<SiteSettingsData>({ currency_symbol: "£", currency_code: "GBP", default_price_per_head: "0.00", target_food_cost_percentage: "30.00" });
+  const [settings, setSettings] = useState<SiteSettingsData>({ currency_symbol: "£", currency_code: "GBP", default_price_per_head: "0.00", target_food_cost_percentage: "30.00", price_rounding_step: "50" });
   const [formData, setFormData] = useState({
     account: "",
     primary_contact: "",
@@ -199,10 +199,12 @@ export default function NewQuotePage() {
           <MenuBuilder
             selectedDishIds={menuData.dish_ids}
             basedOnTemplate={menuData.based_on_template}
+            guestCount={formData.guest_count ? Number(formData.guest_count) : undefined}
             onChange={setMenuData}
             onSuggestedPriceChange={handleSuggestedPriceChange}
             onUseSuggestedPrice={(price) => setFormData((prev) => ({ ...prev, price_per_head: price.toFixed(2) }))}
             currencySymbol={settings.currency_symbol}
+            priceRoundingStep={Number(settings.price_rounding_step) || 50}
           />
         </div>
 

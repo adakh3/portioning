@@ -33,7 +33,7 @@ export default function QuoteDetailPage() {
   const [editing, setEditing] = useState(false);
   const [venues, setVenues] = useState<Venue[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
-  const [settings, setSettings] = useState<SiteSettingsData>({ currency_symbol: "£", currency_code: "GBP", default_price_per_head: "0.00", target_food_cost_percentage: "30.00" });
+  const [settings, setSettings] = useState<SiteSettingsData>({ currency_symbol: "£", currency_code: "GBP", default_price_per_head: "0.00", target_food_cost_percentage: "30.00", price_rounding_step: "50" });
   const [editData, setEditData] = useState({
     primary_contact: "",
     event_date: "",
@@ -491,6 +491,7 @@ export default function QuoteDetailPage() {
         <MenuBuilder
           selectedDishIds={quote.dishes || []}
           basedOnTemplate={quote.based_on_template || null}
+          guestCount={editing && editData.guest_count ? Number(editData.guest_count) : quote.guest_count}
           onSave={async (data) => {
             const updated = await api.updateQuote(quote.id, {
               dish_ids: data.dish_ids,
@@ -501,6 +502,7 @@ export default function QuoteDetailPage() {
           onSuggestedPriceChange={handleSuggestedPriceChange}
           onUseSuggestedPrice={(price) => setEditData((prev) => ({ ...prev, price_per_head: price.toFixed(2) }))}
           currencySymbol={cs}
+          priceRoundingStep={Number(settings.price_rounding_step) || 50}
         />
       </div>
 

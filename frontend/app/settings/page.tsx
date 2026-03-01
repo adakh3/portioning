@@ -16,6 +16,7 @@ export default function SettingsPage() {
     currency_code: "",
     default_price_per_head: "",
     target_food_cost_percentage: "",
+    price_rounding_step: "50",
   });
 
   useEffect(() => {
@@ -27,6 +28,7 @@ export default function SettingsPage() {
           currency_code: s.currency_code,
           default_price_per_head: s.default_price_per_head,
           target_food_cost_percentage: s.target_food_cost_percentage,
+          price_rounding_step: s.price_rounding_step || "50",
         });
       })
       .catch((e) => setError(e instanceof Error ? e.message : "Failed to load settings"))
@@ -116,6 +118,21 @@ export default function SettingsPage() {
               <p className="text-xs text-gray-500 mt-1">
                 Used to calculate selling prices from food costs. For example, if food cost is {formData.currency_symbol}3.00
                 and target food cost is 30%, the suggested selling price would be {formData.currency_symbol}10.00/head.
+              </p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Price Rounding Step</label>
+              <input
+                type="number"
+                step="1"
+                min="1"
+                value={formData.price_rounding_step}
+                onChange={(e) => setFormData({ ...formData, price_rounding_step: e.target.value })}
+                className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Round calculated prices to the nearest N. For example, 50 rounds {formData.currency_symbol}2,017 to {formData.currency_symbol}2,000.
+                Set to 1 to disable rounding.
               </p>
             </div>
           </div>

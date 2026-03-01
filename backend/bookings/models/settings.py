@@ -26,6 +26,10 @@ class SiteSettings(models.Model):
         max_digits=5, decimal_places=2, default=Decimal('30.00'),
         help_text='Target food cost as % of selling price (e.g. 30 means 30%)',
     )
+    price_rounding_step = models.PositiveIntegerField(
+        default=50,
+        help_text='Round calculated prices to the nearest N (e.g. 50, 100). Set to 1 to disable rounding.',
+    )
 
     class Meta:
         verbose_name = 'Site Settings'

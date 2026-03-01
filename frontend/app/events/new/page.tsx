@@ -13,7 +13,7 @@ export default function NewEventPage() {
   const [venues, setVenues] = useState<Venue[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const [settings, setSettings] = useState<SiteSettingsData>({ currency_symbol: "£", currency_code: "GBP", default_price_per_head: "0.00", target_food_cost_percentage: "30.00" });
+  const [settings, setSettings] = useState<SiteSettingsData>({ currency_symbol: "£", currency_code: "GBP", default_price_per_head: "0.00", target_food_cost_percentage: "30.00", price_rounding_step: "50" });
   const [formData, setFormData] = useState({
     name: "",
     date: "",

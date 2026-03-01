@@ -74,7 +74,7 @@ export default function EventDetailPage() {
   const [laborRoles, setLaborRoles] = useState<LaborRole[]>([]);
   const [staffList, setStaffList] = useState<StaffMember[]>([]);
   const [equipmentItems, setEquipmentItems] = useState<EquipmentItem[]>([]);
-  const [settings, setSettings] = useState<SiteSettingsData>({ currency_symbol: "£", currency_code: "GBP", default_price_per_head: "0.00", target_food_cost_percentage: "30.00" });
+  const [settings, setSettings] = useState<SiteSettingsData>({ currency_symbol: "£", currency_code: "GBP", default_price_per_head: "0.00", target_food_cost_percentage: "30.00", price_rounding_step: "50" });
 
   // Inline name editing
   const [editingName, setEditingName] = useState(false);
