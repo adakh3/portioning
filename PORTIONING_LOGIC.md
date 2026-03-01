@@ -6,7 +6,7 @@ This system calculates **per-person food portions for catering buffets** — typ
 
 The goal is to produce realistic, balanced portions that match what experienced caterers actually serve — not too much food (waste), not too little (guests go hungry).
 
-All defaults are calibrated from real catering data. The baseline reference is **Golden Elegance Feast** (single-dish-per-category calibration from real kitchen weights). Multi-dish menus were previously used for calibration (Majestic Celebration Banquet), but single-dish baselines are more composable — absent categories redistribute their budget automatically.
+All defaults are calibrated from real catering data. The baseline reference is the **Majestic Celebration Banquet** template — the standard incremental portion per dish is derived from the per-dish averages in that menu. Absent categories redistribute their budget automatically within the protein pool.
 
 ---
 
@@ -48,18 +48,18 @@ These are the current defaults, all configurable in the admin panel:
 
 | Category | Pool | Unit | Baseline Budget | Min per Dish | Fixed Portion |
 |----------|------|------|----------------|-------------|---------------|
-| Curry (meat) | Protein | kg | 160g | 70g | — |
-| Dry / Barbecue | Protein | kg | 180g | 100g | — |
-| Rice (all) | Protein | kg | 100g | 70g | — |
+| Curry (meat) | Protein | kg | 95g | 70g | — |
+| Dry / Barbecue | Protein | kg | 165g | 100g | — |
+| Rice (all) | Protein | kg | 70g | 70g | — |
 | Veg Curry | Accompaniment | kg | 80g | 30g | — |
 | Sides | Accompaniment | kg | 60g | 30g | — |
-| Dessert | Dessert | kg | 80g | 40g | — |
+| Dessert | Dessert | kg | 70g | 40g | — |
 | Salad | Service | kg | — | — | 50g |
 | Condiment | Service | kg | — | — | 40g |
 | Bread | Service | qty | — | — | 1 piece |
 | Tea | Service | qty | — | — | 1 cup |
 
-**Baseline Budget** = the standard total grams for this category when there's exactly 1 dish. Calibrated from single-dish real data (Golden Elegance Feast).
+**Baseline Budget** = the standard incremental portion per dish in this category. Calibrated from per-dish averages in the Majestic Celebration Banquet template.
 
 **Min per Dish** = the smallest viable portion for any single dish in this category. If you put a curry on the menu, it should be at least 70g — anything less and it's not worth including.
 
@@ -83,16 +83,15 @@ category_budget = max(grown_budget, number_of_dishes × min_per_dish)
 
 **What this means in plain English:** The budget grows with each additional dish (rather than staying fixed at the baseline). Each extra dish adds 40% of the baseline. But if you've added so many dishes that even the grown budget can't give each dish its minimum viable portion, the budget expands further to fit.
 
-**Example — Curry category (baseline 160g, growth_rate 0.4):**
-- 1 curry: 160 × (1 + 0) = **160g** → 160g each
-- 2 curries: 160 × (1 + 0.4) = **224g** → 112g each
-- 3 curries: 160 × (1 + 0.8) = **288g** → 96g each
-- 5 curries: grown = 160 × (1 + 1.6) = 416g, min = 5 × 70 = 350g → **416g** (grown wins)
+**Example — Curry category (baseline 95g, growth_rate 0.4):**
+- 1 curry: 95 × (1 + 0) = **95g** → 95g each
+- 2 curries: 95 × (1 + 0.4) = **133g** → 66.5g each (but min 70g floor → **140g**, 70g each)
+- 3 curries: grown = 95 × (1 + 0.8) = 171g, min = 3 × 70 = 210g → **210g** (min wins, 70g each)
 
-**Example — BBQ category (baseline 180g, growth_rate 0.4):**
-- 1 BBQ dish: 180 × (1 + 0) = **180g**
-- 2 BBQ dishes: 180 × (1 + 0.4) = **252g** → 126g each
-- 3 BBQ dishes: 180 × (1 + 0.8) = **324g** → 108g each
+**Example — BBQ category (baseline 165g, growth_rate 0.4):**
+- 1 BBQ dish: 165 × (1 + 0) = **165g**
+- 2 BBQ dishes: 165 × (1 + 0.4) = **231g** → 115.5g each
+- 3 BBQ dishes: 165 × (1 + 0.8) = **297g** → 99g each (min 100g floor → **300g**, 100g each)
 
 ### Step 1b: Redistribute Absent-Category Budget (Protein Pool Only)
 
@@ -117,22 +116,22 @@ for each present protein category:
 **Why protein-only:** Accompaniment items (veg curries, sides) are small side dishes — if one is absent, the other shouldn't absorb extra budget. A menu with only veg curry should give 80g of veg curry, not an inflated amount. The protein pool is where the main course budget lives, and redistribution makes sense there.
 
 **Example — Curry + Rice only (no BBQ), redistribution_fraction=0.7:**
-- Present: Curry = 160g, Rice = 100g (total present = 260g)
-- Absent: BBQ = 180g → redistributed = 180 × 0.7 = 126g
-- Curry: 160 + 126 × (160/260) = **238g** (extended cap = 238g)
-- Rice: 100 + 126 × (100/260) = **149g** (extended cap = 149g)
-- Pool total: **386g** (under 590g ceiling)
+- Present: Curry = 95g, Rice = 70g (total present = 165g)
+- Absent: BBQ = 165g → redistributed = 165 × 0.7 = 115.5g
+- Curry: 95 + 115.5 × (95/165) = **161g** (extended cap = 161g)
+- Rice: 70 + 115.5 × (70/165) = **119g** (extended cap = 119g)
+- Pool total: **280g** (under 590g ceiling)
 
 **Example — Curry only (no BBQ, no Rice):**
-- Present: Curry = 160g
-- Absent: BBQ = 180g, Rice = 100g → redistributed = (180 + 100) × 0.7 = 196g
-- Curry: 160 + 196 = **356g** (extended cap = 356g)
-- Pool total: **356g** (under 590g ceiling — the pool ceiling is the backstop)
+- Present: Curry = 95g
+- Absent: BBQ = 165g, Rice = 70g → redistributed = (165 + 70) × 0.7 = 164.5g
+- Curry: 95 + 164.5 = **260g** (extended cap = 260g)
+- Pool total: **260g** (under 590g ceiling — the pool ceiling is the backstop)
 
 **Example — All 3 protein categories present (BBQ + Curry + Rice):**
-- BBQ = 180, Curry = 160, Rice = 100 (total = 440g)
+- BBQ = 165, Curry = 95, Rice = 70 (total = 330g)
 - No absent categories → no redistribution, no extended caps
-- Pool total: **440g**
+- Pool total: **330g**
 
 ### Step 1c: Apply Category Budget Caps
 
@@ -175,17 +174,15 @@ if pool_total > ceiling:
 **Why this exists:** Without a ceiling, a menu with many expanded categories could give a guest an unreasonable amount of protein food. The ceiling forces everything to scale down proportionally.
 
 **Example — Over-allocated menu (growth_rate=0.4):**
-- BBQ (3 dishes): grown = 180 × 1.8 = 324g, min = 300g → **324g**. Curry (2): 160 × 1.4 = **224g**. Rice: **100g**.
-- After redistribution: no absent categories, total = 648g > 590g ceiling → compression.
-- Scale = 590 / 648 ≈ 0.911
-- BBQ: 324 × 0.911 = 295g, Curry: 224 × 0.911 = 204g, Rice: 100 × 0.911 = 91g
-- **Protein total: 590g** (at ceiling)
+- BBQ (3 dishes): grown = 165 × 1.8 = 297g, min = 300g → **300g**. Curry (2): grown = 95 × 1.4 = 133g, min = 140g → **140g**. Rice: **70g**.
+- After redistribution: no absent categories, total = 510g < 590g ceiling → no compression.
+- **Protein total: 510g**
 
 **Example — Even more over-allocated:**
-- BBQ (4 dishes): grown = 180 × 2.2 = 396g, min = 400g → **400g**. Curry (3): grown = 160 × 1.8 = 288g, min = 210g → **288g**. Rice: **100g**.
-- Total = 788g > 590g ceiling
-- Scale = 590 / 788 = 0.749
-- BBQ: 400 × 0.749 = 300g, Curry: 288 × 0.749 = 216g, Rice: 100 × 0.749 = 75g
+- BBQ (4 dishes): grown = 165 × 2.2 = 363g, min = 400g → **400g**. Curry (3): grown = 95 × 1.8 = 171g, min = 210g → **210g**. Rice: **70g**.
+- Total = 680g > 590g ceiling
+- Scale = 590 / 680 = 0.868
+- BBQ: 400 × 0.868 = 347g, Curry: 210 × 0.868 = 182g, Rice: 70 × 0.868 = 61g
 - **Protein total: 590g** (at ceiling)
 
 ### Step 3: Split Within Categories by Popularity
@@ -247,19 +244,19 @@ Similar to protein but **without redistribution** — each category stays at its
 
 Same as accompaniment — **no redistribution**. Each category stays at its grown budget:
 
-1. **Establish budget:** Dessert baseline = 80g, min per dish = 40g
+1. **Establish budget:** Dessert baseline = 70g, min per dish = 40g
 2. **No redistribution:** Only one category in this pool, and dessert doesn't redistribute regardless
 3. **Check ceiling:** Dessert ceiling = 150g (so 1–3 desserts fit without compression; 4+ would compress)
 4. **Split by popularity:** Same formula as protein
 
 **Example — 1 dessert:**
-- grown = 80 × (1 + 0) = 80g, budget = max(80, 40) = **80g**.
+- grown = 70 × (1 + 0) = 70g, budget = max(70, 40) = **70g**.
 
 **Example — 2 desserts (growth_rate=0.4):**
-- grown = 80 × (1 + 0.4) = 112g, min = 80g → budget = **112g**. Each gets 56g.
+- grown = 70 × (1 + 0.4) = 98g, min = 80g → budget = **98g**. Each gets 49g.
 
 **Example — 4 desserts:**
-- grown = 80 × (1 + 1.2) = 176g, min = 160g → budget = **176g** (grown wins) > 150g ceiling
+- grown = 70 × (1 + 1.2) = 154g, min = 160g → budget = **160g** (min wins) > 150g ceiling
 - Scale to 150g. Each gets ~37.5g.
 
 ---
@@ -400,24 +397,24 @@ The engine outputs two lists alongside the portions: **warnings** (red, importan
 ### Protein Pool
 
 **Step 1 — Category budgets (growth_rate=0.4):**
-- Curry (1 dish): 160 × (1 + 0) = **160g**
-- Rice (1 dish): 100 × (1 + 0) = **100g**
+- Curry (1 dish): 95 × (1 + 0) = **95g**
+- Rice (1 dish): 70 × (1 + 0) = **70g**
 
 **Step 1b — Protein redistribution (redistribution_fraction=0.7):**
-- Present total: 260g
-- Absent: BBQ = 180g → redistributed = 180 × 0.7 = 126g
-- Curry: 160 + 126 × (160/260) = **238g** (extended cap = 238g)
-- Rice: 100 + 126 × (100/260) = **149g** (extended cap = 149g)
+- Present total: 165g
+- Absent: BBQ = 165g → redistributed = 165 × 0.7 = 115.5g
+- Curry: 95 + 115.5 × (95/165) = **161g** (extended cap = 161g)
+- Rice: 70 + 115.5 × (70/165) = **119g** (extended cap = 119g)
 
 **Step 1c — Category budget caps (extended caps):**
-- Curry: extended cap = 238g. Budget = 238g → **no capping**
-- Rice: extended cap = 149g. Budget = 149g → **no capping**
+- Curry: extended cap = 161g. Budget = 161g → **no capping**
+- Rice: extended cap = 119g. Budget = 119g → **no capping**
 
 **Step 2 — Ceiling check:**
-- Total: 386g < 590g ceiling. No compression.
+- Total: 280g < 590g ceiling. No compression.
 
 **Step 3 — Only 1 dish per category, so no popularity split needed.**
-- **Protein total: 386g per gent**
+- **Protein total: 280g per gent**
 
 ### Accompaniment Pool
 
@@ -425,9 +422,9 @@ No veg curry or sides on menu → pool is empty, no allocation.
 
 ### Dessert Pool
 
-**Step 1:** max(80, 1 × 40) = 80g
-**Step 2:** 80g < 150g ceiling. No compression.
-- **Dessert total: 80g per gent**
+**Step 1:** max(70, 1 × 40) = 70g
+**Step 2:** 70g < 150g ceiling. No compression.
+- **Dessert total: 70g per gent**
 
 ### Service Pool
 
@@ -440,15 +437,15 @@ No veg curry or sides on menu → pool is empty, no allocation.
 
 | Dish | Category | Per Gent | Per Lady |
 |------|----------|----------|----------|
-| Mutton Qorma | Curry | 238g | 238g |
-| Chicken Biryani | Rice | 149g | 149g |
+| Mutton Qorma | Curry | 161g | 161g |
+| Chicken Biryani | Rice | 119g | 119g |
 | Fresh Green Salad | Salad | 50g | 50g |
 | Raita | Condiment | 40g | 40g |
 | Naan | Bread | 1 pc | 1 pc |
-| Fruit Trifle | Dessert | 80g | 80g |
+| Fruit Trifle | Dessert | 70g | 70g |
 | Green Tea | Tea | 1 cup | 1 cup |
 
-**Grand total per gent: ~557g** (386 protein + 80 dessert + 90 service). Ladies receive the same portions (multiplier 1.0).
+**Grand total per gent: ~440g** (280 protein + 70 dessert + 90 service). Ladies receive the same portions (multiplier 1.0).
 
 ---
 
@@ -459,18 +456,18 @@ No veg curry or sides on menu → pool is empty, no allocation.
 ### Protein Pool
 
 **Step 1 — Category budgets (growth_rate=0.4):**
-- BBQ (1 dish): 180 × (1 + 0) = **180g**
-- Curry (1 dish): 160 × (1 + 0) = **160g**
-- Rice (1 dish): 100 × (1 + 0) = **100g**
+- BBQ (1 dish): 165 × (1 + 0) = **165g**
+- Curry (1 dish): 95 × (1 + 0) = **95g**
+- Rice (1 dish): 70 × (1 + 0) = **70g**
 
 **Step 1b — Protein redistribution:**
 - All 3 protein categories present → no absent budget → no redistribution
-- Total: 440g
+- Total: 330g
 
 **Step 2 — Ceiling check:**
-- Total: 440g < 590g ceiling. No compression.
+- Total: 330g < 590g ceiling. No compression.
 
-**Protein total: 440g per gent**
+**Protein total: 330g per gent**
 
 ---
 
@@ -481,18 +478,18 @@ No veg curry or sides on menu → pool is empty, no allocation.
 ### Protein Pool
 
 **Step 1 — Category budgets (growth_rate=0.4):**
-- BBQ (2 dishes): 180 × (1 + 0.4) = **252g** → 126g each
-- Curry (2 dishes): 160 × (1 + 0.4) = **224g** → 112g each
-- Rice (1 dish): 100 × (1 + 0) = **100g**
+- BBQ (2 dishes): 165 × (1 + 0.4) = **231g** → 115.5g each
+- Curry (2 dishes): 95 × (1 + 0.4) = **133g** → min 140g (70g each)
+- Rice (1 dish): 70 × (1 + 0) = **70g**
 
 **Step 1b — Protein redistribution:**
 - All 3 protein categories present → no absent budget → no redistribution
-- Total: 576g
+- Total: 441g
 
 **Step 2 — Ceiling enforcement:**
-- 576g < 590g ceiling → no compression
+- 441g < 590g ceiling → no compression
 
-**Protein total: 576g per gent**
+**Protein total: 441g per gent**
 
 ### Accompaniment Pool
 
