@@ -3,6 +3,9 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { api, EventData, Quote, Lead } from "@/lib/api";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 
 export default function Dashboard() {
   const [events, setEvents] = useState<EventData[]>([]);
@@ -26,48 +29,48 @@ export default function Dashboard() {
   }, []);
 
   if (loading) {
-    return <p className="text-gray-500">Loading dashboard...</p>;
+    return <p className="text-muted-foreground">Loading dashboard...</p>;
   }
 
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-gray-500 mt-1">Overview of your catering operations</p>
+        <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
+        <p className="text-muted-foreground mt-1">Overview of your catering operations</p>
       </div>
 
       {/* Quick Actions */}
       <div className="flex flex-wrap gap-3">
-        <Link href="/leads/new" className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">
-          New Lead
-        </Link>
-        <Link href="/quotes/new" className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">
-          New Quote
-        </Link>
-        <Link href="/events/new" className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">
-          New Event
-        </Link>
-        <Link href="/calculate" className="bg-gray-800 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-900 transition-colors">
-          Portioning Calculator
-        </Link>
+        <Button asChild>
+          <Link href="/leads/new">New Lead</Link>
+        </Button>
+        <Button asChild>
+          <Link href="/quotes/new">New Quote</Link>
+        </Button>
+        <Button asChild>
+          <Link href="/events/new">New Event</Link>
+        </Button>
+        <Button asChild variant="secondary">
+          <Link href="/calculate">Portioning Calculator</Link>
+        </Button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Upcoming Events */}
         <DashboardCard title="Upcoming Events" viewAllHref="/events">
           {events.length === 0 ? (
-            <p className="text-sm text-gray-400">No upcoming events</p>
+            <p className="text-sm text-muted-foreground">No upcoming events</p>
           ) : (
             <ul className="space-y-3">
               {events.map((ev) => (
                 <li key={ev.id}>
-                  <Link href={`/events/${ev.id}`} className="block hover:bg-gray-50 -mx-1 px-1 py-1 rounded transition-colors">
-                    <p className="text-sm font-medium text-gray-900 truncate">{ev.name}</p>
-                    <div className="flex items-center gap-2 text-xs text-gray-500">
+                  <Link href={`/events/${ev.id}`} className="block hover:bg-muted -mx-1 px-1 py-1 rounded transition-colors">
+                    <p className="text-sm font-medium text-foreground truncate">{ev.name}</p>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
                       <span>{ev.date}</span>
-                      <span className="text-gray-300">|</span>
+                      <span className="text-border">|</span>
                       <span>{ev.gents + ev.ladies} guests</span>
-                      <StatusBadge status={ev.status_display} />
+                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0.5">{ev.status_display}</Badge>
                     </div>
                   </Link>
                 </li>
@@ -79,20 +82,20 @@ export default function Dashboard() {
         {/* Pending Quotes */}
         <DashboardCard title="Pending Quotes" viewAllHref="/quotes">
           {quotes.length === 0 ? (
-            <p className="text-sm text-gray-400">No pending quotes</p>
+            <p className="text-sm text-muted-foreground">No pending quotes</p>
           ) : (
             <ul className="space-y-3">
               {quotes.map((q) => (
                 <li key={q.id}>
-                  <Link href={`/quotes/${q.id}`} className="block hover:bg-gray-50 -mx-1 px-1 py-1 rounded transition-colors">
-                    <p className="text-sm font-medium text-gray-900 truncate">
+                  <Link href={`/quotes/${q.id}`} className="block hover:bg-muted -mx-1 px-1 py-1 rounded transition-colors">
+                    <p className="text-sm font-medium text-foreground truncate">
                       {q.account_name || "No account"}
                     </p>
-                    <div className="flex items-center gap-2 text-xs text-gray-500">
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
                       <span>{q.event_date}</span>
-                      <span className="text-gray-300">|</span>
+                      <span className="text-border">|</span>
                       <span>{q.guest_count} guests</span>
-                      <StatusBadge status={q.status_display} />
+                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0.5">{q.status_display}</Badge>
                     </div>
                   </Link>
                 </li>
@@ -104,22 +107,22 @@ export default function Dashboard() {
         {/* Recent Leads */}
         <DashboardCard title="Recent Leads" viewAllHref="/leads">
           {leads.length === 0 ? (
-            <p className="text-sm text-gray-400">No leads yet</p>
+            <p className="text-sm text-muted-foreground">No leads yet</p>
           ) : (
             <ul className="space-y-3">
               {leads.map((l) => (
                 <li key={l.id}>
-                  <Link href={`/leads/${l.id}`} className="block hover:bg-gray-50 -mx-1 px-1 py-1 rounded transition-colors">
-                    <p className="text-sm font-medium text-gray-900 truncate">{l.contact_name}</p>
-                    <div className="flex items-center gap-2 text-xs text-gray-500">
+                  <Link href={`/leads/${l.id}`} className="block hover:bg-muted -mx-1 px-1 py-1 rounded transition-colors">
+                    <p className="text-sm font-medium text-foreground truncate">{l.contact_name}</p>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
                       <span>{l.event_type_display}</span>
                       {l.event_date && (
                         <>
-                          <span className="text-gray-300">|</span>
+                          <span className="text-border">|</span>
                           <span>{l.event_date}</span>
                         </>
                       )}
-                      <StatusBadge status={l.status_display} />
+                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0.5">{l.status_display}</Badge>
                     </div>
                   </Link>
                 </li>
@@ -142,22 +145,16 @@ function DashboardCard({
   children: React.ReactNode;
 }) {
   return (
-    <div className="bg-white border border-gray-200 rounded-lg p-5">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-sm font-semibold text-gray-900">{title}</h2>
-        <Link href={viewAllHref} className="text-xs text-blue-600 hover:text-blue-800">
-          View all &rarr;
-        </Link>
-      </div>
-      {children}
-    </div>
-  );
-}
-
-function StatusBadge({ status }: { status: string }) {
-  return (
-    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-600">
-      {status}
-    </span>
+    <Card>
+      <CardContent className="p-5">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+          <Link href={viewAllHref} className="text-xs text-primary hover:underline">
+            View all &rarr;
+          </Link>
+        </div>
+        {children}
+      </CardContent>
+    </Card>
   );
 }

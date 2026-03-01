@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Card } from "@/components/ui/card";
 
 function Section({
   title,
@@ -13,16 +14,16 @@ function Section({
 }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className="border border-gray-200 rounded-lg">
+    <Card>
       <button
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-gray-50 transition-colors"
+        className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-muted transition-colors rounded-lg"
       >
-        <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
-        <span className="text-gray-400 text-xl">{open ? "−" : "+"}</span>
+        <h2 className="text-lg font-semibold text-foreground">{title}</h2>
+        <span className="text-muted-foreground text-xl">{open ? "−" : "+"}</span>
       </button>
-      {open && <div className="px-5 pb-5 space-y-3 text-gray-700">{children}</div>}
-    </div>
+      {open && <div className="px-5 pb-5 space-y-3 text-foreground">{children}</div>}
+    </Card>
   );
 }
 
@@ -30,8 +31,8 @@ export default function HelpPage() {
   return (
     <div className="max-w-3xl mx-auto space-y-4">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">How Portioning Works</h1>
-        <p className="text-gray-600 mt-1">
+        <h1 className="text-2xl font-bold text-foreground">How Portioning Works</h1>
+        <p className="text-muted-foreground mt-1">
           A guide to how the calculator determines how much food to prepare per person.
         </p>
       </div>
@@ -55,7 +56,7 @@ export default function HelpPage() {
       <Section title="The Four Food Groups (Pools)">
         <div className="space-y-4">
           <div>
-            <h3 className="font-semibold text-gray-900">Protein — the main courses</h3>
+            <h3 className="font-semibold text-foreground">Protein — the main courses</h3>
             <p>
               Includes <strong>Curry</strong> (meat), <strong>Dry / Barbecue (BBQ)</strong>,
               and <strong>Rice</strong> (all types). These categories compete for a shared
@@ -64,7 +65,7 @@ export default function HelpPage() {
             </p>
           </div>
           <div>
-            <h3 className="font-semibold text-gray-900">Accompaniment — veg sides</h3>
+            <h3 className="font-semibold text-foreground">Accompaniment — veg sides</h3>
             <p>
               Includes <strong>Veg Curry</strong> (Daal, Palak Paneer, etc.) and{" "}
               <strong>Sides</strong> (Bhagaray Baingan, Bhindi Fry, etc.). These are
@@ -72,13 +73,13 @@ export default function HelpPage() {
             </p>
           </div>
           <div>
-            <h3 className="font-semibold text-gray-900">Dessert</h3>
+            <h3 className="font-semibold text-foreground">Dessert</h3>
             <p>
               Allocated independently. Multiple desserts split the budget among themselves.
             </p>
           </div>
           <div>
-            <h3 className="font-semibold text-gray-900">Service — fixed items</h3>
+            <h3 className="font-semibold text-foreground">Service — fixed items</h3>
             <p>
               <strong>Salad, Condiment (Raita), Bread (Naan), Tea</strong> — every guest gets
               the same fixed amount regardless of the rest of the menu.
@@ -94,8 +95,8 @@ export default function HelpPage() {
           are all configurable in the admin panel.
         </p>
         <div className="overflow-x-auto">
-          <table className="min-w-full text-sm border border-gray-200 rounded">
-            <thead className="bg-gray-50">
+          <table className="min-w-full text-sm border border-border rounded">
+            <thead className="bg-muted">
               <tr>
                 <th className="text-left px-3 py-2 font-medium">Category</th>
                 <th className="text-left px-3 py-2 font-medium">Pool</th>
@@ -103,7 +104,7 @@ export default function HelpPage() {
                 <th className="text-right px-3 py-2 font-medium">Min / Dish</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-border">
               <tr><td className="px-3 py-2">Curry (meat)</td><td className="px-3 py-2">Protein</td><td className="px-3 py-2 text-right">160g</td><td className="px-3 py-2 text-right">70g</td></tr>
               <tr><td className="px-3 py-2">Dry / Barbecue</td><td className="px-3 py-2">Protein</td><td className="px-3 py-2 text-right">180g</td><td className="px-3 py-2 text-right">100g</td></tr>
               <tr><td className="px-3 py-2">Rice</td><td className="px-3 py-2">Protein</td><td className="px-3 py-2 text-right">100g</td><td className="px-3 py-2 text-right">70g</td></tr>
@@ -114,14 +115,14 @@ export default function HelpPage() {
           </table>
         </div>
         <div className="overflow-x-auto mt-3">
-          <table className="min-w-full text-sm border border-gray-200 rounded">
-            <thead className="bg-gray-50">
+          <table className="min-w-full text-sm border border-border rounded">
+            <thead className="bg-muted">
               <tr>
                 <th className="text-left px-3 py-2 font-medium">Service Item</th>
                 <th className="text-right px-3 py-2 font-medium">Per Person</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-border">
               <tr><td className="px-3 py-2">Salad</td><td className="px-3 py-2 text-right">50g</td></tr>
               <tr><td className="px-3 py-2">Raita</td><td className="px-3 py-2 text-right">40g</td></tr>
               <tr><td className="px-3 py-2">Naan</td><td className="px-3 py-2 text-right">1 piece</td></tr>

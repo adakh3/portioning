@@ -17,13 +17,16 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useDroppable } from "@dnd-kit/core";
 import { api, Lead } from "@/lib/api";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 
 const COLUMNS = [
-  { status: "new", label: "New", color: "bg-blue-500", badge: "bg-blue-100 text-blue-700" },
-  { status: "contacted", label: "Contacted", color: "bg-yellow-500", badge: "bg-yellow-100 text-yellow-700" },
-  { status: "qualified", label: "Qualified", color: "bg-purple-500", badge: "bg-purple-100 text-purple-700" },
-  { status: "converted", label: "Converted", color: "bg-green-500", badge: "bg-green-100 text-green-700" },
-  { status: "lost", label: "Lost", color: "bg-gray-400", badge: "bg-gray-100 text-gray-500" },
+  { status: "new", label: "New", color: "bg-primary", badge: "bg-white/20 text-white" },
+  { status: "contacted", label: "Contacted", color: "bg-warning", badge: "bg-white/20 text-white" },
+  { status: "qualified", label: "Qualified", color: "bg-info", badge: "bg-white/20 text-white" },
+  { status: "converted", label: "Converted", color: "bg-success", badge: "bg-white/20 text-white" },
+  { status: "lost", label: "Lost", color: "bg-muted", badge: "bg-foreground/10 text-foreground" },
 ] as const;
 
 const ALLOWED_TRANSITIONS: Record<string, string[]> = {
@@ -40,17 +43,18 @@ function LeadCard({ lead, isDragging }: { lead: Lead; isDragging?: boolean }) {
   return (
     <div
       onClick={() => !isDragging && router.push(`/leads/${lead.id}`)}
-      className={`bg-white border border-gray-200 rounded-lg p-3 cursor-pointer hover:border-blue-300 transition-colors ${
-        isDragging ? "shadow-lg ring-2 ring-blue-400 opacity-90" : ""
-      }`}
+      className={cn(
+        "bg-background border border-border rounded-lg p-3 cursor-pointer hover:border-primary/40 transition-colors",
+        isDragging && "shadow-lg ring-2 ring-ring opacity-90"
+      )}
     >
-      <p className="font-medium text-sm text-gray-900 truncate">{lead.contact_name}</p>
-      <p className="text-xs text-gray-500 mt-1">
+      <p className="font-medium text-sm text-foreground truncate">{lead.contact_name}</p>
+      <p className="text-xs text-muted-foreground mt-1">
         {lead.event_type_display}
         {lead.event_date && ` · ${lead.event_date}`}
       </p>
       {lead.guest_estimate && (
-        <p className="text-xs text-gray-400 mt-0.5">{lead.guest_estimate} guests</p>
+        <p className="text-xs text-muted-foreground mt-0.5">{lead.guest_estimate} guests</p>
       )}
     </div>
   );
@@ -96,23 +100,24 @@ function KanbanColumn({
 
   return (
     <div className="flex flex-col min-w-[260px] w-[260px] flex-shrink-0">
-      <div className={`${color} rounded-t-lg px-3 py-2 flex items-center justify-between`}>
-        <span className="text-white text-sm font-semibold">{label}</span>
-        <span className={`text-xs font-medium px-1.5 py-0.5 rounded-full ${badge}`}>
+      <div className={cn(color, "rounded-t-lg px-3 py-2 flex items-center justify-between")}>
+        <span className={cn("text-sm font-semibold", color === "bg-muted" ? "text-muted-foreground" : "text-white")}>{label}</span>
+        <span className={cn("text-xs font-medium px-1.5 py-0.5 rounded-full", badge)}>
           {leads.length}
         </span>
       </div>
       <div
         ref={setNodeRef}
-        className={`flex-1 bg-gray-50 rounded-b-lg p-2 space-y-2 min-h-[200px] transition-colors ${
-          isOver ? "bg-blue-50 ring-2 ring-blue-300 ring-inset" : ""
-        }`}
+        className={cn(
+          "flex-1 bg-muted rounded-b-lg p-2 space-y-2 min-h-[200px] transition-colors",
+          isOver && "bg-accent ring-2 ring-ring ring-inset"
+        )}
       >
         {leads.map((lead) => (
           <DraggableCard key={lead.id} lead={lead} />
         ))}
         {leads.length === 0 && (
-          <p className="text-xs text-gray-400 text-center py-8">No leads</p>
+          <p className="text-xs text-muted-foreground text-center py-8">No leads</p>
         )}
       </div>
     </div>
@@ -208,31 +213,28 @@ export default function LeadsPage() {
     }
   }
 
-  if (error) return <p className="text-red-600">Error: {error}</p>;
+  if (error) return <p className="text-destructive">Error: {error}</p>;
 
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between mb-4 gap-3">
-        <h1 className="text-2xl font-bold text-gray-900 shrink-0">Leads</h1>
+        <h1 className="text-2xl font-bold text-foreground shrink-0">Leads</h1>
         <div className="flex items-center gap-3 flex-1 justify-end">
-          <input
+          <Input
             type="text"
             placeholder="Search leads..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="border border-gray-300 rounded px-3 py-1.5 text-sm w-full max-w-xs focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="max-w-xs"
           />
-          <Link
-            href="/leads/new"
-            className="bg-blue-600 text-white px-4 py-2 rounded text-sm hover:bg-blue-700 whitespace-nowrap"
-          >
-            New Lead
-          </Link>
+          <Button asChild>
+            <Link href="/leads/new">New Lead</Link>
+          </Button>
         </div>
       </div>
 
       {loading ? (
-        <p className="text-gray-500">Loading leads...</p>
+        <p className="text-muted-foreground">Loading leads...</p>
       ) : (
         <DndContext
           sensors={sensors}
@@ -260,7 +262,7 @@ export default function LeadsPage() {
       )}
 
       {toast && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-sm px-4 py-2 rounded-lg shadow-lg z-50">
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-foreground text-background text-sm px-4 py-2 rounded-lg shadow-lg z-50">
           {toast}
         </div>
       )}

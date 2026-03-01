@@ -1,6 +1,7 @@
 "use client";
 
 import { Dish, DishCategory } from "@/lib/api";
+import { cn } from "@/lib/utils";
 
 interface Props {
   dishes: Dish[];
@@ -21,8 +22,8 @@ interface CategoryGroup {
 }
 
 function deltaColor(absPct: number) {
-  if (absPct <= 10) return "text-green-600";
-  return "text-amber-600";
+  if (absPct <= 10) return "text-success";
+  return "text-warning";
 }
 
 function groupByCategory(
@@ -74,21 +75,17 @@ export default function PortionsEditor({
 
   if (selectedDishIds.size === 0) {
     return (
-      <div className="bg-white border border-gray-200 rounded-lg p-4 text-gray-500 text-sm">
+      <div className="bg-card border border-border rounded-lg p-4 text-muted-foreground text-sm">
         Select dishes above to configure portions.
       </div>
     );
   }
-
-  // Build a category lookup by id
-  const categoryById = new Map(categories.map((c) => [c.id, c]));
 
   const totalPortion = groups.reduce((sum, g) => sum + g.subtotal, 0);
   const totalEngine = engineRecs
     ? groups.reduce((sum, g) => sum + (g.engineSubtotal ?? 0), 0)
     : null;
 
-  // Compute protein per person totals (protein pool only, weight-based)
   const proteinCatIds = new Set(
     categories.filter((c) => c.pool === "protein" && c.unit !== "qty").map((c) => c.id)
   );
@@ -106,21 +103,21 @@ export default function PortionsEditor({
   if (proteinEngine !== null) proteinEngine = Math.round(proteinEngine * 10) / 10;
 
   return (
-    <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+    <div className="bg-card border border-border rounded-lg overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
-          <thead className="bg-gray-50 border-b border-gray-200">
+          <thead className="bg-muted border-b border-border">
             <tr>
-              <th className="text-left px-3 py-1.5 font-medium text-gray-700">Dish</th>
-              <th className="text-right px-3 py-1.5 font-medium text-gray-700 w-32">Your Portion</th>
+              <th className="text-left px-3 py-1.5 font-medium text-foreground">Dish</th>
+              <th className="text-right px-3 py-1.5 font-medium text-foreground w-32">Your Portion</th>
               {engineRecs && (
                 <>
-                  <th className="text-right px-3 py-1.5 font-medium text-gray-700 w-28">Engine Rec</th>
-                  <th className="text-right px-3 py-1.5 font-medium text-gray-700 w-28">Delta</th>
+                  <th className="text-right px-3 py-1.5 font-medium text-foreground w-28">Engine Rec</th>
+                  <th className="text-right px-3 py-1.5 font-medium text-foreground w-28">Delta</th>
                 </>
               )}
               {onDishCommentChange && (
-                <th className="text-left px-3 py-1.5 font-medium text-gray-700 w-48">Comment</th>
+                <th className="text-left px-3 py-1.5 font-medium text-foreground w-48">Comment</th>
               )}
             </tr>
           </thead>
@@ -130,16 +127,14 @@ export default function PortionsEditor({
 
             return (
               <tbody key={group.category.id}>
-                {/* Category header */}
-                <tr className="bg-gray-100 border-t border-gray-300">
+                <tr className="bg-muted border-t border-border">
                   <td
                     colSpan={(engineRecs ? 4 : 2) + (onDishCommentChange ? 1 : 0)}
-                    className="px-3 py-1 font-semibold text-gray-800 text-xs uppercase tracking-wide"
+                    className="px-3 py-1 font-semibold text-foreground text-xs uppercase tracking-wide"
                   >
                     {group.category.display_name}
                   </td>
                 </tr>
-                {/* Dish rows */}
                 {group.dishes.map((dish) => {
                   const value = portions.get(dish.id) ?? 0;
                   const engineVal = engineRecs?.get(dish.id);
@@ -150,8 +145,8 @@ export default function PortionsEditor({
                       : null;
 
                   return (
-                    <tr key={dish.id} className="hover:bg-gray-50 border-b border-gray-100">
-                      <td className="px-3 py-0.5 pl-6 text-gray-900">{dish.name}</td>
+                    <tr key={dish.id} className="hover:bg-muted/50 border-b border-border">
+                      <td className="px-3 py-0.5 pl-6 text-foreground">{dish.name}</td>
                       <td className="px-3 py-0.5 text-right">
                         <input
                           type="number"
@@ -163,13 +158,13 @@ export default function PortionsEditor({
                             onPortionChange(dish.id, isNaN(val) ? 0 : val);
                           }}
                           placeholder="0"
-                          className="w-24 text-right border border-gray-300 rounded px-2 py-0.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                          className="w-24 text-right border border-input rounded-md px-2 py-0.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                         />
-                        <span className="text-xs text-gray-400 ml-1">{suffix}</span>
+                        <span className="text-xs text-muted-foreground ml-1">{suffix}</span>
                       </td>
                       {engineRecs && (
                         <>
-                          <td className="px-3 py-0.5 text-right font-mono text-gray-500">
+                          <td className="px-3 py-0.5 text-right font-mono text-muted-foreground">
                             {engineVal !== undefined ? `${engineVal}${suffix}` : "—"}
                           </td>
                           <td className="px-3 py-0.5 text-right font-mono">
@@ -183,7 +178,7 @@ export default function PortionsEditor({
                                 </span>
                               </span>
                             ) : deltaGrams !== null ? (
-                              <span className="text-gray-400">
+                              <span className="text-muted-foreground">
                                 {deltaGrams > 0 ? "+" : ""}
                                 {Math.round(deltaGrams)}{suffix}
                               </span>
@@ -200,24 +195,23 @@ export default function PortionsEditor({
                             value={dishComments?.get(dish.id) ?? ""}
                             onChange={(e) => onDishCommentChange(dish.id, e.target.value)}
                             placeholder="Add note..."
-                            className="w-full border border-gray-200 rounded px-2 py-0.5 text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                            className="w-full border border-input rounded-md px-2 py-0.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
                           />
                         </td>
                       )}
                     </tr>
                   );
                 })}
-                {/* Subtotal row */}
-                <tr className="bg-gray-50 border-b border-gray-200">
-                  <td className="px-3 py-1 pl-6 text-gray-800 font-semibold text-sm">
+                <tr className="bg-muted border-b border-border">
+                  <td className="px-3 py-1 pl-6 text-foreground font-semibold text-sm">
                     {group.category.display_name} Subtotal
                   </td>
-                  <td className="px-3 py-1 text-right text-gray-800 font-semibold text-sm">
+                  <td className="px-3 py-1 text-right text-foreground font-semibold text-sm">
                     {group.subtotal}{suffix}
                   </td>
                   {engineRecs && (
                     <>
-                      <td className="px-3 py-1 text-right text-gray-500 font-semibold text-sm font-mono">
+                      <td className="px-3 py-1 text-right text-muted-foreground font-semibold text-sm font-mono">
                         {group.engineSubtotal !== null ? `${group.engineSubtotal}${suffix}` : "—"}
                       </td>
                       <td className="px-3 py-1" />
@@ -228,17 +222,16 @@ export default function PortionsEditor({
               </tbody>
             );
           })}
-          <tfoot className="bg-gray-50 border-t-2 border-gray-300">
-            {/* Protein per person row */}
+          <tfoot className="bg-muted border-t-2 border-border">
             {proteinCatIds.size > 0 && selectedDishes.some((d) => proteinCatIds.has(d.category)) && (
-              <tr className="font-semibold text-gray-700">
+              <tr className="font-semibold text-foreground">
                 <td className="px-3 py-1.5">Protein per Person</td>
                 <td className="px-3 py-1.5 text-right">
                   {proteinUser}g
                 </td>
                 {engineRecs && (
                   <>
-                    <td className="px-3 py-1.5 text-right text-gray-500 font-mono">
+                    <td className="px-3 py-1.5 text-right text-muted-foreground font-mono">
                       {proteinEngine !== null ? `${proteinEngine}g` : "—"}
                     </td>
                     <td className="px-3 py-1.5 text-right font-mono">
@@ -258,15 +251,14 @@ export default function PortionsEditor({
                 {onDishCommentChange && <td />}
               </tr>
             )}
-            {/* Food per person row */}
             <tr className="font-semibold">
-              <td className="px-3 py-1.5 text-gray-900">Food per Person</td>
-              <td className="px-3 py-1.5 text-right text-gray-900">
+              <td className="px-3 py-1.5 text-foreground">Food per Person</td>
+              <td className="px-3 py-1.5 text-right text-foreground">
                 {Math.round(totalPortion * 10) / 10}g
               </td>
               {engineRecs && (
                 <>
-                  <td className="px-3 py-1.5 text-right text-gray-500 font-mono">
+                  <td className="px-3 py-1.5 text-right text-muted-foreground font-mono">
                     {totalEngine !== null ? `${Math.round(totalEngine * 10) / 10}g` : "—"}
                   </td>
                   <td className="px-3 py-1.5 text-right font-mono">

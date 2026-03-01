@@ -3,6 +3,9 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { api, Account } from "@/lib/api";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent } from "@/components/ui/card";
 
 export default function AccountsPage() {
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -39,40 +42,38 @@ export default function AccountsPage() {
     }
   }
 
-  if (loading) return <p className="text-gray-500">Loading accounts...</p>;
-  if (error) return <p className="text-red-600">Error: {error}</p>;
+  if (loading) return <p className="text-muted-foreground">Loading accounts...</p>;
+  if (error) return <p className="text-destructive">Error: {error}</p>;
 
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Accounts</h1>
-        <button
+        <h1 className="text-2xl font-bold text-foreground">Accounts</h1>
+        <Button
           onClick={() => setShowForm(!showForm)}
-          className="bg-blue-600 text-white px-4 py-2 rounded text-sm hover:bg-blue-700"
         >
           {showForm ? "Cancel" : "New Account"}
-        </button>
+        </Button>
       </div>
 
       {showForm && (
-        <form onSubmit={handleCreate} className="bg-white border border-gray-200 rounded-lg p-4 mb-6">
+        <form onSubmit={handleCreate} className="bg-background border border-border rounded-lg p-4 mb-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
-              <input
+              <label className="block text-sm font-medium text-foreground mb-1">Name</label>
+              <Input
                 type="text"
                 required
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-1 focus:ring-blue-500"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+              <label className="block text-sm font-medium text-foreground mb-1">Type</label>
               <select
                 value={formData.account_type}
                 onChange={(e) => setFormData({ ...formData, account_type: e.target.value })}
-                className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-1 focus:ring-blue-500"
+                className="w-full border border-input rounded-md px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               >
                 <option value="individual">Individual</option>
                 <option value="company">Company</option>
@@ -81,44 +82,49 @@ export default function AccountsPage() {
               </select>
             </div>
           </div>
-          <button
+          <Button
             type="submit"
             disabled={saving}
-            className="mt-4 bg-green-600 text-white px-4 py-2 rounded text-sm hover:bg-green-700 disabled:opacity-50"
+            variant="success"
+            className="mt-4"
           >
             {saving ? "Creating..." : "Create Account"}
-          </button>
+          </Button>
         </form>
       )}
 
-      <input
+      <Input
         type="text"
         placeholder="Search accounts..."
         value={search}
         onChange={(e) => setSearch(e.target.value)}
-        className="w-full md:w-80 border border-gray-300 rounded px-3 py-2 text-sm mb-4 focus:ring-1 focus:ring-blue-500"
+        className="w-full md:w-80 mb-4"
       />
 
       {filtered.length === 0 ? (
-        <p className="text-gray-500">No accounts found.</p>
+        <p className="text-muted-foreground">No accounts found.</p>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtered.map((account) => (
             <Link
               key={account.id}
               href={`/accounts/${account.id}`}
-              className="bg-white border border-gray-200 rounded-lg p-4 hover:border-blue-300 transition-colors"
+              className="block"
             >
-              <div className="flex items-start justify-between">
-                <div>
-                  <h3 className="font-semibold text-gray-900">{account.name}</h3>
-                  <p className="text-sm text-gray-500 capitalize">{account.account_type}</p>
-                </div>
-                <span className="text-xs text-gray-400">{account.contacts.length} contacts</span>
-              </div>
-              {account.billing_city && (
-                <p className="text-sm text-gray-500 mt-2">{account.billing_city}</p>
-              )}
+              <Card className="hover:border-primary/50 transition-colors">
+                <CardContent className="pt-4 pb-4">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <h3 className="font-semibold text-foreground">{account.name}</h3>
+                      <p className="text-sm text-muted-foreground capitalize">{account.account_type}</p>
+                    </div>
+                    <span className="text-xs text-muted-foreground">{account.contacts.length} contacts</span>
+                  </div>
+                  {account.billing_city && (
+                    <p className="text-sm text-muted-foreground mt-2">{account.billing_city}</p>
+                  )}
+                </CardContent>
+              </Card>
             </Link>
           ))}
         </div>

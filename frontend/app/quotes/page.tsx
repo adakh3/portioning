@@ -3,13 +3,16 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { api, Quote, SiteSettingsData } from "@/lib/api";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 
-const STATUS_COLORS: Record<string, string> = {
-  draft: "bg-gray-100 text-gray-700",
-  sent: "bg-blue-100 text-blue-700",
-  accepted: "bg-green-100 text-green-700",
-  expired: "bg-yellow-100 text-yellow-700",
-  declined: "bg-red-100 text-red-700",
+const STATUS_BADGE_VARIANT: Record<string, "secondary" | "info" | "success" | "warning" | "destructive"> = {
+  draft: "secondary",
+  sent: "info",
+  accepted: "success",
+  expired: "warning",
+  declined: "destructive",
 };
 
 const STATUSES = ["all", "draft", "sent", "accepted", "expired", "declined"];
@@ -34,62 +37,66 @@ export default function QuotesPage() {
     api.getSiteSettings().then(setSettings).catch(() => {});
   }, []);
 
-  if (error) return <p className="text-red-600">Error: {error}</p>;
+  if (error) return <p className="text-destructive">Error: {error}</p>;
 
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Quotes</h1>
-        <Link href="/quotes/new" className="bg-blue-600 text-white px-4 py-2 rounded text-sm hover:bg-blue-700">
-          New Quote
-        </Link>
+        <h1 className="text-2xl font-bold text-foreground">Quotes</h1>
+        <Button asChild>
+          <Link href="/quotes/new">New Quote</Link>
+        </Button>
       </div>
 
       <div className="flex gap-2 mb-4 overflow-x-auto">
         {STATUSES.map((s) => (
-          <button
+          <Button
             key={s}
+            variant={filter === s ? "default" : "outline"}
+            size="sm"
             onClick={() => { setFilter(s); loadQuotes(s); }}
-            className={`px-3 py-1.5 rounded text-sm capitalize whitespace-nowrap ${
-              filter === s ? "bg-gray-900 text-white" : "bg-white border border-gray-300 text-gray-700 hover:bg-gray-50"
-            }`}
+            className={filter === s ? "bg-foreground text-background hover:bg-foreground/90" : "capitalize"}
           >
-            {s}
-          </button>
+            <span className="capitalize">{s}</span>
+          </Button>
         ))}
       </div>
 
       {loading ? (
-        <p className="text-gray-500">Loading quotes...</p>
+        <p className="text-muted-foreground">Loading quotes...</p>
       ) : quotes.length === 0 ? (
-        <p className="text-gray-500">No quotes found.</p>
+        <p className="text-muted-foreground">No quotes found.</p>
       ) : (
         <div className="space-y-3">
           {quotes.map((quote) => (
             <Link
               key={quote.id}
               href={`/quotes/${quote.id}`}
-              className="block bg-white border border-gray-200 rounded-lg p-4 hover:border-blue-300 transition-colors"
+              className="block"
             >
-              <div className="flex items-start justify-between">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-semibold text-gray-900">
-                      Quote #{quote.id} v{quote.version}
-                    </h3>
-                    <span className={`text-xs px-2 py-0.5 rounded ${STATUS_COLORS[quote.status] || ""}`}>
-                      {quote.status_display}
-                    </span>
+              <Card className="hover:border-primary/30 transition-colors">
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-semibold text-foreground">
+                          Quote #{quote.id} v{quote.version}
+                        </h3>
+                        <Badge variant={STATUS_BADGE_VARIANT[quote.status] || "secondary"}>
+                          {quote.status_display}
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        {quote.account_name} &middot; {quote.event_date} &middot; {quote.guest_count} guests
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-semibold text-foreground">{settings.currency_symbol}{quote.total}</p>
+                      <p className="text-xs text-muted-foreground">{new Date(quote.created_at).toLocaleDateString()}</p>
+                    </div>
                   </div>
-                  <p className="text-sm text-gray-500 mt-1">
-                    {quote.account_name} &middot; {quote.event_date} &middot; {quote.guest_count} guests
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className="font-semibold text-gray-900">{settings.currency_symbol}{quote.total}</p>
-                  <p className="text-xs text-gray-400">{new Date(quote.created_at).toLocaleDateString()}</p>
-                </div>
-              </div>
+                </CardContent>
+              </Card>
             </Link>
           ))}
         </div>

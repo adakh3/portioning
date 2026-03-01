@@ -2,6 +2,8 @@
 
 import { Dish, DishCategory } from "@/lib/api";
 import { useState } from "react";
+import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 
 interface Props {
   dishes: Dish[];
@@ -26,17 +28,17 @@ export default function DishSelector({ dishes, categories, selectedIds, onToggle
     .filter((g) => g.dishes.length > 0);
 
   return (
-    <div className="bg-white border border-gray-200 rounded-lg p-4">
+    <div className="bg-card border border-border rounded-lg p-4">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="font-semibold text-gray-900">
+        <h3 className="font-semibold text-foreground">
           Dishes ({selectedIds.size} selected)
         </h3>
-        <input
+        <Input
           type="text"
           placeholder="Search dishes..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="border border-gray-300 rounded px-3 py-1.5 text-sm w-48"
+          className="w-48"
         />
       </div>
       <div className="space-y-4 max-h-96 overflow-y-auto">
@@ -44,9 +46,9 @@ export default function DishSelector({ dishes, categories, selectedIds, onToggle
           const selectedInCat = group.dishes.filter((d) => selectedIds.has(d.id)).length;
           return (
             <div key={group.id}>
-              <h4 className="text-sm font-medium text-gray-700 mb-1">
+              <h4 className="text-sm font-medium text-foreground mb-1">
                 {group.display_name}
-                <span className="text-gray-400 ml-1">({selectedInCat}/{group.dishes.length})</span>
+                <span className="text-muted-foreground ml-1">({selectedInCat}/{group.dishes.length})</span>
               </h4>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-1">
                 {group.dishes.map((dish) => {
@@ -55,15 +57,16 @@ export default function DishSelector({ dishes, categories, selectedIds, onToggle
                     <button
                       key={dish.id}
                       onClick={() => onToggle(dish.id)}
-                      className={`text-left text-sm px-3 py-2 rounded transition-colors ${
+                      className={cn(
+                        "text-left text-sm px-3 py-2 rounded-md transition-colors border",
                         selected
-                          ? "bg-blue-100 text-blue-800 border border-blue-300"
-                          : "bg-gray-50 text-gray-700 border border-gray-200 hover:bg-gray-100"
-                      }`}
+                          ? "bg-primary/10 text-primary border-primary/30"
+                          : "bg-muted text-foreground border-border hover:bg-accent"
+                      )}
                     >
                       <span>{dish.name}</span>
                       {dish.is_vegetarian && (
-                        <span className="ml-1 text-green-600 text-xs">V</span>
+                        <span className="ml-1 text-success text-xs">V</span>
                       )}
                     </button>
                   );

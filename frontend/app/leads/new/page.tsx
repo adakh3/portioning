@@ -4,6 +4,10 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { api, Account, BudgetRangeOption } from "@/lib/api";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent } from "@/components/ui/card";
 
 export default function NewLeadPage() {
   const router = useRouter();
@@ -55,93 +59,97 @@ export default function NewLeadPage() {
 
   return (
     <div>
-      <Link href="/leads" className="text-sm text-blue-600 hover:underline mb-4 inline-block">&larr; Back to Leads</Link>
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">New Lead</h1>
+      <Link href="/leads" className="text-sm text-primary hover:underline mb-4 inline-block">&larr; Back to Leads</Link>
+      <h1 className="text-2xl font-bold text-foreground mb-6">New Lead</h1>
 
-      {error && <p className="text-red-600 mb-4">{error}</p>}
+      {error && <p className="text-destructive mb-4">{error}</p>}
 
-      <form onSubmit={handleSubmit} className="bg-white border border-gray-200 rounded-lg p-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Contact Name *</label>
-            <input type="text" required value={formData.contact_name} onChange={set("contact_name")} className="w-full border border-gray-300 rounded px-3 py-2 text-sm" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Account (optional)</label>
-            <select value={formData.account} onChange={set("account")} className="w-full border border-gray-300 rounded px-3 py-2 text-sm">
-              <option value="">-- No account --</option>
-              {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-            <input type="email" value={formData.contact_email} onChange={set("contact_email")} className="w-full border border-gray-300 rounded px-3 py-2 text-sm" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
-            <input type="text" value={formData.contact_phone} onChange={set("contact_phone")} className="w-full border border-gray-300 rounded px-3 py-2 text-sm" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Source</label>
-            <select value={formData.source} onChange={set("source")} className="w-full border border-gray-300 rounded px-3 py-2 text-sm">
-              <option value="website">Website</option>
-              <option value="referral">Referral</option>
-              <option value="phone">Phone</option>
-              <option value="email">Email</option>
-              <option value="social">Social Media</option>
-              <option value="walk_in">Walk-in</option>
-              <option value="repeat">Repeat Customer</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Event Type</label>
-            <select value={formData.event_type} onChange={set("event_type")} className="w-full border border-gray-300 rounded px-3 py-2 text-sm">
-              <option value="wedding">Wedding</option>
-              <option value="corporate">Corporate Event</option>
-              <option value="birthday">Birthday Party</option>
-              <option value="funeral">Funeral / Wake</option>
-              <option value="religious">Religious Event</option>
-              <option value="social">Social Gathering</option>
-              <option value="other">Other</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Event Date</label>
-            <input type="date" value={formData.event_date} onChange={set("event_date")} className="w-full border border-gray-300 rounded px-3 py-2 text-sm" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Guest Estimate</label>
-            <input type="number" min="1" value={formData.guest_estimate} onChange={set("guest_estimate")} className="w-full border border-gray-300 rounded px-3 py-2 text-sm" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Budget Range</label>
-            <select value={formData.budget_range} onChange={set("budget_range")} className="w-full border border-gray-300 rounded px-3 py-2 text-sm">
-              <option value="">-- Select --</option>
-              {budgetRanges.map((b) => <option key={b.id} value={b.id}>{b.label}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Service Style</label>
-            <select value={formData.service_style} onChange={set("service_style")} className="w-full border border-gray-300 rounded px-3 py-2 text-sm">
-              <option value="">-- Select --</option>
-              <option value="buffet">Buffet</option>
-              <option value="plated">Plated / Sit-down</option>
-              <option value="stations">Food Stations</option>
-              <option value="family_style">Family Style</option>
-              <option value="boxed">Boxed / Individual</option>
-              <option value="canapes">Canapes</option>
-              <option value="mixed">Mixed Service</option>
-            </select>
-          </div>
-          <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
-            <textarea value={formData.notes} onChange={set("notes")} rows={3} className="w-full border border-gray-300 rounded px-3 py-2 text-sm" />
-          </div>
-        </div>
-        <button type="submit" disabled={saving} className="mt-6 bg-green-600 text-white px-6 py-2 rounded text-sm hover:bg-green-700 disabled:opacity-50">
-          {saving ? "Creating..." : "Create Lead"}
-        </button>
-      </form>
+      <Card>
+        <CardContent className="p-6">
+          <form onSubmit={handleSubmit}>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Contact Name *</label>
+                <Input type="text" required value={formData.contact_name} onChange={set("contact_name")} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Account (optional)</label>
+                <select value={formData.account} onChange={set("account")} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
+                  <option value="">-- No account --</option>
+                  {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Email</label>
+                <Input type="email" value={formData.contact_email} onChange={set("contact_email")} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Phone</label>
+                <Input type="text" value={formData.contact_phone} onChange={set("contact_phone")} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Source</label>
+                <select value={formData.source} onChange={set("source")} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
+                  <option value="website">Website</option>
+                  <option value="referral">Referral</option>
+                  <option value="phone">Phone</option>
+                  <option value="email">Email</option>
+                  <option value="social">Social Media</option>
+                  <option value="walk_in">Walk-in</option>
+                  <option value="repeat">Repeat Customer</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Event Type</label>
+                <select value={formData.event_type} onChange={set("event_type")} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
+                  <option value="wedding">Wedding</option>
+                  <option value="corporate">Corporate Event</option>
+                  <option value="birthday">Birthday Party</option>
+                  <option value="funeral">Funeral / Wake</option>
+                  <option value="religious">Religious Event</option>
+                  <option value="social">Social Gathering</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Event Date</label>
+                <Input type="date" value={formData.event_date} onChange={set("event_date")} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Guest Estimate</label>
+                <Input type="number" min="1" value={formData.guest_estimate} onChange={set("guest_estimate")} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Budget Range</label>
+                <select value={formData.budget_range} onChange={set("budget_range")} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
+                  <option value="">-- Select --</option>
+                  {budgetRanges.map((b) => <option key={b.id} value={b.id}>{b.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Service Style</label>
+                <select value={formData.service_style} onChange={set("service_style")} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
+                  <option value="">-- Select --</option>
+                  <option value="buffet">Buffet</option>
+                  <option value="plated">Plated / Sit-down</option>
+                  <option value="stations">Food Stations</option>
+                  <option value="family_style">Family Style</option>
+                  <option value="boxed">Boxed / Individual</option>
+                  <option value="canapes">Canapes</option>
+                  <option value="mixed">Mixed Service</option>
+                </select>
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-foreground mb-1">Notes</label>
+                <Textarea value={formData.notes} onChange={set("notes")} rows={3} />
+              </div>
+            </div>
+            <Button type="submit" disabled={saving} variant="success" className="mt-6">
+              {saving ? "Creating..." : "Create Lead"}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
     </div>
   );
 }

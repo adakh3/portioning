@@ -16,10 +16,14 @@ import GuestMixForm from "@/components/GuestMixForm";
 import PortionsEditor from "@/components/PortionsEditor";
 import WarningsBanner from "@/components/WarningsBanner";
 import ValidationBanner from "@/components/ValidationBanner";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent } from "@/components/ui/card";
 
 export default function CalculatePage() {
   return (
-    <Suspense fallback={<p className="text-gray-500">Loading...</p>}>
+    <Suspense fallback={<p className="text-muted-foreground">Loading...</p>}>
       <CalculatePageInner />
     </Suspense>
   );
@@ -413,7 +417,7 @@ function CalculatePageInner() {
   };
 
   if (dataLoading) {
-    return <p className="text-gray-500">Loading...</p>;
+    return <p className="text-muted-foreground">Loading...</p>;
   }
 
   const portionsDifferFromEngine =
@@ -426,28 +430,30 @@ function CalculatePageInner() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900">
+      <h1 className="text-2xl font-bold text-foreground">
         {editingEventId ? `Editing: ${eventName}` : "Portioning"}
       </h1>
 
       {/* ── SETUP SECTION ── */}
-      <div className="bg-white border border-gray-200 rounded-lg p-4">
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Start from template (optional)
-        </label>
-        <select
-          onChange={handleTemplateChange}
-          defaultValue={templateId || ""}
-          className="border border-gray-300 rounded px-3 py-2 text-sm w-full max-w-xs"
-        >
-          <option value="">— Select a template —</option>
-          {templates.map((t) => (
-            <option key={t.id} value={t.id}>
-              {t.name} ({t.dish_count} dishes)
-            </option>
-          ))}
-        </select>
-      </div>
+      <Card>
+        <CardContent className="pt-4">
+          <label className="block text-sm font-medium text-foreground mb-1">
+            Start from template (optional)
+          </label>
+          <select
+            onChange={handleTemplateChange}
+            defaultValue={templateId || ""}
+            className="border border-input rounded-md px-3 py-2 text-sm w-full max-w-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          >
+            <option value="">— Select a template —</option>
+            {templates.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name} ({t.dish_count} dishes)
+              </option>
+            ))}
+          </select>
+        </CardContent>
+      </Card>
 
       <DishSelector
         dishes={dishes}
@@ -470,10 +476,10 @@ function CalculatePageInner() {
         <WarningsBanner warnings={engineWarnings} adjustments={engineAdjustments} />
       )}
 
-      {error && <p className="text-red-600 text-sm">{error}</p>}
+      {error && <p className="text-destructive text-sm">{error}</p>}
 
       {calculating && (
-        <span className="text-sm text-gray-500">Calculating...</span>
+        <span className="text-sm text-muted-foreground">Calculating...</span>
       )}
 
       {/* ── PORTIONS TABLE ── */}
@@ -491,28 +497,28 @@ function CalculatePageInner() {
       {/* ── ACTIONS ── */}
       {selectedDishIds.size > 0 && (
         <div className="flex items-center gap-3 flex-wrap">
-          <button
+          <Button
             onClick={validate}
             disabled={checkLoading}
-            className="bg-blue-600 text-white px-6 py-2.5 rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            size="lg"
           >
             {checkLoading ? "Validating..." : "Validate"}
-          </button>
+          </Button>
           {portionsDifferFromEngine && (
-            <button
+            <Button
               onClick={applyEngineValues}
-              className="bg-gray-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors"
+              variant="secondary"
             >
               Apply Engine Values
-            </button>
+            </Button>
           )}
-          <button
+          <Button
             onClick={handleExportPDF}
             disabled={exporting}
-            className="border border-gray-300 text-gray-700 bg-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-gray-50 disabled:opacity-50 transition-colors"
+            variant="outline"
           >
             {exporting ? "Exporting..." : "Export PDF"}
-          </button>
+          </Button>
         </div>
       )}
 
@@ -520,67 +526,64 @@ function CalculatePageInner() {
 
       {/* ── SAVE EVENT ── */}
       {saveSuccess && (
-        <p className="text-green-600 text-sm font-medium">{saveSuccess}</p>
+        <p className="text-success text-sm font-medium">{saveSuccess}</p>
       )}
       {selectedDishIds.size > 0 && (
-        <div className="bg-white border border-gray-200 rounded-lg">
+        <Card>
           <button
             type="button"
             onClick={() => setSaveOpen((o) => !o)}
-            className="w-full flex items-center justify-between px-4 py-3 text-left font-medium text-gray-900 hover:bg-gray-50 transition-colors"
+            className="w-full flex items-center justify-between px-4 py-3 text-left font-medium text-foreground hover:bg-muted transition-colors rounded-t-lg"
           >
             <span>{editingEventId ? "Update Event" : "Save as Event"}</span>
-            <span className="text-gray-400 text-sm">{saveOpen ? "▲" : "▼"}</span>
+            <span className="text-muted-foreground text-sm">{saveOpen ? "▲" : "▼"}</span>
           </button>
           {saveOpen && (
-            <div className="px-4 pb-4 space-y-3 border-t border-gray-100">
+            <div className="px-4 pb-4 space-y-3 border-t border-border">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Event Name <span className="text-red-500">*</span>
+                  <label className="block text-sm font-medium text-foreground mb-1">
+                    Event Name <span className="text-destructive">*</span>
                   </label>
-                  <input
+                  <Input
                     type="text"
                     value={eventName}
                     onChange={(e) => setEventName(e.target.value)}
                     placeholder="e.g. Wedding Reception"
-                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Date <span className="text-red-500">*</span>
+                  <label className="block text-sm font-medium text-foreground mb-1">
+                    Date <span className="text-destructive">*</span>
                   </label>
-                  <input
+                  <Input
                     type="date"
                     value={eventDate}
                     onChange={(e) => setEventDate(e.target.value)}
-                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-foreground mb-1">
                   Event Notes
                 </label>
-                <textarea
+                <Textarea
                   value={eventNotes}
                   onChange={(e) => setEventNotes(e.target.value)}
                   placeholder="Overall notes about this event..."
                   rows={2}
-                  className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
-              <button
+              <Button
                 onClick={handleSaveEvent}
                 disabled={saving || !eventName.trim() || !eventDate}
-                className="bg-green-600 text-white px-6 py-2.5 rounded-lg font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                variant="success"
               >
                 {saving ? "Saving..." : editingEventId ? "Update Event" : "Save Event"}
-              </button>
+              </Button>
             </div>
           )}
-        </div>
+        </Card>
       )}
     </div>
   );

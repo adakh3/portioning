@@ -9,6 +9,8 @@ import {
   SiteSettingsData,
 } from "@/lib/api";
 import MenuBuilder from "@/components/MenuBuilder";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 
 const MENU_TYPE_LABELS: Record<string, string> = {
   barat: "Barat / Walima",
@@ -95,7 +97,7 @@ export default function PricingPage() {
   );
 
   if (loading) {
-    return <p className="text-gray-500">Loading...</p>;
+    return <p className="text-muted-foreground">Loading...</p>;
   }
 
   // Display order: barat first, then mehndi
@@ -104,8 +106,8 @@ export default function PricingPage() {
   return (
     <div className="space-y-10">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 mb-1">Menu Pricing</h1>
-        <p className="text-sm text-gray-500">
+        <h1 className="text-2xl font-bold text-foreground mb-1">Menu Pricing</h1>
+        <p className="text-sm text-muted-foreground">
           Fixed menu prices by guest count tier, or build a custom menu to
           estimate pricing.
         </p>
@@ -120,13 +122,13 @@ export default function PricingPage() {
 
         return (
           <section key={menuType}>
-            <h2 className="text-lg font-semibold text-gray-800 mb-3">
+            <h2 className="text-lg font-semibold text-foreground mb-3">
               {MENU_TYPE_LABELS[menuType] || menuType}
             </h2>
-            <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+            <Card>
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-gray-50 border-b border-gray-200 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <tr className="bg-muted border-b border-border text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                     <th className="px-4 py-3">Menu</th>
                     <th className="px-4 py-3 text-center">Dishes</th>
                     {thresholds.map((th) => (
@@ -136,7 +138,7 @@ export default function PricingPage() {
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody className="divide-y divide-border">
                   {menus.map((t) => {
                     const tierMap = new Map(
                       (t.price_tiers || []).map((pt) => [
@@ -162,7 +164,7 @@ export default function PricingPage() {
                   })}
                 </tbody>
               </table>
-            </div>
+            </Card>
           </section>
         );
       })}
@@ -170,82 +172,84 @@ export default function PricingPage() {
       {/* Custom menus (no tiers) — show with old-style suggested price if any exist */}
       {grouped["custom"] && grouped["custom"].length > 0 && (
         <section>
-          <h2 className="text-lg font-semibold text-gray-800 mb-3">
+          <h2 className="text-lg font-semibold text-foreground mb-3">
             Custom Menus
           </h2>
-          <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+          <Card>
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-gray-50 border-b border-gray-200 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <tr className="bg-muted border-b border-border text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   <th className="px-4 py-3">Menu</th>
                   <th className="px-4 py-3 text-center">Dishes</th>
                   <th className="px-4 py-3 text-right">Est. Price/Head</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-border">
                 {grouped["custom"].map((t) => (
                   <tr
                     key={t.id}
                     onClick={() => handleExpandTemplate(t.id)}
-                    className="cursor-pointer hover:bg-gray-50 transition-colors"
+                    className="cursor-pointer hover:bg-muted transition-colors"
                   >
-                    <td className="px-4 py-3 font-medium text-gray-900">
-                      <span className="mr-1.5 text-gray-400 text-xs">
+                    <td className="px-4 py-3 font-medium text-foreground">
+                      <span className="mr-1.5 text-muted-foreground text-xs">
                         {expandedId === t.id ? "▼" : "▶"}
                       </span>
                       {t.name}
                     </td>
-                    <td className="px-4 py-3 text-center text-gray-600">
+                    <td className="px-4 py-3 text-center text-muted-foreground">
                       {t.dish_count}
                     </td>
                     <td className="px-4 py-3 text-right font-medium">
                       {t.suggested_price_per_head !== null ? (
-                        <span className="text-gray-900">
+                        <span className="text-foreground">
                           {currencySymbol}
                           {t.suggested_price_per_head.toFixed(2)}
                         </span>
                       ) : (
-                        <span className="text-gray-400">—</span>
+                        <span className="text-muted-foreground">—</span>
                       )}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          </div>
+          </Card>
         </section>
       )}
 
       {/* Section B — Custom Menu Pricer */}
       <section>
-        <h2 className="text-lg font-semibold text-gray-800 mb-3">
+        <h2 className="text-lg font-semibold text-foreground mb-3">
           Custom Menu Pricer
         </h2>
-        <p className="text-sm text-gray-500 mb-4">
+        <p className="text-sm text-muted-foreground mb-4">
           Pick dishes and enter a guest count, then click &quot;Calculate Rate&quot; to see a price estimate.
         </p>
 
-        <div className="bg-white border border-gray-200 rounded-lg p-5 space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Guest Count</label>
-            <input
-              type="number"
-              min="1"
-              value={customGuestCount}
-              onChange={(e) => setCustomGuestCount(e.target.value)}
-              placeholder="e.g. 150"
-              className="border border-gray-300 rounded px-3 py-2 text-sm w-40"
+        <Card>
+          <CardContent className="pt-5 space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Guest Count</label>
+              <Input
+                type="number"
+                min="1"
+                value={customGuestCount}
+                onChange={(e) => setCustomGuestCount(e.target.value)}
+                placeholder="e.g. 150"
+                className="w-40"
+              />
+            </div>
+            <MenuBuilder
+              selectedDishIds={customDishIds}
+              basedOnTemplate={customTemplate}
+              guestCount={customGuestCount ? Number(customGuestCount) : undefined}
+              onChange={handleCustomChange}
+              currencySymbol={currencySymbol}
+              priceRoundingStep={settings?.price_rounding_step ? Number(settings.price_rounding_step) : 50}
             />
-          </div>
-          <MenuBuilder
-            selectedDishIds={customDishIds}
-            basedOnTemplate={customTemplate}
-            guestCount={customGuestCount ? Number(customGuestCount) : undefined}
-            onChange={handleCustomChange}
-            currencySymbol={currencySymbol}
-            priceRoundingStep={settings?.price_rounding_step ? Number(settings.price_rounding_step) : 50}
-          />
-        </div>
+          </CardContent>
+        </Card>
 
       </section>
     </div>
@@ -286,15 +290,15 @@ function TierTemplateRow({
     <>
       <tr
         onClick={onToggle}
-        className="cursor-pointer hover:bg-gray-50 transition-colors"
+        className="cursor-pointer hover:bg-muted transition-colors"
       >
-        <td className="px-4 py-3 font-medium text-gray-900">
-          <span className="mr-1.5 text-gray-400 text-xs">
+        <td className="px-4 py-3 font-medium text-foreground">
+          <span className="mr-1.5 text-muted-foreground text-xs">
             {isExpanded ? "▼" : "▶"}
           </span>
           {template.name}
         </td>
-        <td className="px-4 py-3 text-center text-gray-600">
+        <td className="px-4 py-3 text-center text-muted-foreground">
           {template.dish_count || "—"}
         </td>
         {thresholds.map((th) => {
@@ -302,12 +306,12 @@ function TierTemplateRow({
           return (
             <td key={th} className="px-4 py-3 text-right font-medium">
               {price ? (
-                <span className="text-gray-900">
+                <span className="text-foreground">
                   {currencySymbol}
                   {roundToStep(parseFloat(price), priceRoundingStep).toLocaleString()}
                 </span>
               ) : (
-                <span className="text-gray-400">—</span>
+                <span className="text-muted-foreground">—</span>
               )}
             </td>
           );
@@ -315,26 +319,26 @@ function TierTemplateRow({
       </tr>
       {isExpanded && (
         <tr>
-          <td colSpan={colCount} className="px-4 py-3 bg-gray-50">
+          <td colSpan={colCount} className="px-4 py-3 bg-muted">
             {detailLoading ? (
-              <p className="text-sm text-gray-500">Loading dishes...</p>
+              <p className="text-sm text-muted-foreground">Loading dishes...</p>
             ) : detail && detail.portions.length > 0 ? (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-x-6 gap-y-1 text-sm">
                 {detail.portions.map((p) => (
                   <div key={p.dish_id} className="flex items-baseline gap-1.5">
-                    <span className="text-gray-900">{p.dish_name}</span>
-                    <span className="text-xs text-gray-400">
+                    <span className="text-foreground">{p.dish_name}</span>
+                    <span className="text-xs text-muted-foreground">
                       {p.category_name}
                     </span>
                   </div>
                 ))}
               </div>
             ) : detail ? (
-              <p className="text-sm text-gray-400">
+              <p className="text-sm text-muted-foreground">
                 No dishes assigned to this menu yet.
               </p>
             ) : (
-              <p className="text-sm text-red-500">
+              <p className="text-sm text-destructive">
                 Failed to load template details.
               </p>
             )}

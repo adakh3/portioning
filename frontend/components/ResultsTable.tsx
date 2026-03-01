@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { CalculationResult, PortionResult } from "@/lib/api";
+import { cn } from "@/lib/utils";
 
 interface Props {
   result: CalculationResult;
@@ -75,7 +76,7 @@ function EditableCell({
         type="number"
         min="0"
         step="1"
-        className="w-20 text-right border border-blue-400 rounded px-1 py-0.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+        className="w-20 text-right border border-ring rounded-md px-1 py-0.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
         value={draft}
         autoFocus
         onChange={(e) => setDraft(e.target.value)}
@@ -95,11 +96,10 @@ function EditableCell({
           setDraft(String(value));
           setEditing(true);
         }}
-        className={`cursor-pointer hover:bg-blue-50 px-1 py-0.5 rounded text-right tabular-nums ${
-          isEdited
-            ? "bg-amber-50 text-amber-900 font-medium border border-amber-300"
-            : ""
-        }`}
+        className={cn(
+          "cursor-pointer hover:bg-accent px-1 py-0.5 rounded text-right tabular-nums",
+          isEdited && "bg-warning/10 text-warning font-medium border border-warning/30"
+        )}
         title="Click to edit"
       >
         {value}
@@ -107,7 +107,7 @@ function EditableCell({
       {isEdited && (
         <button
           onClick={onReset}
-          className="text-xs text-gray-400 hover:text-gray-600"
+          className="text-xs text-muted-foreground hover:text-foreground"
           title="Reset to engine value"
         >
           ↺
@@ -132,15 +132,15 @@ export default function ResultsTable({
   const totalFoodRounded = Math.round(totalFood * 10) / 10;
 
   return (
-    <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+    <div className="bg-card border border-border rounded-lg overflow-hidden">
       {hasOverrides && onResetAll && (
-        <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 flex items-center justify-between">
-          <span className="text-sm text-amber-800">
+        <div className="bg-warning/10 border-b border-warning/20 px-4 py-2 flex items-center justify-between">
+          <span className="text-sm text-warning">
             You have edited {overrides.size} portion{overrides.size !== 1 ? "s" : ""} — totals reflect your changes
           </span>
           <button
             onClick={onResetAll}
-            className="text-xs text-amber-700 hover:text-amber-900 font-medium underline"
+            className="text-xs text-warning/80 hover:text-warning font-medium underline"
           >
             Reset All
           </button>
@@ -148,32 +148,30 @@ export default function ResultsTable({
       )}
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
-          <thead className="bg-gray-50 border-b border-gray-200">
+          <thead className="bg-muted border-b border-border">
             <tr>
-              <th className="text-left px-4 py-3 font-medium text-gray-700">Dish</th>
-              <th className="text-right px-4 py-3 font-medium text-gray-700">Per Person (g)</th>
+              <th className="text-left px-4 py-3 font-medium text-foreground">Dish</th>
+              <th className="text-right px-4 py-3 font-medium text-foreground">Per Person (g)</th>
             </tr>
           </thead>
           {groups.map((group) => (
             <tbody key={group.category}>
-              {/* Category header */}
-              <tr className="bg-gray-100 border-t border-gray-300">
+              <tr className="bg-muted border-t border-border">
                 <td
                   colSpan={2}
-                  className="px-4 py-2 font-semibold text-gray-800 text-xs uppercase tracking-wide"
+                  className="px-4 py-2 font-semibold text-foreground text-xs uppercase tracking-wide"
                 >
                   {group.category}
                 </td>
               </tr>
-              {/* Dish rows */}
               {group.portions.map((p) => {
                 const effectiveGrams = overrides?.get(p.dish_id) ?? p.grams_per_person;
                 const isEdited = overrides?.has(p.dish_id) ?? false;
 
                 return (
-                  <tr key={p.dish_id} className="hover:bg-gray-50 border-b border-gray-100">
-                    <td className="px-4 py-2.5 pl-8 text-gray-900">{p.dish_name}</td>
-                    <td className="px-4 py-2.5 text-right text-gray-900">
+                  <tr key={p.dish_id} className="hover:bg-muted/50 border-b border-border">
+                    <td className="px-4 py-2.5 pl-8 text-foreground">{p.dish_name}</td>
+                    <td className="px-4 py-2.5 text-right text-foreground">
                       {onPortionEdit && onResetDish ? (
                         <EditableCell
                           value={effectiveGrams}
@@ -188,21 +186,20 @@ export default function ResultsTable({
                   </tr>
                 );
               })}
-              {/* Subtotal row */}
-              <tr className="bg-gray-50 border-b border-gray-200">
-                <td className="px-4 py-2.5 pl-8 text-gray-800 font-semibold text-sm">
+              <tr className="bg-muted border-b border-border">
+                <td className="px-4 py-2.5 pl-8 text-foreground font-semibold text-sm">
                   {group.category} Subtotal
                 </td>
-                <td className="px-4 py-2.5 text-right text-gray-800 font-semibold text-sm">
+                <td className="px-4 py-2.5 text-right text-foreground font-semibold text-sm">
                   {group.subtotal}
                 </td>
               </tr>
             </tbody>
           ))}
-          <tfoot className="bg-gray-50 border-t-2 border-gray-300">
+          <tfoot className="bg-muted border-t-2 border-border">
             <tr className="font-semibold">
-              <td className="px-4 py-3 text-gray-900">Food per Person</td>
-              <td className="px-4 py-3 text-right text-gray-900">
+              <td className="px-4 py-3 text-foreground">Food per Person</td>
+              <td className="px-4 py-3 text-right text-foreground">
                 {hasOverrides ? totalFoodRounded : totals.food_per_person_grams}g
               </td>
             </tr>

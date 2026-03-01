@@ -15,13 +15,18 @@ import {
   SiteSettingsData,
 } from "@/lib/api";
 import MenuBuilder from "@/components/MenuBuilder";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 
-const statusColors: Record<string, string> = {
-  tentative: "bg-yellow-100 text-yellow-800",
-  confirmed: "bg-blue-100 text-blue-800",
-  in_progress: "bg-orange-100 text-orange-800",
-  completed: "bg-green-100 text-green-800",
-  cancelled: "bg-red-100 text-red-800",
+const statusBadgeVariant: Record<string, "warning" | "info" | "secondary" | "success" | "destructive"> = {
+  tentative: "warning",
+  confirmed: "info",
+  in_progress: "secondary",
+  completed: "success",
+  cancelled: "destructive",
 };
 
 const eventTypeLabels: Record<string, string> = {
@@ -47,7 +52,7 @@ const serviceStyleLabels: Record<string, string> = {
 function ChevronIcon({ open }: { open: boolean }) {
   return (
     <svg
-      className={`w-5 h-5 text-gray-500 transition-transform ${open ? "rotate-90" : ""}`}
+      className={`w-5 h-5 text-muted-foreground transition-transform ${open ? "rotate-90" : ""}`}
       fill="none"
       viewBox="0 0 24 24"
       stroke="currentColor"
@@ -61,8 +66,8 @@ function ChevronIcon({ open }: { open: boolean }) {
 function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div>
-      <dt className="text-sm font-medium text-gray-500">{label}</dt>
-      <dd className="text-sm text-gray-900 mt-0.5">{value || "—"}</dd>
+      <dt className="text-sm font-medium text-muted-foreground">{label}</dt>
+      <dd className="text-sm text-foreground mt-0.5">{value || "\u2014"}</dd>
     </div>
   );
 }
@@ -86,7 +91,7 @@ export default function EventDetailPage() {
   const [laborRoles, setLaborRoles] = useState<LaborRole[]>([]);
   const [staffList, setStaffList] = useState<StaffMember[]>([]);
   const [equipmentItems, setEquipmentItems] = useState<EquipmentItem[]>([]);
-  const [settings, setSettings] = useState<SiteSettingsData>({ currency_symbol: "£", currency_code: "GBP", default_price_per_head: "0.00", target_food_cost_percentage: "30.00", price_rounding_step: "50" });
+  const [settings, setSettings] = useState<SiteSettingsData>({ currency_symbol: "\u00A3", currency_code: "GBP", default_price_per_head: "0.00", target_food_cost_percentage: "30.00", price_rounding_step: "50" });
 
   // Section collapse
   const [sections, setSections] = useState({
@@ -377,7 +382,7 @@ export default function EventDetailPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <p className="text-gray-500">Loading event...</p>
+        <p className="text-muted-foreground">Loading event...</p>
       </div>
     );
   }
@@ -385,7 +390,7 @@ export default function EventDetailPage() {
   if (!event) {
     return (
       <div className="flex items-center justify-center py-20">
-        <p className="text-red-600">{error || "Event not found"}</p>
+        <p className="text-destructive">{error || "Event not found"}</p>
       </div>
     );
   }
@@ -401,7 +406,7 @@ export default function EventDetailPage() {
   );
 
   const formatDateTime = (dt: string | null) => {
-    if (!dt) return "—";
+    if (!dt) return "\u2014";
     return new Date(dt).toLocaleString();
   };
 
@@ -409,183 +414,191 @@ export default function EventDetailPage() {
     <div className="space-y-6 max-w-5xl mx-auto">
       {/* Error banner */}
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center justify-between">
-          <p className="text-red-700 text-sm">{error}</p>
-          <button
+        <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 flex items-center justify-between">
+          <p className="text-destructive text-sm">{error}</p>
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={() => setError(null)}
-            className="text-red-400 hover:text-red-600 text-sm font-medium"
+            className="text-destructive/60 hover:text-destructive"
           >
             Dismiss
-          </button>
+          </Button>
         </div>
       )}
 
       {/* Header Section */}
-      <div className="bg-white border border-gray-200 rounded-lg p-5">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex items-center gap-3 flex-1 min-w-0">
-            {editing ? (
-              <input
-                type="text"
-                value={formName}
-                onChange={(e) => setFormName(e.target.value)}
-                className="text-2xl font-bold text-gray-900 border border-blue-400 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full max-w-md"
-              />
-            ) : (
-              <h1 className="text-2xl font-bold text-gray-900 truncate">
-                {event.name}
-              </h1>
-            )}
-            {editing ? (
-              <input
-                type="date"
-                value={formDate}
-                onChange={(e) => setFormDate(e.target.value)}
-                className="text-sm border border-gray-300 rounded px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            ) : (
-              <span className="text-gray-500 text-sm whitespace-nowrap">{event.date}</span>
-            )}
-            <span
-              className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${
-                statusColors[event.status] || "bg-gray-100 text-gray-800"
-              }`}
-            >
-              {event.status_display || event.status}
-            </span>
+      <Card>
+        <CardContent className="pt-5 pb-5">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-center gap-3 flex-1 min-w-0">
+              {editing ? (
+                <Input
+                  type="text"
+                  value={formName}
+                  onChange={(e) => setFormName(e.target.value)}
+                  className="text-2xl font-bold h-auto py-1 max-w-md"
+                />
+              ) : (
+                <h1 className="text-2xl font-bold text-foreground truncate">
+                  {event.name}
+                </h1>
+              )}
+              {editing ? (
+                <Input
+                  type="date"
+                  value={formDate}
+                  onChange={(e) => setFormDate(e.target.value)}
+                  className="w-auto"
+                />
+              ) : (
+                <span className="text-muted-foreground text-sm whitespace-nowrap">{event.date}</span>
+              )}
+              <Badge variant={statusBadgeVariant[event.status] || "secondary"} className="whitespace-nowrap">
+                {event.status_display || event.status}
+              </Badge>
+            </div>
+            <div className="flex gap-2 flex-shrink-0">
+              {editing ? (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleCancelEdit}
+                  >
+                    Discard
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={handleSaveAll}
+                    disabled={saving}
+                  >
+                    {saving ? "Saving..." : "Save"}
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button
+                    size="sm"
+                    onClick={() => setEditing(true)}
+                  >
+                    Edit
+                  </Button>
+                  {/* Status transitions */}
+                  {event.status === "tentative" && (
+                    <Button
+                      variant="success"
+                      size="sm"
+                      onClick={() => handleStatusTransition("confirmed")}
+                      disabled={saving}
+                    >
+                      Confirm
+                    </Button>
+                  )}
+                  {event.status === "confirmed" && (
+                    <Button
+                      variant="warning"
+                      size="sm"
+                      onClick={() => handleStatusTransition("in_progress")}
+                      disabled={saving}
+                    >
+                      Start
+                    </Button>
+                  )}
+                  {event.status === "in_progress" && (
+                    <Button
+                      variant="success"
+                      size="sm"
+                      onClick={() => handleStatusTransition("completed")}
+                      disabled={saving}
+                    >
+                      Complete
+                    </Button>
+                  )}
+                  {event.status === "cancelled" && (
+                    <Button
+                      variant="warning"
+                      size="sm"
+                      onClick={() => handleStatusTransition("tentative")}
+                      disabled={saving}
+                    >
+                      Reactivate
+                    </Button>
+                  )}
+                  {(event.status === "tentative" ||
+                    event.status === "confirmed" ||
+                    event.status === "in_progress") && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleStatusTransition("cancelled")}
+                      disabled={saving}
+                    >
+                      Archive
+                    </Button>
+                  )}
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => setShowDeleteConfirm(true)}
+                  >
+                    Delete
+                  </Button>
+                  {event.source_quote_id && (
+                    <Button variant="link" size="sm" asChild>
+                      <Link href={`/quotes/${event.source_quote_id}`}>
+                        View Quote &rarr;
+                      </Link>
+                    </Button>
+                  )}
+                </>
+              )}
+            </div>
           </div>
-          <div className="flex gap-2 flex-shrink-0">
-            {editing ? (
-              <>
-                <button
-                  onClick={handleCancelEdit}
-                  className="border border-gray-300 text-gray-700 bg-white px-3 py-1.5 rounded text-sm font-medium hover:bg-gray-50"
-                >
-                  Discard
-                </button>
-                <button
-                  onClick={handleSaveAll}
-                  disabled={saving}
-                  className="bg-blue-600 text-white px-4 py-1.5 rounded text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
-                >
-                  {saving ? "Saving..." : "Save"}
-                </button>
-              </>
-            ) : (
-              <>
-                <button
-                  onClick={() => setEditing(true)}
-                  className="bg-blue-600 text-white px-3 py-1.5 rounded text-sm font-medium hover:bg-blue-700"
-                >
-                  Edit
-                </button>
-                {/* Status transitions */}
-                {event.status === "tentative" && (
-                  <button
-                    onClick={() => handleStatusTransition("confirmed")}
-                    disabled={saving}
-                    className="bg-green-600 text-white px-3 py-1.5 rounded text-sm font-medium hover:bg-green-700 disabled:opacity-50"
-                  >
-                    Confirm
-                  </button>
-                )}
-                {event.status === "confirmed" && (
-                  <button
-                    onClick={() => handleStatusTransition("in_progress")}
-                    disabled={saving}
-                    className="bg-orange-600 text-white px-3 py-1.5 rounded text-sm font-medium hover:bg-orange-700 disabled:opacity-50"
-                  >
-                    Start
-                  </button>
-                )}
-                {event.status === "in_progress" && (
-                  <button
-                    onClick={() => handleStatusTransition("completed")}
-                    disabled={saving}
-                    className="bg-green-600 text-white px-3 py-1.5 rounded text-sm font-medium hover:bg-green-700 disabled:opacity-50"
-                  >
-                    Complete
-                  </button>
-                )}
-                {event.status === "cancelled" && (
-                  <button
-                    onClick={() => handleStatusTransition("tentative")}
-                    disabled={saving}
-                    className="bg-yellow-600 text-white px-3 py-1.5 rounded text-sm font-medium hover:bg-yellow-700 disabled:opacity-50"
-                  >
-                    Reactivate
-                  </button>
-                )}
-                {(event.status === "tentative" ||
-                  event.status === "confirmed" ||
-                  event.status === "in_progress") && (
-                  <button
-                    onClick={() => handleStatusTransition("cancelled")}
-                    disabled={saving}
-                    className="border border-gray-300 text-gray-700 bg-white px-3 py-1.5 rounded text-sm font-medium hover:bg-gray-50 disabled:opacity-50"
-                  >
-                    Archive
-                  </button>
-                )}
-                <button
-                  onClick={() => setShowDeleteConfirm(true)}
-                  className="border border-red-300 text-red-700 bg-white px-3 py-1.5 rounded text-sm font-medium hover:bg-red-50"
-                >
-                  Delete
-                </button>
-                {event.source_quote_id && (
-                  <Link
-                    href={`/quotes/${event.source_quote_id}`}
-                    className="text-blue-600 hover:text-blue-800 text-sm font-medium whitespace-nowrap self-center"
-                  >
-                    View Quote &rarr;
-                  </Link>
-                )}
-              </>
-            )}
-          </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
       {/* Delete confirmation */}
       {showDeleteConfirm && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center justify-between">
-          <p className="text-red-700 text-sm">
+        <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 flex items-center justify-between">
+          <p className="text-destructive text-sm">
             Are you sure you want to delete this event? This cannot be undone.
           </p>
           <div className="flex gap-2">
-            <button
+            <Button
+              variant="outline"
+              size="sm"
               onClick={() => setShowDeleteConfirm(false)}
-              className="border border-gray-300 text-gray-700 bg-white px-3 py-1.5 rounded text-sm font-medium hover:bg-gray-50"
             >
               No, keep it
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
               onClick={handleDelete}
               disabled={saving}
-              className="bg-red-600 text-white px-3 py-1.5 rounded text-sm font-medium hover:bg-red-700 disabled:opacity-50"
             >
               {saving ? "Deleting..." : "Yes, delete"}
-            </button>
+            </Button>
           </div>
         </div>
       )}
 
       {/* Customer & Venue Section */}
-      <div className="bg-white border border-gray-200 rounded-lg">
+      <Card>
         <button
           onClick={() => toggleSection("customer")}
           className="w-full flex items-center justify-between p-5 text-left"
         >
-          <h2 className="text-lg font-semibold text-gray-900">Customer &amp; Venue</h2>
+          <h2 className="text-lg font-semibold text-foreground">Customer &amp; Venue</h2>
           <ChevronIcon open={sections.customer} />
         </button>
         {sections.customer && (
-          <div className="px-5 pb-5 border-t border-gray-100 pt-4">
+          <div className="px-5 pb-5 border-t border-border pt-4">
             {editing ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Account</label>
+                  <label className="block text-sm font-medium text-foreground mb-1">Account</label>
                   <select
                     value={formAccount ?? ""}
                     onChange={(e) => {
@@ -593,7 +606,7 @@ export default function EventDetailPage() {
                       setFormAccount(val);
                       setFormContact(null);
                     }}
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                   >
                     <option value="">-- No Account --</option>
                     {accounts.map((a) => (
@@ -602,12 +615,12 @@ export default function EventDetailPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Primary Contact</label>
+                  <label className="block text-sm font-medium text-foreground mb-1">Primary Contact</label>
                   <select
                     value={formContact ?? ""}
                     onChange={(e) => setFormContact(e.target.value ? Number(e.target.value) : null)}
                     disabled={!formAccount}
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-400"
+                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <option value="">-- Select Contact --</option>
                     {contactsForAccount.map((c) => (
@@ -616,14 +629,14 @@ export default function EventDetailPage() {
                   </select>
                 </div>
                 <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Venue</label>
+                  <label className="block text-sm font-medium text-foreground mb-1">Venue</label>
                   <div className="flex gap-4 mb-2">
                     <label className="flex items-center gap-1.5 text-sm">
-                      <input type="radio" name="venueMode" checked={venueMode === "saved"} onChange={() => setVenueMode("saved")} className="text-blue-600" />
+                      <input type="radio" name="venueMode" checked={venueMode === "saved"} onChange={() => setVenueMode("saved")} className="text-primary" />
                       Saved Venue
                     </label>
                     <label className="flex items-center gap-1.5 text-sm">
-                      <input type="radio" name="venueMode" checked={venueMode === "custom"} onChange={() => setVenueMode("custom")} className="text-blue-600" />
+                      <input type="radio" name="venueMode" checked={venueMode === "custom"} onChange={() => setVenueMode("custom")} className="text-primary" />
                       Custom Address
                     </label>
                   </div>
@@ -631,7 +644,7 @@ export default function EventDetailPage() {
                     <select
                       value={formVenue ?? ""}
                       onChange={(e) => setFormVenue(e.target.value ? Number(e.target.value) : null)}
-                      className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                     >
                       <option value="">-- Select Venue --</option>
                       {venues.map((v) => (
@@ -639,21 +652,20 @@ export default function EventDetailPage() {
                       ))}
                     </select>
                   ) : (
-                    <textarea
+                    <Textarea
                       value={formVenueAddress}
                       onChange={(e) => setFormVenueAddress(e.target.value)}
                       rows={3}
                       placeholder="Enter venue address..."
-                      className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   )}
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Event Type</label>
+                  <label className="block text-sm font-medium text-foreground mb-1">Event Type</label>
                   <select
                     value={formEventType}
                     onChange={(e) => setFormEventType(e.target.value)}
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                   >
                     <option value="">-- Select --</option>
                     {Object.entries(eventTypeLabels).map(([key, label]) => (
@@ -662,11 +674,11 @@ export default function EventDetailPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Service Style</label>
+                  <label className="block text-sm font-medium text-foreground mb-1">Service Style</label>
                   <select
                     value={formServiceStyle}
                     onChange={(e) => setFormServiceStyle(e.target.value)}
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                   >
                     <option value="">-- Select --</option>
                     {Object.entries(serviceStyleLabels).map(([key, label]) => (
@@ -675,37 +687,36 @@ export default function EventDetailPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-foreground mb-1">
                     Price Per Head ({settings.currency_symbol})
                   </label>
                   <div className="flex gap-2">
-                    <input
+                    <Input
                       type="number"
                       step="0.01"
                       min="0"
                       value={formPricePerHead}
                       onChange={(e) => setFormPricePerHead(e.target.value)}
                       placeholder="0.00"
-                      className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                     {suggestedPrice !== null && (
-                      <button
+                      <Button
                         type="button"
+                        variant="outline"
                         onClick={() => setFormPricePerHead(suggestedPrice.toFixed(2))}
-                        className="whitespace-nowrap border border-green-300 text-green-700 bg-green-50 px-3 py-2 rounded text-sm hover:bg-green-100"
+                        className="whitespace-nowrap border-success/30 text-success bg-success/10 hover:bg-success/15"
                       >
                         Use {settings.currency_symbol}{suggestedPrice.toFixed(2)}
-                      </button>
+                      </Button>
                     )}
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
-                  <textarea
+                  <label className="block text-sm font-medium text-foreground mb-1">Notes</label>
+                  <Textarea
                     value={formNotes}
                     onChange={(e) => setFormNotes(e.target.value)}
                     rows={2}
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
               </div>
@@ -722,19 +733,19 @@ export default function EventDetailPage() {
             )}
           </div>
         )}
-      </div>
+      </Card>
 
       {/* Menu Section */}
-      <div className="bg-white border border-gray-200 rounded-lg">
+      <Card>
         <button
           onClick={() => toggleSection("menu")}
           className="w-full flex items-center justify-between p-5 text-left"
         >
-          <h2 className="text-lg font-semibold text-gray-900">Menu</h2>
+          <h2 className="text-lg font-semibold text-foreground">Menu</h2>
           <ChevronIcon open={sections.menu} />
         </button>
         {sections.menu && (
-          <div className="px-5 pb-5 border-t border-gray-100 pt-4">
+          <div className="px-5 pb-5 border-t border-border pt-4">
             <MenuBuilder
               selectedDishIds={event.dishes}
               basedOnTemplate={event.based_on_template}
@@ -745,50 +756,50 @@ export default function EventDetailPage() {
             />
           </div>
         )}
-      </div>
+      </Card>
 
       {/* Guest Counts Section */}
-      <div className="bg-white border border-gray-200 rounded-lg">
+      <Card>
         <button
           onClick={() => toggleSection("guests")}
           className="w-full flex items-center justify-between p-5 text-left"
         >
-          <h2 className="text-lg font-semibold text-gray-900">Guest Counts</h2>
+          <h2 className="text-lg font-semibold text-foreground">Guest Counts</h2>
           <ChevronIcon open={sections.guests} />
         </button>
         {sections.guests && (
-          <div className="px-5 pb-5 border-t border-gray-100 pt-4">
+          <div className="px-5 pb-5 border-t border-border pt-4">
             {editing ? (
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Gents</label>
-                  <input type="number" min={0} value={formGents} onChange={(e) => setFormGents(Number(e.target.value))} className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  <label className="block text-sm font-medium text-foreground mb-1">Gents</label>
+                  <Input type="number" min={0} value={formGents} onChange={(e) => setFormGents(Number(e.target.value))} />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Ladies</label>
-                  <input type="number" min={0} value={formLadies} onChange={(e) => setFormLadies(Number(e.target.value))} className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  <label className="block text-sm font-medium text-foreground mb-1">Ladies</label>
+                  <Input type="number" min={0} value={formLadies} onChange={(e) => setFormLadies(Number(e.target.value))} />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Guaranteed Count</label>
-                  <input type="number" min={0} value={formGuaranteed ?? ""} onChange={(e) => setFormGuaranteed(e.target.value ? Number(e.target.value) : null)} className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  <label className="block text-sm font-medium text-foreground mb-1">Guaranteed Count</label>
+                  <Input type="number" min={0} value={formGuaranteed ?? ""} onChange={(e) => setFormGuaranteed(e.target.value ? Number(e.target.value) : null)} />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Final Count</label>
-                  <input type="number" min={0} value={formFinalCount ?? ""} onChange={(e) => setFormFinalCount(e.target.value ? Number(e.target.value) : null)} className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  <label className="block text-sm font-medium text-foreground mb-1">Final Count</label>
+                  <Input type="number" min={0} value={formFinalCount ?? ""} onChange={(e) => setFormFinalCount(e.target.value ? Number(e.target.value) : null)} />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Final Count Due</label>
-                  <input type="date" value={formFinalCountDue} onChange={(e) => setFormFinalCountDue(e.target.value)} className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  <label className="block text-sm font-medium text-foreground mb-1">Final Count Due</label>
+                  <Input type="date" value={formFinalCountDue} onChange={(e) => setFormFinalCountDue(e.target.value)} />
                 </div>
                 <div className="flex flex-col justify-end">
                   <label className="flex items-center gap-2 text-sm">
-                    <input type="checkbox" checked={formBigEaters} onChange={(e) => setFormBigEaters(e.target.checked)} className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
-                    <span className="font-medium text-gray-700">Big Eaters</span>
+                    <input type="checkbox" checked={formBigEaters} onChange={(e) => setFormBigEaters(e.target.checked)} className="rounded border-input text-primary focus:ring-ring" />
+                    <span className="font-medium text-foreground">Big Eaters</span>
                   </label>
                   {formBigEaters && (
                     <div className="mt-2">
-                      <label className="block text-xs text-gray-500 mb-0.5">Percentage (%)</label>
-                      <input type="number" min={0} max={100} value={formBigEatersPercent} onChange={(e) => setFormBigEatersPercent(Number(e.target.value))} className="w-full border border-gray-300 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      <label className="block text-xs text-muted-foreground mb-0.5">Percentage (%)</label>
+                      <Input type="number" min={0} max={100} value={formBigEatersPercent} onChange={(e) => setFormBigEatersPercent(Number(e.target.value))} className="h-8" />
                     </div>
                   )}
                 </div>
@@ -806,36 +817,36 @@ export default function EventDetailPage() {
             )}
           </div>
         )}
-      </div>
+      </Card>
 
       {/* Timeline Section */}
-      <div className="bg-white border border-gray-200 rounded-lg">
+      <Card>
         <button
           onClick={() => toggleSection("timeline")}
           className="w-full flex items-center justify-between p-5 text-left"
         >
-          <h2 className="text-lg font-semibold text-gray-900">Timeline</h2>
+          <h2 className="text-lg font-semibold text-foreground">Timeline</h2>
           <ChevronIcon open={sections.timeline} />
         </button>
         {sections.timeline && (
-          <div className="px-5 pb-5 border-t border-gray-100 pt-4">
+          <div className="px-5 pb-5 border-t border-border pt-4">
             {editing ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Setup Time</label>
-                  <input type="datetime-local" value={formSetupTime} onChange={(e) => setFormSetupTime(e.target.value)} className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  <label className="block text-sm font-medium text-foreground mb-1">Setup Time</label>
+                  <Input type="datetime-local" value={formSetupTime} onChange={(e) => setFormSetupTime(e.target.value)} />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Guest Arrival Time</label>
-                  <input type="datetime-local" value={formArrivalTime} onChange={(e) => setFormArrivalTime(e.target.value)} className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  <label className="block text-sm font-medium text-foreground mb-1">Guest Arrival Time</label>
+                  <Input type="datetime-local" value={formArrivalTime} onChange={(e) => setFormArrivalTime(e.target.value)} />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Meal Time</label>
-                  <input type="datetime-local" value={formMealTime} onChange={(e) => setFormMealTime(e.target.value)} className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  <label className="block text-sm font-medium text-foreground mb-1">Meal Time</label>
+                  <Input type="datetime-local" value={formMealTime} onChange={(e) => setFormMealTime(e.target.value)} />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">End Time</label>
-                  <input type="datetime-local" value={formEndTime} onChange={(e) => setFormEndTime(e.target.value)} className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  <label className="block text-sm font-medium text-foreground mb-1">End Time</label>
+                  <Input type="datetime-local" value={formEndTime} onChange={(e) => setFormEndTime(e.target.value)} />
                 </div>
               </div>
             ) : (
@@ -848,210 +859,209 @@ export default function EventDetailPage() {
             )}
           </div>
         )}
-      </div>
+      </Card>
 
       {/* Staffing Section */}
-      <div className="bg-white border border-gray-200 rounded-lg">
+      <Card>
         <button
           onClick={() => toggleSection("staffing")}
           className="w-full flex items-center justify-between p-5 text-left"
         >
-          <h2 className="text-lg font-semibold text-gray-900">Staffing</h2>
+          <h2 className="text-lg font-semibold text-foreground">Staffing</h2>
           <ChevronIcon open={sections.staffing} />
         </button>
         {sections.staffing && (
-          <div className="px-5 pb-5 border-t border-gray-100 pt-4">
+          <div className="px-5 pb-5 border-t border-border pt-4">
             {event.shifts.length > 0 ? (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead className="bg-gray-50 border-b border-gray-200">
+                  <thead className="bg-muted border-b border-border">
                     <tr>
-                      <th className="text-left px-3 py-2 font-medium text-gray-700">Role</th>
-                      <th className="text-left px-3 py-2 font-medium text-gray-700">Staff</th>
-                      <th className="text-left px-3 py-2 font-medium text-gray-700">Start</th>
-                      <th className="text-left px-3 py-2 font-medium text-gray-700">End</th>
-                      <th className="text-right px-3 py-2 font-medium text-gray-700">Cost</th>
-                      <th className="text-center px-3 py-2 font-medium text-gray-700">Status</th>
+                      <th className="text-left px-3 py-2 font-medium text-muted-foreground">Role</th>
+                      <th className="text-left px-3 py-2 font-medium text-muted-foreground">Staff</th>
+                      <th className="text-left px-3 py-2 font-medium text-muted-foreground">Start</th>
+                      <th className="text-left px-3 py-2 font-medium text-muted-foreground">End</th>
+                      <th className="text-right px-3 py-2 font-medium text-muted-foreground">Cost</th>
+                      <th className="text-center px-3 py-2 font-medium text-muted-foreground">Status</th>
                       <th className="px-3 py-2"></th>
                     </tr>
                   </thead>
                   <tbody>
                     {event.shifts.map((shift) => (
-                      <tr key={shift.id} className="border-b border-gray-100 hover:bg-gray-50">
-                        <td className="px-3 py-2 text-gray-900">{shift.role_name}</td>
-                        <td className="px-3 py-2 text-gray-900">{shift.staff_member_name || "Unassigned"}</td>
-                        <td className="px-3 py-2 text-gray-600 text-xs">{formatDateTime(shift.start_time)}</td>
-                        <td className="px-3 py-2 text-gray-600 text-xs">{formatDateTime(shift.end_time)}</td>
-                        <td className="px-3 py-2 text-right text-gray-900">{parseFloat(shift.shift_cost).toFixed(2)}</td>
+                      <tr key={shift.id} className="border-b border-border hover:bg-muted">
+                        <td className="px-3 py-2 text-foreground">{shift.role_name}</td>
+                        <td className="px-3 py-2 text-foreground">{shift.staff_member_name || "Unassigned"}</td>
+                        <td className="px-3 py-2 text-muted-foreground text-xs">{formatDateTime(shift.start_time)}</td>
+                        <td className="px-3 py-2 text-muted-foreground text-xs">{formatDateTime(shift.end_time)}</td>
+                        <td className="px-3 py-2 text-right text-foreground">{parseFloat(shift.shift_cost).toFixed(2)}</td>
                         <td className="px-3 py-2 text-center">
-                          <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">{shift.status}</span>
+                          <Badge variant="secondary">{shift.status}</Badge>
                         </td>
                         <td className="px-3 py-2 text-center">
-                          <button onClick={() => handleDeleteShift(shift.id)} disabled={saving} className="text-red-500 hover:text-red-700 text-sm font-medium disabled:opacity-50" title="Delete shift">X</button>
+                          <Button variant="ghost" size="sm" onClick={() => handleDeleteShift(shift.id)} disabled={saving} className="text-destructive hover:text-destructive" title="Delete shift">X</Button>
                         </td>
                       </tr>
                     ))}
                   </tbody>
-                  <tfoot className="bg-gray-50 border-t border-gray-300">
+                  <tfoot className="bg-muted border-t border-border">
                     <tr className="font-semibold">
-                      <td colSpan={4} className="px-3 py-2 text-gray-900">Total Labor Cost</td>
-                      <td className="px-3 py-2 text-right text-gray-900">{totalLaborCost.toFixed(2)}</td>
+                      <td colSpan={4} className="px-3 py-2 text-foreground">Total Labor Cost</td>
+                      <td className="px-3 py-2 text-right text-foreground">{totalLaborCost.toFixed(2)}</td>
                       <td colSpan={2}></td>
                     </tr>
                   </tfoot>
                 </table>
               </div>
             ) : (
-              <p className="text-sm text-gray-500 mb-4">No shifts scheduled yet.</p>
+              <p className="text-sm text-muted-foreground mb-4">No shifts scheduled yet.</p>
             )}
 
             {/* Add Shift Form */}
-            <div className="mt-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
-              <p className="text-sm font-medium text-gray-700 mb-2">Add Shift</p>
+            <div className="mt-4 p-3 bg-muted rounded-lg border border-border">
+              <p className="text-sm font-medium text-foreground mb-2">Add Shift</p>
               <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-                <select value={newShiftRole} onChange={(e) => setNewShiftRole(e.target.value ? Number(e.target.value) : "")} className="border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <select value={newShiftRole} onChange={(e) => setNewShiftRole(e.target.value ? Number(e.target.value) : "")} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
                   <option value="">Role...</option>
                   {laborRoles.map((r) => (<option key={r.id} value={r.id}>{r.name}</option>))}
                 </select>
-                <select value={newShiftStaff} onChange={(e) => setNewShiftStaff(e.target.value ? Number(e.target.value) : "")} className="border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <select value={newShiftStaff} onChange={(e) => setNewShiftStaff(e.target.value ? Number(e.target.value) : "")} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
                   <option value="">Staff (optional)...</option>
                   {staffList.map((s) => (<option key={s.id} value={s.id}>{s.name}</option>))}
                 </select>
-                <input type="datetime-local" value={newShiftStart} onChange={(e) => setNewShiftStart(e.target.value)} className="border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Start" />
-                <input type="datetime-local" value={newShiftEnd} onChange={(e) => setNewShiftEnd(e.target.value)} className="border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="End" />
-                <button onClick={handleAddShift} disabled={saving || newShiftRole === "" || !newShiftStart || !newShiftEnd} className="bg-blue-600 text-white px-3 py-1.5 rounded text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
+                <Input type="datetime-local" value={newShiftStart} onChange={(e) => setNewShiftStart(e.target.value)} placeholder="Start" />
+                <Input type="datetime-local" value={newShiftEnd} onChange={(e) => setNewShiftEnd(e.target.value)} placeholder="End" />
+                <Button size="sm" onClick={handleAddShift} disabled={saving || newShiftRole === "" || !newShiftStart || !newShiftEnd}>
                   Add
-                </button>
+                </Button>
               </div>
             </div>
           </div>
         )}
-      </div>
+      </Card>
 
       {/* Equipment Section */}
-      <div className="bg-white border border-gray-200 rounded-lg">
+      <Card>
         <button
           onClick={() => toggleSection("equipment")}
           className="w-full flex items-center justify-between p-5 text-left"
         >
-          <h2 className="text-lg font-semibold text-gray-900">Equipment</h2>
+          <h2 className="text-lg font-semibold text-foreground">Equipment</h2>
           <ChevronIcon open={sections.equipment} />
         </button>
         {sections.equipment && (
-          <div className="px-5 pb-5 border-t border-gray-100 pt-4">
+          <div className="px-5 pb-5 border-t border-border pt-4">
             {event.equipment_reservations.length > 0 ? (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead className="bg-gray-50 border-b border-gray-200">
+                  <thead className="bg-muted border-b border-border">
                     <tr>
-                      <th className="text-left px-3 py-2 font-medium text-gray-700">Equipment</th>
-                      <th className="text-right px-3 py-2 font-medium text-gray-700">Qty</th>
-                      <th className="text-right px-3 py-2 font-medium text-gray-700">Cost</th>
+                      <th className="text-left px-3 py-2 font-medium text-muted-foreground">Equipment</th>
+                      <th className="text-right px-3 py-2 font-medium text-muted-foreground">Qty</th>
+                      <th className="text-right px-3 py-2 font-medium text-muted-foreground">Cost</th>
                       <th className="px-3 py-2"></th>
                     </tr>
                   </thead>
                   <tbody>
                     {event.equipment_reservations.map((res) => (
-                      <tr key={res.id} className="border-b border-gray-100 hover:bg-gray-50">
-                        <td className="px-3 py-2 text-gray-900">{res.equipment_name}</td>
-                        <td className="px-3 py-2 text-right text-gray-900">{res.quantity_out}</td>
-                        <td className="px-3 py-2 text-right text-gray-900">{parseFloat(res.line_cost).toFixed(2)}</td>
+                      <tr key={res.id} className="border-b border-border hover:bg-muted">
+                        <td className="px-3 py-2 text-foreground">{res.equipment_name}</td>
+                        <td className="px-3 py-2 text-right text-foreground">{res.quantity_out}</td>
+                        <td className="px-3 py-2 text-right text-foreground">{parseFloat(res.line_cost).toFixed(2)}</td>
                         <td className="px-3 py-2 text-center">
-                          <button onClick={() => handleDeleteReservation(res.id)} disabled={saving} className="text-red-500 hover:text-red-700 text-sm font-medium disabled:opacity-50" title="Delete reservation">X</button>
+                          <Button variant="ghost" size="sm" onClick={() => handleDeleteReservation(res.id)} disabled={saving} className="text-destructive hover:text-destructive" title="Delete reservation">X</Button>
                         </td>
                       </tr>
                     ))}
                   </tbody>
-                  <tfoot className="bg-gray-50 border-t border-gray-300">
+                  <tfoot className="bg-muted border-t border-border">
                     <tr className="font-semibold">
-                      <td colSpan={2} className="px-3 py-2 text-gray-900">Total Equipment Cost</td>
-                      <td className="px-3 py-2 text-right text-gray-900">{totalEquipmentCost.toFixed(2)}</td>
+                      <td colSpan={2} className="px-3 py-2 text-foreground">Total Equipment Cost</td>
+                      <td className="px-3 py-2 text-right text-foreground">{totalEquipmentCost.toFixed(2)}</td>
                       <td></td>
                     </tr>
                   </tfoot>
                 </table>
               </div>
             ) : (
-              <p className="text-sm text-gray-500 mb-4">No equipment reserved yet.</p>
+              <p className="text-sm text-muted-foreground mb-4">No equipment reserved yet.</p>
             )}
 
             {/* Add Equipment Form */}
-            <div className="mt-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
-              <p className="text-sm font-medium text-gray-700 mb-2">Add Equipment</p>
+            <div className="mt-4 p-3 bg-muted rounded-lg border border-border">
+              <p className="text-sm font-medium text-foreground mb-2">Add Equipment</p>
               <div className="grid grid-cols-3 gap-2">
-                <select value={newEquipId} onChange={(e) => setNewEquipId(e.target.value ? Number(e.target.value) : "")} className="border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <select value={newEquipId} onChange={(e) => setNewEquipId(e.target.value ? Number(e.target.value) : "")} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
                   <option value="">Equipment...</option>
                   {equipmentItems.map((eq) => (<option key={eq.id} value={eq.id}>{eq.name}</option>))}
                 </select>
-                <input type="number" min={1} value={newEquipQty} onChange={(e) => setNewEquipQty(Number(e.target.value))} className="border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Quantity" />
-                <button onClick={handleAddEquipment} disabled={saving || newEquipId === ""} className="bg-blue-600 text-white px-3 py-1.5 rounded text-sm font-medium hover:bg-blue-700 disabled:opacity-50">Add</button>
+                <Input type="number" min={1} value={newEquipQty} onChange={(e) => setNewEquipQty(Number(e.target.value))} placeholder="Quantity" />
+                <Button size="sm" onClick={handleAddEquipment} disabled={saving || newEquipId === ""}>Add</Button>
               </div>
             </div>
           </div>
         )}
-      </div>
+      </Card>
 
       {/* Invoices Section */}
-      <div className="bg-white border border-gray-200 rounded-lg">
+      <Card>
         <button
           onClick={() => toggleSection("invoices")}
           className="w-full flex items-center justify-between p-5 text-left"
         >
-          <h2 className="text-lg font-semibold text-gray-900">Invoices</h2>
+          <h2 className="text-lg font-semibold text-foreground">Invoices</h2>
           <ChevronIcon open={sections.invoices} />
         </button>
         {sections.invoices && (
-          <div className="px-5 pb-5 border-t border-gray-100 pt-4">
+          <div className="px-5 pb-5 border-t border-border pt-4">
             {event.invoices.length > 0 ? (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead className="bg-gray-50 border-b border-gray-200">
+                  <thead className="bg-muted border-b border-border">
                     <tr>
-                      <th className="text-left px-3 py-2 font-medium text-gray-700">Invoice #</th>
-                      <th className="text-left px-3 py-2 font-medium text-gray-700">Type</th>
-                      <th className="text-right px-3 py-2 font-medium text-gray-700">Total</th>
-                      <th className="text-center px-3 py-2 font-medium text-gray-700">Status</th>
-                      <th className="text-right px-3 py-2 font-medium text-gray-700">Balance Due</th>
+                      <th className="text-left px-3 py-2 font-medium text-muted-foreground">Invoice #</th>
+                      <th className="text-left px-3 py-2 font-medium text-muted-foreground">Type</th>
+                      <th className="text-right px-3 py-2 font-medium text-muted-foreground">Total</th>
+                      <th className="text-center px-3 py-2 font-medium text-muted-foreground">Status</th>
+                      <th className="text-right px-3 py-2 font-medium text-muted-foreground">Balance Due</th>
                     </tr>
                   </thead>
                   <tbody>
                     {event.invoices.map((inv) => (
-                      <tr key={inv.id} className="border-b border-gray-100 hover:bg-gray-50">
+                      <tr key={inv.id} className="border-b border-border hover:bg-muted">
                         <td className="px-3 py-2">
-                          <Link href={`/invoices/${inv.id}`} className="text-blue-600 hover:text-blue-800 font-medium">{inv.invoice_number}</Link>
+                          <Link href={`/invoices/${inv.id}`} className="text-primary hover:text-primary/80 font-medium">{inv.invoice_number}</Link>
                         </td>
-                        <td className="px-3 py-2 text-gray-700 capitalize">{inv.invoice_type}</td>
-                        <td className="px-3 py-2 text-right text-gray-900">{parseFloat(inv.total).toFixed(2)}</td>
+                        <td className="px-3 py-2 text-muted-foreground capitalize">{inv.invoice_type}</td>
+                        <td className="px-3 py-2 text-right text-foreground">{parseFloat(inv.total).toFixed(2)}</td>
                         <td className="px-3 py-2 text-center">
-                          <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
-                            inv.status === "paid" ? "bg-green-100 text-green-800" :
-                            inv.status === "overdue" ? "bg-red-100 text-red-800" :
-                            inv.status === "sent" ? "bg-blue-100 text-blue-800" :
-                            "bg-gray-100 text-gray-700"
-                          }`}>{inv.status}</span>
+                          <Badge variant={
+                            inv.status === "paid" ? "success" :
+                            inv.status === "overdue" ? "destructive" :
+                            inv.status === "sent" ? "info" :
+                            "secondary"
+                          }>{inv.status}</Badge>
                         </td>
-                        <td className="px-3 py-2 text-right text-gray-900">{parseFloat(inv.balance_due).toFixed(2)}</td>
+                        <td className="px-3 py-2 text-right text-foreground">{parseFloat(inv.balance_due).toFixed(2)}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
             ) : (
-              <p className="text-sm text-gray-500 mb-4">No invoices yet.</p>
+              <p className="text-sm text-muted-foreground mb-4">No invoices yet.</p>
             )}
 
             <div className="mt-4">
-              <button
+              <Button
                 onClick={handleCreateInvoice}
                 disabled={saving}
-                className="bg-blue-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
               >
                 {saving ? "Creating..." : "Create Invoice"}
-              </button>
+              </Button>
             </div>
           </div>
         )}
-      </div>
+      </Card>
     </div>
   );
 }

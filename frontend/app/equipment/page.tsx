@@ -2,6 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { api, EquipmentItem } from "@/lib/api";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 
 const CATEGORIES = [
   { value: "chafer", label: "Chafer / Warmer" },
@@ -96,43 +101,41 @@ export default function EquipmentPage() {
     }
   }
 
-  if (loading) return <p className="text-gray-500">Loading equipment...</p>;
-  if (error) return <p className="text-red-600">Error: {error}</p>;
+  if (loading) return <p className="text-muted-foreground">Loading equipment...</p>;
+  if (error) return <p className="text-destructive">Error: {error}</p>;
 
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Equipment</h1>
-        <button
+        <h1 className="text-2xl font-bold text-foreground">Equipment</h1>
+        <Button
           onClick={() => {
             setShowForm(!showForm);
             setFormData({ name: "", category: "other", stock_quantity: 0, rental_price: "", description: "" });
           }}
-          className="bg-blue-600 text-white px-4 py-2 rounded text-sm hover:bg-blue-700"
         >
           {showForm ? "Cancel" : "Add Equipment"}
-        </button>
+        </Button>
       </div>
 
       {showForm && (
-        <form onSubmit={handleCreate} className="bg-white border border-gray-200 rounded-lg p-4 mb-6">
+        <form onSubmit={handleCreate} className="bg-background border border-border rounded-lg p-4 mb-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
-              <input
+              <label className="block text-sm font-medium text-foreground mb-1">Name *</label>
+              <Input
                 type="text"
                 required
                 value={formData.name || ""}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-1 focus:ring-blue-500"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+              <label className="block text-sm font-medium text-foreground mb-1">Category</label>
               <select
                 value={formData.category || "other"}
                 onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-1 focus:ring-blue-500"
+                className="w-full border border-input rounded-md px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               >
                 {CATEGORIES.map((cat) => (
                   <option key={cat.value} value={cat.value}>
@@ -142,67 +145,64 @@ export default function EquipmentPage() {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Stock Quantity</label>
-              <input
+              <label className="block text-sm font-medium text-foreground mb-1">Stock Quantity</label>
+              <Input
                 type="number"
                 min="0"
                 value={formData.stock_quantity ?? 0}
                 onChange={(e) => setFormData({ ...formData, stock_quantity: parseInt(e.target.value) || 0 })}
-                className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-1 focus:ring-blue-500"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Rental Price</label>
-              <input
+              <label className="block text-sm font-medium text-foreground mb-1">Rental Price</label>
+              <Input
                 type="number"
                 step="0.01"
                 value={formData.rental_price || ""}
                 onChange={(e) => setFormData({ ...formData, rental_price: e.target.value })}
-                className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-1 focus:ring-blue-500"
                 placeholder="0.00"
               />
             </div>
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-              <textarea
+              <label className="block text-sm font-medium text-foreground mb-1">Description</label>
+              <Textarea
                 value={formData.description || ""}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 rows={2}
-                className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-1 focus:ring-blue-500"
               />
             </div>
           </div>
           <div className="flex gap-2 mt-4">
-            <button
+            <Button
               type="submit"
               disabled={saving}
-              className="bg-green-600 text-white px-4 py-2 rounded text-sm hover:bg-green-700 disabled:opacity-50"
+              variant="success"
             >
               {saving ? "Saving..." : "Save"}
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              variant="outline"
               onClick={() => setShowForm(false)}
-              className="border border-gray-300 text-gray-700 px-4 py-2 rounded text-sm hover:bg-gray-50"
             >
               Cancel
-            </button>
+            </Button>
           </div>
         </form>
       )}
 
       <div className="flex flex-col sm:flex-row gap-3 mb-4">
-        <input
+        <Input
           type="text"
           placeholder="Search equipment..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-full sm:w-80 border border-gray-300 rounded px-3 py-2 text-sm focus:ring-1 focus:ring-blue-500"
+          className="w-full sm:w-80"
         />
         <select
           value={categoryFilter}
           onChange={(e) => setCategoryFilter(e.target.value)}
-          className="w-full sm:w-56 border border-gray-300 rounded px-3 py-2 text-sm focus:ring-1 focus:ring-blue-500"
+          className="w-full sm:w-56 border border-input rounded-md px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
         >
           <option value="">All Categories</option>
           {CATEGORIES.map((cat) => (
@@ -214,154 +214,152 @@ export default function EquipmentPage() {
       </div>
 
       {filtered.length === 0 ? (
-        <p className="text-gray-500">No equipment found.</p>
+        <p className="text-muted-foreground">No equipment found.</p>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtered.map((item) => (
-            <div key={item.id} className="bg-white border border-gray-200 rounded-lg p-4">
-              <div
-                className="cursor-pointer"
-                onClick={() => expandCard(item)}
-              >
-                <div className="flex items-start justify-between">
-                  <div>
-                    <h3 className="font-semibold text-gray-900">{item.name}</h3>
-                    <span className="inline-block mt-1 bg-purple-100 text-purple-700 text-xs px-2 py-0.5 rounded">
-                      {CATEGORY_LABELS[item.category] || item.category}
-                    </span>
-                  </div>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      expandCard(item);
-                    }}
-                    className="text-blue-600 text-sm hover:underline"
-                  >
-                    {expandedId === item.id ? "Close" : "Edit"}
-                  </button>
-                </div>
-                <div className="flex items-center justify-between mt-3">
-                  <span className="text-sm text-gray-600">
-                    Stock: <span className="font-medium text-gray-900">{item.stock_quantity}</span>
-                  </span>
-                  {item.rental_price && (
-                    <span className="text-sm font-medium text-gray-700">
-                      {"\u00A3"}{parseFloat(item.rental_price).toFixed(2)}/event
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {expandedId === item.id && (
-                <form
-                  onSubmit={(e) => handleUpdate(item.id, e)}
-                  className="mt-4 pt-4 border-t border-gray-100"
+            <Card key={item.id}>
+              <CardContent className="pt-4 pb-4">
+                <div
+                  className="cursor-pointer"
+                  onClick={() => expandCard(item)}
                 >
-                  <div className="grid grid-cols-1 gap-3">
+                  <div className="flex items-start justify-between">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
-                      <input
-                        type="text"
-                        required
-                        value={editFormData.name || ""}
-                        onChange={(e) =>
-                          setEditFormData({ ...editFormData, name: e.target.value })
-                        }
-                        className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-1 focus:ring-blue-500"
-                      />
+                      <h3 className="font-semibold text-foreground">{item.name}</h3>
+                      <Badge variant="secondary" className="mt-1">
+                        {CATEGORY_LABELS[item.category] || item.category}
+                      </Badge>
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-                      <select
-                        value={editFormData.category || "other"}
-                        onChange={(e) =>
-                          setEditFormData({ ...editFormData, category: e.target.value })
-                        }
-                        className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-1 focus:ring-blue-500"
-                      >
-                        {CATEGORIES.map((cat) => (
-                          <option key={cat.value} value={cat.value}>
-                            {cat.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
+                    <Button
+                      variant="link"
+                      className="p-0 h-auto"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        expandCard(item);
+                      }}
+                    >
+                      {expandedId === item.id ? "Close" : "Edit"}
+                    </Button>
+                  </div>
+                  <div className="flex items-center justify-between mt-3">
+                    <span className="text-sm text-muted-foreground">
+                      Stock: <span className="font-medium text-foreground">{item.stock_quantity}</span>
+                    </span>
+                    {item.rental_price && (
+                      <span className="text-sm font-medium text-foreground">
+                        {"\u00A3"}{parseFloat(item.rental_price).toFixed(2)}/event
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {expandedId === item.id && (
+                  <form
+                    onSubmit={(e) => handleUpdate(item.id, e)}
+                    className="mt-4 pt-4 border-t border-border"
+                  >
+                    <div className="grid grid-cols-1 gap-3">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Stock Qty</label>
-                        <input
-                          type="number"
-                          min="0"
-                          value={editFormData.stock_quantity ?? 0}
+                        <label className="block text-sm font-medium text-foreground mb-1">Name *</label>
+                        <Input
+                          type="text"
+                          required
+                          value={editFormData.name || ""}
                           onChange={(e) =>
-                            setEditFormData({
-                              ...editFormData,
-                              stock_quantity: parseInt(e.target.value) || 0,
-                            })
+                            setEditFormData({ ...editFormData, name: e.target.value })
                           }
-                          className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-1 focus:ring-blue-500"
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Rental Price</label>
-                        <input
+                        <label className="block text-sm font-medium text-foreground mb-1">Category</label>
+                        <select
+                          value={editFormData.category || "other"}
+                          onChange={(e) =>
+                            setEditFormData({ ...editFormData, category: e.target.value })
+                          }
+                          className="w-full border border-input rounded-md px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                        >
+                          {CATEGORIES.map((cat) => (
+                            <option key={cat.value} value={cat.value}>
+                              {cat.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-sm font-medium text-foreground mb-1">Stock Qty</label>
+                          <Input
+                            type="number"
+                            min="0"
+                            value={editFormData.stock_quantity ?? 0}
+                            onChange={(e) =>
+                              setEditFormData({
+                                ...editFormData,
+                                stock_quantity: parseInt(e.target.value) || 0,
+                              })
+                            }
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-foreground mb-1">Rental Price</label>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            value={editFormData.rental_price || ""}
+                            onChange={(e) =>
+                              setEditFormData({ ...editFormData, rental_price: e.target.value })
+                            }
+                            placeholder="0.00"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-foreground mb-1">
+                          Replacement Cost
+                        </label>
+                        <Input
                           type="number"
                           step="0.01"
-                          value={editFormData.rental_price || ""}
+                          value={editFormData.replacement_cost || ""}
                           onChange={(e) =>
-                            setEditFormData({ ...editFormData, rental_price: e.target.value })
+                            setEditFormData({ ...editFormData, replacement_cost: e.target.value })
                           }
-                          className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-1 focus:ring-blue-500"
                           placeholder="0.00"
                         />
                       </div>
+                      <div>
+                        <label className="block text-sm font-medium text-foreground mb-1">Description</label>
+                        <Textarea
+                          value={editFormData.description || ""}
+                          onChange={(e) =>
+                            setEditFormData({ ...editFormData, description: e.target.value })
+                          }
+                          rows={2}
+                        />
+                      </div>
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Replacement Cost
-                      </label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        value={editFormData.replacement_cost || ""}
-                        onChange={(e) =>
-                          setEditFormData({ ...editFormData, replacement_cost: e.target.value })
-                        }
-                        className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-1 focus:ring-blue-500"
-                        placeholder="0.00"
-                      />
+                    <div className="flex gap-2 mt-4">
+                      <Button
+                        type="submit"
+                        disabled={saving}
+                        variant="success"
+                      >
+                        {saving ? "Saving..." : "Save"}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setExpandedId(null)}
+                      >
+                        Cancel
+                      </Button>
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                      <textarea
-                        value={editFormData.description || ""}
-                        onChange={(e) =>
-                          setEditFormData({ ...editFormData, description: e.target.value })
-                        }
-                        rows={2}
-                        className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-1 focus:ring-blue-500"
-                      />
-                    </div>
-                  </div>
-                  <div className="flex gap-2 mt-4">
-                    <button
-                      type="submit"
-                      disabled={saving}
-                      className="bg-green-600 text-white px-4 py-2 rounded text-sm hover:bg-green-700 disabled:opacity-50"
-                    >
-                      {saving ? "Saving..." : "Save"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setExpandedId(null)}
-                      className="border border-gray-300 text-gray-700 px-4 py-2 rounded text-sm hover:bg-gray-50"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </form>
-              )}
-            </div>
+                  </form>
+                )}
+              </CardContent>
+            </Card>
           ))}
         </div>
       )}

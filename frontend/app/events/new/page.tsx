@@ -5,6 +5,10 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { api, Account, Contact, Venue, SiteSettingsData } from "@/lib/api";
 import MenuBuilder from "@/components/MenuBuilder";
+import { Button } from "@/components/ui/button";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 
 export default function NewEventPage() {
   const router = useRouter();
@@ -99,183 +103,212 @@ export default function NewEventPage() {
 
   return (
     <div>
-      <Link href="/events" className="text-sm text-blue-600 hover:underline mb-4 inline-block">&larr; Back to Events</Link>
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">New Event</h1>
+      <Button variant="link" asChild className="mb-4 p-0 h-auto">
+        <Link href="/events">&larr; Back to Events</Link>
+      </Button>
+      <h1 className="text-2xl font-bold text-foreground mb-6">New Event</h1>
 
-      {error && <p className="text-red-600 mb-4">{error}</p>}
+      {error && <p className="text-destructive mb-4">{error}</p>}
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Basic Info */}
-        <div className="bg-white border border-gray-200 rounded-lg p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Event Info</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Event Name *</label>
-              <input type="text" required value={formData.name} onChange={set("name")} placeholder="e.g. Smith Wedding Reception" className="w-full border border-gray-300 rounded px-3 py-2 text-sm" />
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Event Info</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-foreground mb-1">Event Name *</label>
+                <Input type="text" required value={formData.name} onChange={set("name")} placeholder="e.g. Smith Wedding Reception" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Date *</label>
+                <Input type="date" required value={formData.date} onChange={set("date")} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Status</label>
+                <select value={formData.status} onChange={set("status")} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
+                  <option value="tentative">Tentative</option>
+                  <option value="confirmed">Confirmed</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Event Type</label>
+                <select value={formData.event_type} onChange={set("event_type")} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
+                  <option value="wedding">Wedding</option>
+                  <option value="corporate">Corporate Event</option>
+                  <option value="birthday">Birthday Party</option>
+                  <option value="funeral">Funeral / Wake</option>
+                  <option value="religious">Religious Event</option>
+                  <option value="social">Social Gathering</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Service Style</label>
+                <select value={formData.service_style} onChange={set("service_style")} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
+                  <option value="">-- Select --</option>
+                  <option value="buffet">Buffet</option>
+                  <option value="plated">Plated / Sit-down</option>
+                  <option value="stations">Food Stations</option>
+                  <option value="family_style">Family Style</option>
+                  <option value="boxed">Boxed / Individual</option>
+                  <option value="canapes">Canapes</option>
+                  <option value="mixed">Mixed Service</option>
+                </select>
+              </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Date *</label>
-              <input type="date" required value={formData.date} onChange={set("date")} className="w-full border border-gray-300 rounded px-3 py-2 text-sm" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-              <select value={formData.status} onChange={set("status")} className="w-full border border-gray-300 rounded px-3 py-2 text-sm">
-                <option value="tentative">Tentative</option>
-                <option value="confirmed">Confirmed</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Event Type</label>
-              <select value={formData.event_type} onChange={set("event_type")} className="w-full border border-gray-300 rounded px-3 py-2 text-sm">
-                <option value="wedding">Wedding</option>
-                <option value="corporate">Corporate Event</option>
-                <option value="birthday">Birthday Party</option>
-                <option value="funeral">Funeral / Wake</option>
-                <option value="religious">Religious Event</option>
-                <option value="social">Social Gathering</option>
-                <option value="other">Other</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Service Style</label>
-              <select value={formData.service_style} onChange={set("service_style")} className="w-full border border-gray-300 rounded px-3 py-2 text-sm">
-                <option value="">-- Select --</option>
-                <option value="buffet">Buffet</option>
-                <option value="plated">Plated / Sit-down</option>
-                <option value="stations">Food Stations</option>
-                <option value="family_style">Family Style</option>
-                <option value="boxed">Boxed / Individual</option>
-                <option value="canapes">Canapes</option>
-                <option value="mixed">Mixed Service</option>
-              </select>
-            </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
         {/* Guest Count */}
-        <div className="bg-white border border-gray-200 rounded-lg p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Guests</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Gents *</label>
-              <input type="number" required min="0" value={formData.gents} onChange={set("gents")} className="w-full border border-gray-300 rounded px-3 py-2 text-sm" />
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Guests</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Gents *</label>
+                <Input type="number" required min={0} value={formData.gents} onChange={set("gents")} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Ladies *</label>
+                <Input type="number" required min={0} value={formData.ladies} onChange={set("ladies")} />
+              </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Ladies *</label>
-              <input type="number" required min="0" value={formData.ladies} onChange={set("ladies")} className="w-full border border-gray-300 rounded px-3 py-2 text-sm" />
-            </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
         {/* Customer */}
-        <div className="bg-white border border-gray-200 rounded-lg p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Customer</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Account</label>
-              <select value={formData.account} onChange={set("account")} className="w-full border border-gray-300 rounded px-3 py-2 text-sm">
-                <option value="">-- No account --</option>
-                {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-              </select>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Customer</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Account</label>
+                <select value={formData.account} onChange={set("account")} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
+                  <option value="">-- No account --</option>
+                  {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Contact Person</label>
+                <select value={formData.primary_contact} onChange={set("primary_contact")} disabled={!formData.account} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50">
+                  <option value="">-- Select Contact --</option>
+                  {contacts.map((c) => <option key={c.id} value={c.id}>{c.name} ({c.role})</option>)}
+                </select>
+              </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Contact Person</label>
-              <select value={formData.primary_contact} onChange={set("primary_contact")} disabled={!formData.account} className="w-full border border-gray-300 rounded px-3 py-2 text-sm disabled:bg-gray-100">
-                <option value="">-- Select Contact --</option>
-                {contacts.map((c) => <option key={c.id} value={c.id}>{c.name} ({c.role})</option>)}
-              </select>
-            </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
         {/* Venue */}
-        <div className="bg-white border border-gray-200 rounded-lg p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Venue</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Saved Venue</label>
-              <select value={formData.venue} onChange={set("venue")} className="w-full border border-gray-300 rounded px-3 py-2 text-sm">
-                <option value="">-- No saved venue --</option>
-                {venues.map((v) => <option key={v.id} value={v.id}>{v.name} — {v.city}</option>)}
-              </select>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Venue</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Saved Venue</label>
+                <select value={formData.venue} onChange={set("venue")} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
+                  <option value="">-- No saved venue --</option>
+                  {venues.map((v) => <option key={v.id} value={v.id}>{v.name} — {v.city}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">
+                  {venueSelected ? "Additional Address Notes" : "Venue Address (freeform)"}
+                </label>
+                <Textarea
+                  value={formData.venue_address}
+                  onChange={set("venue_address")}
+                  rows={2}
+                  placeholder={venueSelected ? "e.g. Use the garden entrance" : "e.g. 42 Oak Lane, Manchester, M1 2AB"}
+                />
+              </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                {venueSelected ? "Additional Address Notes" : "Venue Address (freeform)"}
-              </label>
-              <textarea
-                value={formData.venue_address}
-                onChange={set("venue_address")}
-                rows={2}
-                placeholder={venueSelected ? "e.g. Use the garden entrance" : "e.g. 42 Oak Lane, Manchester, M1 2AB"}
-                className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
-              />
-            </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
         {/* Menu */}
-        <div className="bg-white border border-gray-200 rounded-lg p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Menu</h2>
-          <MenuBuilder
-            selectedDishIds={menuData.dish_ids}
-            basedOnTemplate={menuData.based_on_template}
-            onChange={setMenuData}
-            onSuggestedPriceChange={handleSuggestedPriceChange}
-            onUseSuggestedPrice={(price) => setFormData((prev) => ({ ...prev, price_per_head: price.toFixed(2) }))}
-            currencySymbol={settings.currency_symbol}
-          />
-        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Menu</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <MenuBuilder
+              selectedDishIds={menuData.dish_ids}
+              basedOnTemplate={menuData.based_on_template}
+              onChange={setMenuData}
+              onSuggestedPriceChange={handleSuggestedPriceChange}
+              onUseSuggestedPrice={(price) => setFormData((prev) => ({ ...prev, price_per_head: price.toFixed(2) }))}
+              currencySymbol={settings.currency_symbol}
+            />
+          </CardContent>
+        </Card>
 
         {/* Pricing */}
-        <div className="bg-white border border-gray-200 rounded-lg p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Pricing</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Price Per Head ({settings.currency_symbol})</label>
-              <div className="flex gap-2">
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={formData.price_per_head}
-                  onChange={set("price_per_head")}
-                  placeholder="0.00"
-                  className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
-                />
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Pricing</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Price Per Head ({settings.currency_symbol})</label>
+                <div className="flex gap-2">
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min={0}
+                    value={formData.price_per_head}
+                    onChange={set("price_per_head")}
+                    placeholder="0.00"
+                  />
+                  {suggestedPrice !== null && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setFormData({ ...formData, price_per_head: suggestedPrice.toFixed(2) })}
+                      className="whitespace-nowrap border-success/30 text-success bg-success/10 hover:bg-success/15 hover:text-success"
+                    >
+                      Use {settings.currency_symbol}{suggestedPrice.toFixed(2)}
+                    </Button>
+                  )}
+                </div>
                 {suggestedPrice !== null && (
-                  <button
-                    type="button"
-                    onClick={() => setFormData({ ...formData, price_per_head: suggestedPrice.toFixed(2) })}
-                    className="whitespace-nowrap border border-green-300 text-green-700 bg-green-50 px-3 py-2 rounded text-sm hover:bg-green-100"
-                  >
-                    Use {settings.currency_symbol}{suggestedPrice.toFixed(2)}
-                  </button>
+                  <p className="text-xs text-success/80 mt-1">
+                    Suggested: {settings.currency_symbol}{suggestedPrice.toFixed(2)}/head
+                  </p>
+                )}
+                {formData.price_per_head && (formData.gents || formData.ladies) && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Food total: {settings.currency_symbol}{(parseFloat(formData.price_per_head) * (Number(formData.gents || 0) + Number(formData.ladies || 0))).toFixed(2)} ({Number(formData.gents || 0) + Number(formData.ladies || 0)} guests)
+                  </p>
                 )}
               </div>
-              {suggestedPrice !== null && (
-                <p className="text-xs text-green-600 mt-1">
-                  Suggested: {settings.currency_symbol}{suggestedPrice.toFixed(2)}/head
-                </p>
-              )}
-              {formData.price_per_head && (formData.gents || formData.ladies) && (
-                <p className="text-xs text-gray-500 mt-1">
-                  Food total: {settings.currency_symbol}{(parseFloat(formData.price_per_head) * (Number(formData.gents || 0) + Number(formData.ladies || 0))).toFixed(2)} ({Number(formData.gents || 0) + Number(formData.ladies || 0)} guests)
-                </p>
-              )}
             </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
         {/* Notes */}
-        <div className="bg-white border border-gray-200 rounded-lg p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Notes</h2>
-          <textarea value={formData.notes} onChange={set("notes")} rows={3} placeholder="Any notes about this event..." className="w-full border border-gray-300 rounded px-3 py-2 text-sm" />
-        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Notes</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Textarea value={formData.notes} onChange={set("notes")} rows={3} placeholder="Any notes about this event..." />
+          </CardContent>
+        </Card>
 
-        <button type="submit" disabled={saving} className="bg-green-600 text-white px-6 py-2 rounded text-sm hover:bg-green-700 disabled:opacity-50">
+        <Button type="submit" disabled={saving} variant="success">
           {saving ? "Creating..." : "Create Event"}
-        </button>
+        </Button>
       </form>
     </div>
   );

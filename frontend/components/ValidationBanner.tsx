@@ -1,6 +1,7 @@
 "use client";
 
 import { CheckResult, Violation } from "@/lib/api";
+import { cn } from "@/lib/utils";
 
 interface Props {
   result: CheckResult;
@@ -8,8 +9,8 @@ interface Props {
 
 function severityColor(severity: string) {
   return severity === "error"
-    ? "bg-red-50 border-red-200 text-red-800"
-    : "bg-amber-50 border-amber-200 text-amber-800";
+    ? "bg-destructive/10 border-destructive/20 text-destructive"
+    : "bg-warning/10 border-warning/20 text-warning";
 }
 
 function severityLabel(severity: string) {
@@ -18,7 +19,7 @@ function severityLabel(severity: string) {
 
 function ViolationCard({ violation }: { violation: Violation }) {
   return (
-    <div className={`border rounded-lg px-3 py-2 text-sm ${severityColor(violation.severity)}`}>
+    <div className={cn("border rounded-lg px-3 py-2 text-sm", severityColor(violation.severity))}>
       <span className="font-medium">{severityLabel(violation.severity)}:</span>{" "}
       {violation.message}
     </div>
@@ -32,13 +33,13 @@ export default function ValidationBanner({ result }: Props) {
     <div className="space-y-2">
       {hasViolations ? (
         <>
-          <h3 className="text-sm font-semibold text-gray-700">Constraint Violations</h3>
+          <h3 className="text-sm font-semibold text-foreground">Constraint Violations</h3>
           {result.violations.map((v, i) => (
             <ViolationCard key={i} violation={v} />
           ))}
         </>
       ) : (
-        <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-3 text-sm text-green-800">
+        <div className="bg-success/10 border border-success/20 rounded-lg px-4 py-3 text-sm text-success">
           All clear — your portions are within all constraints.
         </div>
       )}
