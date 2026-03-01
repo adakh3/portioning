@@ -60,9 +60,16 @@ export default function RootLayout({
             <Link href="/invoices" className="text-sm text-gray-600 hover:text-gray-900">
               Invoices
             </Link>
+            <Link href="/pricing" className="text-sm text-gray-600 hover:text-gray-900">
+              Pricing
+            </Link>
             <span className="border-l border-gray-300 h-4" />
             <Link href="/help" className="text-sm text-gray-600 hover:text-gray-900">
               Help
+            </Link>
+            <span className="border-l border-gray-300 h-4" />
+            <Link href="/settings" className="text-sm text-gray-600 hover:text-gray-900">
+              Settings
             </Link>
           </div>
         </nav>

@@ -15,3 +15,10 @@ class SiteSettingsView(APIView):
     def get(self, request):
         settings = SiteSettings.load()
         return Response(SiteSettingsSerializer(settings).data)
+
+    def patch(self, request):
+        settings = SiteSettings.load()
+        serializer = SiteSettingsSerializer(settings, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { api, Dish, DishCategory, MenuTemplate, MenuTemplateDetail } from "@/lib/api";
 
 interface Props {
@@ -8,6 +8,9 @@ interface Props {
   basedOnTemplate: number | null;
   onSave?: (data: { dish_ids: number[]; based_on_template: number | null }) => Promise<void>;
   onChange?: (data: { dish_ids: number[]; based_on_template: number | null }) => void;
+  onSuggestedPriceChange?: (price: number | null) => void;
+  onUseSuggestedPrice?: (price: number) => void;
+  currencySymbol?: string;
   disabled?: boolean;
 }
 
@@ -16,6 +19,9 @@ export default function MenuBuilder({
   basedOnTemplate,
   onSave,
   onChange,
+  onSuggestedPriceChange,
+  onUseSuggestedPrice,
+  currencySymbol = "£",
   disabled = false,
 }: Props) {
   const [dishes, setDishes] = useState<Dish[]>([]);
@@ -31,6 +37,12 @@ export default function MenuBuilder({
 
   // Track if changes have been made
   const [dirty, setDirty] = useState(false);
+
+  // Template pricing from backend
+  const [templatePrice, setTemplatePrice] = useState<number | null>(null);
+  const [templateHasUnpriced, setTemplateHasUnpriced] = useState(false);
+  // Whether user has modified dishes since loading template
+  const [dishesModified, setDishesModified] = useState(false);
 
   useEffect(() => {
     Promise.all([api.getDishes(), api.getCategories(), api.getMenus()])
@@ -50,18 +62,51 @@ export default function MenuBuilder({
     setDirty(false);
   }, [selectedDishIds, basedOnTemplate]);
 
-  const toggleDish = (id: number) => {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
+  // Compute suggested price from default portions (fallback when dishes modified)
+  const computedPrice = useMemo(() => {
+    const selectedDishes = dishes.filter((d) => selected.has(d.id));
+    if (selectedDishes.length === 0) return null;
+
+    let total = 0;
+    let hasUnpriced = false;
+    for (const dish of selectedDishes) {
+      if (dish.selling_price_per_gram && parseFloat(dish.selling_price_per_gram) > 0) {
+        total += parseFloat(dish.selling_price_per_gram) * dish.default_portion_grams;
       } else {
-        next.add(id);
+        hasUnpriced = true;
       }
-      onChange?.({ dish_ids: Array.from(next), based_on_template: templateId });
-      return next;
-    });
+    }
+    if (total === 0) return null;
+    return { price: Math.round(total * 100) / 100, hasUnpriced };
+  }, [dishes, selected]);
+
+  // Determine which price to show
+  const suggestedPrice = useMemo(() => {
+    if (!dishesModified && templatePrice !== null) {
+      return { price: templatePrice, hasUnpriced: templateHasUnpriced, source: "template" as const };
+    }
+    if (computedPrice) {
+      return { price: computedPrice.price, hasUnpriced: computedPrice.hasUnpriced, source: "default" as const };
+    }
+    return null;
+  }, [dishesModified, templatePrice, templateHasUnpriced, computedPrice]);
+
+  // Notify parent of price changes
+  useEffect(() => {
+    onSuggestedPriceChange?.(suggestedPrice?.price ?? null);
+  }, [suggestedPrice?.price, onSuggestedPriceChange]);
+
+  const toggleDish = (id: number) => {
+    const next = new Set(selected);
+    if (next.has(id)) {
+      next.delete(id);
+    } else {
+      next.add(id);
+    }
+    setSelected(next);
     setDirty(true);
+    setDishesModified(true);
+    onChange?.({ dish_ids: Array.from(next), based_on_template: templateId });
   };
 
   const handleLoadTemplate = async (tid: number) => {
@@ -71,6 +116,10 @@ export default function MenuBuilder({
       setSelected(new Set(dishIds));
       setTemplateId(tid);
       setDirty(true);
+      setDishesModified(false);
+      // Use backend's suggested price from template
+      setTemplatePrice(detail.suggested_price_per_head ?? null);
+      setTemplateHasUnpriced(detail.has_unpriced_dishes ?? false);
       onChange?.({ dish_ids: dishIds, based_on_template: tid });
     } catch {
       // ignore
@@ -81,6 +130,9 @@ export default function MenuBuilder({
     setSelected(new Set());
     setTemplateId(null);
     setDirty(true);
+    setDishesModified(true);
+    setTemplatePrice(null);
+    setTemplateHasUnpriced(false);
     onChange?.({ dish_ids: [], based_on_template: null });
   };
 
@@ -138,6 +190,7 @@ export default function MenuBuilder({
           ))}
         </select>
         <button
+          type="button"
           onClick={() => setShowSelector(!showSelector)}
           disabled={disabled}
           className="border border-gray-300 text-gray-700 bg-white px-3 py-2 rounded text-sm font-medium hover:bg-gray-50 disabled:opacity-50"
@@ -146,6 +199,7 @@ export default function MenuBuilder({
         </button>
         {selected.size > 0 && !disabled && (
           <button
+            type="button"
             onClick={handleClearMenu}
             className="text-red-600 text-sm hover:text-red-800"
           >
@@ -179,6 +233,7 @@ export default function MenuBuilder({
                 )}
                 {!disabled && (
                   <button
+                    type="button"
                     onClick={() => toggleDish(dish.id)}
                     className="text-blue-400 hover:text-blue-600 ml-0.5"
                     title="Remove"
@@ -194,6 +249,34 @@ export default function MenuBuilder({
         <p className="text-sm text-gray-500">
           No dishes selected. Load a template or pick dishes individually.
         </p>
+      )}
+
+      {/* Pricing Summary Bar */}
+      {suggestedPrice && (
+        <div className="flex items-center gap-3 flex-wrap bg-green-50 border border-green-200 rounded-lg px-4 py-2.5">
+          <span className="text-sm font-medium text-green-800">
+            Estimated food price/head: {currencySymbol}{suggestedPrice.price.toFixed(2)}
+          </span>
+          {suggestedPrice.hasUnpriced && (
+            <span className="inline-flex items-center bg-amber-100 text-amber-800 text-xs font-medium px-2 py-0.5 rounded">
+              Some dishes unpriced
+            </span>
+          )}
+          <span className="text-xs text-green-600">
+            {suggestedPrice.source === "template"
+              ? "(from template portions)"
+              : "(based on default portions)"}
+          </span>
+          {onUseSuggestedPrice && (
+            <button
+              type="button"
+              onClick={() => onUseSuggestedPrice(suggestedPrice.price)}
+              className="ml-auto whitespace-nowrap border border-green-300 text-green-700 bg-white px-3 py-1 rounded text-sm font-medium hover:bg-green-100"
+            >
+              Use as price/head
+            </button>
+          )}
+        </div>
       )}
 
       {/* Dish Selector (expandable) */}
@@ -229,6 +312,7 @@ export default function MenuBuilder({
                       const isSelected = selected.has(dish.id);
                       return (
                         <button
+                          type="button"
                           key={dish.id}
                           onClick={() => toggleDish(dish.id)}
                           className={`text-left text-sm px-2.5 py-1.5 rounded transition-colors ${
@@ -256,6 +340,7 @@ export default function MenuBuilder({
       {dirty && !disabled && onSave && (
         <div className="flex justify-end">
           <button
+            type="button"
             onClick={handleSave}
             disabled={saving}
             className="bg-blue-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-blue-700 disabled:opacity-50"

@@ -39,7 +39,7 @@ export default function LeadDetailPage() {
   const [saving, setSaving] = useState(false);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [budgetRanges, setBudgetRanges] = useState<BudgetRangeOption[]>([]);
-  const [settings, setSettings] = useState<SiteSettingsData>({ currency_symbol: "£", currency_code: "GBP", default_price_per_head: "0.00" });
+  const [settings, setSettings] = useState<SiteSettingsData>({ currency_symbol: "£", currency_code: "GBP", default_price_per_head: "0.00", target_food_cost_percentage: "30.00" });
   const [editData, setEditData] = useState({
     contact_name: "",
     contact_email: "",

@@ -12,11 +12,19 @@ class DishCategorySerializer(serializers.ModelSerializer):
 
 class DishSerializer(serializers.ModelSerializer):
     category_name = serializers.CharField(source='category.display_name', read_only=True)
+    margin_percent = serializers.SerializerMethodField()
 
     class Meta:
         model = Dish
         fields = [
             'id', 'name', 'category', 'category_name', 'protein_type',
             'default_portion_grams', 'popularity',
-            'cost_per_gram', 'is_vegetarian', 'notes',
+            'cost_per_gram', 'selling_price_per_gram', 'selling_price_override',
+            'margin_percent', 'is_vegetarian', 'notes',
         ]
+
+    def get_margin_percent(self, obj):
+        if not obj.selling_price_per_gram or not obj.cost_per_gram:
+            return None
+        margin = (1 - obj.cost_per_gram / obj.selling_price_per_gram) * 100
+        return round(float(margin), 2)

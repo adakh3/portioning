@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { api, Account, Contact, Venue, SiteSettingsData } from "@/lib/api";
@@ -13,7 +13,7 @@ export default function NewQuotePage() {
   const [venues, setVenues] = useState<Venue[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const [settings, setSettings] = useState<SiteSettingsData>({ currency_symbol: "£", currency_code: "GBP", default_price_per_head: "0.00" });
+  const [settings, setSettings] = useState<SiteSettingsData>({ currency_symbol: "£", currency_code: "GBP", default_price_per_head: "0.00", target_food_cost_percentage: "30.00" });
   const [formData, setFormData] = useState({
     account: "",
     primary_contact: "",
@@ -33,6 +33,8 @@ export default function NewQuotePage() {
     dish_ids: number[];
     based_on_template: number | null;
   }>({ dish_ids: [], based_on_template: null });
+  const [suggestedPrice, setSuggestedPrice] = useState<number | null>(null);
+  const handleSuggestedPriceChange = useCallback((price: number | null) => setSuggestedPrice(price), []);
 
   useEffect(() => {
     Promise.all([api.getAccounts(), api.getVenues(), api.getSiteSettings()])
@@ -198,6 +200,9 @@ export default function NewQuotePage() {
             selectedDishIds={menuData.dish_ids}
             basedOnTemplate={menuData.based_on_template}
             onChange={setMenuData}
+            onSuggestedPriceChange={handleSuggestedPriceChange}
+            onUseSuggestedPrice={(price) => setFormData((prev) => ({ ...prev, price_per_head: price.toFixed(2) }))}
+            currencySymbol={settings.currency_symbol}
           />
         </div>
 
@@ -207,15 +212,31 @@ export default function NewQuotePage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Price Per Head ({settings.currency_symbol})</label>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                value={formData.price_per_head}
-                onChange={set("price_per_head")}
-                placeholder="0.00"
-                className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
-              />
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={formData.price_per_head}
+                  onChange={set("price_per_head")}
+                  placeholder="0.00"
+                  className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+                />
+                {suggestedPrice !== null && (
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, price_per_head: suggestedPrice.toFixed(2) })}
+                    className="whitespace-nowrap border border-green-300 text-green-700 bg-green-50 px-3 py-2 rounded text-sm hover:bg-green-100"
+                  >
+                    Use {settings.currency_symbol}{suggestedPrice.toFixed(2)}
+                  </button>
+                )}
+              </div>
+              {suggestedPrice !== null && (
+                <p className="text-xs text-green-600 mt-1">
+                  Suggested: {settings.currency_symbol}{suggestedPrice.toFixed(2)}/head
+                </p>
+              )}
               {formData.price_per_head && formData.guest_count && (
                 <p className="text-xs text-gray-500 mt-1">
                   Food total: {settings.currency_symbol}{(parseFloat(formData.price_per_head) * Number(formData.guest_count)).toFixed(2)} ({formData.guest_count} guests)

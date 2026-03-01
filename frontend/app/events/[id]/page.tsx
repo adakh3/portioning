@@ -74,7 +74,7 @@ export default function EventDetailPage() {
   const [laborRoles, setLaborRoles] = useState<LaborRole[]>([]);
   const [staffList, setStaffList] = useState<StaffMember[]>([]);
   const [equipmentItems, setEquipmentItems] = useState<EquipmentItem[]>([]);
-  const [settings, setSettings] = useState<SiteSettingsData>({ currency_symbol: "£", currency_code: "GBP", default_price_per_head: "0.00" });
+  const [settings, setSettings] = useState<SiteSettingsData>({ currency_symbol: "£", currency_code: "GBP", default_price_per_head: "0.00", target_food_cost_percentage: "30.00" });
 
   // Inline name editing
   const [editingName, setEditingName] = useState(false);
@@ -102,6 +102,8 @@ export default function EventDetailPage() {
   const [formEventType, setFormEventType] = useState("");
   const [formServiceStyle, setFormServiceStyle] = useState("");
   const [formPricePerHead, setFormPricePerHead] = useState("");
+  const [suggestedPrice, setSuggestedPrice] = useState<number | null>(null);
+  const handleSuggestedPriceChange = useCallback((price: number | null) => setSuggestedPrice(price), []);
 
   // Guest form fields
   const [formGents, setFormGents] = useState(0);
@@ -601,15 +603,31 @@ export default function EventDetailPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Price Per Head ({settings.currency_symbol})
                 </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={formPricePerHead}
-                  onChange={(e) => setFormPricePerHead(e.target.value)}
-                  placeholder="0.00"
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={formPricePerHead}
+                    onChange={(e) => setFormPricePerHead(e.target.value)}
+                    placeholder="0.00"
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  {suggestedPrice !== null && (
+                    <button
+                      type="button"
+                      onClick={() => setFormPricePerHead(suggestedPrice.toFixed(2))}
+                      className="whitespace-nowrap border border-green-300 text-green-700 bg-green-50 px-3 py-2 rounded text-sm hover:bg-green-100"
+                    >
+                      Use {settings.currency_symbol}{suggestedPrice.toFixed(2)}
+                    </button>
+                  )}
+                </div>
+                {suggestedPrice !== null && (
+                  <p className="text-xs text-green-600 mt-1">
+                    Suggested: {settings.currency_symbol}{suggestedPrice.toFixed(2)}/head
+                  </p>
+                )}
                 {formPricePerHead && event && (event.gents + event.ladies) > 0 && (
                   <p className="text-xs text-gray-500 mt-1">
                     Food total: {settings.currency_symbol}{(parseFloat(formPricePerHead) * (event.gents + event.ladies)).toFixed(2)} ({event.gents + event.ladies} guests)
@@ -661,6 +679,9 @@ export default function EventDetailPage() {
                   based_on_template: data.based_on_template,
                 });
               }}
+              onSuggestedPriceChange={handleSuggestedPriceChange}
+              onUseSuggestedPrice={(price) => setFormPricePerHead(price.toFixed(2))}
+              currencySymbol={settings.currency_symbol}
             />
           </div>
         )}

@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.db import models
 
 
@@ -72,6 +74,14 @@ class Dish(models.Model):
     default_portion_grams = models.FloatField(help_text="Baseline portion in grams")
     popularity = models.FloatField(default=1.0, help_text="Relative popularity weight")
     cost_per_gram = models.DecimalField(max_digits=6, decimal_places=4, default=0)
+    selling_price_per_gram = models.DecimalField(
+        max_digits=8, decimal_places=4, null=True, blank=True,
+        help_text='Selling price per gram; auto-calculated unless overridden',
+    )
+    selling_price_override = models.BooleanField(
+        default=False,
+        help_text='If True, selling_price_per_gram is manually set and not auto-calculated',
+    )
     is_vegetarian = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
     notes = models.TextField(blank=True)
@@ -83,3 +93,26 @@ class Dish(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.category.display_name})"
+
+    @property
+    def computed_selling_price(self):
+        """Selling price per gram based on cost and target food cost %."""
+        from bookings.models import SiteSettings
+        if not self.cost_per_gram:
+            return None
+        settings = SiteSettings.load()
+        if not settings.target_food_cost_percentage:
+            return None
+        cost = Decimal(str(self.cost_per_gram))
+        return cost / (settings.target_food_cost_percentage / Decimal('100'))
+
+    def save(self, *args, **kwargs):
+        if not self.selling_price_override and self.cost_per_gram:
+            from bookings.models import SiteSettings
+            settings = SiteSettings.load()
+            if settings.target_food_cost_percentage:
+                cost = Decimal(str(self.cost_per_gram))
+                self.selling_price_per_gram = cost / (
+                    settings.target_food_cost_percentage / Decimal('100')
+                )
+        super().save(*args, **kwargs)

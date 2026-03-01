@@ -6,6 +6,7 @@ from rest_framework.test import APIClient
 from bookings.models import (
     Account, Contact, Venue, Lead, Quote, QuoteLineItem,
     LaborRole, StaffMember, EquipmentItem, Invoice, Payment,
+    SiteSettings,
 )
 from bookings.models.leads import LeadStatus
 from bookings.models.quotes import QuoteStatus
@@ -130,13 +131,16 @@ class TestQuoteTransitions(TestCase):
         self.assertEqual(self.quote.status, QuoteStatus.DRAFT)
 
     def test_invalid_transition_raises(self):
+        # accepted -> sent is invalid
+        self.quote.transition_to(QuoteStatus.ACCEPTED)
         with self.assertRaises(ValueError):
-            self.quote.transition_to(QuoteStatus.ACCEPTED)  # draft -> accepted is invalid
+            self.quote.transition_to(QuoteStatus.SENT)
 
-    def test_is_editable_only_in_draft(self):
+    def test_is_editable_always(self):
+        """Quotes are always editable regardless of status."""
         self.assertTrue(self.quote.is_editable)
         self.quote.transition_to(QuoteStatus.SENT)
-        self.assertFalse(self.quote.is_editable)
+        self.assertTrue(self.quote.is_editable)
 
 
 class TestQuoteLineItemCalculation(TestCase):
@@ -453,7 +457,8 @@ class TestQuoteAPI(TestCase):
         self.assertEqual(data["tax_amount"], "200.00")
         self.assertEqual(data["total"], "1200.00")
 
-    def test_cannot_add_item_to_sent_quote(self):
+    def test_can_add_item_to_sent_quote(self):
+        """Quotes are always editable regardless of status."""
         quote = make_quote(account=self.account)
         quote.transition_to(QuoteStatus.SENT)
 
@@ -461,16 +466,17 @@ class TestQuoteAPI(TestCase):
             "category": "food", "description": "Late add",
             "quantity": "1", "unit": "flat", "unit_price": "100.00",
         }, format="json")
-        self.assertEqual(res.status_code, 403)
+        self.assertEqual(res.status_code, 201)
 
-    def test_cannot_edit_sent_quote(self):
+    def test_can_edit_sent_quote(self):
+        """Quotes are always editable regardless of status."""
         quote = make_quote(account=self.account)
         quote.transition_to(QuoteStatus.SENT)
 
         res = self.client.patch(f"/api/bookings/quotes/{quote.id}/", {
             "guest_count": 200,
         }, format="json")
-        self.assertEqual(res.status_code, 403)
+        self.assertEqual(res.status_code, 200)
 
     def test_transition_quote(self):
         quote = make_quote(account=self.account)
@@ -591,3 +597,56 @@ class TestInvoiceAPI(TestCase):
         data = res.json()
         self.assertEqual(data["amount_paid"], "400.00")
         self.assertEqual(data["balance_due"], "800.00")
+
+
+class TestSiteSettingsAPI(TestCase):
+    """Tests for GET and PATCH /api/bookings/settings/."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.settings = SiteSettings.load()
+
+    def test_get_settings(self):
+        res = self.client.get("/api/bookings/settings/")
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertIn("currency_symbol", data)
+        self.assertIn("target_food_cost_percentage", data)
+
+    def test_patch_target_food_cost(self):
+        res = self.client.patch(
+            "/api/bookings/settings/",
+            {"target_food_cost_percentage": "25.00"},
+            format="json",
+        )
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.json()["target_food_cost_percentage"], "25.00")
+        # Confirm persisted
+        self.settings.refresh_from_db()
+        self.assertEqual(self.settings.target_food_cost_percentage, Decimal("25.00"))
+
+    def test_patch_currency_fields(self):
+        res = self.client.patch(
+            "/api/bookings/settings/",
+            {"currency_symbol": "$", "currency_code": "USD"},
+            format="json",
+        )
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.json()["currency_symbol"], "$")
+        self.assertEqual(res.json()["currency_code"], "USD")
+
+    def test_patch_partial_update(self):
+        """PATCH with a single field should not clear other fields."""
+        self.settings.currency_symbol = "€"
+        self.settings.target_food_cost_percentage = Decimal("35.00")
+        self.settings.save()
+        res = self.client.patch(
+            "/api/bookings/settings/",
+            {"currency_code": "EUR"},
+            format="json",
+        )
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertEqual(data["currency_code"], "EUR")
+        self.assertEqual(data["currency_symbol"], "€")
+        self.assertEqual(data["target_food_cost_percentage"], "35.00")

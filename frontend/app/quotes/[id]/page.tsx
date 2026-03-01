@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { api, Quote, Venue, Contact, SiteSettingsData } from "@/lib/api";
@@ -33,7 +33,7 @@ export default function QuoteDetailPage() {
   const [editing, setEditing] = useState(false);
   const [venues, setVenues] = useState<Venue[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
-  const [settings, setSettings] = useState<SiteSettingsData>({ currency_symbol: "£", currency_code: "GBP", default_price_per_head: "0.00" });
+  const [settings, setSettings] = useState<SiteSettingsData>({ currency_symbol: "£", currency_code: "GBP", default_price_per_head: "0.00", target_food_cost_percentage: "30.00" });
   const [editData, setEditData] = useState({
     primary_contact: "",
     event_date: "",
@@ -48,6 +48,8 @@ export default function QuoteDetailPage() {
     notes: "",
     internal_notes: "",
   });
+  const [suggestedPrice, setSuggestedPrice] = useState<number | null>(null);
+  const handleSuggestedPriceChange = useCallback((price: number | null) => setSuggestedPrice(price), []);
   const [itemData, setItemData] = useState({
     category: "food",
     description: "",
@@ -301,7 +303,23 @@ export default function QuoteDetailPage() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Price Per Head ({cs})</label>
-              <input type="number" step="0.01" min="0" value={editData.price_per_head} onChange={setEdit("price_per_head")} placeholder="0.00" className="w-full border border-gray-300 rounded px-3 py-2 text-sm" />
+              <div className="flex gap-2">
+                <input type="number" step="0.01" min="0" value={editData.price_per_head} onChange={setEdit("price_per_head")} placeholder="0.00" className="w-full border border-gray-300 rounded px-3 py-2 text-sm" />
+                {suggestedPrice !== null && (
+                  <button
+                    type="button"
+                    onClick={() => setEditData({ ...editData, price_per_head: suggestedPrice.toFixed(2) })}
+                    className="whitespace-nowrap border border-green-300 text-green-700 bg-green-50 px-3 py-2 rounded text-sm hover:bg-green-100"
+                  >
+                    Use {cs}{suggestedPrice.toFixed(2)}
+                  </button>
+                )}
+              </div>
+              {suggestedPrice !== null && (
+                <p className="text-xs text-green-600 mt-1">
+                  Suggested: {cs}{suggestedPrice.toFixed(2)}/head
+                </p>
+              )}
               {editData.price_per_head && editData.guest_count && (
                 <p className="text-xs text-gray-500 mt-1">
                   Food total: {cs}{(parseFloat(editData.price_per_head) * Number(editData.guest_count)).toFixed(2)}
@@ -480,6 +498,9 @@ export default function QuoteDetailPage() {
             });
             setQuote(updated);
           }}
+          onSuggestedPriceChange={handleSuggestedPriceChange}
+          onUseSuggestedPrice={(price) => setEditData((prev) => ({ ...prev, price_per_head: price.toFixed(2) }))}
+          currencySymbol={cs}
         />
       </div>
 

@@ -31,17 +31,29 @@ export interface Dish {
   default_portion_grams: number;
   popularity: number;
   cost_per_gram: number;
+  selling_price_per_gram: string | null;
+  selling_price_override: boolean;
+  margin_percent: number | null;
   is_vegetarian: boolean;
   notes: string;
+}
+
+export interface PriceTier {
+  min_guests: number;
+  price_per_head: string;
 }
 
 export interface MenuTemplate {
   id: number;
   name: string;
   description: string;
+  menu_type: string;
   default_gents: number;
   default_ladies: number;
   dish_count: number;
+  suggested_price_per_head: number | null;
+  has_unpriced_dishes: boolean;
+  price_tiers: PriceTier[];
   created_at: string;
 }
 
@@ -54,6 +66,8 @@ export interface MenuDishPortion {
 
 export interface MenuTemplateDetail extends MenuTemplate {
   portions: MenuDishPortion[];
+  suggested_price_per_head: number | null;
+  has_unpriced_dishes: boolean;
 }
 
 export interface GuestMix {
@@ -365,6 +379,7 @@ export interface SiteSettingsData {
   currency_symbol: string;
   currency_code: string;
   default_price_per_head: string;
+  target_food_cost_percentage: string;
 }
 
 // Event type (updated with booking fields)
@@ -653,4 +668,6 @@ export const api = {
   // Settings
   getBudgetRanges: () => fetchApi<BudgetRangeOption[]>("/bookings/budget-ranges/"),
   getSiteSettings: () => fetchApi<SiteSettingsData>("/bookings/settings/"),
+  updateSiteSettings: (data: Partial<SiteSettingsData>) =>
+    fetchApi<SiteSettingsData>("/bookings/settings/", { method: "PATCH", body: JSON.stringify(data) }),
 };

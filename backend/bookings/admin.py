@@ -141,7 +141,7 @@ class BudgetRangeOptionAdmin(admin.ModelAdmin):
 
 @admin.register(SiteSettings)
 class SiteSettingsAdmin(admin.ModelAdmin):
-    list_display = ['currency_symbol', 'currency_code']
+    list_display = ['currency_symbol', 'currency_code', 'target_food_cost_percentage']
 
     def has_add_permission(self, request):
         # Only allow one instance
