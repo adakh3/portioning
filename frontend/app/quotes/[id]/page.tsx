@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { api, Quote, Venue, Contact, SiteSettingsData } from "@/lib/api";
+import { api, Contact } from "@/lib/api";
+import { useQuote, useVenues, useSiteSettings } from "@/lib/hooks";
 import MenuBuilder from "@/components/MenuBuilder";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -30,15 +31,15 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 export default function QuoteDetailPage() {
   const { id } = useParams();
-  const [quote, setQuote] = useState<Quote | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const { data: quote, error: loadError, isLoading: loading, mutate: mutateQuote } = useQuote(Number(id) || null);
+  const { data: venues = [] } = useVenues();
+  const { data: rawSettings } = useSiteSettings();
+  const settings = rawSettings || { currency_symbol: "£", currency_code: "GBP", default_price_per_head: "0.00", target_food_cost_percentage: "30.00", price_rounding_step: "50" };
   const [showItemForm, setShowItemForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
-  const [venues, setVenues] = useState<Venue[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
-  const [settings, setSettings] = useState<SiteSettingsData>({ currency_symbol: "£", currency_code: "GBP", default_price_per_head: "0.00", target_food_cost_percentage: "30.00", price_rounding_step: "50" });
+  const [error, setError] = useState("");
   const [editData, setEditData] = useState({
     primary_contact: "",
     event_date: "",
@@ -65,14 +66,6 @@ export default function QuoteDetailPage() {
     sort_order: 0,
   });
 
-  useEffect(() => {
-    api.getQuote(Number(id))
-      .then(setQuote)
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
-    api.getSiteSettings().then(setSettings).catch(() => {});
-  }, [id]);
-
   function startEditing() {
     if (!quote) return;
     setEditData({
@@ -89,7 +82,6 @@ export default function QuoteDetailPage() {
       notes: quote.notes,
       internal_notes: quote.internal_notes,
     });
-    api.getVenues().then(setVenues).catch(() => {});
     if (quote.account) {
       api.getAccount(quote.account).then((acct) => setContacts(acct.contacts || [])).catch(() => {});
     }
@@ -102,7 +94,7 @@ export default function QuoteDetailPage() {
     setSaving(true);
     setError("");
     try {
-      const updated = await api.updateQuote(quote.id, {
+      await api.updateQuote(quote.id, {
         primary_contact: editData.primary_contact ? Number(editData.primary_contact) : null,
         event_date: editData.event_date,
         guest_count: Number(editData.guest_count),
@@ -116,7 +108,7 @@ export default function QuoteDetailPage() {
         notes: editData.notes,
         internal_notes: editData.internal_notes,
       });
-      setQuote(updated);
+      await mutateQuote();
       setEditing(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save");
@@ -137,8 +129,7 @@ export default function QuoteDetailPage() {
         unit_price: itemData.unit_price,
         sort_order: itemData.sort_order,
       });
-      const updated = await api.getQuote(quote.id);
-      setQuote(updated);
+      await mutateQuote();
       setShowItemForm(false);
       setItemData({ category: "food", description: "", quantity: "1", unit: "each", unit_price: "", is_taxable: true, sort_order: 0 });
     } catch (err) {
@@ -152,8 +143,7 @@ export default function QuoteDetailPage() {
     if (!quote || !confirm("Remove this line item?")) return;
     try {
       await api.deleteQuoteLineItem(quote.id, itemId);
-      const updated = await api.getQuote(quote.id);
-      setQuote(updated);
+      await mutateQuote();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to delete item");
     }
@@ -164,8 +154,8 @@ export default function QuoteDetailPage() {
     setSaving(true);
     setError("");
     try {
-      const updated = await api.transitionQuote(quote.id, newStatus);
-      setQuote(updated);
+      await api.transitionQuote(quote.id, newStatus);
+      await mutateQuote();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to update status");
     } finally {
@@ -174,7 +164,7 @@ export default function QuoteDetailPage() {
   }
 
   if (loading) return <p className="text-muted-foreground">Loading...</p>;
-  if (error && !quote) return <p className="text-destructive">Error: {error}</p>;
+  if (loadError && !quote) return <p className="text-destructive">Error: {loadError.message}</p>;
   if (!quote) return <p className="text-muted-foreground">Quote not found.</p>;
 
   const cs = settings.currency_symbol;
@@ -301,11 +291,11 @@ export default function QuoteDetailPage() {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Event Date</label>
+              <label className="block text-sm font-medium text-foreground mb-1">Event Date *</label>
               <Input type="date" required value={editData.event_date} onChange={setEdit("event_date")} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Guest Count</label>
+              <label className="block text-sm font-medium text-foreground mb-1">Guest Count *</label>
               <Input type="number" required min={1} value={editData.guest_count} onChange={setEdit("guest_count")} />
             </div>
             <div>
@@ -508,11 +498,11 @@ export default function QuoteDetailPage() {
             basedOnTemplate={quote.based_on_template || null}
             guestCount={editing && editData.guest_count ? Number(editData.guest_count) : quote.guest_count}
             onSave={async (data) => {
-              const updated = await api.updateQuote(quote.id, {
+              await api.updateQuote(quote.id, {
                 dish_ids: data.dish_ids,
                 based_on_template: data.based_on_template,
               });
-              setQuote(updated);
+              await mutateQuote();
             }}
             onSuggestedPriceChange={handleSuggestedPriceChange}
             onUseSuggestedPrice={(price) => setEditData((prev) => ({ ...prev, price_per_head: price.toFixed(2) }))}
@@ -547,11 +537,11 @@ export default function QuoteDetailPage() {
                   </select>
                 </div>
                 <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-foreground mb-1">Description</label>
+                  <label className="block text-sm font-medium text-foreground mb-1">Description *</label>
                   <Input type="text" required value={itemData.description} onChange={(e) => setItemData({ ...itemData, description: e.target.value })} />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Quantity</label>
+                  <label className="block text-sm font-medium text-foreground mb-1">Quantity *</label>
                   <Input type="number" step="0.01" min={0} required value={itemData.quantity} onChange={(e) => setItemData({ ...itemData, quantity: e.target.value })} />
                 </div>
                 <div>
@@ -564,7 +554,7 @@ export default function QuoteDetailPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Unit Price ({cs})</label>
+                  <label className="block text-sm font-medium text-foreground mb-1">Unit Price ({cs}) *</label>
                   <Input type="number" step="0.01" min={0} required value={itemData.unit_price} onChange={(e) => setItemData({ ...itemData, unit_price: e.target.value })} />
                 </div>
                 <div className="flex items-center gap-2 mt-6">

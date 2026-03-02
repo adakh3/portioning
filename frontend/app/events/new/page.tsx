@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { api, Contact } from "@/lib/api";
@@ -31,8 +31,10 @@ export default function NewEventPage() {
   const [formData, setFormData] = useState({
     name: "",
     date: "",
+    totalGuests: "",
     gents: "",
     ladies: "",
+    customSplit: false,
     account: "",
     primary_contact: "",
     venue: "",
@@ -57,14 +59,18 @@ export default function NewEventPage() {
   }, [settings]);
 
   // Load contacts when account changes
+  const prevAccountRef = useRef(formData.account);
   useEffect(() => {
     if (formData.account) {
       const acct = accounts.find((a) => a.id === Number(formData.account));
       setContacts(acct?.contacts || []);
-      setFormData((prev) => ({ ...prev, primary_contact: "" }));
+      if (prevAccountRef.current !== formData.account) {
+        setFormData((prev) => ({ ...prev, primary_contact: "" }));
+      }
     } else {
       setContacts([]);
     }
+    prevAccountRef.current = formData.account;
   }, [formData.account, accounts]);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -171,14 +177,81 @@ export default function NewEventPage() {
             <CardTitle className="text-lg">Guests</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-3">
               <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Gents *</label>
-                <Input type="number" required min={0} value={formData.gents} onChange={set("gents")} />
+                <label className="block text-sm font-medium text-foreground mb-1">Total Guests *</label>
+                <Input
+                  type="number"
+                  required
+                  min={1}
+                  value={formData.totalGuests}
+                  onChange={(e) => {
+                    const total = parseInt(e.target.value) || 0;
+                    if (formData.customSplit) {
+                      const prevTotal = Number(formData.gents || 0) + Number(formData.ladies || 0);
+                      const ratio = prevTotal > 0 ? Number(formData.gents || 0) / prevTotal : 0.5;
+                      const gents = Math.round(total * ratio);
+                      setFormData({ ...formData, totalGuests: e.target.value, gents: String(gents), ladies: String(total - gents) });
+                    } else {
+                      setFormData({ ...formData, totalGuests: e.target.value, gents: String(Math.ceil(total / 2)), ladies: String(Math.floor(total / 2)) });
+                    }
+                  }}
+                  className="max-w-[200px]"
+                />
               </div>
               <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Ladies *</label>
-                <Input type="number" required min={0} value={formData.ladies} onChange={set("ladies")} />
+                <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.customSplit}
+                    onChange={(e) => {
+                      const custom = e.target.checked;
+                      if (!custom) {
+                        const total = parseInt(formData.totalGuests) || 0;
+                        setFormData({ ...formData, customSplit: false, gents: String(Math.ceil(total / 2)), ladies: String(Math.floor(total / 2)) });
+                      } else {
+                        setFormData({ ...formData, customSplit: true });
+                      }
+                    }}
+                    className="rounded border-input"
+                  />
+                  Customise split
+                </label>
+                {formData.customSplit && (
+                  <div className="grid grid-cols-2 gap-4 mt-2">
+                    <div>
+                      <label className="block text-sm text-muted-foreground mb-1">Gents</label>
+                      <Input
+                        type="number"
+                        min={0}
+                        value={formData.gents}
+                        onChange={(e) => {
+                          const gents = parseInt(e.target.value) || 0;
+                          const total = parseInt(formData.totalGuests) || 0;
+                          setFormData({ ...formData, gents: e.target.value, ladies: String(Math.max(0, total - gents)) });
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm text-muted-foreground mb-1">Ladies</label>
+                      <Input
+                        type="number"
+                        min={0}
+                        value={formData.ladies}
+                        onChange={(e) => {
+                          const ladies = parseInt(e.target.value) || 0;
+                          const total = parseInt(formData.totalGuests) || 0;
+                          setFormData({ ...formData, ladies: e.target.value, gents: String(Math.max(0, total - ladies)) });
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+                {!formData.customSplit && parseInt(formData.totalGuests) > 0 && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Split: {Math.ceil(parseInt(formData.totalGuests) / 2)} gents / {Math.floor(parseInt(formData.totalGuests) / 2)} ladies
+                  </p>
+                )}
               </div>
             </div>
           </CardContent>
@@ -192,9 +265,9 @@ export default function NewEventPage() {
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Account</label>
-                <select value={formData.account} onChange={set("account")} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
-                  <option value="">-- No account --</option>
+                <label className="block text-sm font-medium text-foreground mb-1">Account *</label>
+                <select required value={formData.account} onChange={set("account")} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
+                  <option value="">-- Select account --</option>
                   {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
                 </select>
               </div>
@@ -247,7 +320,7 @@ export default function NewEventPage() {
             <MenuBuilder
               selectedDishIds={menuData.dish_ids}
               basedOnTemplate={menuData.based_on_template}
-              guestCount={(Number(formData.gents) || 0) + (Number(formData.ladies) || 0)}
+              guestCount={parseInt(formData.totalGuests) || 0}
               onChange={setMenuData}
               onSuggestedPriceChange={handleSuggestedPriceChange}
               onUseSuggestedPrice={(price) => setFormData((prev) => ({ ...prev, price_per_head: price.toFixed(2) }))}
@@ -290,9 +363,9 @@ export default function NewEventPage() {
                     Suggested: {s.currency_symbol}{suggestedPrice.toFixed(2)}/head
                   </p>
                 )}
-                {formData.price_per_head && (formData.gents || formData.ladies) && (
+                {formData.price_per_head && parseInt(formData.totalGuests) > 0 && (
                   <p className="text-xs text-muted-foreground mt-1">
-                    Food total: {s.currency_symbol}{(parseFloat(formData.price_per_head) * (Number(formData.gents || 0) + Number(formData.ladies || 0))).toFixed(2)} ({Number(formData.gents || 0) + Number(formData.ladies || 0)} guests)
+                    Food total: {s.currency_symbol}{(parseFloat(formData.price_per_head) * (parseInt(formData.totalGuests) || 0)).toFixed(2)} ({parseInt(formData.totalGuests)} guests)
                   </p>
                 )}
               </div>

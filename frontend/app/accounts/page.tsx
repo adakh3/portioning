@@ -1,27 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { api, Account } from "@/lib/api";
+import { useState } from "react";
+import { api } from "@/lib/api";
+import { useAccounts } from "@/lib/hooks";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 
 export default function AccountsPage() {
-  const [accounts, setAccounts] = useState<Account[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: accounts = [], error: loadError, isLoading: loading, mutate: mutateAccounts } = useAccounts();
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({ name: "", account_type: "individual" });
   const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    api.getAccounts()
-      .then(setAccounts)
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
-  }, []);
 
   const filtered = accounts.filter(
     (a) => a.name.toLowerCase().includes(search.toLowerCase())
@@ -31,8 +24,8 @@ export default function AccountsPage() {
     e.preventDefault();
     setSaving(true);
     try {
-      const account = await api.createAccount(formData);
-      setAccounts((prev) => [account, ...prev]);
+      await api.createAccount(formData);
+      await mutateAccounts();
       setShowForm(false);
       setFormData({ name: "", account_type: "individual" });
     } catch (err) {
@@ -43,7 +36,7 @@ export default function AccountsPage() {
   }
 
   if (loading) return <p className="text-muted-foreground">Loading accounts...</p>;
-  if (error) return <p className="text-destructive">Error: {error}</p>;
+  if (loadError) return <p className="text-destructive">Error: {loadError.message}</p>;
 
   return (
     <div>
@@ -60,7 +53,7 @@ export default function AccountsPage() {
         <form onSubmit={handleCreate} className="bg-background border border-border rounded-lg p-4 mb-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Name</label>
+              <label className="block text-sm font-medium text-foreground mb-1">Name *</label>
               <Input
                 type="text"
                 required

@@ -6,14 +6,17 @@ import Link from "next/link";
 import {
   api,
   EventData,
-  Account,
-  Venue,
   Contact,
-  LaborRole,
-  StaffMember,
-  EquipmentItem,
-  SiteSettingsData,
 } from "@/lib/api";
+import {
+  useEvent,
+  useAccounts,
+  useVenues,
+  useLaborRoles,
+  useStaff,
+  useEquipment,
+  useSiteSettings,
+} from "@/lib/hooks";
 import MenuBuilder from "@/components/MenuBuilder";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -77,21 +80,22 @@ export default function EventDetailPage() {
   const router = useRouter();
   const eventId = Number(params.id);
 
+  // SWR hooks
+  const { data: event, error: loadError, isLoading: eventLoading, mutate: mutateEvent } = useEvent(isNaN(eventId) ? null : eventId);
+  const { data: accounts = [] } = useAccounts();
+  const { data: venues = [] } = useVenues();
+  const { data: laborRoles = [] } = useLaborRoles();
+  const { data: staffList = [] } = useStaff();
+  const { data: equipmentItems = [] } = useEquipment();
+  const { data: rawSettings } = useSiteSettings();
+  const settings = rawSettings || { currency_symbol: "\u00A3", currency_code: "GBP", default_price_per_head: "0.00", target_food_cost_percentage: "30.00", price_rounding_step: "50" };
+
   // Core state
-  const [event, setEvent] = useState<EventData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const loading = eventLoading;
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-
-  // Lookup data
-  const [accounts, setAccounts] = useState<Account[]>([]);
-  const [venues, setVenues] = useState<Venue[]>([]);
-  const [laborRoles, setLaborRoles] = useState<LaborRole[]>([]);
-  const [staffList, setStaffList] = useState<StaffMember[]>([]);
-  const [equipmentItems, setEquipmentItems] = useState<EquipmentItem[]>([]);
-  const [settings, setSettings] = useState<SiteSettingsData>({ currency_symbol: "\u00A3", currency_code: "GBP", default_price_per_head: "0.00", target_food_cost_percentage: "30.00", price_rounding_step: "50" });
 
   // Section collapse
   const [sections, setSections] = useState({
@@ -122,6 +126,8 @@ export default function EventDetailPage() {
   const [formNotes, setFormNotes] = useState("");
 
   // Guest form fields
+  const [formTotalGuests, setFormTotalGuests] = useState(0);
+  const [formCustomSplit, setFormCustomSplit] = useState(false);
   const [formGents, setFormGents] = useState(0);
   const [formLadies, setFormLadies] = useState(0);
   const [formGuaranteed, setFormGuaranteed] = useState<number | null>(null);
@@ -162,8 +168,12 @@ export default function EventDetailPage() {
     setFormPricePerHead(data.price_per_head || "");
     setFormNotes(data.notes || "");
     setVenueMode(data.venue ? "saved" : data.venue_address ? "custom" : "saved");
+    const total = data.gents + data.ladies;
+    setFormTotalGuests(total);
     setFormGents(data.gents);
     setFormLadies(data.ladies);
+    const is5050 = total === 0 || (data.gents === Math.ceil(total / 2) && data.ladies === Math.floor(total / 2));
+    setFormCustomSplit(!is5050);
     setFormGuaranteed(data.guaranteed_count);
     setFormFinalCount(data.final_count);
     setFormFinalCountDue(data.final_count_due || "");
@@ -175,35 +185,31 @@ export default function EventDetailPage() {
     setFormEndTime(data.end_time ? data.end_time.slice(0, 16) : "");
   }, []);
 
-  const refreshEvent = useCallback(async () => {
-    try {
-      const data = await api.getEvent(eventId);
-      setEvent(data);
-      syncFormToEvent(data);
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Failed to load event");
-    }
-  }, [eventId, syncFormToEvent]);
+  useEffect(() => {
+    if (event) syncFormToEvent(event);
+  }, [event, syncFormToEvent]);
 
   useEffect(() => {
-    if (isNaN(eventId)) return;
-    setLoading(true);
-    Promise.all([
-      refreshEvent(),
-      api.getAccounts().then(setAccounts).catch(() => {}),
-      api.getVenues().then(setVenues).catch(() => {}),
-      api.getLaborRoles().then(setLaborRoles).catch(() => {}),
-      api.getStaff().then(setStaffList).catch(() => {}),
-      api.getEquipment().then(setEquipmentItems).catch(() => {}),
-      api.getSiteSettings().then(setSettings).catch(() => {}),
-    ]).finally(() => setLoading(false));
-  }, [eventId, refreshEvent]);
+    if (loadError) setError(loadError instanceof Error ? loadError.message : "Failed to load event");
+  }, [loadError]);
 
   const handleSaveAll = async () => {
     if (!event) return;
+    if (!formName.trim()) {
+      setError("Event name is required");
+      return;
+    }
+    if (!formDate) {
+      setError("Event date is required");
+      return;
+    }
+    if (!formAccount) {
+      setError("Account is required");
+      return;
+    }
     setSaving(true);
     try {
-      const updated = await api.updateEvent(event.id, {
+      await api.updateEvent(event.id, {
         name: formName,
         date: formDate,
         account: formAccount,
@@ -226,8 +232,7 @@ export default function EventDetailPage() {
         meal_time: formMealTime || null,
         end_time: formEndTime || null,
       } as Partial<EventData>);
-      setEvent(updated);
-      syncFormToEvent(updated);
+      await mutateEvent();
       setEditing(false);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Save failed");
@@ -245,9 +250,8 @@ export default function EventDetailPage() {
     if (!event) return;
     setSaving(true);
     try {
-      const updated = await api.updateEvent(event.id, { status: newStatus } as Partial<EventData>);
-      setEvent(updated);
-      syncFormToEvent(updated);
+      await api.updateEvent(event.id, { status: newStatus } as Partial<EventData>);
+      await mutateEvent();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Status change failed");
     } finally {
@@ -271,11 +275,11 @@ export default function EventDetailPage() {
     if (!event) return;
     setSaving(true);
     try {
-      const updated = await api.updateEvent(event.id, {
+      await api.updateEvent(event.id, {
         dish_ids: data.dish_ids,
         based_on_template: data.based_on_template,
       });
-      setEvent(updated);
+      await mutateEvent();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Save failed");
     } finally {
@@ -298,7 +302,7 @@ export default function EventDetailPage() {
       setNewShiftStaff("");
       setNewShiftStart("");
       setNewShiftEnd("");
-      await refreshEvent();
+      await mutateEvent();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to add shift");
     } finally {
@@ -310,7 +314,7 @@ export default function EventDetailPage() {
     setSaving(true);
     try {
       await api.deleteShift(id);
-      await refreshEvent();
+      await mutateEvent();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to delete shift");
     } finally {
@@ -329,7 +333,7 @@ export default function EventDetailPage() {
       });
       setNewEquipId("");
       setNewEquipQty(1);
-      await refreshEvent();
+      await mutateEvent();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to add equipment");
     } finally {
@@ -341,7 +345,7 @@ export default function EventDetailPage() {
     setSaving(true);
     try {
       await api.deleteReservation(id);
-      await refreshEvent();
+      await mutateEvent();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to delete reservation");
     } finally {
@@ -367,7 +371,7 @@ export default function EventDetailPage() {
         tax_amount: "0.00",
         total: "0.00",
       });
-      await refreshEvent();
+      await mutateEvent();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to create invoice");
     } finally {
@@ -598,8 +602,9 @@ export default function EventDetailPage() {
             {editing ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Account</label>
+                  <label className="block text-sm font-medium text-foreground mb-1">Account *</label>
                   <select
+                    required
                     value={formAccount ?? ""}
                     onChange={(e) => {
                       const val = e.target.value ? Number(e.target.value) : null;
@@ -608,7 +613,7 @@ export default function EventDetailPage() {
                     }}
                     className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                   >
-                    <option value="">-- No Account --</option>
+                    <option value="">-- Select Account --</option>
                     {accounts.map((a) => (
                       <option key={a.id} value={a.id}>{a.name}</option>
                     ))}
@@ -770,38 +775,111 @@ export default function EventDetailPage() {
         {sections.guests && (
           <div className="px-5 pb-5 border-t border-border pt-4">
             {editing ? (
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Gents</label>
-                  <Input type="number" min={0} value={formGents} onChange={(e) => setFormGents(Number(e.target.value))} />
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1">Total Guests</label>
+                    <Input
+                      type="number"
+                      min={1}
+                      value={formTotalGuests || ""}
+                      onChange={(e) => {
+                        const total = Math.max(0, Number(e.target.value) || 0);
+                        setFormTotalGuests(total);
+                        if (formCustomSplit) {
+                          const prevTotal = formGents + formLadies;
+                          const ratio = prevTotal > 0 ? formGents / prevTotal : 0.5;
+                          const gents = Math.round(total * ratio);
+                          setFormGents(gents);
+                          setFormLadies(total - gents);
+                        } else {
+                          setFormGents(Math.ceil(total / 2));
+                          setFormLadies(Math.floor(total / 2));
+                        }
+                      }}
+                    />
+                  </div>
+                  <div className="flex items-end pb-1">
+                    <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={formCustomSplit}
+                        onChange={(e) => {
+                          const custom = e.target.checked;
+                          setFormCustomSplit(custom);
+                          if (!custom) {
+                            setFormGents(Math.ceil(formTotalGuests / 2));
+                            setFormLadies(Math.floor(formTotalGuests / 2));
+                          }
+                        }}
+                        className="rounded border-input"
+                      />
+                      Customise split
+                    </label>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Ladies</label>
-                  <Input type="number" min={0} value={formLadies} onChange={(e) => setFormLadies(Number(e.target.value))} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Guaranteed Count</label>
-                  <Input type="number" min={0} value={formGuaranteed ?? ""} onChange={(e) => setFormGuaranteed(e.target.value ? Number(e.target.value) : null)} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Final Count</label>
-                  <Input type="number" min={0} value={formFinalCount ?? ""} onChange={(e) => setFormFinalCount(e.target.value ? Number(e.target.value) : null)} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Final Count Due</label>
-                  <Input type="date" value={formFinalCountDue} onChange={(e) => setFormFinalCountDue(e.target.value)} />
-                </div>
-                <div className="flex flex-col justify-end">
-                  <label className="flex items-center gap-2 text-sm">
-                    <input type="checkbox" checked={formBigEaters} onChange={(e) => setFormBigEaters(e.target.checked)} className="rounded border-input text-primary focus:ring-ring" />
-                    <span className="font-medium text-foreground">Big Eaters</span>
-                  </label>
-                  {formBigEaters && (
-                    <div className="mt-2">
-                      <label className="block text-xs text-muted-foreground mb-0.5">Percentage (%)</label>
-                      <Input type="number" min={0} max={100} value={formBigEatersPercent} onChange={(e) => setFormBigEatersPercent(Number(e.target.value))} className="h-8" />
+                {formCustomSplit && (
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-1">Gents</label>
+                      <Input
+                        type="number"
+                        min={0}
+                        max={formTotalGuests}
+                        value={formGents}
+                        onChange={(e) => {
+                          const gents = Math.max(0, Number(e.target.value) || 0);
+                          setFormGents(gents);
+                          setFormLadies(Math.max(0, formTotalGuests - gents));
+                        }}
+                      />
                     </div>
-                  )}
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-1">Ladies</label>
+                      <Input
+                        type="number"
+                        min={0}
+                        max={formTotalGuests}
+                        value={formLadies}
+                        onChange={(e) => {
+                          const ladies = Math.max(0, Number(e.target.value) || 0);
+                          setFormLadies(ladies);
+                          setFormGents(Math.max(0, formTotalGuests - ladies));
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+                {!formCustomSplit && formTotalGuests > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    Split: {Math.ceil(formTotalGuests / 2)} gents / {Math.floor(formTotalGuests / 2)} ladies
+                  </p>
+                )}
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1">Guaranteed Count</label>
+                    <Input type="number" min={0} value={formGuaranteed ?? ""} onChange={(e) => setFormGuaranteed(e.target.value ? Number(e.target.value) : null)} />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1">Final Count</label>
+                    <Input type="number" min={0} value={formFinalCount ?? ""} onChange={(e) => setFormFinalCount(e.target.value ? Number(e.target.value) : null)} />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1">Final Count Due</label>
+                    <Input type="date" value={formFinalCountDue} onChange={(e) => setFormFinalCountDue(e.target.value)} />
+                  </div>
+                  <div className="flex flex-col justify-end">
+                    <label className="flex items-center gap-2 text-sm">
+                      <input type="checkbox" checked={formBigEaters} onChange={(e) => setFormBigEaters(e.target.checked)} className="rounded border-input text-primary focus:ring-ring" />
+                      <span className="font-medium text-foreground">Big Eaters</span>
+                    </label>
+                    {formBigEaters && (
+                      <div className="mt-2">
+                        <label className="block text-xs text-muted-foreground mb-0.5">Percentage (%)</label>
+                        <Input type="number" min={0} max={100} value={formBigEatersPercent} onChange={(e) => setFormBigEatersPercent(Number(e.target.value))} className="h-8" />
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             ) : (

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { api, Account, Contact } from "@/lib/api";
+import { useAccount, revalidate } from "@/lib/hooks";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -20,8 +21,7 @@ const ROLE_LABELS: Record<string, string> = {
 export default function AccountDetailPage() {
   const { id } = useParams();
   const router = useRouter();
-  const [account, setAccount] = useState<Account | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data: account, error: loadError, isLoading: loading, mutate: mutateAccount } = useAccount(Number(id) || null);
   const [error, setError] = useState("");
   const [editing, setEditing] = useState(false);
   const [formData, setFormData] = useState<Partial<Account>>({});
@@ -34,18 +34,19 @@ export default function AccountDetailPage() {
   });
 
   useEffect(() => {
-    api.getAccount(Number(id))
-      .then((data) => { setAccount(data); setFormData(data); })
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
-  }, [id]);
+    if (account) setFormData(account);
+  }, [account]);
 
   async function handleSave() {
     if (!account) return;
+    if (!formData.name?.trim()) {
+      setError("Account name is required");
+      return;
+    }
     setSaving(true);
     try {
-      const updated = await api.updateAccount(account.id, formData);
-      setAccount(updated);
+      await api.updateAccount(account.id, formData);
+      await mutateAccount();
       setEditing(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save");
@@ -59,8 +60,8 @@ export default function AccountDetailPage() {
     if (!account) return;
     setSaving(true);
     try {
-      const contact = await api.createContact(account.id, contactData);
-      setAccount({ ...account, contacts: [...account.contacts, contact] });
+      await api.createContact(account.id, contactData);
+      await mutateAccount();
       setShowContactForm(false);
       setContactData({ name: "", email: "", phone: "", role: "coordinator", is_primary: false });
     } catch (err) {
@@ -74,14 +75,14 @@ export default function AccountDetailPage() {
     if (!account || !confirm("Delete this contact?")) return;
     try {
       await api.deleteContact(account.id, contactId);
-      setAccount({ ...account, contacts: account.contacts.filter((c) => c.id !== contactId) });
+      await mutateAccount();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to delete");
     }
   }
 
   if (loading) return <p className="text-muted-foreground">Loading...</p>;
-  if (error) return <p className="text-destructive">Error: {error}</p>;
+  if (loadError) return <p className="text-destructive">Error: {loadError.message}</p>;
   if (!account) return <p className="text-muted-foreground">Account not found.</p>;
 
   return (
@@ -97,6 +98,7 @@ export default function AccountDetailPage() {
               {editing ? (
                 <Input
                   type="text"
+                  required
                   value={formData.name || ""}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   className="text-2xl font-bold h-auto py-1"
@@ -127,6 +129,7 @@ export default function AccountDetailPage() {
                     onClick={async () => {
                       if (confirm("Delete this account?")) {
                         await api.deleteAccount(account.id);
+                        revalidate("accounts");
                         router.push("/accounts");
                       }
                     }}

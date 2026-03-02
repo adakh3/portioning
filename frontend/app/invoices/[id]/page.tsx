@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useEffect, useState, useCallback } from "react";
+import { useState } from "react";
 import { api, Invoice } from "@/lib/api";
+import { useInvoice } from "@/lib/hooks";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -42,8 +43,7 @@ export default function InvoiceDetailPage() {
   const params = useParams();
   const invoiceId = Number(params.id);
 
-  const [invoice, setInvoice] = useState<Invoice | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data: invoice, error: loadError, isLoading: loading, mutate: mutateInvoice } = useInvoice(invoiceId || null);
   const [error, setError] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
 
@@ -55,19 +55,6 @@ export default function InvoiceDetailPage() {
     method: "card",
     reference: "",
   });
-
-  const fetchInvoice = useCallback(() => {
-    setLoading(true);
-    api
-      .getInvoice(invoiceId)
-      .then(setInvoice)
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
-  }, [invoiceId]);
-
-  useEffect(() => {
-    fetchInvoice();
-  }, [fetchInvoice]);
 
   async function handleRecordPayment(e: React.FormEvent) {
     e.preventDefault();
@@ -81,7 +68,7 @@ export default function InvoiceDetailPage() {
       });
       setShowPaymentForm(false);
       setPaymentData({ amount: "", payment_date: todayISO(), method: "card", reference: "" });
-      fetchInvoice();
+      mutateInvoice();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to record payment");
     } finally {
@@ -93,7 +80,7 @@ export default function InvoiceDetailPage() {
     setActionLoading(true);
     try {
       await api.updateInvoice(invoiceId, { status: newStatus } as Partial<Invoice>);
-      fetchInvoice();
+      mutateInvoice();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to update invoice status");
     } finally {
@@ -102,7 +89,7 @@ export default function InvoiceDetailPage() {
   }
 
   if (loading) return <p className="text-muted-foreground">Loading invoice...</p>;
-  if (error && !invoice) return <p className="text-destructive">Error: {error}</p>;
+  if (loadError && !invoice) return <p className="text-destructive">Error: {loadError.message}</p>;
   if (!invoice) return <p className="text-muted-foreground">Invoice not found.</p>;
 
   return (
@@ -227,6 +214,7 @@ export default function InvoiceDetailPage() {
                   <Input
                     type="number"
                     step="0.01"
+                    min="0.01"
                     required
                     value={paymentData.amount}
                     onChange={(e) => setPaymentData({ ...paymentData, amount: e.target.value })}
@@ -234,16 +222,18 @@ export default function InvoiceDetailPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Payment Date</label>
+                  <label className="block text-sm font-medium text-foreground mb-1">Payment Date *</label>
                   <Input
                     type="date"
+                    required
                     value={paymentData.payment_date}
                     onChange={(e) => setPaymentData({ ...paymentData, payment_date: e.target.value })}
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Method</label>
+                  <label className="block text-sm font-medium text-foreground mb-1">Method *</label>
                   <select
+                    required
                     value={paymentData.method}
                     onChange={(e) => setPaymentData({ ...paymentData, method: e.target.value })}
                     className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"

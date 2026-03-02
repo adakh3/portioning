@@ -2,14 +2,14 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { api, SiteSettingsData } from "@/lib/api";
+import { api } from "@/lib/api";
+import { useSiteSettings } from "@/lib/hooks";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function SettingsPage() {
-  const [settings, setSettings] = useState<SiteSettingsData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data: settings, isLoading: loading, mutate: mutateSettings } = useSiteSettings();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -23,20 +23,16 @@ export default function SettingsPage() {
   });
 
   useEffect(() => {
-    api.getSiteSettings()
-      .then((s) => {
-        setSettings(s);
-        setFormData({
-          currency_symbol: s.currency_symbol,
-          currency_code: s.currency_code,
-          default_price_per_head: s.default_price_per_head,
-          target_food_cost_percentage: s.target_food_cost_percentage,
-          price_rounding_step: s.price_rounding_step || "50",
-        });
-      })
-      .catch((e) => setError(e instanceof Error ? e.message : "Failed to load settings"))
-      .finally(() => setLoading(false));
-  }, []);
+    if (settings) {
+      setFormData({
+        currency_symbol: settings.currency_symbol,
+        currency_code: settings.currency_code,
+        default_price_per_head: settings.default_price_per_head,
+        target_food_cost_percentage: settings.target_food_cost_percentage,
+        price_rounding_step: settings.price_rounding_step || "50",
+      });
+    }
+  }, [settings]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -44,8 +40,8 @@ export default function SettingsPage() {
     setError("");
     setSuccess("");
     try {
-      const updated = await api.updateSiteSettings(formData);
-      setSettings(updated);
+      await api.updateSiteSettings(formData);
+      mutateSettings();
       setSuccess("Settings saved successfully.");
       setTimeout(() => setSuccess(""), 3000);
     } catch (err) {
@@ -75,17 +71,19 @@ export default function SettingsPage() {
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Currency Symbol</label>
+                <label className="block text-sm font-medium text-foreground mb-1">Currency Symbol *</label>
                 <Input
                   type="text"
+                  required
                   value={formData.currency_symbol}
                   onChange={(e) => setFormData({ ...formData, currency_symbol: e.target.value })}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Currency Code</label>
+                <label className="block text-sm font-medium text-foreground mb-1">Currency Code *</label>
                 <Input
                   type="text"
+                  required
                   value={formData.currency_code}
                   onChange={(e) => setFormData({ ...formData, currency_code: e.target.value })}
                 />

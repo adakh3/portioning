@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { api, Venue } from "@/lib/api";
+import { useVenues } from "@/lib/hooks";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -9,21 +10,13 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 
 export default function VenuesPage() {
-  const [venues, setVenues] = useState<Venue[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: venues = [], error: loadError, isLoading: loading, mutate: mutateVenues } = useVenues();
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState<Partial<Venue>>({ name: "", city: "", kitchen_access: false });
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
-
-  useEffect(() => {
-    api.getVenues()
-      .then(setVenues)
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
-  }, []);
 
   const filtered = venues.filter(
     (v) => v.name.toLowerCase().includes(search.toLowerCase()) || v.city.toLowerCase().includes(search.toLowerCase())
@@ -34,13 +27,12 @@ export default function VenuesPage() {
     setSaving(true);
     try {
       if (editingId) {
-        const updated = await api.updateVenue(editingId, formData);
-        setVenues((prev) => prev.map((v) => v.id === editingId ? updated : v));
+        await api.updateVenue(editingId, formData);
         setEditingId(null);
       } else {
-        const venue = await api.createVenue(formData);
-        setVenues((prev) => [venue, ...prev]);
+        await api.createVenue(formData);
       }
+      await mutateVenues();
       setShowForm(false);
       setFormData({ name: "", city: "", kitchen_access: false });
     } catch (err) {
@@ -57,7 +49,7 @@ export default function VenuesPage() {
   }
 
   if (loading) return <p className="text-muted-foreground">Loading venues...</p>;
-  if (error) return <p className="text-destructive">Error: {error}</p>;
+  if (loadError) return <p className="text-destructive">Error: {loadError.message}</p>;
 
   return (
     <div>
@@ -74,7 +66,7 @@ export default function VenuesPage() {
         <form onSubmit={handleSubmit} className="bg-background border border-border rounded-lg p-4 mb-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Name</label>
+              <label className="block text-sm font-medium text-foreground mb-1">Name *</label>
               <Input type="text" required value={formData.name || ""} onChange={(e) => setFormData({ ...formData, name: e.target.value })} />
             </div>
             <div>
