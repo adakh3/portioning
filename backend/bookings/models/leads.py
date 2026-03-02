@@ -40,13 +40,7 @@ class ServiceStyle(models.TextChoices):
     MIXED = 'mixed', 'Mixed Service'
 
 
-LEAD_TRANSITIONS = {
-    LeadStatus.NEW: [LeadStatus.CONTACTED, LeadStatus.LOST],
-    LeadStatus.CONTACTED: [LeadStatus.QUALIFIED, LeadStatus.LOST],
-    LeadStatus.QUALIFIED: [LeadStatus.CONVERTED, LeadStatus.LOST],
-    LeadStatus.CONVERTED: [],
-    LeadStatus.LOST: [LeadStatus.NEW],
-}
+ALL_LEAD_STATUSES = [s.value for s in LeadStatus]
 
 
 class Lead(models.Model):
@@ -87,7 +81,7 @@ class Lead(models.Model):
         return f"{self.contact_name} — {self.get_event_type_display()} ({self.get_status_display()})"
 
     def can_transition_to(self, new_status):
-        return new_status in LEAD_TRANSITIONS.get(self.status, [])
+        return new_status in ALL_LEAD_STATUSES and new_status != self.status
 
     def transition_to(self, new_status):
         if not self.can_transition_to(new_status):

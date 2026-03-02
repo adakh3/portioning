@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -11,12 +11,13 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
-  closestCenter,
+  pointerWithin,
+  rectIntersection,
+  CollisionDetection,
 } from "@dnd-kit/core";
-import { useSortable } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
-import { useDroppable } from "@dnd-kit/core";
+import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { api, Lead } from "@/lib/api";
+import { useLeads, revalidate } from "@/lib/hooks";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -29,12 +30,18 @@ const COLUMNS = [
   { status: "lost", label: "Lost", color: "bg-muted", badge: "bg-foreground/10 text-foreground" },
 ] as const;
 
-const ALLOWED_TRANSITIONS: Record<string, string[]> = {
-  new: ["contacted", "lost"],
-  contacted: ["qualified", "lost"],
-  qualified: ["converted", "lost"],
-  converted: [],
-  lost: ["new"],
+const COLUMN_IDS = new Set(COLUMNS.map((c) => c.status as string));
+
+// Custom collision detection: prefer column droppables over card sortables
+const columnFirstCollision: CollisionDetection = (args) => {
+  const pointerCollisions = pointerWithin(args);
+  const columnHit = pointerCollisions.find((c) => COLUMN_IDS.has(c.id as string));
+  if (columnHit) return [columnHit];
+  // Fallback to rectIntersection for edge cases
+  const rectCollisions = rectIntersection(args);
+  const rectColumnHit = rectCollisions.find((c) => COLUMN_IDS.has(c.id as string));
+  if (rectColumnHit) return [rectColumnHit];
+  return pointerCollisions;
 };
 
 function LeadCard({ lead, isDragging }: { lead: Lead; isDragging?: boolean }) {
@@ -66,13 +73,11 @@ function DraggableCard({ lead }: { lead: Lead }) {
     listeners,
     setNodeRef,
     transform,
-    transition,
     isDragging,
-  } = useSortable({ id: lead.id.toString(), data: { lead } });
+  } = useDraggable({ id: lead.id.toString(), data: { lead } });
 
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
+  const style: React.CSSProperties = {
+    transform: transform ? `translate(${transform.x}px, ${transform.y}px)` : undefined,
     opacity: isDragging ? 0.3 : 1,
   };
 
@@ -125,8 +130,8 @@ function KanbanColumn({
 }
 
 export default function LeadsPage() {
+  const { data: fetchedLeads, error: loadError, isLoading: loading } = useLeads();
   const [leads, setLeads] = useState<Lead[]>([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [toast, setToast] = useState("");
@@ -136,17 +141,9 @@ export default function LeadsPage() {
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
   );
 
-  const loadLeads = useCallback(() => {
-    setLoading(true);
-    api.getLeads()
-      .then(setLeads)
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
-  }, []);
-
   useEffect(() => {
-    loadLeads();
-  }, [loadLeads]);
+    if (fetchedLeads) setLeads(fetchedLeads);
+  }, [fetchedLeads]);
 
   useEffect(() => {
     if (!toast) return;
@@ -181,14 +178,7 @@ export default function LeadsPage() {
     if (!lead) return;
 
     const targetStatus = over.id as string;
-    if (targetStatus === lead.status) return;
-
-    const allowed = ALLOWED_TRANSITIONS[lead.status] || [];
-    if (!allowed.includes(targetStatus)) {
-      const targetLabel = COLUMNS.find((c) => c.status === targetStatus)?.label || targetStatus;
-      setToast(`Cannot move from ${lead.status_display} to ${targetLabel}`);
-      return;
-    }
+    if (!COLUMN_IDS.has(targetStatus) || targetStatus === lead.status) return;
 
     // Optimistic update
     setLeads((prev) =>
@@ -199,8 +189,8 @@ export default function LeadsPage() {
 
     try {
       await api.transitionLead(lead.id, targetStatus);
-      // Reload to get fresh data (status_display, timestamps, etc.)
-      loadLeads();
+      // Revalidate to get fresh data (status_display, timestamps, etc.)
+      revalidate("leads");
     } catch (e: unknown) {
       // Revert on failure
       setLeads((prev) =>
@@ -213,6 +203,7 @@ export default function LeadsPage() {
     }
   }
 
+  if (loadError && !leads.length) return <p className="text-destructive">Error: {loadError.message}</p>;
   if (error) return <p className="text-destructive">Error: {error}</p>;
 
   return (
@@ -238,7 +229,7 @@ export default function LeadsPage() {
       ) : (
         <DndContext
           sensors={sensors}
-          collisionDetection={closestCenter}
+          collisionDetection={columnFirstCollision}
           onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
         >

@@ -88,9 +88,9 @@ class TestLeadTransitions(TestCase):
         self.assertEqual(self.lead.status, LeadStatus.CONVERTED)
         self.assertIsNotNone(self.lead.converted_at)
 
-    def test_invalid_transition_raises(self):
+    def test_same_status_transition_raises(self):
         with self.assertRaises(ValueError):
-            self.lead.transition_to(LeadStatus.CONVERTED)  # new -> converted is invalid
+            self.lead.transition_to(LeadStatus.NEW)  # same status is invalid
 
     def test_lost_can_reopen(self):
         self.lead.transition_to(LeadStatus.LOST)
@@ -376,10 +376,10 @@ class TestLeadAPI(TestCase):
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.json()["status"], "contacted")
 
-    def test_transition_invalid_returns_400(self):
+    def test_transition_same_status_returns_400(self):
         lead = make_lead()
         res = self.client.post(f"/api/bookings/leads/{lead.id}/transition/", {
-            "status": "converted",  # can't go new -> converted
+            "status": "new",  # same status is invalid
         }, format="json")
         self.assertEqual(res.status_code, 400)
 
@@ -399,10 +399,12 @@ class TestLeadAPI(TestCase):
         self.assertEqual(lead.status, LeadStatus.CONVERTED)
         self.assertIsNotNone(lead.converted_to_quote)
 
-    def test_convert_unqualified_lead_returns_400(self):
-        lead = make_lead()
+    def test_convert_from_any_status_succeeds(self):
+        lead = make_lead()  # status = new
         res = self.client.post(f"/api/bookings/leads/{lead.id}/convert/")
-        self.assertEqual(res.status_code, 400)
+        self.assertEqual(res.status_code, 201)
+        lead.refresh_from_db()
+        self.assertEqual(lead.status, LeadStatus.CONVERTED)
 
     def test_convert_creates_account_if_none(self):
         lead = make_lead(account=None)

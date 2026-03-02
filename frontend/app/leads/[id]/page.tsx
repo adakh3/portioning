@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { api, Lead, Account, BudgetRangeOption, SiteSettingsData } from "@/lib/api";
+import { api, Lead, Account, BudgetRangeOption } from "@/lib/api";
+import { useLead, useSiteSettings, useBudgetRanges } from "@/lib/hooks";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -19,12 +20,7 @@ const STATUS_BADGE_VARIANT: Record<string, "info" | "warning" | "default" | "suc
   lost: "secondary",
 };
 
-const TRANSITIONS: Record<string, string[]> = {
-  new: ["contacted", "lost"],
-  contacted: ["qualified", "lost"],
-  qualified: ["converted", "lost"],
-  lost: ["new"],
-};
+const ALL_STATUSES = ["new", "contacted", "qualified", "converted", "lost"];
 
 const TRANSITION_LABELS: Record<string, { label: string; variant: "default" | "success" | "warning" | "secondary" | "destructive" }> = {
   contacted: { label: "Mark Contacted", variant: "warning" },
@@ -44,15 +40,15 @@ const QUOTE_BADGE_VARIANT: Record<string, "success" | "info" | "secondary" | "de
 export default function LeadDetailPage() {
   const { id } = useParams();
   const router = useRouter();
-  const [lead, setLead] = useState<Lead | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data: lead, error: loadError, isLoading: loading, mutate: mutateLead } = useLead(Number(id) || null);
+  const { data: rawSettings } = useSiteSettings();
+  const settings = rawSettings || { currency_symbol: "\u00a3", currency_code: "GBP", default_price_per_head: "0.00", target_food_cost_percentage: "30.00", price_rounding_step: "50" };
+  const { data: budgetRanges = [] } = useBudgetRanges();
   const [error, setError] = useState("");
   const [transitioning, setTransitioning] = useState(false);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [accounts, setAccounts] = useState<Account[]>([]);
-  const [budgetRanges, setBudgetRanges] = useState<BudgetRangeOption[]>([]);
-  const [settings, setSettings] = useState<SiteSettingsData>({ currency_symbol: "\u00a3", currency_code: "GBP", default_price_per_head: "0.00", target_food_cost_percentage: "30.00", price_rounding_step: "50" });
   const [editData, setEditData] = useState({
     contact_name: "",
     contact_email: "",
@@ -67,15 +63,6 @@ export default function LeadDetailPage() {
     notes: "",
     lost_reason: "",
   });
-
-  useEffect(() => {
-    api.getLead(Number(id))
-      .then(setLead)
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
-    api.getSiteSettings().then(setSettings).catch(() => {});
-    api.getBudgetRanges().then(setBudgetRanges).catch(() => {});
-  }, [id]);
 
   function startEditing() {
     if (!lead) return;
@@ -117,7 +104,7 @@ export default function LeadDetailPage() {
         notes: editData.notes,
         lost_reason: editData.lost_reason,
       });
-      setLead(updated);
+      mutateLead(updated, false);
       setEditing(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save");
@@ -137,7 +124,7 @@ export default function LeadDetailPage() {
         return;
       }
       const updated = await api.transitionLead(lead.id, newStatus);
-      setLead(updated);
+      mutateLead(updated, false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to transition");
     } finally {
@@ -146,10 +133,10 @@ export default function LeadDetailPage() {
   }
 
   if (loading) return <p className="text-muted-foreground">Loading...</p>;
-  if (error && !lead) return <p className="text-destructive">Error: {error}</p>;
+  if (loadError && !lead) return <p className="text-destructive">Error: {loadError.message}</p>;
   if (!lead) return <p className="text-muted-foreground">Lead not found.</p>;
 
-  const availableTransitions = TRANSITIONS[lead.status] || [];
+  const availableTransitions = ALL_STATUSES.filter((s) => s !== lead.status);
   const cs = settings.currency_symbol;
 
   const setEdit = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>

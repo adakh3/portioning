@@ -45,12 +45,6 @@ class LeadConvertView(APIView):
     def post(self, request, pk):
         lead = Lead.objects.select_related('account').get(pk=pk)
 
-        if lead.status != LeadStatus.QUALIFIED:
-            return Response(
-                {'error': 'Lead must be qualified before converting'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
         if lead.converted_to_quote:
             return Response(
                 {'error': 'Lead already converted', 'quote_id': lead.converted_to_quote_id},
