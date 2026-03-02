@@ -81,6 +81,8 @@ class EventSerializer(serializers.ModelSerializer):
         override_data = validated_data.pop('constraint_override', None)
         dishes = validated_data.pop('dishes', None)
         dish_comments_data = validated_data.pop('dish_comments', None)
+
+        old_status = instance.status
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
@@ -95,4 +97,24 @@ class EventSerializer(serializers.ModelSerializer):
             instance.dish_comments.all().delete()
             for dc in dish_comments_data:
                 EventDishComment.objects.create(event=instance, **dc)
+
+        # Auto-calculate portions when status changes to confirmed
+        # and event has dishes but no existing dish_comments
+        new_status = instance.status
+        if (new_status == 'confirmed' and old_status != 'confirmed'
+                and instance.dishes.exists()
+                and not instance.dish_comments.exists()
+                and dish_comments_data is None):
+            from calculator.engine.calculator import calculate_portions
+            result = calculate_portions(
+                dish_ids=list(instance.dishes.values_list('id', flat=True)),
+                guests={'gents': instance.gents, 'ladies': instance.ladies},
+            )
+            for p in result['portions']:
+                EventDishComment.objects.create(
+                    event=instance,
+                    dish_id=p['dish_id'],
+                    portion_grams=p['grams_per_person'],
+                )
+
         return instance

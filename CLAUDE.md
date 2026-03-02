@@ -41,6 +41,7 @@ npm run dev
 - **Any change to calculation logic** (engine, pools, categories, baselines, ceilings) **must also update PORTIONING_LOGIC.md** to keep documentation in sync with the code.
 - **Any change to PORTIONING_LOGIC.md** must also update **`frontend/app/help/page.tsx`** — the help page is static content distilled from the logic doc.
 - **Any change to seed data** (new dishes, menus, categories, rules, cost data, surcharges, etc.) **must regenerate `backend/seed.json`** by running: `cd backend && python manage.py dumpdata dishes menus rules bookings events --indent 2 -o seed.json`
+- **Any new npm package** must be committed with both `frontend/package.json` and `frontend/package-lock.json` so deployments can install it.
 
 ## Running Tests
 ```bash
