@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { api, StaffMember, LaborRole } from "@/lib/api";
+import { useStaff, useLaborRoles } from "@/lib/hooks";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -47,9 +48,8 @@ export default function StaffPage() {
 }
 
 function StaffRosterTab() {
-  const [staff, setStaff] = useState<StaffMember[]>([]);
-  const [roles, setRoles] = useState<LaborRole[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: staff = [], error: loadError, isLoading: loading, mutate: mutateStaff } = useStaff();
+  const { data: roles = [] } = useLaborRoles();
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
@@ -63,16 +63,6 @@ function StaffRosterTab() {
     hourly_rate: "",
   });
   const [editFormData, setEditFormData] = useState<Partial<StaffMember>>({});
-
-  useEffect(() => {
-    Promise.all([api.getStaff(), api.getLaborRoles()])
-      .then(([staffData, rolesData]) => {
-        setStaff(staffData);
-        setRoles(rolesData);
-      })
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
-  }, []);
 
   const filtered = staff.filter(
     (s) =>
@@ -90,8 +80,8 @@ function StaffRosterTab() {
     e.preventDefault();
     setSaving(true);
     try {
-      const member = await api.createStaffMember(formData);
-      setStaff((prev) => [member, ...prev]);
+      await api.createStaffMember(formData);
+      mutateStaff();
       setShowForm(false);
       setFormData({ name: "", email: "", phone: "", roles: [], hourly_rate: "" });
     } catch (err) {
@@ -105,8 +95,8 @@ function StaffRosterTab() {
     e.preventDefault();
     setSaving(true);
     try {
-      const updated = await api.updateStaffMember(id, editFormData);
-      setStaff((prev) => prev.map((s) => (s.id === id ? updated : s)));
+      await api.updateStaffMember(id, editFormData);
+      mutateStaff();
       setExpandedId(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to update staff member");
@@ -131,7 +121,7 @@ function StaffRosterTab() {
   }
 
   if (loading) return <p className="text-muted-foreground">Loading staff...</p>;
-  if (error) return <p className="text-destructive">Error: {error}</p>;
+  if (loadError) return <p className="text-destructive">Error: {loadError.message}</p>;
 
   return (
     <div>
@@ -370,8 +360,7 @@ function StaffRosterTab() {
 }
 
 function LabourRolesTab() {
-  const [roles, setRoles] = useState<LaborRole[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: roles = [], error: loadError, isLoading: loading, mutate: mutateRoles } = useLaborRoles();
   const [error, setError] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -383,20 +372,12 @@ function LabourRolesTab() {
   });
   const [editFormData, setEditFormData] = useState<Partial<LaborRole>>({});
 
-  useEffect(() => {
-    api
-      .getLaborRoles()
-      .then(setRoles)
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
-  }, []);
-
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
     try {
-      const role = await api.createLaborRole(formData);
-      setRoles((prev) => [role, ...prev]);
+      await api.createLaborRole(formData);
+      mutateRoles();
       setShowForm(false);
       setFormData({ name: "", default_hourly_rate: "", description: "" });
     } catch (err) {
@@ -410,8 +391,8 @@ function LabourRolesTab() {
     e.preventDefault();
     setSaving(true);
     try {
-      const updated = await api.updateLaborRole(id, editFormData);
-      setRoles((prev) => prev.map((r) => (r.id === id ? updated : r)));
+      await api.updateLaborRole(id, editFormData);
+      mutateRoles();
       setEditingId(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to update role");
@@ -434,7 +415,7 @@ function LabourRolesTab() {
   }
 
   if (loading) return <p className="text-muted-foreground">Loading roles...</p>;
-  if (error) return <p className="text-destructive">Error: {error}</p>;
+  if (loadError) return <p className="text-destructive">Error: {loadError.message}</p>;
 
   return (
     <div>

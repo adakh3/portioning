@@ -10,6 +10,13 @@ from bookings.models import (
 )
 from bookings.models.leads import LeadStatus
 from bookings.models.quotes import QuoteStatus
+from tests.base import get_test_user
+
+
+def _authenticated_client():
+    client = APIClient()
+    client.force_authenticate(user=get_test_user())
+    return client
 
 
 # --- Helper factories ---
@@ -281,7 +288,7 @@ class TestEquipmentAvailability(TestCase):
 
 class TestAccountAPI(TestCase):
     def setUp(self):
-        self.client = APIClient()
+        self.client = _authenticated_client()
 
     def test_create_account(self):
         res = self.client.post("/api/bookings/accounts/", {
@@ -330,7 +337,7 @@ class TestAccountAPI(TestCase):
 
 class TestVenueAPI(TestCase):
     def setUp(self):
-        self.client = APIClient()
+        self.client = _authenticated_client()
 
     def test_create_venue(self):
         res = self.client.post("/api/bookings/venues/", {
@@ -349,7 +356,7 @@ class TestVenueAPI(TestCase):
 
 class TestLeadAPI(TestCase):
     def setUp(self):
-        self.client = APIClient()
+        self.client = _authenticated_client()
 
     def test_create_lead(self):
         res = self.client.post("/api/bookings/leads/", {
@@ -420,7 +427,7 @@ class TestLeadAPI(TestCase):
 
 class TestQuoteAPI(TestCase):
     def setUp(self):
-        self.client = APIClient()
+        self.client = _authenticated_client()
         self.account = make_account()
 
     def test_create_quote(self):
@@ -512,7 +519,7 @@ class TestQuoteAPI(TestCase):
 
 class TestStaffingAPI(TestCase):
     def setUp(self):
-        self.client = APIClient()
+        self.client = _authenticated_client()
 
     def test_create_labor_role(self):
         res = self.client.post("/api/bookings/labor-roles/", {
@@ -531,7 +538,7 @@ class TestStaffingAPI(TestCase):
 
 class TestEquipmentAPI(TestCase):
     def setUp(self):
-        self.client = APIClient()
+        self.client = _authenticated_client()
 
     def test_create_equipment(self):
         res = self.client.post("/api/bookings/equipment/", {
@@ -550,7 +557,7 @@ class TestEquipmentAPI(TestCase):
 
 class TestInvoiceAPI(TestCase):
     def setUp(self):
-        self.client = APIClient()
+        self.client = _authenticated_client()
         from events.models import Event
         self.event = Event.objects.create(
             name="Gala Dinner", date="2026-08-01", gents=60, ladies=60,
@@ -605,7 +612,7 @@ class TestSiteSettingsAPI(TestCase):
     """Tests for GET and PATCH /api/bookings/settings/."""
 
     def setUp(self):
-        self.client = APIClient()
+        self.client = _authenticated_client()
         self.settings = SiteSettings.load()
 
     def test_get_settings(self):

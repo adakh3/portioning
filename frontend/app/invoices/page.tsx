@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { api, Invoice } from "@/lib/api";
+import { useState } from "react";
+import { Invoice } from "@/lib/api";
+import { useInvoices } from "@/lib/hooks";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 
@@ -42,21 +43,12 @@ function invoiceTypeLabel(type: string): string {
 }
 
 export default function InvoicesPage() {
-  const [invoices, setInvoices] = useState<Invoice[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const { data: invoices = [], error: loadError, isLoading: loading } = useInvoices(
+    statusFilter ? { status: statusFilter } : undefined
+  );
 
-  useEffect(() => {
-    setLoading(true);
-    api
-      .getInvoices(statusFilter ? { status: statusFilter } : undefined)
-      .then(setInvoices)
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
-  }, [statusFilter]);
-
-  if (error) return <p className="text-destructive">Error: {error}</p>;
+  if (loadError) return <p className="text-destructive">Error: {loadError.message}</p>;
 
   return (
     <div>

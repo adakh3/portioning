@@ -1,5 +1,8 @@
 from django.test import TestCase
+from rest_framework.test import APIClient
+
 from calculator.engine.checker import check_user_portions
+from tests.base import get_test_user
 from calculator.engine.models import DishInput, GuestMix, ResolvedConstraints
 
 
@@ -188,6 +191,10 @@ class TestCheckPortionsAPI(TestCase):
     def setUpTestData(cls):
         from django.core.management import call_command
         call_command('seed_data', verbosity=0)
+
+    def setUp(self):
+        self.client = APIClient()
+        self.client.force_authenticate(user=get_test_user())
 
     def _get_dish_ids(self, pool='protein', count=3):
         from dishes.models import Dish

@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { api, Quote, SiteSettingsData } from "@/lib/api";
+import { useState } from "react";
+import { useQuotes, useSiteSettings } from "@/lib/hooks";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -18,26 +18,12 @@ const STATUS_BADGE_VARIANT: Record<string, "secondary" | "info" | "success" | "w
 const STATUSES = ["all", "draft", "sent", "accepted", "expired", "declined"];
 
 export default function QuotesPage() {
-  const [quotes, setQuotes] = useState<Quote[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
   const [filter, setFilter] = useState("all");
-  const [settings, setSettings] = useState<SiteSettingsData>({ currency_symbol: "£", currency_code: "GBP", default_price_per_head: "0.00", target_food_cost_percentage: "30.00", price_rounding_step: "50" });
+  const { data: quotes = [], error: loadError, isLoading: loading } = useQuotes(filter);
+  const { data: rawSettings } = useSiteSettings();
+  const settings = rawSettings || { currency_symbol: "£", currency_code: "GBP", default_price_per_head: "0.00", target_food_cost_percentage: "30.00", price_rounding_step: "50" };
 
-  function loadQuotes(status?: string) {
-    setLoading(true);
-    api.getQuotes(status === "all" ? undefined : status)
-      .then(setQuotes)
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
-  }
-
-  useEffect(() => {
-    loadQuotes();
-    api.getSiteSettings().then(setSettings).catch(() => {});
-  }, []);
-
-  if (error) return <p className="text-destructive">Error: {error}</p>;
+  if (loadError) return <p className="text-destructive">Error: {loadError.message}</p>;
 
   return (
     <div>
@@ -54,7 +40,7 @@ export default function QuotesPage() {
             key={s}
             variant={filter === s ? "default" : "outline"}
             size="sm"
-            onClick={() => { setFilter(s); loadQuotes(s); }}
+            onClick={() => setFilter(s)}
             className={filter === s ? "bg-foreground text-background hover:bg-foreground/90" : "capitalize"}
           >
             <span className="capitalize">{s}</span>

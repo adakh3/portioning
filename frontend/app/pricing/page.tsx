@@ -1,13 +1,12 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo } from "react";
 import {
   api,
   MenuTemplate,
   MenuTemplateDetail,
-  Dish,
-  SiteSettingsData,
 } from "@/lib/api";
+import { useMenus, useDishes, useSiteSettings } from "@/lib/hooks";
 import MenuBuilder from "@/components/MenuBuilder";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -19,10 +18,11 @@ const MENU_TYPE_LABELS: Record<string, string> = {
 };
 
 export default function PricingPage() {
-  const [templates, setTemplates] = useState<MenuTemplate[]>([]);
-  const [dishes, setDishes] = useState<Dish[]>([]);
-  const [settings, setSettings] = useState<SiteSettingsData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data: templates, isLoading: tLoading } = useMenus();
+  const { data: dishes, isLoading: dLoading } = useDishes();
+  const { data: rawSettings, isLoading: sLoading } = useSiteSettings();
+  const settings = rawSettings || null;
+  const loading = tLoading || dLoading || sLoading;
 
   // Expanded template row
   const [expandedId, setExpandedId] = useState<number | null>(null);
@@ -35,23 +35,12 @@ export default function PricingPage() {
   const [customTemplate, setCustomTemplate] = useState<number | null>(null);
   const [customGuestCount, setCustomGuestCount] = useState<string>("");
 
-  useEffect(() => {
-    Promise.all([api.getMenus(), api.getDishes(), api.getSiteSettings()])
-      .then(([t, d, s]) => {
-        setTemplates(t);
-        setDishes(d);
-        setSettings(s);
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
-
   const currencySymbol = settings?.currency_symbol || "Rs.";
 
   // Group templates by menu_type, only show barat/mehndi in the tier section
   const grouped = useMemo(() => {
     const groups: Record<string, MenuTemplate[]> = {};
-    for (const t of templates) {
+    for (const t of templates || []) {
       const type = t.menu_type || "custom";
       if (!groups[type]) groups[type] = [];
       groups[type].push(t);

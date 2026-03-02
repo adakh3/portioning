@@ -1,32 +1,21 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
-import { api, EventData, Quote, Lead } from "@/lib/api";
+import { EventData, Quote, Lead } from "@/lib/api";
+import { useEvents, useQuotes, useLeads } from "@/lib/hooks";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 
 export default function Dashboard() {
-  const [events, setEvents] = useState<EventData[]>([]);
-  const [quotes, setQuotes] = useState<Quote[]>([]);
-  const [leads, setLeads] = useState<Lead[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: allEvents } = useEvents({ date_from: new Date().toISOString().split("T")[0] });
+  const { data: allQuotes } = useQuotes();
+  const { data: allLeads } = useLeads();
 
-  useEffect(() => {
-    Promise.all([
-      api.getEvents({ date_from: new Date().toISOString().split("T")[0] }),
-      api.getQuotes(),
-      api.getLeads(),
-    ])
-      .then(([e, q, l]) => {
-        setEvents(e.slice(0, 5));
-        setQuotes(q.filter((q) => q.status === "draft" || q.status === "sent").slice(0, 5));
-        setLeads(l.slice(0, 5));
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
+  const events = (allEvents || []).slice(0, 5);
+  const quotes = (allQuotes || []).filter((q) => q.status === "draft" || q.status === "sent").slice(0, 5);
+  const leads = (allLeads || []).slice(0, 5);
+  const loading = !allEvents || !allQuotes || !allLeads;
 
   if (loading) {
     return <p className="text-muted-foreground">Loading dashboard...</p>;

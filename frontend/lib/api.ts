@@ -1,10 +1,52 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
 
+export interface AuthUser {
+  id: number;
+  email: string;
+  first_name: string;
+  last_name: string;
+  role: string;
+  organisation: { id: number; name: string } | null;
+}
+
+// Refresh deduplication — only one refresh in-flight at a time
+let refreshPromise: Promise<boolean> | null = null;
+
+async function tryRefresh(): Promise<boolean> {
+  if (refreshPromise) return refreshPromise;
+  refreshPromise = fetch(`${API_BASE}/auth/refresh/`, {
+    method: "POST",
+    credentials: "include",
+  })
+    .then((res) => res.ok)
+    .finally(() => {
+      refreshPromise = null;
+    });
+  return refreshPromise;
+}
+
 async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
+    credentials: "include",
     headers: { "Content-Type": "application/json", ...options?.headers },
     ...options,
   });
+  if (res.status === 401 && !path.startsWith("/auth/")) {
+    const refreshed = await tryRefresh();
+    if (refreshed) {
+      const retry = await fetch(`${API_BASE}${path}`, {
+        credentials: "include",
+        headers: { "Content-Type": "application/json", ...options?.headers },
+        ...options,
+      });
+      if (!retry.ok) {
+        const text = await retry.text();
+        throw new Error(`API error ${retry.status}: ${text}`);
+      }
+      return retry.json();
+    }
+    throw new Error("API error 401: Unauthorized");
+  }
   if (!res.ok) {
     const text = await res.text();
     throw new Error(`API error ${res.status}: ${text}`);
@@ -503,6 +545,17 @@ export interface PriceEstimateResult {
 
 // API functions
 export const api = {
+  // Auth
+  login: (email: string, password: string) =>
+    fetchApi<AuthUser>("/auth/login/", {
+      method: "POST",
+      body: JSON.stringify({ email, password }),
+    }),
+  logout: async () => {
+    await fetch(`${API_BASE}/auth/logout/`, { method: "POST", credentials: "include" });
+  },
+  getMe: () => fetchApi<AuthUser>("/auth/me/"),
+
   getDishes: () => fetchApi<Dish[]>("/dishes/"),
   getCategories: () => fetchApi<DishCategory[]>("/categories/"),
   getMenus: () => fetchApi<MenuTemplate[]>("/menus/"),
@@ -567,6 +620,7 @@ export const api = {
   }): Promise<Blob> => {
     const res = await fetch(`${API_BASE}/export-pdf/`, {
       method: "POST",
+      credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
     });
@@ -624,6 +678,7 @@ export const api = {
     fetchApi<Quote>(`/bookings/quotes/${id}/transition/`, { method: "POST", body: JSON.stringify({ status }) }),
   downloadQuotePDF: async (id: number): Promise<Blob> => {
     const res = await fetch(`${API_BASE}/bookings/quotes/${id}/pdf/`, {
+      credentials: "include",
       headers: { "Content-Type": "application/json" },
     });
     if (!res.ok) {

@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { api, Account, Contact, Venue, SiteSettingsData } from "@/lib/api";
+import { api, Contact } from "@/lib/api";
+import { useAccounts, useVenues, useSiteSettings, revalidate } from "@/lib/hooks";
 import MenuBuilder from "@/components/MenuBuilder";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -12,12 +13,13 @@ import { Textarea } from "@/components/ui/textarea";
 
 export default function NewQuotePage() {
   const router = useRouter();
-  const [accounts, setAccounts] = useState<Account[]>([]);
+  const { data: accounts = [] } = useAccounts();
+  const { data: venues = [] } = useVenues();
+  const { data: rawSettings } = useSiteSettings();
+  const settings = rawSettings || { currency_symbol: "£", currency_code: "GBP", default_price_per_head: "0.00", target_food_cost_percentage: "30.00", price_rounding_step: "50" };
   const [contacts, setContacts] = useState<Contact[]>([]);
-  const [venues, setVenues] = useState<Venue[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const [settings, setSettings] = useState<SiteSettingsData>({ currency_symbol: "£", currency_code: "GBP", default_price_per_head: "0.00", target_food_cost_percentage: "30.00", price_rounding_step: "50" });
   const [formData, setFormData] = useState({
     account: "",
     primary_contact: "",
@@ -41,17 +43,10 @@ export default function NewQuotePage() {
   const handleSuggestedPriceChange = useCallback((price: number | null) => setSuggestedPrice(price), []);
 
   useEffect(() => {
-    Promise.all([api.getAccounts(), api.getVenues(), api.getSiteSettings()])
-      .then(([a, v, s]) => {
-        setAccounts(a);
-        setVenues(v);
-        setSettings(s);
-        if (parseFloat(s.default_price_per_head) > 0) {
-          setFormData((prev) => ({ ...prev, price_per_head: s.default_price_per_head }));
-        }
-      })
-      .catch(() => {});
-  }, []);
+    if (rawSettings && parseFloat(rawSettings.default_price_per_head) > 0) {
+      setFormData((prev) => ({ ...prev, price_per_head: rawSettings.default_price_per_head }));
+    }
+  }, [rawSettings]);
 
   // Load contacts when account changes
   useEffect(() => {
@@ -87,6 +82,7 @@ export default function NewQuotePage() {
         based_on_template: menuData.based_on_template,
       };
       const quote = await api.createQuote(data);
+      revalidate("quotes");
       router.push(`/quotes/${quote.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create quote");

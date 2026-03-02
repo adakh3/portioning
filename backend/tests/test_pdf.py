@@ -2,6 +2,7 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 
 from calculator.pdf import generate_portion_pdf
+from tests.base import get_test_user
 
 
 class TestPDFGeneration(TestCase):
@@ -133,6 +134,7 @@ class TestExportPDFAPI(TestCase):
 
     def setUp(self):
         self.client = APIClient()
+        self.client.force_authenticate(user=get_test_user())
 
     def test_export_pdf_endpoint(self):
         from dishes.models import Dish

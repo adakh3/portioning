@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
-import { api, Dish, DishCategory, MenuTemplate, MenuTemplateDetail, PriceTier, PriceCheckResult, PriceCheckBreakdownItem, PriceEstimateResult } from "@/lib/api";
+import { api, MenuTemplateDetail, PriceTier, PriceCheckResult, PriceCheckBreakdownItem, PriceEstimateResult } from "@/lib/api";
+import { useDishes, useCategories, useMenus } from "@/lib/hooks";
 
 interface CalculatedPrice {
   price: number;
@@ -42,10 +43,9 @@ export default function MenuBuilder({
   disabled = false,
   priceRoundingStep = 1,
 }: Props) {
-  const [dishes, setDishes] = useState<Dish[]>([]);
-  const [categories, setCategories] = useState<DishCategory[]>([]);
-  const [templates, setTemplates] = useState<MenuTemplate[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: dishes = [] } = useDishes();
+  const { data: categories = [] } = useCategories();
+  const { data: templates = [], isLoading: loading } = useMenus();
 
   const [selected, setSelected] = useState<Set<number>>(new Set(selectedDishIds));
   const [templateId, setTemplateId] = useState<number | null>(basedOnTemplate);
@@ -68,17 +68,6 @@ export default function MenuBuilder({
 
   // Extra food % markup
   const [extraFoodPercent, setExtraFoodPercent] = useState(0);
-
-  useEffect(() => {
-    Promise.all([api.getDishes(), api.getCategories(), api.getMenus()])
-      .then(([d, c, t]) => {
-        setDishes(d);
-        setCategories(c);
-        setTemplates(t);
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
 
   // Sync with external prop changes
   useEffect(() => {

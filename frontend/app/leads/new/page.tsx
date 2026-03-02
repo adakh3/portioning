@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { api, Account, BudgetRangeOption } from "@/lib/api";
+import { api } from "@/lib/api";
+import { useAccounts, useBudgetRanges, revalidate } from "@/lib/hooks";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -11,8 +12,8 @@ import { Card, CardContent } from "@/components/ui/card";
 
 export default function NewLeadPage() {
   const router = useRouter();
-  const [accounts, setAccounts] = useState<Account[]>([]);
-  const [budgetRanges, setBudgetRanges] = useState<BudgetRangeOption[]>([]);
+  const { data: accounts = [] } = useAccounts();
+  const { data: budgetRanges = [] } = useBudgetRanges();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [formData, setFormData] = useState({
@@ -29,11 +30,6 @@ export default function NewLeadPage() {
     notes: "",
   });
 
-  useEffect(() => {
-    api.getAccounts().then(setAccounts).catch(() => {});
-    api.getBudgetRanges().then(setBudgetRanges).catch(() => {});
-  }, []);
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
@@ -47,6 +43,7 @@ export default function NewLeadPage() {
         budget_range: formData.budget_range ? Number(formData.budget_range) : null,
       };
       const lead = await api.createLead(data);
+      revalidate("leads");
       router.push(`/leads/${lead.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create lead");

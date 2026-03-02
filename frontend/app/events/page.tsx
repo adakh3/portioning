@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
-import { api, EventData } from "@/lib/api";
+import { EventData } from "@/lib/api";
+import { useEvents } from "@/lib/hooks";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -16,23 +17,8 @@ const statusBadgeVariant: Record<string, "warning" | "info" | "secondary" | "suc
 };
 
 export default function EventsPage() {
-  const [events, setEvents] = useState<EventData[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("");
-
-  const loadEvents = () => {
-    setLoading(true);
-    api.getEvents(statusFilter ? { status: statusFilter } : undefined)
-      .then(setEvents)
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
-  };
-
-  useEffect(() => {
-    loadEvents();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [statusFilter]);
+  const { data: events = [], error, isLoading: loading } = useEvents(statusFilter ? { status: statusFilter } : undefined);
 
   const statuses = ["", "tentative", "confirmed", "in_progress", "completed", "cancelled"];
   const statusLabels: Record<string, string> = {
@@ -72,9 +58,8 @@ export default function EventsPage() {
 
       {loading && <p className="text-muted-foreground">Loading events...</p>}
       {error && (
-        <div className="bg-destructive/10 border border-destructive/20 text-destructive px-4 py-3 rounded flex justify-between">
-          <span>{error}</span>
-          <button onClick={() => setError(null)} className="text-destructive/80 hover:text-destructive">&times;</button>
+        <div className="bg-destructive/10 border border-destructive/20 text-destructive px-4 py-3 rounded">
+          <span>{error.message}</span>
         </div>
       )}
 

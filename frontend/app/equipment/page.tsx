@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { api, EquipmentItem } from "@/lib/api";
+import { useEquipment } from "@/lib/hooks";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -25,8 +26,7 @@ const CATEGORY_LABELS: Record<string, string> = Object.fromEntries(
 );
 
 export default function EquipmentPage() {
-  const [equipment, setEquipment] = useState<EquipmentItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: equipment = [], error: loadError, isLoading: loading, mutate: mutateEquipment } = useEquipment();
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
@@ -42,14 +42,6 @@ export default function EquipmentPage() {
   });
   const [editFormData, setEditFormData] = useState<Partial<EquipmentItem>>({});
 
-  useEffect(() => {
-    api
-      .getEquipment()
-      .then(setEquipment)
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
-  }, []);
-
   const filtered = equipment.filter((item) => {
     const matchesSearch = item.name.toLowerCase().includes(search.toLowerCase());
     const matchesCategory = !categoryFilter || item.category === categoryFilter;
@@ -60,8 +52,8 @@ export default function EquipmentPage() {
     e.preventDefault();
     setSaving(true);
     try {
-      const item = await api.createEquipmentItem(formData);
-      setEquipment((prev) => [item, ...prev]);
+      await api.createEquipmentItem(formData);
+      await mutateEquipment();
       setShowForm(false);
       setFormData({ name: "", category: "other", stock_quantity: 0, rental_price: "", description: "" });
     } catch (err) {
@@ -75,8 +67,8 @@ export default function EquipmentPage() {
     e.preventDefault();
     setSaving(true);
     try {
-      const updated = await api.updateEquipmentItem(id, editFormData);
-      setEquipment((prev) => prev.map((item) => (item.id === id ? updated : item)));
+      await api.updateEquipmentItem(id, editFormData);
+      await mutateEquipment();
       setExpandedId(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to update equipment item");
@@ -102,7 +94,7 @@ export default function EquipmentPage() {
   }
 
   if (loading) return <p className="text-muted-foreground">Loading equipment...</p>;
-  if (error) return <p className="text-destructive">Error: {error}</p>;
+  if (loadError) return <p className="text-destructive">Error: {loadError.message}</p>;
 
   return (
     <div>

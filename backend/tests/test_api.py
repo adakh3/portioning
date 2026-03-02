@@ -1,6 +1,8 @@
 from django.test import TestCase
 from rest_framework.test import APIClient
 
+from tests.base import get_test_user
+
 
 class TestAPI(TestCase):
     @classmethod
@@ -10,6 +12,7 @@ class TestAPI(TestCase):
 
     def setUp(self):
         self.client = APIClient()
+        self.client.force_authenticate(user=get_test_user())
 
     def test_list_dishes(self):
         res = self.client.get('/api/dishes/')

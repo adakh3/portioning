@@ -4,13 +4,11 @@ import { Suspense, useEffect, useState, useCallback, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   api,
-  Dish,
-  DishCategory,
-  MenuTemplate,
   GuestMix,
   CheckResult,
   EventDishComment,
 } from "@/lib/api";
+import { useDishes, useCategories, useMenus } from "@/lib/hooks";
 import DishSelector from "@/components/DishSelector";
 import GuestMixForm from "@/components/GuestMixForm";
 import PortionsEditor from "@/components/PortionsEditor";
@@ -35,10 +33,10 @@ function CalculatePageInner() {
   const eventId = searchParams.get("event");
 
   // Reference data
-  const [dishes, setDishes] = useState<Dish[]>([]);
-  const [categories, setCategories] = useState<DishCategory[]>([]);
-  const [templates, setTemplates] = useState<MenuTemplate[]>([]);
-  const [dataLoading, setDataLoading] = useState(true);
+  const { data: dishes = [], isLoading: dishesLoading } = useDishes();
+  const { data: categories = [] } = useCategories();
+  const { data: templates = [] } = useMenus();
+  const dataLoading = dishesLoading;
   const [error, setError] = useState<string | null>(null);
 
   // Setup
@@ -80,18 +78,6 @@ function CalculatePageInner() {
   const urlTemplateLoaded = useRef(false);
   const urlEventLoaded = useRef(false);
   const eventLoadComplete = useRef(!eventId);  // true if no event to load
-
-  // Load initial data
-  useEffect(() => {
-    Promise.all([api.getDishes(), api.getCategories(), api.getMenus()])
-      .then(([d, c, m]) => {
-        setDishes(d);
-        setCategories(c);
-        setTemplates(m);
-      })
-      .catch((e) => setError(e.message))
-      .finally(() => setDataLoading(false));
-  }, []);
 
   // Load template from URL param
   useEffect(() => {
