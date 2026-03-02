@@ -3,21 +3,31 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { api, Account, Contact, Venue, SiteSettingsData } from "@/lib/api";
+import { api, Contact } from "@/lib/api";
+import { useAccounts, useVenues, useSiteSettings } from "@/lib/hooks";
 import MenuBuilder from "@/components/MenuBuilder";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 
+const defaultSettings = {
+  currency_symbol: "£",
+  currency_code: "GBP",
+  default_price_per_head: "0.00",
+  target_food_cost_percentage: "30.00",
+  price_rounding_step: "50",
+};
+
 export default function NewEventPage() {
   const router = useRouter();
-  const [accounts, setAccounts] = useState<Account[]>([]);
+  const { data: accounts = [] } = useAccounts();
+  const { data: venues = [] } = useVenues();
+  const { data: settings } = useSiteSettings();
+  const s = settings || defaultSettings;
   const [contacts, setContacts] = useState<Contact[]>([]);
-  const [venues, setVenues] = useState<Venue[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const [settings, setSettings] = useState<SiteSettingsData>({ currency_symbol: "£", currency_code: "GBP", default_price_per_head: "0.00", target_food_cost_percentage: "30.00", price_rounding_step: "50" });
   const [formData, setFormData] = useState({
     name: "",
     date: "",
@@ -41,17 +51,10 @@ export default function NewEventPage() {
   const handleSuggestedPriceChange = useCallback((price: number | null) => setSuggestedPrice(price), []);
 
   useEffect(() => {
-    Promise.all([api.getAccounts(), api.getVenues(), api.getSiteSettings()])
-      .then(([a, v, s]) => {
-        setAccounts(a);
-        setVenues(v);
-        setSettings(s);
-        if (parseFloat(s.default_price_per_head) > 0) {
-          setFormData((prev) => ({ ...prev, price_per_head: s.default_price_per_head }));
-        }
-      })
-      .catch(() => {});
-  }, []);
+    if (settings && parseFloat(settings.default_price_per_head) > 0 && !formData.price_per_head) {
+      setFormData((prev) => ({ ...prev, price_per_head: settings.default_price_per_head }));
+    }
+  }, [settings]);
 
   // Load contacts when account changes
   useEffect(() => {
@@ -244,10 +247,11 @@ export default function NewEventPage() {
             <MenuBuilder
               selectedDishIds={menuData.dish_ids}
               basedOnTemplate={menuData.based_on_template}
+              guestCount={(Number(formData.gents) || 0) + (Number(formData.ladies) || 0)}
               onChange={setMenuData}
               onSuggestedPriceChange={handleSuggestedPriceChange}
               onUseSuggestedPrice={(price) => setFormData((prev) => ({ ...prev, price_per_head: price.toFixed(2) }))}
-              currencySymbol={settings.currency_symbol}
+              currencySymbol={s.currency_symbol}
             />
           </CardContent>
         </Card>
@@ -260,7 +264,7 @@ export default function NewEventPage() {
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Price Per Head ({settings.currency_symbol})</label>
+                <label className="block text-sm font-medium text-foreground mb-1">Price Per Head ({s.currency_symbol})</label>
                 <div className="flex gap-2">
                   <Input
                     type="number"
@@ -277,18 +281,18 @@ export default function NewEventPage() {
                       onClick={() => setFormData({ ...formData, price_per_head: suggestedPrice.toFixed(2) })}
                       className="whitespace-nowrap border-success/30 text-success bg-success/10 hover:bg-success/15 hover:text-success"
                     >
-                      Use {settings.currency_symbol}{suggestedPrice.toFixed(2)}
+                      Use {s.currency_symbol}{suggestedPrice.toFixed(2)}
                     </Button>
                   )}
                 </div>
                 {suggestedPrice !== null && (
                   <p className="text-xs text-success/80 mt-1">
-                    Suggested: {settings.currency_symbol}{suggestedPrice.toFixed(2)}/head
+                    Suggested: {s.currency_symbol}{suggestedPrice.toFixed(2)}/head
                   </p>
                 )}
                 {formData.price_per_head && (formData.gents || formData.ladies) && (
                   <p className="text-xs text-muted-foreground mt-1">
-                    Food total: {settings.currency_symbol}{(parseFloat(formData.price_per_head) * (Number(formData.gents || 0) + Number(formData.ladies || 0))).toFixed(2)} ({Number(formData.gents || 0) + Number(formData.ladies || 0)} guests)
+                    Food total: {s.currency_symbol}{(parseFloat(formData.price_per_head) * (Number(formData.gents || 0) + Number(formData.ladies || 0))).toFixed(2)} ({Number(formData.gents || 0) + Number(formData.ladies || 0)} guests)
                   </p>
                 )}
               </div>
