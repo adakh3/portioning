@@ -16,10 +16,11 @@ import {
   CollisionDetection,
 } from "@dnd-kit/core";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
-import { api, Lead, LeadFilters } from "@/lib/api";
+import { api, Lead, LeadFilters, AuthUser, ProductLine } from "@/lib/api";
 import { useLeads, useUsers, useProductLines, revalidate } from "@/lib/hooks";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import {
   Select,
@@ -669,6 +670,13 @@ export default function LeadsPage() {
           onToggleSelect={toggleSelect}
           onToggleSelectAll={toggleSelectAll}
           onToggleSort={toggleSort}
+          users={users || []}
+          productLines={productLines || []}
+          filters={filters}
+          onToast={setToast}
+          onOptimisticUpdate={(leadId, patch) =>
+            setLeads((prev) => prev.map((l) => l.id === leadId ? { ...l, ...patch } : l))
+          }
         />
       )}
 
@@ -715,6 +723,11 @@ function LeadsTable({
   onToggleSelect,
   onToggleSelectAll,
   onToggleSort,
+  users,
+  productLines,
+  filters,
+  onToast,
+  onOptimisticUpdate,
 }: {
   leads: Lead[];
   selectedIds: Set<number>;
@@ -722,9 +735,246 @@ function LeadsTable({
   onToggleSelect: (id: number) => void;
   onToggleSelectAll: () => void;
   onToggleSort: (field: SortField) => void;
+  users: AuthUser[];
+  productLines: ProductLine[];
+  filters: LeadFilters;
+  onToast: (msg: string) => void;
+  onOptimisticUpdate: (leadId: number, patch: Partial<Lead>) => void;
 }) {
   const router = useRouter();
   const allSelected = leads.length > 0 && selectedIds.size === leads.length;
+
+  // Inline editing state
+  const [editing, setEditing] = useState<{ leadId: number; field: string } | null>(null);
+  const [draft, setDraft] = useState("");
+  const [saving, setSaving] = useState<{ leadId: number; field: string } | null>(null);
+
+  // Quick-add state
+  const [quickAdd, setQuickAdd] = useState<Partial<Lead>>({});
+  const [quickAddActive, setQuickAddActive] = useState(false);
+  const [quickAddSaving, setQuickAddSaving] = useState(false);
+
+  const isEditing = (field: string, leadId: number) =>
+    editing?.leadId === leadId && editing?.field === field;
+  const isSaving = (field: string, leadId: number) =>
+    saving?.leadId === leadId && saving?.field === field;
+
+  function revalidateLeads() {
+    revalidate("leads");
+    const qs = Object.entries(filters)
+      .filter(([, v]) => v)
+      .map(([k, v]) => `${k}=${v}`)
+      .sort()
+      .join("&");
+    if (qs) revalidate(`leads?${qs}`);
+  }
+
+  async function saveQuickAdd() {
+    if (!quickAdd.contact_name?.trim()) {
+      onToast("Name is required");
+      return;
+    }
+    setQuickAddSaving(true);
+    try {
+      await api.createLead(quickAdd);
+      revalidateLeads();
+      setQuickAdd({});
+      setQuickAddActive(false);
+      onToast("Lead created");
+    } catch (e) {
+      onToast(e instanceof Error ? e.message : "Failed to create lead");
+    } finally {
+      setQuickAddSaving(false);
+    }
+  }
+
+  function cancelQuickAdd() {
+    setQuickAdd({});
+    setQuickAddActive(false);
+  }
+
+  function startEdit(leadId: number, field: string, currentValue: string) {
+    setEditing({ leadId, field });
+    setDraft(currentValue);
+  }
+
+  async function commitEdit(leadId: number, field: string, value: string) {
+    setEditing(null);
+    const lead = leads.find((l) => l.id === leadId);
+    if (!lead) return;
+
+    // Skip if unchanged
+    const current = String(lead[field as keyof Lead] ?? "");
+    if (value === current) return;
+
+    setSaving({ leadId, field });
+    try {
+      if (field === "status") {
+        onOptimisticUpdate(leadId, { status: value });
+        await api.transitionLead(leadId, value);
+      } else if (field === "guest_estimate") {
+        const parsed = value === "" ? null : parseInt(value, 10);
+        if (parsed !== null && isNaN(parsed)) {
+          onToast("Invalid guest count");
+          return;
+        }
+        onOptimisticUpdate(leadId, { guest_estimate: parsed });
+        await api.updateLead(leadId, { guest_estimate: parsed });
+      } else if (field === "assigned_to") {
+        const numVal = value === "" ? null : parseInt(value, 10);
+        const userName = users.find((u) => u.id === numVal);
+        onOptimisticUpdate(leadId, {
+          assigned_to: numVal,
+          assigned_to_name: userName ? `${userName.first_name} ${userName.last_name}` : null,
+        });
+        await api.updateLead(leadId, { assigned_to: numVal } as Partial<Lead>);
+      } else if (field === "product") {
+        const numVal = value === "" ? null : parseInt(value, 10);
+        const prod = productLines.find((p) => p.id === numVal);
+        onOptimisticUpdate(leadId, {
+          product: numVal,
+          product_name: prod ? prod.name : null,
+        });
+        await api.updateLead(leadId, { product: numVal } as Partial<Lead>);
+      } else if (field === "event_type") {
+        const display = EVENT_TYPES.find((et) => et.value === value)?.label || value;
+        onOptimisticUpdate(leadId, { event_type: value, event_type_display: display });
+        await api.updateLead(leadId, { event_type: value });
+      } else if (field === "event_date") {
+        onOptimisticUpdate(leadId, { event_date: value || null });
+        await api.updateLead(leadId, { event_date: value || null });
+      } else {
+        onOptimisticUpdate(leadId, { [field]: value });
+        await api.updateLead(leadId, { [field]: value });
+      }
+      revalidateLeads();
+    } catch (e) {
+      onToast(e instanceof Error ? e.message : "Failed to save");
+      revalidateLeads();
+    } finally {
+      setSaving(null);
+    }
+  }
+
+  // Editable text cell (name, date, guests)
+  function EditableTextCell({
+    lead,
+    field,
+    display,
+    className,
+    type = "text",
+    title,
+  }: {
+    lead: Lead;
+    field: string;
+    display: string;
+    className?: string;
+    type?: string;
+    title?: string;
+  }) {
+    if (isSaving(field, lead.id)) {
+      return (
+        <TableCell className={className}>
+          <span className="text-xs text-muted-foreground italic">Saving...</span>
+        </TableCell>
+      );
+    }
+    if (isEditing(field, lead.id)) {
+      return (
+        <TableCell className={className} onClick={(e) => e.stopPropagation()}>
+          <Input
+            type={type}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") commitEdit(lead.id, field, draft);
+              if (e.key === "Escape") setEditing(null);
+            }}
+            onBlur={() => commitEdit(lead.id, field, draft)}
+            autoFocus
+            className="h-7 text-sm w-full min-w-0"
+          />
+        </TableCell>
+      );
+    }
+    return (
+      <TableCell
+        className={cn(className, "cursor-pointer hover:underline decoration-dotted underline-offset-4")}
+        title={title}
+        onClick={(e) => {
+          e.stopPropagation();
+          startEdit(lead.id, field, String(lead[field as keyof Lead] ?? ""));
+        }}
+      >
+        {display}
+      </TableCell>
+    );
+  }
+
+  // Editable select cell (event_type, product, assigned_to, status)
+  function EditableSelectCell({
+    lead,
+    field,
+    display,
+    options,
+    className,
+    allowClear,
+  }: {
+    lead: Lead;
+    field: string;
+    display: React.ReactNode;
+    options: { value: string; label: string }[];
+    className?: string;
+    allowClear?: boolean;
+  }) {
+    if (isSaving(field, lead.id)) {
+      return (
+        <TableCell className={className}>
+          <span className="text-xs text-muted-foreground italic">Saving...</span>
+        </TableCell>
+      );
+    }
+    if (isEditing(field, lead.id)) {
+      return (
+        <TableCell className={className} onClick={(e) => e.stopPropagation()}>
+          <Select
+            defaultOpen
+            value={draft}
+            onValueChange={(v) => {
+              const val = v === "__clear__" ? "" : v;
+              commitEdit(lead.id, field, val);
+            }}
+            onOpenChange={(open) => {
+              if (!open) setEditing(null);
+            }}
+          >
+            <SelectTrigger className="h-7 text-sm w-full min-w-0">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {allowClear && <SelectItem value="__clear__">&mdash;</SelectItem>}
+              {options.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </TableCell>
+      );
+    }
+    return (
+      <TableCell
+        className={cn(className, "cursor-pointer hover:underline decoration-dotted underline-offset-4")}
+        onClick={(e) => {
+          e.stopPropagation();
+          startEdit(lead.id, field, String(lead[field as keyof Lead] ?? ""));
+        }}
+      >
+        {display}
+      </TableCell>
+    );
+  }
 
   return (
     <div className="border rounded-lg overflow-hidden">
@@ -763,6 +1013,7 @@ function LeadsTable({
             </TableHead>
             <TableHead className="hidden md:table-cell">Product</TableHead>
             <TableHead className="hidden lg:table-cell">Assigned</TableHead>
+            <TableHead className="hidden xl:table-cell min-w-[180px]">Notes</TableHead>
             <TableHead className="hidden md:table-cell">Source</TableHead>
             <TableHead>
               <button className="flex items-center hover:text-foreground" onClick={() => onToggleSort("status")}>
@@ -777,9 +1028,185 @@ function LeadsTable({
           </TableRow>
         </TableHeader>
         <TableBody>
+          {/* Quick Add row */}
+          {!quickAddActive ? (
+            <TableRow
+              className="bg-muted/30 hover:bg-muted/50 cursor-pointer"
+              onClick={() => setQuickAddActive(true)}
+            >
+              <TableCell colSpan={13} className="text-muted-foreground text-sm py-2">
+                <span className="flex items-center gap-1.5">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                  </svg>
+                  Quick add lead...
+                </span>
+              </TableCell>
+            </TableRow>
+          ) : (
+            <TableRow className="bg-muted/50">
+              {/* Actions */}
+              <TableCell className="align-top" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center gap-0.5">
+                  <button
+                    className="text-primary hover:text-primary/80 disabled:opacity-50"
+                    onClick={saveQuickAdd}
+                    disabled={quickAddSaving}
+                    title="Save (Enter)"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </button>
+                  <button
+                    className="text-muted-foreground hover:text-destructive"
+                    onClick={cancelQuickAdd}
+                    title="Cancel (Esc)"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              </TableCell>
+              {/* Name */}
+              <TableCell>
+                <Input
+                  placeholder="Name *"
+                  value={quickAdd.contact_name || ""}
+                  onChange={(e) => setQuickAdd((p) => ({ ...p, contact_name: e.target.value }))}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") saveQuickAdd();
+                    if (e.key === "Escape") cancelQuickAdd();
+                  }}
+                  autoFocus
+                  disabled={quickAddSaving}
+                  className="h-7 text-sm"
+                />
+              </TableCell>
+              {/* Email */}
+              <TableCell className="hidden lg:table-cell">
+                <Input
+                  type="email"
+                  placeholder="Email"
+                  value={quickAdd.contact_email || ""}
+                  onChange={(e) => setQuickAdd((p) => ({ ...p, contact_email: e.target.value }))}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") saveQuickAdd();
+                    if (e.key === "Escape") cancelQuickAdd();
+                  }}
+                  disabled={quickAddSaving}
+                  className="h-7 text-sm"
+                />
+              </TableCell>
+              {/* Event Type */}
+              <TableCell className="hidden md:table-cell">
+                <Select
+                  value={quickAdd.event_type || ""}
+                  onValueChange={(v) => setQuickAdd((p) => ({ ...p, event_type: v }))}
+                >
+                  <SelectTrigger className="h-7 text-sm">
+                    <SelectValue placeholder="Type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {EVENT_TYPES.map((et) => (
+                      <SelectItem key={et.value} value={et.value}>{et.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </TableCell>
+              {/* Event Date */}
+              <TableCell>
+                <Input
+                  type="date"
+                  value={quickAdd.event_date || ""}
+                  onChange={(e) => setQuickAdd((p) => ({ ...p, event_date: e.target.value || null }))}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") saveQuickAdd();
+                    if (e.key === "Escape") cancelQuickAdd();
+                  }}
+                  disabled={quickAddSaving}
+                  className="h-7 text-sm"
+                />
+              </TableCell>
+              {/* Lead Date */}
+              <TableCell className="hidden lg:table-cell text-muted-foreground text-xs">—</TableCell>
+              {/* Guests */}
+              <TableCell>
+                <Input
+                  type="number"
+                  placeholder="Guests"
+                  value={quickAdd.guest_estimate ?? ""}
+                  onChange={(e) => setQuickAdd((p) => ({ ...p, guest_estimate: e.target.value ? parseInt(e.target.value, 10) : null }))}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") saveQuickAdd();
+                    if (e.key === "Escape") cancelQuickAdd();
+                  }}
+                  disabled={quickAddSaving}
+                  className="h-7 text-sm"
+                />
+              </TableCell>
+              {/* Product */}
+              <TableCell className="hidden md:table-cell">
+                <Select
+                  value={quickAdd.product?.toString() || ""}
+                  onValueChange={(v) => setQuickAdd((p) => ({ ...p, product: parseInt(v, 10) }))}
+                >
+                  <SelectTrigger className="h-7 text-sm">
+                    <SelectValue placeholder="Product" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {productLines.map((pl) => (
+                      <SelectItem key={pl.id} value={pl.id.toString()}>{pl.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </TableCell>
+              {/* Assigned To */}
+              <TableCell className="hidden lg:table-cell">
+                <Select
+                  value={quickAdd.assigned_to?.toString() || ""}
+                  onValueChange={(v) => setQuickAdd((p) => ({ ...p, assigned_to: parseInt(v, 10) }))}
+                >
+                  <SelectTrigger className="h-7 text-sm">
+                    <SelectValue placeholder="Assign" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {users.map((u) => (
+                      <SelectItem key={u.id} value={u.id.toString()}>
+                        {u.first_name} {u.last_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </TableCell>
+              {/* Notes */}
+              <TableCell className="hidden xl:table-cell align-top">
+                <Textarea
+                  rows={1}
+                  placeholder="Notes"
+                  value={quickAdd.notes || ""}
+                  onChange={(e) => setQuickAdd((p) => ({ ...p, notes: e.target.value }))}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) saveQuickAdd();
+                    if (e.key === "Escape") cancelQuickAdd();
+                  }}
+                  disabled={quickAddSaving}
+                  className="text-sm min-h-0"
+                />
+              </TableCell>
+              {/* Source */}
+              <TableCell className="hidden md:table-cell text-muted-foreground text-xs">—</TableCell>
+              {/* Status */}
+              <TableCell className="text-muted-foreground text-xs">—</TableCell>
+              {/* Created */}
+              <TableCell className="hidden xl:table-cell text-muted-foreground text-xs">—</TableCell>
+            </TableRow>
+          )}
+
           {leads.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={12} className="text-center text-muted-foreground py-12">
+              <TableCell colSpan={13} className="text-center text-muted-foreground py-12">
                 No leads found
               </TableCell>
             </TableRow>
@@ -798,63 +1225,144 @@ function LeadsTable({
                     className="rounded border-border"
                   />
                 </TableCell>
-                <TableCell
+
+                {/* Name - editable text */}
+                <EditableTextCell
+                  lead={lead}
+                  field="contact_name"
+                  display={lead.contact_name}
                   className="font-medium"
-                  onClick={() => router.push(`/leads/${lead.id}`)}
-                >
-                  {lead.contact_name}
-                </TableCell>
-                <TableCell
+                />
+
+                {/* Email - editable text */}
+                <EditableTextCell
+                  lead={lead}
+                  field="contact_email"
+                  display={lead.contact_email || "-"}
                   className="hidden lg:table-cell text-muted-foreground"
-                  onClick={() => router.push(`/leads/${lead.id}`)}
-                >
-                  {lead.contact_email || "-"}
-                </TableCell>
-                <TableCell
+                  type="email"
+                />
+
+                {/* Event Type - editable select */}
+                <EditableSelectCell
+                  lead={lead}
+                  field="event_type"
+                  display={lead.event_type_display}
                   className="hidden md:table-cell"
-                  onClick={() => router.push(`/leads/${lead.id}`)}
-                >
-                  {lead.event_type_display}
-                </TableCell>
-                <TableCell onClick={() => router.push(`/leads/${lead.id}`)}>
-                  {lead.event_date || "-"}
-                </TableCell>
+                  options={EVENT_TYPES}
+                />
+
+                {/* Event Date - editable date */}
+                <EditableTextCell
+                  lead={lead}
+                  field="event_date"
+                  display={lead.event_date || "-"}
+                  type="date"
+                />
+
+                {/* Lead Date - non-editable, navigates */}
                 <TableCell
                   className="hidden lg:table-cell"
                   onClick={() => router.push(`/leads/${lead.id}`)}
                 >
                   {lead.lead_date || "-"}
                 </TableCell>
-                <TableCell onClick={() => router.push(`/leads/${lead.id}`)}>
-                  {lead.guest_estimate ?? "-"}
-                </TableCell>
-                <TableCell
+
+                {/* Guests - editable number */}
+                <EditableTextCell
+                  lead={lead}
+                  field="guest_estimate"
+                  display={lead.guest_estimate != null ? String(lead.guest_estimate) : "-"}
+                  type="number"
+                />
+
+                {/* Product - editable select */}
+                <EditableSelectCell
+                  lead={lead}
+                  field="product"
+                  display={
+                    lead.product_name ? (
+                      <span className="text-xs font-medium bg-primary/10 text-primary px-1.5 py-0.5 rounded">
+                        {lead.product_name}
+                      </span>
+                    ) : "-"
+                  }
                   className="hidden md:table-cell"
-                  onClick={() => router.push(`/leads/${lead.id}`)}
-                >
-                  {lead.product_name ? (
-                    <span className="text-xs font-medium bg-primary/10 text-primary px-1.5 py-0.5 rounded">
-                      {lead.product_name}
-                    </span>
-                  ) : "-"}
-                </TableCell>
-                <TableCell
+                  options={productLines.map((p) => ({ value: p.id.toString(), label: p.name }))}
+                  allowClear
+                />
+
+                {/* Assigned To - editable select */}
+                <EditableSelectCell
+                  lead={lead}
+                  field="assigned_to"
+                  display={lead.assigned_to_name || "-"}
                   className="hidden lg:table-cell"
-                  onClick={() => router.push(`/leads/${lead.id}`)}
-                >
-                  {lead.assigned_to_name || "-"}
-                </TableCell>
+                  options={users.map((u) => ({
+                    value: u.id.toString(),
+                    label: `${u.first_name} ${u.last_name}`,
+                  }))}
+                  allowClear
+                />
+
+                {/* Notes - editable textarea */}
+                {isSaving("notes", lead.id) ? (
+                  <TableCell className="hidden xl:table-cell text-muted-foreground text-xs min-w-[200px]">
+                    <span className="text-xs text-muted-foreground italic">Saving...</span>
+                  </TableCell>
+                ) : isEditing("notes", lead.id) ? (
+                  <TableCell className="hidden xl:table-cell min-w-[200px]" onClick={(e) => e.stopPropagation()}>
+                    <Textarea
+                      rows={3}
+                      value={draft}
+                      onChange={(e) => setDraft(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) commitEdit(lead.id, "notes", draft);
+                        if (e.key === "Escape") setEditing(null);
+                      }}
+                      onBlur={() => commitEdit(lead.id, "notes", draft)}
+                      autoFocus
+                      className="text-sm w-full min-w-0 min-h-0"
+                    />
+                  </TableCell>
+                ) : (
+                  <TableCell
+                    className="hidden xl:table-cell text-muted-foreground text-xs min-w-[200px] cursor-pointer hover:underline decoration-dotted underline-offset-4"
+                    title={lead.notes || undefined}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      startEdit(lead.id, "notes", lead.notes || "");
+                    }}
+                  >
+                    {lead.notes
+                      ? lead.notes.length > 30
+                        ? lead.notes.slice(0, 30) + "…"
+                        : lead.notes
+                      : "-"}
+                  </TableCell>
+                )}
+
+                {/* Source - non-editable, navigates */}
                 <TableCell
                   className="hidden md:table-cell capitalize"
                   onClick={() => router.push(`/leads/${lead.id}`)}
                 >
                   {lead.source}
                 </TableCell>
-                <TableCell onClick={() => router.push(`/leads/${lead.id}`)}>
-                  <Badge variant={STATUS_VARIANT[lead.status] || "secondary"}>
-                    {lead.status_display}
-                  </Badge>
-                </TableCell>
+
+                {/* Status - editable select */}
+                <EditableSelectCell
+                  lead={lead}
+                  field="status"
+                  display={
+                    <Badge variant={STATUS_VARIANT[lead.status] || "secondary"}>
+                      {lead.status_display}
+                    </Badge>
+                  }
+                  options={COLUMNS.map((col) => ({ value: col.status, label: col.label }))}
+                />
+
+                {/* Created - non-editable, navigates */}
                 <TableCell
                   className="hidden xl:table-cell text-muted-foreground text-xs"
                   onClick={() => router.push(`/leads/${lead.id}`)}
