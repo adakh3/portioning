@@ -215,6 +215,12 @@ export interface LeadQuoteSummary {
   created_at: string;
 }
 
+export interface ProductLine {
+  id: number;
+  name: string;
+  is_active: boolean;
+}
+
 export interface Lead {
   id: number;
   account: number | null;
@@ -231,6 +237,11 @@ export interface Lead {
   event_type_display: string;
   service_style: string;
   notes: string;
+  product: number | null;
+  product_name: string | null;
+  assigned_to: number | null;
+  assigned_to_name: string | null;
+  lead_date: string | null;
   status: string;
   status_display: string;
   converted_to_quote: number | null;
@@ -543,6 +554,19 @@ export interface PriceEstimateResult {
   has_unpriced: boolean;
 }
 
+// Lead filter params
+export interface LeadFilters {
+  status?: string;
+  assigned_to?: string;
+  product?: string;
+  event_type?: string;
+  date_from?: string;
+  date_to?: string;
+  lead_date_from?: string;
+  lead_date_to?: string;
+  ordering?: string;
+}
+
 // API functions
 export const api = {
   // Auth
@@ -655,8 +679,26 @@ export const api = {
   updateVenue: (id: number, data: Partial<Venue>) =>
     fetchApi<Venue>(`/bookings/venues/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
 
+  // Bookings: Product Lines & Users
+  getProductLines: () => fetchApi<ProductLine[]>("/bookings/product-lines/"),
+  getUsers: () => fetchApi<AuthUser[]>("/bookings/users/"),
+
   // Bookings: Leads
-  getLeads: (status?: string) => fetchApi<Lead[]>(`/bookings/leads/${status ? `?status=${status}` : ""}`),
+  getLeads: (filters?: LeadFilters) => {
+    const params = new URLSearchParams();
+    if (filters) {
+      Object.entries(filters).forEach(([key, val]) => {
+        if (val) params.set(key, val);
+      });
+    }
+    const qs = params.toString();
+    return fetchApi<Lead[]>(`/bookings/leads/${qs ? `?${qs}` : ""}`);
+  },
+  bulkUpdateLeads: (ids: number[], action: string, value?: string | number | null) =>
+    fetchApi<{ updated: number }>("/bookings/leads/bulk/", {
+      method: "POST",
+      body: JSON.stringify({ ids, action, value }),
+    }),
   getLead: (id: number) => fetchApi<Lead>(`/bookings/leads/${id}/`),
   createLead: (data: Partial<Lead>) =>
     fetchApi<Lead>("/bookings/leads/", { method: "POST", body: JSON.stringify(data) }),

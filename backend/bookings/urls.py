@@ -4,7 +4,7 @@ from bookings.views import (
     AccountListCreateView, AccountDetailView,
     ContactListCreateView, ContactDetailView,
     VenueListCreateView, VenueDetailView,
-    LeadListCreateView, LeadDetailView, LeadTransitionView, LeadConvertView,
+    UserListView, ProductLineListView, LeadListCreateView, LeadDetailView, LeadTransitionView, LeadConvertView, LeadBulkUpdateView,
     QuoteListCreateView, QuoteDetailView, QuoteTransitionView,
     QuoteLineItemListCreateView, QuoteLineItemDetailView,
     QuotePDFView,
@@ -29,8 +29,13 @@ urlpatterns = [
     path('bookings/venues/', VenueListCreateView.as_view(), name='venue-list'),
     path('bookings/venues/<int:pk>/', VenueDetailView.as_view(), name='venue-detail'),
 
-    # Leads
+    # Users (for assignment dropdowns)
+    path('bookings/users/', UserListView.as_view(), name='user-list'),
+
+    # Product Lines & Leads
+    path('bookings/product-lines/', ProductLineListView.as_view(), name='product-line-list'),
     path('bookings/leads/', LeadListCreateView.as_view(), name='lead-list'),
+    path('bookings/leads/bulk/', LeadBulkUpdateView.as_view(), name='lead-bulk-update'),
     path('bookings/leads/<int:pk>/', LeadDetailView.as_view(), name='lead-detail'),
     path('bookings/leads/<int:pk>/transition/', LeadTransitionView.as_view(), name='lead-transition'),
     path('bookings/leads/<int:pk>/convert/', LeadConvertView.as_view(), name='lead-convert'),

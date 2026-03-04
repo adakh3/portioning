@@ -1,0 +1,38 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block title %}Import Results{% endblock %}
+
+{% block content %}
+<h1>Import Complete</h1>
+
+<ul class="messagelist">
+  <li class="success">Created {{ created_count }} lead{{ created_count|pluralize }}.</li>
+  {% if skipped_count %}<li class="warning">Skipped {{ skipped_count }} row{{ skipped_count|pluralize }}.</li>{% endif %}
+  {% if error_count %}<li class="error">{{ error_count }} error{{ error_count|pluralize }}.</li>{% endif %}
+</ul>
+
+{% if errors %}
+<h2>Errors</h2>
+<table style="border-collapse: collapse; width: 100%; margin: 1em 0;">
+  <thead>
+    <tr style="background: #79aec8; color: #fff;">
+      <th style="padding: 6px 10px; text-align: left;">Row</th>
+      <th style="padding: 6px 10px; text-align: left;">Error</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for err in errors %}
+    <tr>
+      <td style="padding: 4px 10px; border-bottom: 1px solid #ddd;" colspan="2">{{ err }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+<div class="submit-row">
+  <a href="{% url 'admin:bookings_lead_changelist' %}" class="button default">View all leads</a>
+  <a href="{% url 'admin:bookings_lead_import' %}" style="margin-left: 1em;">Import another file</a>
+</div>
+{% endblock %}

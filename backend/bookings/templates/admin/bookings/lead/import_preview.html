@@ -1,0 +1,93 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block title %}Import Preview{% endblock %}
+
+{% block extrahead %}
+{{ block.super }}
+<style>
+  .import-table { border-collapse: collapse; width: 100%; margin: 1em 0; }
+  .import-table th { background: #79aec8; color: #fff; padding: 6px 10px; text-align: left; }
+  .import-table td { padding: 5px 10px; border-bottom: 1px solid #ddd; }
+  .result-valid { background: #dff0d8; color: #3c763d; }
+  .result-skipped { background: #fcf8e3; color: #8a6d3b; }
+  .result-error { background: #f2dede; color: #a94442; }
+  .result-duplicate { background: #fff3cd; color: #856404; }
+  .summary-banner { padding: 12px 16px; margin: 1em 0; border-radius: 4px; font-size: 14px; }
+  .summary-banner strong { font-size: 16px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<h1>Import Preview</h1>
+
+<div class="summary-banner" style="background: #d9edf7; border: 1px solid #bce8f1;">
+  <strong>{{ valid_count }}</strong> lead{{ valid_count|pluralize }} will be created,
+  <strong>{{ skipped_count }}</strong> skipped,
+  <strong>{{ error_count }}</strong> error{{ error_count|pluralize }}
+  {% if duplicate_count %}, <strong>{{ duplicate_count }}</strong> duplicate warning{{ duplicate_count|pluralize }}{% endif %}
+</div>
+
+{% if product_name or assigned_name %}
+<p>
+  {% if product_name %}<strong>Product:</strong> {{ product_name }} &nbsp;{% endif %}
+  {% if assigned_name %}<strong>Assigned to:</strong> {{ assigned_name }}{% endif %}
+</p>
+{% endif %}
+
+<div style="overflow-x: auto;">
+  <table class="import-table">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Name</th>
+        <th>Email</th>
+        <th>Event Type</th>
+        <th>Date</th>
+        <th>Guests</th>
+        <th>Source</th>
+        <th>Status</th>
+        <th>Result</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      <tr>
+        <td>{{ row.row_num }}</td>
+        <td>{{ row.contact_name }}</td>
+        <td>{{ row.contact_email }}</td>
+        <td>{{ row.event_type }}</td>
+        <td>{{ row.event_date|default:"—" }}</td>
+        <td>{{ row.guest_estimate|default:"—" }}</td>
+        <td>{{ row.source }}</td>
+        <td>{{ row.status }}</td>
+        <td class="{% if row.error %}result-error{% elif row.skipped %}result-skipped{% elif row.duplicate_warning %}result-duplicate{% else %}result-valid{% endif %}">
+          {% if row.error %}
+            Error: {{ row.error }}
+          {% elif row.skipped %}
+            Skipped: {{ row.skip_reason }}
+          {% elif row.duplicate_warning %}
+            Valid (duplicate email)
+          {% else %}
+            Valid
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if valid_count %}
+<form method="post" action="{% url 'admin:bookings_lead_import_confirm' %}">
+  {% csrf_token %}
+  <div class="submit-row">
+    <input type="submit" value="Confirm Import ({{ valid_count }} lead{{ valid_count|pluralize }})" class="default">
+    <a href="{% url 'admin:bookings_lead_import' %}" style="margin-left: 1em;">Cancel</a>
+  </div>
+</form>
+{% else %}
+<p>No valid leads to import.</p>
+<a href="{% url 'admin:bookings_lead_import' %}">Back to import form</a>
+{% endif %}
+{% endblock %}

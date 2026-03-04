@@ -2,6 +2,22 @@ from django.db import models
 from django.utils import timezone
 
 
+class ProductLine(models.Model):
+    name = models.CharField(max_length=100)
+    organisation = models.ForeignKey(
+        'users.Organisation', null=True, blank=True,
+        on_delete=models.CASCADE, related_name='product_lines',
+    )
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
+
 class LeadSource(models.TextChoices):
     WEBSITE = 'website', 'Website'
     REFERRAL = 'referral', 'Referral'
@@ -62,9 +78,21 @@ class Lead(models.Model):
     service_style = models.CharField(max_length=20, choices=ServiceStyle.choices, blank=True)
     notes = models.TextField(blank=True)
     status = models.CharField(max_length=20, choices=LeadStatus.choices, default=LeadStatus.NEW)
+    product = models.ForeignKey(
+        'bookings.ProductLine', null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='leads',
+    )
+    assigned_to = models.ForeignKey(
+        'users.User', null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='assigned_leads',
+    )
     converted_to_quote = models.ForeignKey(
         'bookings.Quote', null=True, blank=True,
         on_delete=models.SET_NULL, related_name='source_lead',
+    )
+    lead_date = models.DateField(
+        null=True, blank=True,
+        help_text="Date the lead was originally generated (e.g. from ad platform)",
     )
     lost_reason = models.TextField(blank=True)
     contacted_at = models.DateTimeField(null=True, blank=True)

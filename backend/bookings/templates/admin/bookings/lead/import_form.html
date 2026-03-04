@@ -1,0 +1,83 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block title %}Import Leads{% endblock %}
+
+{% block content %}
+<h1>Import Leads from Excel / CSV</h1>
+
+{% if errors %}
+<ul class="messagelist">
+  {% for error in errors %}
+  <li class="error">{{ error }}</li>
+  {% endfor %}
+</ul>
+{% endif %}
+
+<form method="post" enctype="multipart/form-data">
+  {% csrf_token %}
+  <fieldset class="module aligned">
+    <h2>Upload file</h2>
+    <div class="form-row">
+      <label for="id_file">File (.xlsx or .csv):</label>
+      <input type="file" name="file" id="id_file" accept=".xlsx,.csv" required>
+    </div>
+    <div class="form-row">
+      <label for="id_sheet">Sheet name (optional, for .xlsx):</label>
+      <input type="text" name="sheet_name" id="id_sheet" placeholder="Leave blank for first sheet">
+    </div>
+    <div class="form-row">
+      <label for="id_product">Product line:</label>
+      <select name="product_id" id="id_product">
+        <option value="">— None —</option>
+        {% for p in products %}
+        <option value="{{ p.id }}">{{ p.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-row">
+      <label for="id_assigned">Assigned to:</label>
+      <select name="assigned_to_id" id="id_assigned">
+        <option value="">— None —</option>
+        {% for u in users %}
+        <option value="{{ u.id }}">{{ u.get_full_name|default:u.email }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </fieldset>
+
+  <details style="margin: 1em 0;">
+    <summary style="cursor: pointer; font-weight: bold; color: #417690;">File Format Guide</summary>
+    <div style="padding: 1em; background: #f8f8f8; border: 1px solid #ddd; margin-top: 0.5em;">
+      <p>Your file must include a header row with these column names:</p>
+      <table style="border-collapse: collapse; width: 100%; margin: 1em 0;">
+        <thead>
+          <tr style="background: #79aec8; color: #fff;">
+            <th style="padding: 6px 10px; text-align: left;">Column</th>
+            <th style="padding: 6px 10px; text-align: left;">Required</th>
+            <th style="padding: 6px 10px; text-align: left;">Accepted Values</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td style="padding: 4px 10px; border-bottom: 1px solid #ddd;"><code>full_name</code></td><td style="padding: 4px 10px; border-bottom: 1px solid #ddd;">Yes</td><td style="padding: 4px 10px; border-bottom: 1px solid #ddd;">Any text</td></tr>
+          <tr><td style="padding: 4px 10px; border-bottom: 1px solid #ddd;"><code>email</code></td><td style="padding: 4px 10px; border-bottom: 1px solid #ddd;">Yes</td><td style="padding: 4px 10px; border-bottom: 1px solid #ddd;">Valid email address</td></tr>
+          <tr><td style="padding: 4px 10px; border-bottom: 1px solid #ddd;"><code>event_type</code></td><td style="padding: 4px 10px; border-bottom: 1px solid #ddd;">Yes</td><td style="padding: 4px 10px; border-bottom: 1px solid #ddd;">valimah, barat, nikkah, mehndi, engagement, corporate, birthday</td></tr>
+          <tr><td style="padding: 4px 10px; border-bottom: 1px solid #ddd;"><code>phone_number</code></td><td style="padding: 4px 10px; border-bottom: 1px solid #ddd;">No</td><td style="padding: 4px 10px; border-bottom: 1px solid #ddd;">Any phone number</td></tr>
+          <tr><td style="padding: 4px 10px; border-bottom: 1px solid #ddd;"><code>your_event_date</code></td><td style="padding: 4px 10px; border-bottom: 1px solid #ddd;">No</td><td style="padding: 4px 10px; border-bottom: 1px solid #ddd;">e.g. &ldquo;28 March&rdquo;, &ldquo;April 11&rdquo;, &ldquo;10 June 2026&rdquo;</td></tr>
+          <tr><td style="padding: 4px 10px; border-bottom: 1px solid #ddd;"><code>your_guests</code></td><td style="padding: 4px 10px; border-bottom: 1px solid #ddd;">No</td><td style="padding: 4px 10px; border-bottom: 1px solid #ddd;">100_-_200_persons, 200_-_300_persons, 300_-_400_persons, 400_-_500_persons, 500__&amp;_more</td></tr>
+          <tr><td style="padding: 4px 10px; border-bottom: 1px solid #ddd;"><code>platform</code></td><td style="padding: 4px 10px; border-bottom: 1px solid #ddd;">No</td><td style="padding: 4px 10px; border-bottom: 1px solid #ddd;">fb, ig (or any text)</td></tr>
+          <tr><td style="padding: 4px 10px; border-bottom: 1px solid #ddd;"><code>lead_status</code></td><td style="padding: 4px 10px; border-bottom: 1px solid #ddd;">No</td><td style="padding: 4px 10px; border-bottom: 1px solid #ddd;">CREATED, Done</td></tr>
+          <tr><td style="padding: 4px 10px; border-bottom: 1px solid #ddd;"><code>campaign_name</code></td><td style="padding: 4px 10px; border-bottom: 1px solid #ddd;">No</td><td style="padding: 4px 10px; border-bottom: 1px solid #ddd;">Any text (stored in notes)</td></tr>
+        </tbody>
+      </table>
+      <p><strong>Example row:</strong></p>
+      <code>Ali Khan, ali@example.com, valimah, +44123456789, 28 March, 200_-_300_persons, fb, CREATED, Spring Campaign</code>
+    </div>
+  </details>
+
+  <div class="submit-row">
+    <input type="submit" value="Upload & Preview" class="default">
+    <a href="{% url 'admin:bookings_lead_changelist' %}" style="margin-left: 1em;">Cancel</a>
+  </div>
+</form>
+{% endblock %}

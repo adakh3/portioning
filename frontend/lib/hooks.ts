@@ -2,8 +2,10 @@ import useSWR, { mutate } from "swr";
 import {
   api,
   Account,
+  AuthUser,
   Venue,
   Lead,
+  LeadFilters,
   Quote,
   EventData,
   Dish,
@@ -11,6 +13,7 @@ import {
   MenuTemplate,
   SiteSettingsData,
   BudgetRangeOption,
+  ProductLine,
   StaffMember,
   LaborRole,
   EquipmentItem,
@@ -50,6 +53,19 @@ export function useBudgetRanges() {
     () => api.getBudgetRanges(),
     { dedupingInterval: 300000, revalidateOnFocus: false }
   );
+}
+
+export function useProductLines() {
+  return useSWR<ProductLine[]>("product-lines", () => api.getProductLines(), {
+    dedupingInterval: 300000,
+    revalidateOnFocus: false,
+  });
+}
+
+export function useUsers() {
+  return useSWR<AuthUser[]>("users", () => api.getUsers(), {
+    dedupingInterval: 60000,
+  });
 }
 
 export function useDishes() {
@@ -103,9 +119,16 @@ export function useLead(id: number | null) {
   return useSWR<Lead>(id ? `lead-${id}` : null, () => api.getLead(id!));
 }
 
-export function useLeads(status?: string) {
-  const key = status ? `leads-${status}` : "leads";
-  return useSWR<Lead[]>(key, () => api.getLeads(status));
+export function useLeads(filters?: LeadFilters) {
+  const qs = filters
+    ? Object.entries(filters)
+        .filter(([, v]) => v)
+        .map(([k, v]) => `${k}=${v}`)
+        .sort()
+        .join("&")
+    : "";
+  const key = qs ? `leads?${qs}` : "leads";
+  return useSWR<Lead[]>(key, () => api.getLeads(filters));
 }
 
 export function useQuote(id: number | null) {

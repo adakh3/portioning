@@ -8,3 +8,4 @@ python-dotenv>=1.0
 djangorestframework-simplejwt>=5.3
 gunicorn>=21.0
 whitenoise>=6.0
+openpyxl>=3.1

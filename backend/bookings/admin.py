@@ -1,11 +1,21 @@
-from django.contrib import admin
+import json
+from dataclasses import asdict
 
+from django.contrib import admin
+from django.shortcuts import render, redirect
+from django.urls import path, reverse
+from django.contrib import messages
+
+from users.models import User
 from .models import (
-    Account, Contact, Venue, Lead, Quote, QuoteLineItem,
+    Account, Contact, Venue, Lead, ProductLine, Quote, QuoteLineItem,
     LaborRole, StaffMember, Shift,
     EquipmentItem, EquipmentReservation,
     Invoice, Payment,
     BudgetRangeOption, SiteSettings,
+)
+from .services.lead_import import (
+    load_xlsx, load_csv, parse_rows, flag_duplicates, commit_rows, ImportRow,
 )
 
 
@@ -42,12 +52,178 @@ class VenueAdmin(admin.ModelAdmin):
 
 # --- Leads ---
 
+@admin.register(ProductLine)
+class ProductLineAdmin(admin.ModelAdmin):
+    list_display = ['name', 'organisation', 'is_active', 'created_at']
+    list_filter = ['is_active']
+    search_fields = ['name']
+
+
 @admin.register(Lead)
 class LeadAdmin(admin.ModelAdmin):
-    list_display = ['contact_name', 'event_type', 'event_date', 'status', 'source', 'guest_estimate', 'created_at']
-    list_filter = ['status', 'source', 'event_type']
+    list_display = ['contact_name', 'event_type', 'event_date', 'lead_date', 'status', 'product', 'assigned_to', 'source', 'guest_estimate', 'created_at']
+    list_filter = ['status', 'source', 'event_type', 'product']
     search_fields = ['contact_name', 'contact_email', 'account__name']
     readonly_fields = ['converted_to_quote', 'contacted_at', 'qualified_at', 'converted_at', 'lost_at']
+    change_list_template = "admin/bookings/lead/change_list.html"
+
+    def get_urls(self):
+        custom_urls = [
+            path(
+                "import/",
+                self.admin_site.admin_view(self.import_view),
+                name="bookings_lead_import",
+            ),
+            path(
+                "import/confirm/",
+                self.admin_site.admin_view(self.import_confirm_view),
+                name="bookings_lead_import_confirm",
+            ),
+        ]
+        return custom_urls + super().get_urls()
+
+    def import_view(self, request):
+        """GET: show upload form. POST: parse file and show preview."""
+        context = {
+            **self.admin_site.each_context(request),
+            "products": ProductLine.objects.filter(is_active=True),
+            "users": User.objects.filter(is_active=True),
+        }
+
+        if request.method != "POST":
+            return render(request, "admin/bookings/lead/import_form.html", context)
+
+        uploaded = request.FILES.get("file")
+        if not uploaded:
+            context["errors"] = ["Please select a file to upload."]
+            return render(request, "admin/bookings/lead/import_form.html", context)
+
+        sheet_name = request.POST.get("sheet_name", "").strip() or None
+        product_id = request.POST.get("product_id", "").strip() or None
+        assigned_to_id = request.POST.get("assigned_to_id", "").strip() or None
+
+        filename = uploaded.name.lower()
+        try:
+            if filename.endswith(".csv"):
+                header, data_rows, _ = load_csv(uploaded)
+            elif filename.endswith(".xlsx"):
+                header, data_rows, sheet_names = load_xlsx(uploaded, sheet_name)
+            else:
+                context["errors"] = ["Unsupported file type. Please upload .xlsx or .csv."]
+                return render(request, "admin/bookings/lead/import_form.html", context)
+
+            if not header:
+                context["errors"] = ["The file appears to be empty."]
+                return render(request, "admin/bookings/lead/import_form.html", context)
+
+            import_rows = parse_rows(data_rows, header)
+            flag_duplicates(import_rows)
+        except ValueError as e:
+            context["errors"] = [str(e)]
+            return render(request, "admin/bookings/lead/import_form.html", context)
+        except Exception as e:
+            context["errors"] = [f"Error reading file: {e}"]
+            return render(request, "admin/bookings/lead/import_form.html", context)
+
+        # Store parsed data in session for confirm step
+        rows_data = []
+        for r in import_rows:
+            d = asdict(r)
+            # Convert dates to string for JSON serialization
+            if d["event_date"]:
+                d["event_date"] = str(d["event_date"])
+            if d["lead_date"]:
+                d["lead_date"] = str(d["lead_date"])
+            rows_data.append(d)
+
+        request.session["import_rows"] = json.dumps(rows_data)
+        request.session["import_product_id"] = product_id
+        request.session["import_assigned_to_id"] = assigned_to_id
+
+        # Compute summary counts
+        valid_count = sum(1 for r in import_rows if not r.skipped and not r.error)
+        skipped_count = sum(1 for r in import_rows if r.skipped)
+        error_count = sum(1 for r in import_rows if r.error)
+        duplicate_count = sum(1 for r in import_rows if r.duplicate_warning)
+
+        # Look up names for display
+        product_name = ""
+        assigned_name = ""
+        if product_id:
+            try:
+                product_name = ProductLine.objects.get(pk=product_id).name
+            except ProductLine.DoesNotExist:
+                pass
+        if assigned_to_id:
+            try:
+                u = User.objects.get(pk=assigned_to_id)
+                assigned_name = u.get_full_name() or u.email
+            except User.DoesNotExist:
+                pass
+
+        context.update({
+            "rows": import_rows,
+            "valid_count": valid_count,
+            "skipped_count": skipped_count,
+            "error_count": error_count,
+            "duplicate_count": duplicate_count,
+            "product_name": product_name,
+            "assigned_name": assigned_name,
+        })
+        return render(request, "admin/bookings/lead/import_preview.html", context)
+
+    def import_confirm_view(self, request):
+        """POST: commit parsed rows from session to DB."""
+        if request.method != "POST":
+            return redirect(reverse("admin:bookings_lead_import"))
+
+        rows_json = request.session.pop("import_rows", None)
+        product_id = request.session.pop("import_product_id", None)
+        assigned_to_id = request.session.pop("import_assigned_to_id", None)
+
+        if not rows_json:
+            messages.error(request, "No import data found. Please upload a file again.")
+            return redirect(reverse("admin:bookings_lead_import"))
+
+        rows_data = json.loads(rows_json)
+        import_rows = []
+        for d in rows_data:
+            # Reconstruct dates
+            from datetime import date
+            if d["event_date"]:
+                parts = d["event_date"].split("-")
+                d["event_date"] = date(int(parts[0]), int(parts[1]), int(parts[2]))
+            if d["lead_date"]:
+                parts = d["lead_date"].split("-")
+                d["lead_date"] = date(int(parts[0]), int(parts[1]), int(parts[2]))
+            import_rows.append(ImportRow(**d))
+
+        product = None
+        if product_id:
+            try:
+                product = ProductLine.objects.get(pk=product_id)
+            except ProductLine.DoesNotExist:
+                pass
+
+        assigned_to = None
+        if assigned_to_id:
+            try:
+                assigned_to = User.objects.get(pk=assigned_to_id)
+            except User.DoesNotExist:
+                pass
+
+        created_count, errors = commit_rows(import_rows, product, assigned_to)
+        skipped_count = sum(1 for r in import_rows if r.skipped)
+        error_count = len(errors)
+
+        context = {
+            **self.admin_site.each_context(request),
+            "created_count": created_count,
+            "skipped_count": skipped_count,
+            "error_count": error_count,
+            "errors": errors,
+        }
+        return render(request, "admin/bookings/lead/import_results.html", context)
 
 
 # --- Quotes ---

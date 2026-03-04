@@ -3,8 +3,8 @@
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { api, Lead, Account, BudgetRangeOption } from "@/lib/api";
-import { useLead, useSiteSettings, useBudgetRanges } from "@/lib/hooks";
+import { api, Lead, Account, AuthUser, BudgetRangeOption, ProductLine } from "@/lib/api";
+import { useLead, useSiteSettings, useBudgetRanges, useProductLines, useUsers } from "@/lib/hooks";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -44,6 +44,8 @@ export default function LeadDetailPage() {
   const { data: rawSettings } = useSiteSettings();
   const settings = rawSettings || { currency_symbol: "\u00a3", currency_code: "GBP", default_price_per_head: "0.00", target_food_cost_percentage: "30.00", price_rounding_step: "50" };
   const { data: budgetRanges = [] } = useBudgetRanges();
+  const { data: productLines = [] } = useProductLines();
+  const { data: users = [] } = useUsers();
   const [error, setError] = useState("");
   const [transitioning, setTransitioning] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -60,6 +62,8 @@ export default function LeadDetailPage() {
     budget_range: "" as string | number,
     event_type: "",
     service_style: "",
+    product: "" as string | number,
+    assigned_to: "" as string | number,
     notes: "",
     lost_reason: "",
   });
@@ -77,6 +81,8 @@ export default function LeadDetailPage() {
       budget_range: lead.budget_range ?? "",
       event_type: lead.event_type,
       service_style: lead.service_style || "",
+      product: lead.product ?? "",
+      assigned_to: lead.assigned_to ?? "",
       notes: lead.notes,
       lost_reason: lead.lost_reason || "",
     });
@@ -101,6 +107,8 @@ export default function LeadDetailPage() {
         budget_range: editData.budget_range ? Number(editData.budget_range) : null,
         event_type: editData.event_type,
         service_style: editData.service_style || undefined,
+        product: editData.product ? Number(editData.product) : null,
+        assigned_to: editData.assigned_to ? Number(editData.assigned_to) : null,
         notes: editData.notes,
         lost_reason: editData.lost_reason,
       });
@@ -241,6 +249,20 @@ export default function LeadDetailPage() {
                     <option value="mixed">Mixed Service</option>
                   </select>
                 </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Product / Service</label>
+                  <select value={editData.product} onChange={setEdit("product")} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
+                    <option value="">-- Select --</option>
+                    {productLines.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Assigned To</label>
+                  <select value={editData.assigned_to} onChange={setEdit("assigned_to")} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
+                    <option value="">-- Unassigned --</option>
+                    {users.map((u) => <option key={u.id} value={u.id}>{u.first_name} {u.last_name}</option>)}
+                  </select>
+                </div>
                 <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-foreground mb-1">Notes</label>
                   <Textarea value={editData.notes} onChange={setEdit("notes")} rows={3} />
@@ -269,6 +291,8 @@ export default function LeadDetailPage() {
                 {lead.account_name && <div><span className="text-muted-foreground">Account:</span> <Link href={`/accounts/${lead.account}`} className="text-primary hover:underline">{lead.account_name}</Link></div>}
                 {lead.budget_range_label && <div><span className="text-muted-foreground">Budget:</span> {lead.budget_range_label}</div>}
                 {lead.service_style && <div><span className="text-muted-foreground">Service:</span> {lead.service_style.replace(/_/g, " ")}</div>}
+                {lead.product_name && <div><span className="text-muted-foreground">Product:</span> {lead.product_name}</div>}
+                {lead.assigned_to_name && <div><span className="text-muted-foreground">Assigned to:</span> {lead.assigned_to_name}</div>}
                 <div><span className="text-muted-foreground">Source:</span> {lead.source.replace(/_/g, " ")}</div>
                 {lead.notes && <div className="md:col-span-2"><span className="text-muted-foreground">Notes:</span> {lead.notes}</div>}
                 {lead.lost_reason && <div className="md:col-span-2"><span className="text-muted-foreground">Lost reason:</span> {lead.lost_reason}</div>}

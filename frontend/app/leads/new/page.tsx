@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/api";
-import { useAccounts, useBudgetRanges, revalidate } from "@/lib/hooks";
+import { useAccounts, useBudgetRanges, useProductLines, useUsers, revalidate } from "@/lib/hooks";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -14,6 +14,8 @@ export default function NewLeadPage() {
   const router = useRouter();
   const { data: accounts = [] } = useAccounts();
   const { data: budgetRanges = [] } = useBudgetRanges();
+  const { data: productLines = [] } = useProductLines();
+  const { data: users = [] } = useUsers();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [formData, setFormData] = useState({
@@ -27,6 +29,8 @@ export default function NewLeadPage() {
     budget_range: "" as string | number,
     event_type: "other",
     service_style: "",
+    product: "" as string | number,
+    assigned_to: "" as string | number,
     notes: "",
   });
 
@@ -41,6 +45,8 @@ export default function NewLeadPage() {
         guest_estimate: formData.guest_estimate ? Number(formData.guest_estimate) : null,
         event_date: formData.event_date || null,
         budget_range: formData.budget_range ? Number(formData.budget_range) : null,
+        product: formData.product ? Number(formData.product) : null,
+        assigned_to: formData.assigned_to ? Number(formData.assigned_to) : null,
       };
       const lead = await api.createLead(data);
       revalidate("leads");
@@ -134,6 +140,20 @@ export default function NewLeadPage() {
                   <option value="boxed">Boxed / Individual</option>
                   <option value="canapes">Canapes</option>
                   <option value="mixed">Mixed Service</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Product / Service</label>
+                <select value={formData.product} onChange={set("product")} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
+                  <option value="">-- Select --</option>
+                  {productLines.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Assigned To</label>
+                <select value={formData.assigned_to} onChange={set("assigned_to")} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
+                  <option value="">-- Unassigned --</option>
+                  {users.map((u) => <option key={u.id} value={u.id}>{u.first_name} {u.last_name}</option>)}
                 </select>
               </div>
               <div className="md:col-span-2">
