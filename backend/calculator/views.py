@@ -1,4 +1,5 @@
 from django.http import HttpResponse
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -10,6 +11,8 @@ from .pdf import generate_portion_pdf
 
 
 class CalculateView(APIView):
+    permission_classes = [IsAuthenticated]
+
     def post(self, request):
         serializer = CalculateRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -26,6 +29,8 @@ class CalculateView(APIView):
 
 
 class CheckPortionsView(APIView):
+    permission_classes = [IsAuthenticated]
+
     def post(self, request):
         serializer = CheckPortionsRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -175,6 +180,7 @@ class CheckPortionsView(APIView):
 
 class PriceEstimateView(APIView):
     """Compute selling price/head for a custom menu (no template)."""
+    permission_classes = [IsAuthenticated]
 
     def post(self, request):
         from dishes.models import Dish
@@ -187,8 +193,14 @@ class PriceEstimateView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        dish_ids = [int(d) for d in dish_ids]
-        guest_count = int(guest_count)
+        try:
+            dish_ids = [int(d) for d in dish_ids]
+            guest_count = int(guest_count)
+        except (ValueError, TypeError):
+            return Response(
+                {'detail': 'dish_ids must be a list of integers and guest_count must be an integer.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         # 50/50 split
         gents = guest_count // 2
@@ -224,6 +236,8 @@ class PriceEstimateView(APIView):
 
 
 class ExportPDFView(APIView):
+    permission_classes = [IsAuthenticated]
+
     def post(self, request):
         serializer = ExportPDFRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)

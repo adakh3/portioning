@@ -612,8 +612,22 @@ class TestSiteSettingsAPI(TestCase):
     """Tests for GET and PATCH /api/bookings/settings/."""
 
     def setUp(self):
-        self.client = _authenticated_client()
+        # PATCH requires admin (is_staff=True)
+        admin_user = get_test_user()
+        admin_user.is_staff = True
+        admin_user.save()
+        self.client = APIClient()
+        self.client.force_authenticate(user=admin_user)
         self.settings = SiteSettings.load()
+
+    def test_patch_requires_admin(self):
+        """Non-admin user should get 403 on PATCH."""
+        from users.models import User
+        regular = User.objects.create(email="regular@example.com", first_name="Reg", last_name="User")
+        client = APIClient()
+        client.force_authenticate(user=regular)
+        res = client.patch("/api/bookings/settings/", {"currency_symbol": "$"}, format="json")
+        self.assertEqual(res.status_code, 403)
 
     def test_get_settings(self):
         res = self.client.get("/api/bookings/settings/")

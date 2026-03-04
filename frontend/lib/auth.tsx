@@ -20,10 +20,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
   useEffect(() => {
-    api.getMe()
-      .then(setUser)
-      .catch(() => setUser(null))
-      .finally(() => setLoading(false));
+    // Bootstrap CSRF cookie before any authenticated requests
+    fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api"}/auth/login/`, {
+      credentials: "include",
+    })
+      .catch(() => {})  // best-effort
+      .finally(() => {
+        api.getMe()
+          .then(setUser)
+          .catch(() => setUser(null))
+          .finally(() => setLoading(false));
+      });
   }, []);
 
   // Route protection

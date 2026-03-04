@@ -15,6 +15,7 @@ from datetime import timedelta
 from pathlib import Path
 
 import dj_database_url
+from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -27,12 +28,23 @@ load_dotenv(BASE_DIR / '.env')
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-^2fda080_ehzmvh^d^)8p!&7ph6=z=5w2rl*y#bb*oesqqk&zj')
+SECRET_KEY = os.environ.get('SECRET_KEY')
+if not SECRET_KEY:
+    raise ImproperlyConfigured(
+        "The SECRET_KEY environment variable is required. "
+        "Set it in your .env file or environment."
+    )
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.environ.get('DEBUG', 'True').lower() in ('true', '1', 'yes')
+DEBUG = os.environ.get('DEBUG', 'False').lower() in ('true', '1', 'yes')
 
-ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+ALLOWED_HOSTS = [
+    h.strip() for h in os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+]
+if not DEBUG and ALLOWED_HOSTS == ['localhost', '127.0.0.1']:
+    raise ImproperlyConfigured(
+        "ALLOWED_HOSTS must be explicitly set in production (DEBUG=False)."
+    )
 
 
 # Application definition
@@ -53,6 +65,7 @@ INSTALLED_APPS = [
     'calculator',
     'bookings',
     'users',
+    'rest_framework_simplejwt.token_blacklist',
 ]
 
 AUTH_USER_MODEL = "users.User"
@@ -75,6 +88,11 @@ CORS_ALLOWED_ORIGINS = [
 ]
 CORS_ALLOW_CREDENTIALS = True
 
+# CSRF — trust the same origins as CORS, and expose the cookie to the frontend
+CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS[:]
+CSRF_COOKIE_HTTPONLY = False  # Frontend JS needs to read it to send X-CSRFToken header
+CSRF_COOKIE_SAMESITE = 'Lax'
+
 # DRF
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
@@ -83,6 +101,14 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
     ],
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '100/hour',
+        'user': '1000/hour',
+    },
 }
 
 # JWT
@@ -96,6 +122,8 @@ SIMPLE_JWT = {
     'AUTH_COOKIE_SAMESITE': 'Lax',
     'USER_ID_FIELD': 'id',
     'USER_ID_CLAIM': 'user_id',
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': True,
 }
 
 ROOT_URLCONF = 'portioning.urls'
@@ -165,3 +193,15 @@ USE_TZ = True
 STATIC_URL = '/api/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
+# ── Production security settings ──
+if not DEBUG:
+    SECURE_HSTS_SECONDS = 31536000
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    SECURE_SSL_REDIRECT = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_BROWSER_XSS_FILTER = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    X_FRAME_OPTIONS = 'DENY'

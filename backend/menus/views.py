@@ -1,4 +1,5 @@
 from rest_framework import generics, status
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from .models import MenuTemplate, MenuTemplatePriceTier
@@ -101,6 +102,7 @@ class MenuTemplatePreviewView(APIView):
 
 class MenuPriceCheckView(APIView):
     """Return pricing anchored to template tier price, adjusted by per-dish surcharges."""
+    permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
         from dishes.models import Dish
@@ -117,8 +119,14 @@ class MenuPriceCheckView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        guest_count = int(guest_count)
-        dish_ids = [int(d) for d in dish_ids]
+        try:
+            guest_count = int(guest_count)
+            dish_ids = [int(d) for d in dish_ids]
+        except (ValueError, TypeError):
+            return Response(
+                {'detail': 'guest_count must be an integer and dish_ids must be a list of integers.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         # 1. Select tier: highest where min_guests <= guest_count
         tier = (

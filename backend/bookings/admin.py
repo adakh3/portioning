@@ -98,6 +98,11 @@ class LeadAdmin(admin.ModelAdmin):
             context["errors"] = ["Please select a file to upload."]
             return render(request, "admin/bookings/lead/import_form.html", context)
 
+        # Validate file size (max 10 MB)
+        if uploaded.size > 10 * 1024 * 1024:
+            context["errors"] = ["File too large. Maximum size is 10 MB."]
+            return render(request, "admin/bookings/lead/import_form.html", context)
+
         sheet_name = request.POST.get("sheet_name", "").strip() or None
         product_id = request.POST.get("product_id", "").strip() or None
         assigned_to_id = request.POST.get("assigned_to_id", "").strip() or None
@@ -121,8 +126,8 @@ class LeadAdmin(admin.ModelAdmin):
         except ValueError as e:
             context["errors"] = [str(e)]
             return render(request, "admin/bookings/lead/import_form.html", context)
-        except Exception as e:
-            context["errors"] = [f"Error reading file: {e}"]
+        except (OSError, UnicodeDecodeError, KeyError) as e:
+            context["errors"] = ["Error reading file. Please check the format and try again."]
             return render(request, "admin/bookings/lead/import_form.html", context)
 
         # Store parsed data in session for confirm step

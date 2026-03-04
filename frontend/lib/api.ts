@@ -9,6 +9,23 @@ export interface AuthUser {
   organisation: { id: number; name: string } | null;
 }
 
+// ── CSRF token helper ──
+function getCsrfToken(): string | null {
+  if (typeof document === "undefined") return null;
+  const match = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]*)/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+function buildHeaders(options?: RequestInit): Record<string, string> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(options?.headers as Record<string, string>),
+  };
+  const csrf = getCsrfToken();
+  if (csrf) headers["X-CSRFToken"] = csrf;
+  return headers;
+}
+
 // Refresh deduplication — only one refresh in-flight at a time
 let refreshPromise: Promise<boolean> | null = null;
 
@@ -17,6 +34,7 @@ async function tryRefresh(): Promise<boolean> {
   refreshPromise = fetch(`${API_BASE}/auth/refresh/`, {
     method: "POST",
     credentials: "include",
+    headers: buildHeaders(),
   })
     .then((res) => res.ok)
     .finally(() => {
@@ -25,10 +43,19 @@ async function tryRefresh(): Promise<boolean> {
   return refreshPromise;
 }
 
+function sanitizeError(status: number, text: string): string {
+  if (status >= 500) return `Server error (${status})`;
+  try {
+    const json = JSON.parse(text);
+    if (json.detail) return json.detail;
+  } catch { /* not JSON */ }
+  return text.length > 200 ? text.slice(0, 200) + "…" : text;
+}
+
 async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     credentials: "include",
-    headers: { "Content-Type": "application/json", ...options?.headers },
+    headers: buildHeaders(options),
     ...options,
   });
   if (res.status === 401 && !path.startsWith("/auth/")) {
@@ -36,20 +63,20 @@ async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
     if (refreshed) {
       const retry = await fetch(`${API_BASE}${path}`, {
         credentials: "include",
-        headers: { "Content-Type": "application/json", ...options?.headers },
+        headers: buildHeaders(options),
         ...options,
       });
       if (!retry.ok) {
         const text = await retry.text();
-        throw new Error(`API error ${retry.status}: ${text}`);
+        throw new Error(sanitizeError(retry.status, text));
       }
       return retry.json();
     }
-    throw new Error("API error 401: Unauthorized");
+    throw new Error("Unauthorized");
   }
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`API error ${res.status}: ${text}`);
+    throw new Error(sanitizeError(res.status, text));
   }
   return res.json();
 }
@@ -576,7 +603,7 @@ export const api = {
       body: JSON.stringify({ email, password }),
     }),
   logout: async () => {
-    await fetch(`${API_BASE}/auth/logout/`, { method: "POST", credentials: "include" });
+    await fetch(`${API_BASE}/auth/logout/`, { method: "POST", credentials: "include", headers: buildHeaders() });
   },
   getMe: () => fetchApi<AuthUser>("/auth/me/"),
 
@@ -645,12 +672,12 @@ export const api = {
     const res = await fetch(`${API_BASE}/export-pdf/`, {
       method: "POST",
       credentials: "include",
-      headers: { "Content-Type": "application/json" },
+      headers: buildHeaders(),
       body: JSON.stringify(data),
     });
     if (!res.ok) {
       const text = await res.text();
-      throw new Error(`API error ${res.status}: ${text}`);
+      throw new Error(sanitizeError(res.status, text));
     }
     return res.blob();
   },
@@ -721,11 +748,11 @@ export const api = {
   downloadQuotePDF: async (id: number): Promise<Blob> => {
     const res = await fetch(`${API_BASE}/bookings/quotes/${id}/pdf/`, {
       credentials: "include",
-      headers: { "Content-Type": "application/json" },
+      headers: buildHeaders(),
     });
     if (!res.ok) {
       const text = await res.text();
-      throw new Error(`API error ${res.status}: ${text}`);
+      throw new Error(sanitizeError(res.status, text));
     }
     return res.blob();
   },
