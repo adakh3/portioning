@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { api, Lead, Account, AuthUser, BudgetRangeOption, ProductLine } from "@/lib/api";
-import { useLead, useSiteSettings, useBudgetRanges, useProductLines, useUsers } from "@/lib/hooks";
+import { useLead, useSiteSettings, useBudgetRanges, useProductLines, useUsers, useSources, useEventTypes, useServiceStyles, useLeadStatuses } from "@/lib/hooks";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -19,8 +19,6 @@ const STATUS_BADGE_VARIANT: Record<string, "info" | "warning" | "default" | "suc
   converted: "success",
   lost: "secondary",
 };
-
-const ALL_STATUSES = ["new", "contacted", "qualified", "converted", "lost"];
 
 const TRANSITION_LABELS: Record<string, { label: string; variant: "default" | "success" | "warning" | "secondary" | "destructive" }> = {
   contacted: { label: "Mark Contacted", variant: "warning" },
@@ -46,6 +44,10 @@ export default function LeadDetailPage() {
   const { data: budgetRanges = [] } = useBudgetRanges();
   const { data: productLines = [] } = useProductLines();
   const { data: users = [] } = useUsers();
+  const { data: sources = [] } = useSources();
+  const { data: eventTypes = [] } = useEventTypes();
+  const { data: serviceStyles = [] } = useServiceStyles();
+  const { data: leadStatuses = [] } = useLeadStatuses();
   const [error, setError] = useState("");
   const [transitioning, setTransitioning] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -144,7 +146,7 @@ export default function LeadDetailPage() {
   if (loadError && !lead) return <p className="text-destructive">Error: {loadError.message}</p>;
   if (!lead) return <p className="text-muted-foreground">Lead not found.</p>;
 
-  const availableTransitions = ALL_STATUSES.filter((s) => s !== lead.status);
+  const availableTransitions = leadStatuses.map((s) => s.value).filter((s) => s !== lead.status);
   const cs = settings.currency_symbol;
 
   const setEdit = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
@@ -200,25 +202,13 @@ export default function LeadDetailPage() {
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Source</label>
                   <select value={editData.source} onChange={setEdit("source")} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
-                    <option value="website">Website</option>
-                    <option value="referral">Referral</option>
-                    <option value="phone">Phone</option>
-                    <option value="email">Email</option>
-                    <option value="social">Social Media</option>
-                    <option value="walk_in">Walk-in</option>
-                    <option value="repeat">Repeat Customer</option>
+                    {sources.map((s) => <option key={s.id} value={s.value}>{s.label}</option>)}
                   </select>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Event Type</label>
                   <select value={editData.event_type} onChange={setEdit("event_type")} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
-                    <option value="wedding">Wedding</option>
-                    <option value="corporate">Corporate Event</option>
-                    <option value="birthday">Birthday Party</option>
-                    <option value="funeral">Funeral / Wake</option>
-                    <option value="religious">Religious Event</option>
-                    <option value="social">Social Gathering</option>
-                    <option value="other">Other</option>
+                    {eventTypes.map((et) => <option key={et.id} value={et.value}>{et.label}</option>)}
                   </select>
                 </div>
                 <div>
@@ -240,13 +230,7 @@ export default function LeadDetailPage() {
                   <label className="block text-sm font-medium text-foreground mb-1">Service Style</label>
                   <select value={editData.service_style} onChange={setEdit("service_style")} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
                     <option value="">-- Select --</option>
-                    <option value="buffet">Buffet</option>
-                    <option value="plated">Plated / Sit-down</option>
-                    <option value="stations">Food Stations</option>
-                    <option value="family_style">Family Style</option>
-                    <option value="boxed">Boxed / Individual</option>
-                    <option value="canapes">Canapes</option>
-                    <option value="mixed">Mixed Service</option>
+                    {serviceStyles.map((ss) => <option key={ss.id} value={ss.value}>{ss.label}</option>)}
                   </select>
                 </div>
                 <div>

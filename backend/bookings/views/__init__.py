@@ -20,3 +20,7 @@ from .finance import (
     PaymentListCreateView, PaymentDetailView,
 )
 from .settings import BudgetRangeOptionListView, SiteSettingsView
+from .choices import (
+    EventTypeOptionListView, SourceOptionListView,
+    ServiceStyleOptionListView, LeadStatusOptionListView,
+)

@@ -2,9 +2,6 @@ from decimal import Decimal
 
 from django.db import models
 
-from bookings.models.leads import EventType, ServiceStyle
-
-
 class EventStatus(models.TextChoices):
     TENTATIVE = 'tentative', 'Tentative'
     CONFIRMED = 'confirmed', 'Confirmed'
@@ -51,8 +48,8 @@ class Event(models.Model):
         on_delete=models.SET_NULL, related_name='events',
     )
     venue_address = models.TextField(blank=True, help_text='Freeform address for ad-hoc locations')
-    event_type = models.CharField(max_length=20, choices=EventType.choices, blank=True)
-    service_style = models.CharField(max_length=20, choices=ServiceStyle.choices, blank=True)
+    event_type = models.CharField(max_length=50, blank=True)
+    service_style = models.CharField(max_length=50, blank=True)
     price_per_head = models.DecimalField(
         max_digits=10, decimal_places=2, null=True, blank=True,
         help_text='Food/menu price per head',

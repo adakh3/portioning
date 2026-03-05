@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
 from bookings.models import Quote, QuoteLineItem
+from bookings.models.choices import EventTypeOption
 from dishes.models import Dish
 
 
@@ -64,7 +65,8 @@ class QuoteSerializer(serializers.ModelSerializer):
     def get_lead_name(self, obj):
         if obj.lead:
             lead = obj.lead
-            return f"{lead.contact_name} — {lead.get_event_type_display()}"
+            et_label = EventTypeOption.objects.filter(value=lead.event_type).values_list('label', flat=True).first() or lead.event_type
+            return f"{lead.contact_name} — {et_label}"
         return None
 
     def get_dish_names(self, obj):

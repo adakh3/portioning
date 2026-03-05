@@ -8,7 +8,6 @@ from bookings.models import (
     LaborRole, StaffMember, EquipmentItem, Invoice, Payment,
     SiteSettings,
 )
-from bookings.models.leads import LeadStatus
 from bookings.models.quotes import QuoteStatus
 from tests.base import get_test_user
 
@@ -78,36 +77,36 @@ class TestLeadTransitions(TestCase):
         self.lead = make_lead()
 
     def test_new_to_contacted(self):
-        self.lead.transition_to(LeadStatus.CONTACTED)
-        self.assertEqual(self.lead.status, LeadStatus.CONTACTED)
+        self.lead.transition_to("contacted")
+        self.assertEqual(self.lead.status, "contacted")
         self.assertIsNotNone(self.lead.contacted_at)
 
     def test_contacted_to_qualified(self):
-        self.lead.transition_to(LeadStatus.CONTACTED)
-        self.lead.transition_to(LeadStatus.QUALIFIED)
-        self.assertEqual(self.lead.status, LeadStatus.QUALIFIED)
+        self.lead.transition_to("contacted")
+        self.lead.transition_to("qualified")
+        self.assertEqual(self.lead.status, "qualified")
         self.assertIsNotNone(self.lead.qualified_at)
 
     def test_qualified_to_converted(self):
-        self.lead.transition_to(LeadStatus.CONTACTED)
-        self.lead.transition_to(LeadStatus.QUALIFIED)
-        self.lead.transition_to(LeadStatus.CONVERTED)
-        self.assertEqual(self.lead.status, LeadStatus.CONVERTED)
+        self.lead.transition_to("contacted")
+        self.lead.transition_to("qualified")
+        self.lead.transition_to("converted")
+        self.assertEqual(self.lead.status, "converted")
         self.assertIsNotNone(self.lead.converted_at)
 
     def test_same_status_transition_raises(self):
         with self.assertRaises(ValueError):
-            self.lead.transition_to(LeadStatus.NEW)  # same status is invalid
+            self.lead.transition_to("new")  # same status is invalid
 
     def test_lost_can_reopen(self):
-        self.lead.transition_to(LeadStatus.LOST)
-        self.lead.transition_to(LeadStatus.NEW)
-        self.assertEqual(self.lead.status, LeadStatus.NEW)
+        self.lead.transition_to("lost")
+        self.lead.transition_to("new")
+        self.assertEqual(self.lead.status, "new")
 
     def test_any_to_lost(self):
-        self.lead.transition_to(LeadStatus.CONTACTED)
-        self.lead.transition_to(LeadStatus.LOST)
-        self.assertEqual(self.lead.status, LeadStatus.LOST)
+        self.lead.transition_to("contacted")
+        self.lead.transition_to("lost")
+        self.assertEqual(self.lead.status, "lost")
         self.assertIsNotNone(self.lead.lost_at)
 
 
@@ -369,7 +368,7 @@ class TestLeadAPI(TestCase):
     def test_list_leads_filter_by_status(self):
         make_lead(contact_name="A")
         lead_b = make_lead(contact_name="B")
-        lead_b.transition_to(LeadStatus.CONTACTED)
+        lead_b.transition_to("contacted")
 
         res = self.client.get("/api/bookings/leads/?status=new")
         self.assertEqual(len(res.json()), 1)
@@ -393,8 +392,8 @@ class TestLeadAPI(TestCase):
     def test_convert_lead_creates_quote(self):
         account = make_account()
         lead = make_lead(account=account)
-        lead.transition_to(LeadStatus.CONTACTED)
-        lead.transition_to(LeadStatus.QUALIFIED)
+        lead.transition_to("contacted")
+        lead.transition_to("qualified")
 
         res = self.client.post(f"/api/bookings/leads/{lead.id}/convert/")
         self.assertEqual(res.status_code, 201)
@@ -403,7 +402,7 @@ class TestLeadAPI(TestCase):
         self.assertEqual(data["guest_count"], 100)
 
         lead.refresh_from_db()
-        self.assertEqual(lead.status, LeadStatus.CONVERTED)
+        self.assertEqual(lead.status, "converted")
         self.assertIsNotNone(lead.converted_to_quote)
 
     def test_convert_from_any_status_succeeds(self):
@@ -411,12 +410,12 @@ class TestLeadAPI(TestCase):
         res = self.client.post(f"/api/bookings/leads/{lead.id}/convert/")
         self.assertEqual(res.status_code, 201)
         lead.refresh_from_db()
-        self.assertEqual(lead.status, LeadStatus.CONVERTED)
+        self.assertEqual(lead.status, "converted")
 
     def test_convert_creates_account_if_none(self):
         lead = make_lead(account=None)
-        lead.transition_to(LeadStatus.CONTACTED)
-        lead.transition_to(LeadStatus.QUALIFIED)
+        lead.transition_to("contacted")
+        lead.transition_to("qualified")
 
         res = self.client.post(f"/api/bookings/leads/{lead.id}/convert/")
         self.assertEqual(res.status_code, 201)

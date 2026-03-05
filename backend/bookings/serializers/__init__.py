@@ -6,3 +6,7 @@ from .staffing import LaborRoleSerializer, StaffMemberSerializer, ShiftSerialize
 from .equipment import EquipmentItemSerializer, EquipmentReservationSerializer
 from .finance import InvoiceSerializer, PaymentSerializer
 from .settings import BudgetRangeOptionSerializer, SiteSettingsSerializer
+from .choices import (
+    EventTypeOptionSerializer, SourceOptionSerializer,
+    ServiceStyleOptionSerializer, LeadStatusOptionSerializer,
+)

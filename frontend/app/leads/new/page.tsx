@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/api";
-import { useAccounts, useBudgetRanges, useProductLines, useUsers, revalidate } from "@/lib/hooks";
+import { useAccounts, useBudgetRanges, useProductLines, useUsers, useSources, useEventTypes, useServiceStyles, revalidate } from "@/lib/hooks";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -16,6 +16,9 @@ export default function NewLeadPage() {
   const { data: budgetRanges = [] } = useBudgetRanges();
   const { data: productLines = [] } = useProductLines();
   const { data: users = [] } = useUsers();
+  const { data: sources = [] } = useSources();
+  const { data: eventTypes = [] } = useEventTypes();
+  const { data: serviceStyles = [] } = useServiceStyles();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [formData, setFormData] = useState({
@@ -93,25 +96,13 @@ export default function NewLeadPage() {
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">Source</label>
                 <select value={formData.source} onChange={set("source")} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
-                  <option value="website">Website</option>
-                  <option value="referral">Referral</option>
-                  <option value="phone">Phone</option>
-                  <option value="email">Email</option>
-                  <option value="social">Social Media</option>
-                  <option value="walk_in">Walk-in</option>
-                  <option value="repeat">Repeat Customer</option>
+                  {sources.map((s) => <option key={s.id} value={s.value}>{s.label}</option>)}
                 </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">Event Type</label>
                 <select value={formData.event_type} onChange={set("event_type")} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
-                  <option value="wedding">Wedding</option>
-                  <option value="corporate">Corporate Event</option>
-                  <option value="birthday">Birthday Party</option>
-                  <option value="funeral">Funeral / Wake</option>
-                  <option value="religious">Religious Event</option>
-                  <option value="social">Social Gathering</option>
-                  <option value="other">Other</option>
+                  {eventTypes.map((et) => <option key={et.id} value={et.value}>{et.label}</option>)}
                 </select>
               </div>
               <div>
@@ -133,13 +124,7 @@ export default function NewLeadPage() {
                 <label className="block text-sm font-medium text-foreground mb-1">Service Style</label>
                 <select value={formData.service_style} onChange={set("service_style")} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
                   <option value="">-- Select --</option>
-                  <option value="buffet">Buffet</option>
-                  <option value="plated">Plated / Sit-down</option>
-                  <option value="stations">Food Stations</option>
-                  <option value="family_style">Family Style</option>
-                  <option value="boxed">Boxed / Individual</option>
-                  <option value="canapes">Canapes</option>
-                  <option value="mixed">Mixed Service</option>
+                  {serviceStyles.map((ss) => <option key={ss.id} value={ss.value}>{ss.label}</option>)}
                 </select>
               </div>
               <div>

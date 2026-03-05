@@ -16,6 +16,8 @@ from bookings.views import (
     InvoiceListCreateView, InvoiceDetailView,
     PaymentListCreateView, PaymentDetailView,
     BudgetRangeOptionListView, SiteSettingsView,
+    EventTypeOptionListView, SourceOptionListView,
+    ServiceStyleOptionListView, LeadStatusOptionListView,
 )
 
 urlpatterns = [
@@ -67,6 +69,12 @@ urlpatterns = [
     path('bookings/invoices/<int:pk>/', InvoiceDetailView.as_view(), name='invoice-detail'),
     path('bookings/invoices/<int:invoice_pk>/payments/', PaymentListCreateView.as_view(), name='payment-list'),
     path('bookings/invoices/<int:invoice_pk>/payments/<int:pk>/', PaymentDetailView.as_view(), name='payment-detail'),
+
+    # Choice Options
+    path('bookings/event-types/', EventTypeOptionListView.as_view(), name='event-type-list'),
+    path('bookings/sources/', SourceOptionListView.as_view(), name='source-list'),
+    path('bookings/service-styles/', ServiceStyleOptionListView.as_view(), name='service-style-list'),
+    path('bookings/lead-statuses/', LeadStatusOptionListView.as_view(), name='lead-status-list'),
 
     # Settings
     path('bookings/budget-ranges/', BudgetRangeOptionListView.as_view(), name='budget-range-list'),

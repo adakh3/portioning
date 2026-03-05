@@ -11,6 +11,7 @@ from reportlab.platypus import (
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 
 from bookings.models.settings import SiteSettings
+from bookings.models.choices import EventTypeOption, ServiceStyleOption
 
 
 CATEGORY_LABELS = {
@@ -84,6 +85,7 @@ def generate_quote_pdf(quote):
 
     # ── Header ──
     elements.append(Paragraph('QUOTATION', title_style))
+    # QuoteStatus is still a TextChoices enum
     elements.append(Paragraph(
         f'Quote #{quote.pk} v{quote.version} &mdash; {quote.get_status_display()}',
         subtitle_style,
@@ -129,13 +131,15 @@ def generate_quote_pdf(quote):
     # ── Event Details ──
     elements.append(Paragraph('EVENT DETAILS', section_style))
 
+    et_label = EventTypeOption.objects.filter(value=quote.event_type).values_list('label', flat=True).first() or quote.event_type
     event_data = [
         ['Date', str(quote.event_date.strftime('%d %B %Y'))],
         ['Guest Count', str(quote.guest_count)],
-        ['Event Type', quote.get_event_type_display()],
+        ['Event Type', et_label],
     ]
     if quote.service_style:
-        event_data.append(['Service Style', quote.get_service_style_display()])
+        ss_label = ServiceStyleOption.objects.filter(value=quote.service_style).values_list('label', flat=True).first() or quote.service_style
+        event_data.append(['Service Style', ss_label])
 
     # Venue
     if quote.venue:

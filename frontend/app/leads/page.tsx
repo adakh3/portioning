@@ -16,8 +16,8 @@ import {
   CollisionDetection,
 } from "@dnd-kit/core";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
-import { api, Lead, LeadFilters, AuthUser, ProductLine } from "@/lib/api";
-import { useLeads, useUsers, useProductLines, revalidate } from "@/lib/hooks";
+import { api, Lead, LeadFilters, AuthUser, ProductLine, ChoiceOption } from "@/lib/api";
+import { useLeads, useUsers, useProductLines, useEventTypes, useLeadStatuses, revalidate } from "@/lib/hooks";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -58,16 +58,6 @@ const COLUMNS = [
 ] as const;
 
 const COLUMN_IDS = new Set(COLUMNS.map((c) => c.status as string));
-
-const EVENT_TYPES = [
-  { value: "wedding", label: "Wedding" },
-  { value: "corporate", label: "Corporate Event" },
-  { value: "birthday", label: "Birthday Party" },
-  { value: "funeral", label: "Funeral / Wake" },
-  { value: "religious", label: "Religious Event" },
-  { value: "social", label: "Social Gathering" },
-  { value: "other", label: "Other" },
-];
 
 const STATUS_VARIANT: Record<string, "default" | "warning" | "info" | "success" | "secondary"> = {
   new: "default",
@@ -249,6 +239,8 @@ export default function LeadsPage() {
   const { data: fetchedLeads, error: loadError, isLoading: loading } = useLeads(filters);
   const { data: users } = useUsers();
   const { data: productLines } = useProductLines();
+  const { data: eventTypes = [] } = useEventTypes();
+  const { data: leadStatuses = [] } = useLeadStatuses();
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
@@ -480,7 +472,7 @@ export default function LeadsPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="__all__">All Types</SelectItem>
-            {EVENT_TYPES.map((et) => (
+            {eventTypes.map((et) => (
               <SelectItem key={et.value} value={et.value}>
                 {et.label}
               </SelectItem>
@@ -742,6 +734,8 @@ function LeadsTable({
   onOptimisticUpdate: (leadId: number, patch: Partial<Lead>) => void;
 }) {
   const router = useRouter();
+  const { data: eventTypes = [] } = useEventTypes();
+  const { data: leadStatuses = [] } = useLeadStatuses();
   const allSelected = leads.length > 0 && selectedIds.size === leads.length;
 
   // Inline editing state
@@ -837,7 +831,7 @@ function LeadsTable({
         });
         await api.updateLead(leadId, { product: numVal } as Partial<Lead>);
       } else if (field === "event_type") {
-        const display = EVENT_TYPES.find((et) => et.value === value)?.label || value;
+        const display = eventTypes.find((et) => et.value === value)?.label || value;
         onOptimisticUpdate(leadId, { event_type: value, event_type_display: display });
         await api.updateLead(leadId, { event_type: value });
       } else if (field === "event_date") {
@@ -1109,7 +1103,7 @@ function LeadsTable({
                     <SelectValue placeholder="Type" />
                   </SelectTrigger>
                   <SelectContent>
-                    {EVENT_TYPES.map((et) => (
+                    {eventTypes.map((et) => (
                       <SelectItem key={et.value} value={et.value}>{et.label}</SelectItem>
                     ))}
                   </SelectContent>
@@ -1249,7 +1243,7 @@ function LeadsTable({
                   field="event_type"
                   display={lead.event_type_display}
                   className="hidden md:table-cell"
-                  options={EVENT_TYPES}
+                  options={eventTypes}
                 />
 
                 {/* Event Date - editable date */}
@@ -1359,7 +1353,7 @@ function LeadsTable({
                       {lead.status_display}
                     </Badge>
                   }
-                  options={COLUMNS.map((col) => ({ value: col.status, label: col.label }))}
+                  options={leadStatuses.map((s) => ({ value: s.value, label: s.label }))}
                 />
 
                 {/* Created - non-editable, navigates */}

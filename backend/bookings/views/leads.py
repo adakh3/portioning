@@ -5,7 +5,7 @@ from rest_framework.views import APIView
 from users.models import User
 from users.serializers import UserSerializer
 from bookings.models import Lead, ProductLine, Quote
-from bookings.models.leads import LeadStatus, ALL_LEAD_STATUSES
+from bookings.models.choices import LeadStatusOption
 from bookings.serializers import LeadSerializer, QuoteSerializer
 from bookings.serializers.leads import ProductLineSerializer
 
@@ -114,7 +114,8 @@ class LeadBulkUpdateView(APIView):
                 leads.update(assigned_to_id=value)
 
         elif action == 'status':
-            if value not in ALL_LEAD_STATUSES:
+            valid_statuses = set(LeadStatusOption.objects.values_list('value', flat=True))
+            if value not in valid_statuses:
                 return Response({'error': f'Invalid status: {value}'}, status=status.HTTP_400_BAD_REQUEST)
             leads.update(status=value)
 
@@ -178,6 +179,6 @@ class LeadConvertView(APIView):
         )
 
         lead.converted_to_quote = quote
-        lead.transition_to(LeadStatus.CONVERTED)
+        lead.transition_to('converted')
 
         return Response(QuoteSerializer(quote).data, status=status.HTTP_201_CREATED)

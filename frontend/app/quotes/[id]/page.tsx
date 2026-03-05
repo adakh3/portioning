@@ -4,7 +4,7 @@ import { useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { api, Contact } from "@/lib/api";
-import { useQuote, useVenues, useSiteSettings } from "@/lib/hooks";
+import { useQuote, useVenues, useSiteSettings, useEventTypes, useServiceStyles } from "@/lib/hooks";
 import MenuBuilder from "@/components/MenuBuilder";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -35,6 +35,8 @@ export default function QuoteDetailPage() {
   const { data: venues = [] } = useVenues();
   const { data: rawSettings } = useSiteSettings();
   const settings = rawSettings || { currency_symbol: "£", currency_code: "GBP", default_price_per_head: "0.00", target_food_cost_percentage: "30.00", price_rounding_step: "50" };
+  const { data: eventTypes = [] } = useEventTypes();
+  const { data: serviceStyles = [] } = useServiceStyles();
   const [showItemForm, setShowItemForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -327,26 +329,14 @@ export default function QuoteDetailPage() {
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">Event Type</label>
               <select value={editData.event_type} onChange={setEdit("event_type")} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
-                <option value="wedding">Wedding</option>
-                <option value="corporate">Corporate Event</option>
-                <option value="birthday">Birthday Party</option>
-                <option value="funeral">Funeral / Wake</option>
-                <option value="religious">Religious Event</option>
-                <option value="social">Social Gathering</option>
-                <option value="other">Other</option>
+                {eventTypes.map((et) => <option key={et.id} value={et.value}>{et.label}</option>)}
               </select>
             </div>
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">Service Style</label>
               <select value={editData.service_style} onChange={setEdit("service_style")} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
                 <option value="">-- None --</option>
-                <option value="buffet">Buffet</option>
-                <option value="plated">Plated / Sit-down</option>
-                <option value="stations">Food Stations</option>
-                <option value="family_style">Family Style</option>
-                <option value="boxed">Boxed / Individual</option>
-                <option value="canapes">Canapes</option>
-                <option value="mixed">Mixed Service</option>
+                {serviceStyles.map((ss) => <option key={ss.id} value={ss.value}>{ss.label}</option>)}
               </select>
             </div>
             <div>

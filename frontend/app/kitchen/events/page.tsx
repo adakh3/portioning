@@ -1,11 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useEvents } from "@/lib/hooks";
+import { useEvents, useServiceStyles } from "@/lib/hooks";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 
 const statusBadgeVariant: Record<string, "warning" | "info" | "secondary" | "success" | "destructive"> = {
   confirmed: "info",
@@ -13,18 +13,10 @@ const statusBadgeVariant: Record<string, "warning" | "info" | "secondary" | "suc
   completed: "success",
 };
 
-const serviceStyleLabels: Record<string, string> = {
-  buffet: "Buffet",
-  plated: "Plated",
-  stations: "Food Stations",
-  family_style: "Family Style",
-  boxed: "Boxed",
-  canapes: "Canapés",
-  mixed: "Mixed",
-};
-
 export default function KitchenEventsPage() {
   const [statusFilter, setStatusFilter] = useState<string>("confirmed");
+  const { data: serviceStylesData = [] } = useServiceStyles();
+  const serviceStyleLabels = useMemo(() => Object.fromEntries(serviceStylesData.map((ss) => [ss.value, ss.label])), [serviceStylesData]);
   const { data: events = [], error, isLoading } = useEvents(
     statusFilter ? { status: statusFilter } : undefined
   );

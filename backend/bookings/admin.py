@@ -13,6 +13,7 @@ from .models import (
     EquipmentItem, EquipmentReservation,
     Invoice, Payment,
     BudgetRangeOption, SiteSettings,
+    EventTypeOption, SourceOption, ServiceStyleOption, LeadStatusOption,
 )
 from .services.lead_import import (
     load_xlsx, load_csv, parse_rows, flag_duplicates, commit_rows, ImportRow,
@@ -309,6 +310,36 @@ class PaymentAdmin(admin.ModelAdmin):
     list_display = ['invoice', 'amount', 'payment_date', 'method', 'reference']
     list_filter = ['method']
     search_fields = ['invoice__invoice_number', 'reference']
+
+
+# --- Choice Options ---
+
+@admin.register(EventTypeOption)
+class EventTypeOptionAdmin(admin.ModelAdmin):
+    list_display = ['value', 'label', 'sort_order', 'is_active']
+    list_editable = ['label', 'sort_order', 'is_active']
+    ordering = ['sort_order']
+
+
+@admin.register(SourceOption)
+class SourceOptionAdmin(admin.ModelAdmin):
+    list_display = ['value', 'label', 'sort_order', 'is_active']
+    list_editable = ['label', 'sort_order', 'is_active']
+    ordering = ['sort_order']
+
+
+@admin.register(ServiceStyleOption)
+class ServiceStyleOptionAdmin(admin.ModelAdmin):
+    list_display = ['value', 'label', 'sort_order', 'is_active']
+    list_editable = ['label', 'sort_order', 'is_active']
+    ordering = ['sort_order']
+
+
+@admin.register(LeadStatusOption)
+class LeadStatusOptionAdmin(admin.ModelAdmin):
+    list_display = ['value', 'label', 'sort_order', 'is_active']
+    list_editable = ['label', 'sort_order', 'is_active']
+    ordering = ['sort_order']
 
 
 # --- Settings ---

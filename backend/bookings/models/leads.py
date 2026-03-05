@@ -18,47 +18,6 @@ class ProductLine(models.Model):
         return self.name
 
 
-class LeadSource(models.TextChoices):
-    WEBSITE = 'website', 'Website'
-    REFERRAL = 'referral', 'Referral'
-    PHONE = 'phone', 'Phone'
-    EMAIL = 'email', 'Email'
-    SOCIAL = 'social', 'Social Media'
-    WALK_IN = 'walk_in', 'Walk-in'
-    REPEAT = 'repeat', 'Repeat Customer'
-
-
-class LeadStatus(models.TextChoices):
-    NEW = 'new', 'New'
-    CONTACTED = 'contacted', 'Contacted'
-    QUALIFIED = 'qualified', 'Qualified'
-    CONVERTED = 'converted', 'Converted'
-    LOST = 'lost', 'Lost'
-
-
-class EventType(models.TextChoices):
-    WEDDING = 'wedding', 'Wedding'
-    CORPORATE = 'corporate', 'Corporate Event'
-    BIRTHDAY = 'birthday', 'Birthday Party'
-    FUNERAL = 'funeral', 'Funeral / Wake'
-    RELIGIOUS = 'religious', 'Religious Event'
-    SOCIAL = 'social', 'Social Gathering'
-    OTHER = 'other', 'Other'
-
-
-class ServiceStyle(models.TextChoices):
-    BUFFET = 'buffet', 'Buffet'
-    PLATED = 'plated', 'Plated / Sit-down'
-    STATIONS = 'stations', 'Food Stations'
-    FAMILY = 'family_style', 'Family Style'
-    BOXED = 'boxed', 'Boxed / Individual'
-    CANAPES = 'canapes', 'Canapés'
-    MIXED = 'mixed', 'Mixed Service'
-
-
-ALL_LEAD_STATUSES = [s.value for s in LeadStatus]
-
-
 class Lead(models.Model):
     account = models.ForeignKey(
         'bookings.Account', null=True, blank=True,
@@ -67,17 +26,17 @@ class Lead(models.Model):
     contact_name = models.CharField(max_length=200)
     contact_email = models.EmailField(blank=True)
     contact_phone = models.CharField(max_length=50, blank=True)
-    source = models.CharField(max_length=20, choices=LeadSource.choices, default=LeadSource.WEBSITE)
+    source = models.CharField(max_length=50, default='website')
     event_date = models.DateField(null=True, blank=True)
     guest_estimate = models.IntegerField(null=True, blank=True)
     budget_range = models.ForeignKey(
         'bookings.BudgetRangeOption', null=True, blank=True,
         on_delete=models.SET_NULL, related_name='leads',
     )
-    event_type = models.CharField(max_length=20, choices=EventType.choices, default=EventType.OTHER)
-    service_style = models.CharField(max_length=20, choices=ServiceStyle.choices, blank=True)
+    event_type = models.CharField(max_length=50, default='other')
+    service_style = models.CharField(max_length=50, blank=True)
     notes = models.TextField(blank=True)
-    status = models.CharField(max_length=20, choices=LeadStatus.choices, default=LeadStatus.NEW)
+    status = models.CharField(max_length=50, default='new')
     product = models.ForeignKey(
         'bookings.ProductLine', null=True, blank=True,
         on_delete=models.SET_NULL, related_name='leads',
@@ -106,22 +65,27 @@ class Lead(models.Model):
         ordering = ['-created_at']
 
     def __str__(self):
-        return f"{self.contact_name} — {self.get_event_type_display()} ({self.get_status_display()})"
+        from bookings.models.choices import EventTypeOption, LeadStatusOption
+        et_label = EventTypeOption.objects.filter(value=self.event_type).values_list('label', flat=True).first() or self.event_type
+        st_label = LeadStatusOption.objects.filter(value=self.status).values_list('label', flat=True).first() or self.status
+        return f"{self.contact_name} — {et_label} ({st_label})"
 
     def can_transition_to(self, new_status):
-        return new_status in ALL_LEAD_STATUSES and new_status != self.status
+        from bookings.models.choices import LeadStatusOption
+        valid_statuses = set(LeadStatusOption.objects.values_list('value', flat=True))
+        return new_status in valid_statuses and new_status != self.status
 
     def transition_to(self, new_status):
         if not self.can_transition_to(new_status):
             raise ValueError(f"Cannot transition from {self.status} to {new_status}")
         self.status = new_status
         now = timezone.now()
-        if new_status == LeadStatus.CONTACTED:
+        if new_status == 'contacted':
             self.contacted_at = now
-        elif new_status == LeadStatus.QUALIFIED:
+        elif new_status == 'qualified':
             self.qualified_at = now
-        elif new_status == LeadStatus.CONVERTED:
+        elif new_status == 'converted':
             self.converted_at = now
-        elif new_status == LeadStatus.LOST:
+        elif new_status == 'lost':
             self.lost_at = now
         self.save()

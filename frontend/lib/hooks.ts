@@ -14,6 +14,7 @@ import {
   SiteSettingsData,
   BudgetRangeOption,
   ProductLine,
+  ChoiceOption,
   StaffMember,
   LaborRole,
   EquipmentItem,
@@ -57,6 +58,34 @@ export function useBudgetRanges() {
 
 export function useProductLines() {
   return useSWR<ProductLine[]>("product-lines", () => api.getProductLines(), {
+    dedupingInterval: 300000,
+    revalidateOnFocus: false,
+  });
+}
+
+export function useEventTypes() {
+  return useSWR<ChoiceOption[]>("event-types", () => api.getEventTypes(), {
+    dedupingInterval: 300000,
+    revalidateOnFocus: false,
+  });
+}
+
+export function useServiceStyles() {
+  return useSWR<ChoiceOption[]>("service-styles", () => api.getServiceStyles(), {
+    dedupingInterval: 300000,
+    revalidateOnFocus: false,
+  });
+}
+
+export function useSources() {
+  return useSWR<ChoiceOption[]>("sources", () => api.getSources(), {
+    dedupingInterval: 300000,
+    revalidateOnFocus: false,
+  });
+}
+
+export function useLeadStatuses() {
+  return useSWR<ChoiceOption[]>("lead-statuses", () => api.getLeadStatuses(), {
     dedupingInterval: 300000,
     revalidateOnFocus: false,
   });

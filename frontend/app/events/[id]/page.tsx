@@ -16,6 +16,8 @@ import {
   useStaff,
   useEquipment,
   useSiteSettings,
+  useEventTypes,
+  useServiceStyles,
 } from "@/lib/hooks";
 import MenuBuilder from "@/components/MenuBuilder";
 import { Button } from "@/components/ui/button";
@@ -32,25 +34,6 @@ const statusBadgeVariant: Record<string, "warning" | "info" | "secondary" | "suc
   cancelled: "destructive",
 };
 
-const eventTypeLabels: Record<string, string> = {
-  wedding: "Wedding",
-  corporate: "Corporate Event",
-  birthday: "Birthday Party",
-  funeral: "Funeral / Wake",
-  religious: "Religious Event",
-  social: "Social Gathering",
-  other: "Other",
-};
-
-const serviceStyleLabels: Record<string, string> = {
-  buffet: "Buffet",
-  plated: "Plated / Sit-down",
-  stations: "Food Stations",
-  family_style: "Family Style",
-  boxed: "Boxed / Individual",
-  canapes: "Canap\u00e9s",
-  mixed: "Mixed Service",
-};
 
 function ChevronIcon({ open }: { open: boolean }) {
   return (
@@ -89,6 +72,10 @@ export default function EventDetailPage() {
   const { data: equipmentItems = [] } = useEquipment();
   const { data: rawSettings } = useSiteSettings();
   const settings = rawSettings || { currency_symbol: "\u00A3", currency_code: "GBP", default_price_per_head: "0.00", target_food_cost_percentage: "30.00", price_rounding_step: "50" };
+  const { data: eventTypesData = [] } = useEventTypes();
+  const { data: serviceStylesData = [] } = useServiceStyles();
+  const eventTypeLabels: Record<string, string> = Object.fromEntries(eventTypesData.map((et) => [et.value, et.label]));
+  const serviceStyleLabels: Record<string, string> = Object.fromEntries(serviceStylesData.map((ss) => [ss.value, ss.label]));
 
   // Core state
   const loading = eventLoading;

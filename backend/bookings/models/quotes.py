@@ -4,9 +4,6 @@ from django.core.validators import MinValueValidator
 from django.db import models
 from django.utils import timezone
 
-from .leads import EventType, ServiceStyle
-
-
 class QuoteStatus(models.TextChoices):
     DRAFT = 'draft', 'Draft'
     SENT = 'sent', 'Sent'
@@ -49,8 +46,8 @@ class Quote(models.Model):
         max_digits=10, decimal_places=2, null=True, blank=True,
         help_text='Food/menu price per head',
     )
-    event_type = models.CharField(max_length=20, choices=EventType.choices, default=EventType.OTHER)
-    service_style = models.CharField(max_length=20, choices=ServiceStyle.choices, blank=True)
+    event_type = models.CharField(max_length=50, default='other')
+    service_style = models.CharField(max_length=50, blank=True)
     valid_until = models.DateField(null=True, blank=True)
     subtotal = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
     tax_rate = models.DecimalField(max_digits=5, decimal_places=4, default=Decimal('0.2000'))

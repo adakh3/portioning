@@ -2,6 +2,7 @@ from rest_framework import serializers
 
 from bookings.models import Lead, Quote
 from bookings.models.leads import ProductLine
+from bookings.models.choices import EventTypeOption, LeadStatusOption
 
 
 class LeadQuoteSummarySerializer(serializers.ModelSerializer):
@@ -20,10 +21,29 @@ class ProductLineSerializer(serializers.ModelSerializer):
         read_only_fields = ['id']
 
 
+# Cache for choice lookups (populated once per process)
+_event_type_cache = None
+_lead_status_cache = None
+
+
+def _get_event_type_labels():
+    global _event_type_cache
+    if _event_type_cache is None:
+        _event_type_cache = dict(EventTypeOption.objects.values_list('value', 'label'))
+    return _event_type_cache
+
+
+def _get_lead_status_labels():
+    global _lead_status_cache
+    if _lead_status_cache is None:
+        _lead_status_cache = dict(LeadStatusOption.objects.values_list('value', 'label'))
+    return _lead_status_cache
+
+
 class LeadSerializer(serializers.ModelSerializer):
     account_name = serializers.CharField(source='account.name', read_only=True, default=None)
-    status_display = serializers.CharField(source='get_status_display', read_only=True)
-    event_type_display = serializers.CharField(source='get_event_type_display', read_only=True)
+    status_display = serializers.SerializerMethodField()
+    event_type_display = serializers.SerializerMethodField()
     budget_range_label = serializers.CharField(source='budget_range.label', read_only=True, default=None)
     product_name = serializers.CharField(source='product.name', read_only=True, default=None)
     assigned_to_name = serializers.SerializerMethodField()
@@ -51,6 +71,12 @@ class LeadSerializer(serializers.ModelSerializer):
             'contacted_at', 'qualified_at', 'converted_at', 'lost_at',
             'created_at', 'updated_at',
         ]
+
+    def get_status_display(self, obj):
+        return _get_lead_status_labels().get(obj.status, obj.status)
+
+    def get_event_type_display(self, obj):
+        return _get_event_type_labels().get(obj.event_type, obj.event_type)
 
     def get_assigned_to_name(self, obj):
         if obj.assigned_to:

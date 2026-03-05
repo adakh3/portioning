@@ -449,6 +449,15 @@ export interface Invoice {
   updated_at: string;
 }
 
+// Choice option type (DB-backed dropdowns)
+export interface ChoiceOption {
+  id: number;
+  value: string;
+  label: string;
+  sort_order: number;
+  is_active: boolean;
+}
+
 // Settings types
 export interface BudgetRangeOption {
   id: number;
@@ -824,6 +833,12 @@ export const api = {
     fetchApi<Payment[]>(`/bookings/invoices/${invoiceId}/payments/`),
   createPayment: (invoiceId: number, data: Partial<Payment>) =>
     fetchApi<Payment>(`/bookings/invoices/${invoiceId}/payments/`, { method: "POST", body: JSON.stringify(data) }),
+
+  // Choice Options
+  getEventTypes: () => fetchApi<ChoiceOption[]>("/bookings/event-types/"),
+  getServiceStyles: () => fetchApi<ChoiceOption[]>("/bookings/service-styles/"),
+  getSources: () => fetchApi<ChoiceOption[]>("/bookings/sources/"),
+  getLeadStatuses: () => fetchApi<ChoiceOption[]>("/bookings/lead-statuses/"),
 
   // Settings
   getBudgetRanges: () => fetchApi<BudgetRangeOption[]>("/bookings/budget-ranges/"),
