@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -46,6 +46,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { useQueryState } from "@/lib/useQueryState";
 
 // ── Constants ──
 
@@ -199,16 +200,25 @@ function SortIcon({ field, current }: { field: string; current: string }) {
 // ── Main page ──
 
 export default function LeadsPage() {
-  const [viewMode, setViewMode] = useState<"kanban" | "table">("kanban");
+  return (
+    <Suspense>
+      <LeadsContent />
+    </Suspense>
+  );
+}
+
+function LeadsContent() {
+  const [viewModeRaw, setViewMode] = useQueryState("view", "kanban");
+  const viewMode = (viewModeRaw === "table" ? "table" : "kanban") as "kanban" | "table";
   const [search, setSearch] = useState("");
-  const [filterAssigned, setFilterAssigned] = useState("");
-  const [filterProduct, setFilterProduct] = useState("");
-  const [filterEventType, setFilterEventType] = useState("");
-  const [filterDateFrom, setFilterDateFrom] = useState("");
-  const [filterDateTo, setFilterDateTo] = useState("");
-  const [filterLeadDateFrom, setFilterLeadDateFrom] = useState("");
-  const [filterLeadDateTo, setFilterLeadDateTo] = useState("");
-  const [ordering, setOrdering] = useState("-created_at");
+  const [filterAssigned, setFilterAssigned] = useQueryState("assigned", "");
+  const [filterProduct, setFilterProduct] = useQueryState("product", "");
+  const [filterEventType, setFilterEventType] = useQueryState("eventType", "");
+  const [filterDateFrom, setFilterDateFrom] = useQueryState("dateFrom", "");
+  const [filterDateTo, setFilterDateTo] = useQueryState("dateTo", "");
+  const [filterLeadDateFrom, setFilterLeadDateFrom] = useQueryState("leadDateFrom", "");
+  const [filterLeadDateTo, setFilterLeadDateTo] = useQueryState("leadDateTo", "");
+  const [ordering, setOrdering] = useQueryState("sort", "-created_at");
 
   // Bulk selection state
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());

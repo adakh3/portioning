@@ -1,8 +1,9 @@
 "use client";
 
+import { Suspense } from "react";
 import Link from "next/link";
-import { useState } from "react";
 import { useQuotes, useSiteSettings } from "@/lib/hooks";
+import { useQueryState } from "@/lib/useQueryState";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -18,7 +19,15 @@ const STATUS_BADGE_VARIANT: Record<string, "secondary" | "info" | "success" | "w
 const STATUSES = ["all", "draft", "sent", "accepted", "expired", "declined"];
 
 export default function QuotesPage() {
-  const [filter, setFilter] = useState("all");
+  return (
+    <Suspense>
+      <QuotesContent />
+    </Suspense>
+  );
+}
+
+function QuotesContent() {
+  const [filter, setFilter] = useQueryState("status", "all");
   const { data: quotes = [], error: loadError, isLoading: loading } = useQuotes(filter);
   const { data: rawSettings } = useSiteSettings();
   const settings = rawSettings || { currency_symbol: "£", currency_code: "GBP", default_price_per_head: "0.00", target_food_cost_percentage: "30.00", price_rounding_step: "50" };

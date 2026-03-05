@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense } from "react";
 import Link from "next/link";
 import { EventData } from "@/lib/api";
 import { useEvents } from "@/lib/hooks";
+import { useQueryState } from "@/lib/useQueryState";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -17,7 +18,15 @@ const statusBadgeVariant: Record<string, "warning" | "info" | "secondary" | "suc
 };
 
 export default function EventsPage() {
-  const [statusFilter, setStatusFilter] = useState<string>("");
+  return (
+    <Suspense>
+      <EventsContent />
+    </Suspense>
+  );
+}
+
+function EventsContent() {
+  const [statusFilter, setStatusFilter] = useQueryState("status", "");
   const { data: events = [], error, isLoading: loading } = useEvents(statusFilter ? { status: statusFilter } : undefined);
 
   const statuses = ["", "tentative", "confirmed", "in_progress", "completed", "cancelled"];
