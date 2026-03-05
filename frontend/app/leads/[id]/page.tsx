@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { api, Lead, Account, AuthUser, BudgetRangeOption, ProductLine } from "@/lib/api";
@@ -35,6 +35,117 @@ const QUOTE_BADGE_VARIANT: Record<string, "success" | "info" | "secondary" | "de
   declined: "destructive",
 };
 
+type FieldStatus = "idle" | "saving" | "saved" | "error";
+
+function AutoSaveField({
+  field,
+  label,
+  type,
+  value,
+  options,
+  required,
+  leadId,
+  mutateLead,
+  transform,
+  status,
+  setStatus,
+}: {
+  field: string;
+  label: string;
+  type: "text" | "email" | "tel" | "number" | "date" | "select" | "textarea";
+  value: string | number;
+  options?: { value: string | number; label: string }[];
+  required?: boolean;
+  leadId: number;
+  mutateLead: (data?: Lead | Promise<Lead>, revalidate?: boolean) => void;
+  transform?: (val: string) => unknown;
+  status: FieldStatus;
+  setStatus: (s: FieldStatus) => void;
+}) {
+  const [localValue, setLocalValue] = useState(String(value ?? ""));
+  const lastSaved = useRef(String(value ?? ""));
+
+  useEffect(() => {
+    const sv = String(value ?? "");
+    setLocalValue(sv);
+    lastSaved.current = sv;
+  }, [value]);
+
+  const save = useCallback(async (val: string) => {
+    if (val === lastSaved.current) return;
+    setStatus("saving");
+    const payload = transform ? transform(val) : val;
+    try {
+      const updated = await api.updateLead(leadId, { [field]: payload });
+      mutateLead(updated, false);
+      lastSaved.current = val;
+      setStatus("saved");
+      setTimeout(() => setStatus("idle"), 1500);
+    } catch {
+      setLocalValue(lastSaved.current);
+      setStatus("error");
+      setTimeout(() => setStatus("idle"), 2000);
+    }
+  }, [field, leadId, mutateLead, transform, setStatus]);
+
+  const handleBlur = () => save(localValue);
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && type !== "textarea") {
+      e.preventDefault();
+      save(localValue);
+    }
+  };
+
+  const indicator = status === "saving" ? (
+    <span className="text-xs text-muted-foreground ml-1">saving...</span>
+  ) : status === "saved" ? (
+    <span className="text-xs text-green-600 ml-1">&#10003;</span>
+  ) : status === "error" ? (
+    <span className="text-xs text-destructive ml-1">failed</span>
+  ) : null;
+
+  const selectClass = "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring";
+
+  return (
+    <div>
+      <label className="block text-sm font-medium text-foreground mb-1">
+        {label}{required && " *"}{indicator}
+      </label>
+      {type === "select" ? (
+        <select
+          value={localValue}
+          onChange={(e) => {
+            setLocalValue(e.target.value);
+            save(e.target.value);
+          }}
+          className={selectClass}
+        >
+          {options?.map((o) => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
+      ) : type === "textarea" ? (
+        <Textarea
+          value={localValue}
+          onChange={(e) => setLocalValue(e.target.value)}
+          onBlur={handleBlur}
+          rows={3}
+        />
+      ) : (
+        <Input
+          type={type}
+          value={localValue}
+          onChange={(e) => setLocalValue(e.target.value)}
+          onBlur={handleBlur}
+          onKeyDown={handleKeyDown}
+          required={required}
+          min={type === "number" ? 1 : undefined}
+        />
+      )}
+    </div>
+  );
+}
+
 export default function LeadDetailPage() {
   const { id } = useParams();
   const router = useRouter();
@@ -50,78 +161,19 @@ export default function LeadDetailPage() {
   const { data: leadStatuses = [] } = useLeadStatuses();
   const [error, setError] = useState("");
   const [transitioning, setTransitioning] = useState(false);
-  const [editing, setEditing] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [accounts, setAccounts] = useState<Account[]>([]);
-  const [editData, setEditData] = useState({
-    contact_name: "",
-    contact_email: "",
-    contact_phone: "",
-    account: "" as string | number,
-    source: "",
-    event_date: "",
-    guest_estimate: "" as string | number,
-    budget_range: "" as string | number,
-    event_type: "",
-    service_style: "",
-    product: "" as string | number,
-    assigned_to: "" as string | number,
-    notes: "",
-    lost_reason: "",
-  });
+  const [fieldStatus, setFieldStatus] = useState<Record<string, FieldStatus>>({});
 
-  function startEditing() {
-    if (!lead) return;
-    setEditData({
-      contact_name: lead.contact_name,
-      contact_email: lead.contact_email,
-      contact_phone: lead.contact_phone,
-      account: lead.account ?? "",
-      source: lead.source,
-      event_date: lead.event_date || "",
-      guest_estimate: lead.guest_estimate ?? "",
-      budget_range: lead.budget_range ?? "",
-      event_type: lead.event_type,
-      service_style: lead.service_style || "",
-      product: lead.product ?? "",
-      assigned_to: lead.assigned_to ?? "",
-      notes: lead.notes,
-      lost_reason: lead.lost_reason || "",
-    });
+  useEffect(() => {
     api.getAccounts().then(setAccounts).catch(() => {});
-    setEditing(true);
-  }
+  }, []);
 
-  async function handleSave(e: React.FormEvent) {
-    e.preventDefault();
-    if (!lead) return;
-    setSaving(true);
-    setError("");
-    try {
-      const updated = await api.updateLead(lead.id, {
-        contact_name: editData.contact_name,
-        contact_email: editData.contact_email,
-        contact_phone: editData.contact_phone,
-        account: editData.account ? Number(editData.account) : null,
-        source: editData.source,
-        event_date: editData.event_date || null,
-        guest_estimate: editData.guest_estimate ? Number(editData.guest_estimate) : null,
-        budget_range: editData.budget_range ? Number(editData.budget_range) : null,
-        event_type: editData.event_type,
-        service_style: editData.service_style || undefined,
-        product: editData.product ? Number(editData.product) : null,
-        assigned_to: editData.assigned_to ? Number(editData.assigned_to) : null,
-        notes: editData.notes,
-        lost_reason: editData.lost_reason,
-      });
-      mutateLead(updated, false);
-      setEditing(false);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save");
-    } finally {
-      setSaving(false);
-    }
-  }
+  const setStatus = useCallback((field: string) => (s: FieldStatus) => {
+    setFieldStatus((prev) => ({ ...prev, [field]: s }));
+  }, []);
+
+  const fkTransform = (val: string) => val ? Number(val) : null;
+  const nullableString = (val: string) => val || null;
 
   async function handleTransition(newStatus: string) {
     if (!lead) return;
@@ -149,8 +201,13 @@ export default function LeadDetailPage() {
   const availableTransitions = leadStatuses.map((s) => s.value).filter((s) => s !== lead.status);
   const cs = settings.currency_symbol;
 
-  const setEdit = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
-    setEditData({ ...editData, [field]: e.target.value });
+  const fieldProps = (field: string) => ({
+    field,
+    leadId: lead.id,
+    mutateLead,
+    status: fieldStatus[field] || "idle" as FieldStatus,
+    setStatus: setStatus(field),
+  });
 
   return (
     <div>
@@ -160,11 +217,17 @@ export default function LeadDetailPage() {
 
       <Card className="mb-6">
         <CardContent className="p-6">
-          <div className="flex items-start justify-between mb-4">
-            <div>
+          <div className="flex items-start justify-between gap-4 mb-4">
+            <div className="flex-1 min-w-0">
               <div className="flex items-center gap-3">
-                <h1 className="text-2xl font-bold text-foreground">{lead.contact_name}</h1>
-                <Badge variant={STATUS_BADGE_VARIANT[lead.status] || "secondary"}>
+                <AutoSaveField
+                  {...fieldProps("contact_name")}
+                  label=""
+                  type="text"
+                  value={lead.contact_name}
+                  required
+                />
+                <Badge variant={STATUS_BADGE_VARIANT[lead.status] || "secondary"} className="mt-6">
                   {lead.status_display}
                 </Badge>
               </div>
@@ -174,121 +237,93 @@ export default function LeadDetailPage() {
                 {lead.guest_estimate && ` \u00b7 ${lead.guest_estimate} guests`}
               </p>
             </div>
+            {availableTransitions.length > 0 && (
+              <div className="flex flex-wrap gap-2 shrink-0">
+                {availableTransitions.map((status) => {
+                  const { label, variant } = TRANSITION_LABELS[status] || { label: status, variant: "default" as const };
+                  return (
+                    <Button
+                      key={status}
+                      size="sm"
+                      onClick={() => handleTransition(status)}
+                      disabled={transitioning}
+                      variant={variant}
+                    >
+                      {transitioning ? "..." : label}
+                    </Button>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
-          {editing ? (
-            <form onSubmit={handleSave} className="border border-border bg-muted rounded p-4 mb-4">
-              <h3 className="text-sm font-semibold text-foreground mb-3">Edit Lead</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Contact Name *</label>
-                  <Input type="text" required value={editData.contact_name} onChange={setEdit("contact_name")} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Account</label>
-                  <select value={editData.account} onChange={setEdit("account")} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
-                    <option value="">-- No account --</option>
-                    {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Email</label>
-                  <Input type="email" value={editData.contact_email} onChange={setEdit("contact_email")} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Phone</label>
-                  <Input type="text" value={editData.contact_phone} onChange={setEdit("contact_phone")} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Source</label>
-                  <select value={editData.source} onChange={setEdit("source")} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
-                    {sources.map((s) => <option key={s.id} value={s.value}>{s.label}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Event Type</label>
-                  <select value={editData.event_type} onChange={setEdit("event_type")} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
-                    {eventTypes.map((et) => <option key={et.id} value={et.value}>{et.label}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Event Date</label>
-                  <Input type="date" value={editData.event_date} onChange={setEdit("event_date")} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Guest Estimate</label>
-                  <Input type="number" min="1" value={editData.guest_estimate} onChange={setEdit("guest_estimate")} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Budget Range</label>
-                  <select value={editData.budget_range} onChange={setEdit("budget_range")} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
-                    <option value="">-- Select --</option>
-                    {budgetRanges.map((b) => <option key={b.id} value={b.id}>{b.label}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Service Style</label>
-                  <select value={editData.service_style} onChange={setEdit("service_style")} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
-                    <option value="">-- Select --</option>
-                    {serviceStyles.map((ss) => <option key={ss.id} value={ss.value}>{ss.label}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Product / Service</label>
-                  <select value={editData.product} onChange={setEdit("product")} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
-                    <option value="">-- Select --</option>
-                    {productLines.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Assigned To</label>
-                  <select value={editData.assigned_to} onChange={setEdit("assigned_to")} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
-                    <option value="">-- Unassigned --</option>
-                    {users.map((u) => <option key={u.id} value={u.id}>{u.first_name} {u.last_name}</option>)}
-                  </select>
-                </div>
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-foreground mb-1">Notes</label>
-                  <Textarea value={editData.notes} onChange={setEdit("notes")} rows={3} />
-                </div>
-                {lead.status === "lost" && (
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-foreground mb-1">Lost Reason</label>
-                    <Textarea value={editData.lost_reason} onChange={setEdit("lost_reason")} rows={2} />
-                  </div>
-                )}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <AutoSaveField {...fieldProps("contact_email")} label="Email" type="email" value={lead.contact_email} />
+            <AutoSaveField {...fieldProps("contact_phone")} label="Phone" type="tel" value={lead.contact_phone} />
+            <AutoSaveField
+              {...fieldProps("account")}
+              label="Account"
+              type="select"
+              value={lead.account ?? ""}
+              transform={fkTransform}
+              options={[{ value: "", label: "-- No account --" }, ...accounts.map((a) => ({ value: a.id, label: a.name }))]}
+            />
+            <AutoSaveField
+              {...fieldProps("source")}
+              label="Source"
+              type="select"
+              value={lead.source}
+              options={sources.map((s) => ({ value: s.value, label: s.label }))}
+            />
+            <AutoSaveField
+              {...fieldProps("event_type")}
+              label="Event Type"
+              type="select"
+              value={lead.event_type}
+              options={eventTypes.map((et) => ({ value: et.value, label: et.label }))}
+            />
+            <AutoSaveField {...fieldProps("event_date")} label="Event Date" type="date" value={lead.event_date || ""} transform={nullableString} />
+            <AutoSaveField {...fieldProps("guest_estimate")} label="Guest Estimate" type="number" value={lead.guest_estimate ?? ""} transform={fkTransform} />
+            <AutoSaveField
+              {...fieldProps("budget_range")}
+              label="Budget Range"
+              type="select"
+              value={lead.budget_range ?? ""}
+              transform={fkTransform}
+              options={[{ value: "", label: "-- Select --" }, ...budgetRanges.map((b) => ({ value: b.id, label: b.label }))]}
+            />
+            <AutoSaveField
+              {...fieldProps("service_style")}
+              label="Service Style"
+              type="select"
+              value={lead.service_style || ""}
+              options={[{ value: "", label: "-- Select --" }, ...serviceStyles.map((ss) => ({ value: ss.value, label: ss.label }))]}
+            />
+            <AutoSaveField
+              {...fieldProps("product")}
+              label="Product / Service"
+              type="select"
+              value={lead.product ?? ""}
+              transform={fkTransform}
+              options={[{ value: "", label: "-- Select --" }, ...productLines.map((p) => ({ value: p.id, label: p.name }))]}
+            />
+            <AutoSaveField
+              {...fieldProps("assigned_to")}
+              label="Assigned To"
+              type="select"
+              value={lead.assigned_to ?? ""}
+              transform={fkTransform}
+              options={[{ value: "", label: "-- Unassigned --" }, ...users.map((u) => ({ value: u.id, label: `${u.first_name} ${u.last_name}` }))]}
+            />
+            <div className="md:col-span-2">
+              <AutoSaveField {...fieldProps("notes")} label="Notes" type="textarea" value={lead.notes} />
+            </div>
+            {lead.status === "lost" && (
+              <div className="md:col-span-2">
+                <AutoSaveField {...fieldProps("lost_reason")} label="Lost Reason" type="textarea" value={lead.lost_reason || ""} />
               </div>
-              <div className="flex gap-3 mt-4">
-                <Button type="submit" disabled={saving}>
-                  {saving ? "Saving..." : "Save Changes"}
-                </Button>
-                <Button type="button" variant="outline" onClick={() => setEditing(false)}>
-                  Cancel
-                </Button>
-              </div>
-            </form>
-          ) : (
-            <>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                {lead.contact_email && <div><span className="text-muted-foreground">Email:</span> {lead.contact_email}</div>}
-                {lead.contact_phone && <div><span className="text-muted-foreground">Phone:</span> {lead.contact_phone}</div>}
-                {lead.account_name && <div><span className="text-muted-foreground">Account:</span> <Link href={`/accounts/${lead.account}`} className="text-primary hover:underline">{lead.account_name}</Link></div>}
-                {lead.budget_range_label && <div><span className="text-muted-foreground">Budget:</span> {lead.budget_range_label}</div>}
-                {lead.service_style && <div><span className="text-muted-foreground">Service:</span> {lead.service_style.replace(/_/g, " ")}</div>}
-                {lead.product_name && <div><span className="text-muted-foreground">Product:</span> {lead.product_name}</div>}
-                {lead.assigned_to_name && <div><span className="text-muted-foreground">Assigned to:</span> {lead.assigned_to_name}</div>}
-                <div><span className="text-muted-foreground">Source:</span> {lead.source.replace(/_/g, " ")}</div>
-                {lead.notes && <div className="md:col-span-2"><span className="text-muted-foreground">Notes:</span> {lead.notes}</div>}
-                {lead.lost_reason && <div className="md:col-span-2"><span className="text-muted-foreground">Lost reason:</span> {lead.lost_reason}</div>}
-              </div>
-
-              <div className="mt-4">
-                <Button variant="outline" onClick={startEditing}>
-                  Edit Details
-                </Button>
-              </div>
-            </>
-          )}
+            )}
+          </div>
 
           {/* Timeline */}
           <div className="mt-6 border-t border-border pt-4">
@@ -330,29 +365,6 @@ export default function LeadDetailPage() {
         </Card>
       )}
 
-      {/* Actions */}
-      {availableTransitions.length > 0 && (
-        <Card>
-          <CardContent className="p-6">
-            <h2 className="text-lg font-semibold text-foreground mb-4">Actions</h2>
-            <div className="flex flex-wrap gap-3">
-              {availableTransitions.map((status) => {
-                const { label, variant } = TRANSITION_LABELS[status] || { label: status, variant: "default" as const };
-                return (
-                  <Button
-                    key={status}
-                    onClick={() => handleTransition(status)}
-                    disabled={transitioning}
-                    variant={variant}
-                  >
-                    {transitioning ? "..." : label}
-                  </Button>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 }
