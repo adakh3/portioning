@@ -16,7 +16,8 @@ source venv/bin/activate
 cd backend
 pip install -r requirements.txt
 python manage.py migrate
-python manage.py loaddata seed.json  # Load all seed data (dishes, menus, tiers, rules, bookings, settings)
+python manage.py loaddata seed.json           # Reference data (also runs in prod)
+python manage.py loaddata test_fixtures.json  # Demo data (local dev only — never deployed)
 python manage.py runserver
 ```
 
@@ -40,7 +41,8 @@ npm run dev
 
 - **Any change to calculation logic** (engine, pools, categories, baselines, ceilings) **must also update PORTIONING_LOGIC.md** to keep documentation in sync with the code.
 - **Any change to PORTIONING_LOGIC.md** must also update **`frontend/app/help/page.tsx`** — the help page is static content distilled from the logic doc.
-- **Any change to seed data** (new dishes, menus, categories, rules, cost data, surcharges, etc.) **must regenerate `backend/seed.json`** by running: `cd backend && python manage.py dumpdata dishes menus rules bookings events --indent 2 -o seed.json`
+- **Any change to seed data** (new dishes, menus, categories, rules, cost data, surcharges, etc.) **must regenerate `backend/seed.json`** by running: `cd backend && python manage.py dumpdata dishes menus rules bookings.SiteSettings bookings.BudgetRangeOption bookings.ProductLine bookings.EventTypeOption bookings.SourceOption bookings.ServiceStyleOption bookings.LeadStatusOption --indent 2 -o seed.json`
+- **`seed.json`** contains only production reference/config data. **`test_fixtures.json`** contains demo transactional data (accounts, leads, quotes, events) and must NEVER be deployed to prod.
 - **Any new npm package** must be committed with both `frontend/package.json` and `frontend/package-lock.json` so deployments can install it.
 
 ## Running Tests
