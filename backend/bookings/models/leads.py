@@ -29,10 +29,7 @@ class Lead(models.Model):
     source = models.CharField(max_length=50, default='website')
     event_date = models.DateField(null=True, blank=True)
     guest_estimate = models.IntegerField(null=True, blank=True)
-    budget_range = models.ForeignKey(
-        'bookings.BudgetRangeOption', null=True, blank=True,
-        on_delete=models.SET_NULL, related_name='leads',
-    )
+    budget = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     event_type = models.CharField(max_length=50, default='other')
     service_style = models.CharField(max_length=50, blank=True)
     notes = models.TextField(blank=True)

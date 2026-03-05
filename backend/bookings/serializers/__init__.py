@@ -5,7 +5,7 @@ from .quotes import QuoteSerializer, QuoteLineItemSerializer
 from .staffing import LaborRoleSerializer, StaffMemberSerializer, ShiftSerializer
 from .equipment import EquipmentItemSerializer, EquipmentReservationSerializer
 from .finance import InvoiceSerializer, PaymentSerializer
-from .settings import BudgetRangeOptionSerializer, SiteSettingsSerializer
+from .settings import SiteSettingsSerializer
 from .choices import (
     EventTypeOptionSerializer, SourceOptionSerializer,
     ServiceStyleOptionSerializer, LeadStatusOptionSerializer,

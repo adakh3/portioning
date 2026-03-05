@@ -1,15 +1,9 @@
-from rest_framework import generics
 from rest_framework.permissions import IsAdminUser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from bookings.models import BudgetRangeOption, SiteSettings
-from bookings.serializers.settings import BudgetRangeOptionSerializer, SiteSettingsSerializer
-
-
-class BudgetRangeOptionListView(generics.ListAPIView):
-    queryset = BudgetRangeOption.objects.filter(is_active=True)
-    serializer_class = BudgetRangeOptionSerializer
+from bookings.models import SiteSettings
+from bookings.serializers.settings import SiteSettingsSerializer
 
 
 class SiteSettingsView(APIView):

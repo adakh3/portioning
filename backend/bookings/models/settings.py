@@ -3,18 +3,6 @@ from decimal import Decimal
 from django.db import models
 
 
-class BudgetRangeOption(models.Model):
-    label = models.CharField(max_length=100, help_text='Display label, e.g. "£1,000 – £5,000"')
-    sort_order = models.IntegerField(default=0)
-    is_active = models.BooleanField(default=True)
-
-    class Meta:
-        ordering = ['sort_order', 'pk']
-
-    def __str__(self):
-        return self.label
-
-
 class SiteSettings(models.Model):
     currency_symbol = models.CharField(max_length=10, default='£', help_text='e.g. £, $, €')
     currency_code = models.CharField(max_length=10, default='GBP', help_text='e.g. GBP, USD, EUR')

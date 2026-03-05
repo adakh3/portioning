@@ -15,7 +15,7 @@ from bookings.views import (
     EquipmentReservationListCreateView, EquipmentReservationDetailView,
     InvoiceListCreateView, InvoiceDetailView,
     PaymentListCreateView, PaymentDetailView,
-    BudgetRangeOptionListView, SiteSettingsView,
+    SiteSettingsView,
     EventTypeOptionListView, SourceOptionListView,
     ServiceStyleOptionListView, LeadStatusOptionListView,
 )
@@ -77,6 +77,5 @@ urlpatterns = [
     path('bookings/lead-statuses/', LeadStatusOptionListView.as_view(), name='lead-status-list'),
 
     # Settings
-    path('bookings/budget-ranges/', BudgetRangeOptionListView.as_view(), name='budget-range-list'),
     path('bookings/settings/', SiteSettingsView.as_view(), name='site-settings'),
 ]

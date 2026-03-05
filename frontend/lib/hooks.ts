@@ -12,7 +12,6 @@ import {
   DishCategory,
   MenuTemplate,
   SiteSettingsData,
-  BudgetRangeOption,
   ProductLine,
   ChoiceOption,
   StaffMember,
@@ -46,14 +45,6 @@ export function useSiteSettings() {
     dedupingInterval: 300000,
     revalidateOnFocus: false,
   });
-}
-
-export function useBudgetRanges() {
-  return useSWR<BudgetRangeOption[]>(
-    "budget-ranges",
-    () => api.getBudgetRanges(),
-    { dedupingInterval: 300000, revalidateOnFocus: false }
-  );
 }
 
 export function useProductLines() {

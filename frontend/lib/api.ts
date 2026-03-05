@@ -258,8 +258,7 @@ export interface Lead {
   source: string;
   event_date: string | null;
   guest_estimate: number | null;
-  budget_range: number | null;
-  budget_range_label: string | null;
+  budget: string | null;
   event_type: string;
   event_type_display: string;
   service_style: string;
@@ -459,13 +458,6 @@ export interface ChoiceOption {
 }
 
 // Settings types
-export interface BudgetRangeOption {
-  id: number;
-  label: string;
-  sort_order: number;
-  is_active: boolean;
-}
-
 export interface SiteSettingsData {
   currency_symbol: string;
   currency_code: string;
@@ -841,7 +833,6 @@ export const api = {
   getLeadStatuses: () => fetchApi<ChoiceOption[]>("/bookings/lead-statuses/"),
 
   // Settings
-  getBudgetRanges: () => fetchApi<BudgetRangeOption[]>("/bookings/budget-ranges/"),
   getSiteSettings: () => fetchApi<SiteSettingsData>("/bookings/settings/"),
   updateSiteSettings: (data: Partial<SiteSettingsData>) =>
     fetchApi<SiteSettingsData>("/bookings/settings/", { method: "PATCH", body: JSON.stringify(data) }),

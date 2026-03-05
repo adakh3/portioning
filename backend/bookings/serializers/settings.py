@@ -1,12 +1,6 @@
 from rest_framework import serializers
 
-from bookings.models import BudgetRangeOption, SiteSettings
-
-
-class BudgetRangeOptionSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = BudgetRangeOption
-        fields = ['id', 'label', 'sort_order', 'is_active']
+from bookings.models import SiteSettings
 
 
 class SiteSettingsSerializer(serializers.ModelSerializer):

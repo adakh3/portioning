@@ -6,4 +6,4 @@ from .choices import EventTypeOption, SourceOption, ServiceStyleOption, LeadStat
 from .staffing import LaborRole, StaffMember, Shift
 from .equipment import EquipmentItem, EquipmentReservation
 from .finance import Invoice, Payment
-from .settings import BudgetRangeOption, SiteSettings
+from .settings import SiteSettings

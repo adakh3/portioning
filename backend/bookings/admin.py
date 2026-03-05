@@ -12,7 +12,7 @@ from .models import (
     LaborRole, StaffMember, Shift,
     EquipmentItem, EquipmentReservation,
     Invoice, Payment,
-    BudgetRangeOption, SiteSettings,
+    SiteSettings,
     EventTypeOption, SourceOption, ServiceStyleOption, LeadStatusOption,
 )
 from .services.lead_import import (
@@ -343,13 +343,6 @@ class LeadStatusOptionAdmin(admin.ModelAdmin):
 
 
 # --- Settings ---
-
-@admin.register(BudgetRangeOption)
-class BudgetRangeOptionAdmin(admin.ModelAdmin):
-    list_display = ['label', 'sort_order', 'is_active']
-    list_editable = ['sort_order', 'is_active']
-    ordering = ['sort_order']
-
 
 @admin.register(SiteSettings)
 class SiteSettingsAdmin(admin.ModelAdmin):

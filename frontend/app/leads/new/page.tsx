@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/api";
-import { useAccounts, useBudgetRanges, useProductLines, useUsers, useSources, useEventTypes, useServiceStyles, revalidate } from "@/lib/hooks";
+import { useAccounts, useProductLines, useUsers, useSources, useEventTypes, useServiceStyles, revalidate } from "@/lib/hooks";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -13,7 +13,6 @@ import { Card, CardContent } from "@/components/ui/card";
 export default function NewLeadPage() {
   const router = useRouter();
   const { data: accounts = [] } = useAccounts();
-  const { data: budgetRanges = [] } = useBudgetRanges();
   const { data: productLines = [] } = useProductLines();
   const { data: users = [] } = useUsers();
   const { data: sources = [] } = useSources();
@@ -29,7 +28,7 @@ export default function NewLeadPage() {
     source: "website",
     event_date: "",
     guest_estimate: "",
-    budget_range: "" as string | number,
+    budget: "",
     event_type: "other",
     service_style: "",
     product: "" as string | number,
@@ -47,7 +46,7 @@ export default function NewLeadPage() {
         account: formData.account ? Number(formData.account) : null,
         guest_estimate: formData.guest_estimate ? Number(formData.guest_estimate) : null,
         event_date: formData.event_date || null,
-        budget_range: formData.budget_range ? Number(formData.budget_range) : null,
+        budget: formData.budget || null,
         product: formData.product ? Number(formData.product) : null,
         assigned_to: formData.assigned_to ? Number(formData.assigned_to) : null,
       };
@@ -114,11 +113,17 @@ export default function NewLeadPage() {
                 <Input type="number" min="1" value={formData.guest_estimate} onChange={set("guest_estimate")} />
               </div>
               <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Budget Range</label>
-                <select value={formData.budget_range} onChange={set("budget_range")} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
-                  <option value="">-- Select --</option>
-                  {budgetRanges.map((b) => <option key={b.id} value={b.id}>{b.label}</option>)}
-                </select>
+                <label className="block text-sm font-medium text-foreground mb-1">Budget</label>
+                <Input
+                  type="text"
+                  inputMode="numeric"
+                  value={formData.budget ? parseInt(formData.budget, 10).toLocaleString() : ""}
+                  onChange={(e) => {
+                    const raw = e.target.value.replace(/[^0-9]/g, "");
+                    setFormData({ ...formData, budget: raw });
+                  }}
+                  placeholder="e.g. 5,000"
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">Service Style</label>

@@ -44,7 +44,6 @@ class LeadSerializer(serializers.ModelSerializer):
     account_name = serializers.CharField(source='account.name', read_only=True, default=None)
     status_display = serializers.SerializerMethodField()
     event_type_display = serializers.SerializerMethodField()
-    budget_range_label = serializers.CharField(source='budget_range.label', read_only=True, default=None)
     product_name = serializers.CharField(source='product.name', read_only=True, default=None)
     assigned_to_name = serializers.SerializerMethodField()
     quotes = LeadQuoteSummarySerializer(many=True, read_only=True)
@@ -55,7 +54,7 @@ class LeadSerializer(serializers.ModelSerializer):
             'id', 'account', 'account_name',
             'contact_name', 'contact_email', 'contact_phone',
             'source', 'event_date', 'lead_date', 'guest_estimate',
-            'budget_range', 'budget_range_label',
+            'budget',
             'event_type', 'event_type_display',
             'service_style', 'notes',
             'product', 'product_name',

@@ -3,8 +3,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { api, Lead, Account, AuthUser, BudgetRangeOption, ProductLine } from "@/lib/api";
-import { useLead, useSiteSettings, useBudgetRanges, useProductLines, useUsers, useSources, useEventTypes, useServiceStyles, useLeadStatuses } from "@/lib/hooks";
+import { api, Lead, Account, AuthUser, ProductLine } from "@/lib/api";
+import { useLead, useSiteSettings, useProductLines, useUsers, useSources, useEventTypes, useServiceStyles, useLeadStatuses } from "@/lib/hooks";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -37,6 +37,12 @@ const QUOTE_BADGE_VARIANT: Record<string, "success" | "info" | "secondary" | "de
 
 type FieldStatus = "idle" | "saving" | "saved" | "error";
 
+function formatWholeNumber(val: string): string {
+  const num = parseInt(val, 10);
+  if (isNaN(num)) return val;
+  return num.toLocaleString();
+}
+
 function AutoSaveField({
   field,
   label,
@@ -47,6 +53,9 @@ function AutoSaveField({
   leadId,
   mutateLead,
   transform,
+  formatDisplay,
+  inputMode,
+  placeholder,
   status,
   setStatus,
 }: {
@@ -59,10 +68,14 @@ function AutoSaveField({
   leadId: number;
   mutateLead: (data?: Lead | Promise<Lead>, revalidate?: boolean) => void;
   transform?: (val: string) => unknown;
+  formatDisplay?: (val: string) => string;
+  inputMode?: "numeric" | "text";
+  placeholder?: string;
   status: FieldStatus;
   setStatus: (s: FieldStatus) => void;
 }) {
   const [localValue, setLocalValue] = useState(String(value ?? ""));
+  const [focused, setFocused] = useState(false);
   const lastSaved = useRef(String(value ?? ""));
 
   useEffect(() => {
@@ -88,7 +101,10 @@ function AutoSaveField({
     }
   }, [field, leadId, mutateLead, transform, setStatus]);
 
-  const handleBlur = () => save(localValue);
+  const handleBlur = () => {
+    setFocused(false);
+    save(localValue);
+  };
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && type !== "textarea") {
       e.preventDefault();
@@ -105,6 +121,8 @@ function AutoSaveField({
   ) : null;
 
   const selectClass = "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring";
+
+  const displayValue = !focused && formatDisplay ? formatDisplay(localValue) : localValue;
 
   return (
     <div>
@@ -133,12 +151,18 @@ function AutoSaveField({
         />
       ) : (
         <Input
-          type={type}
-          value={localValue}
-          onChange={(e) => setLocalValue(e.target.value)}
+          type={formatDisplay ? "text" : type}
+          inputMode={inputMode}
+          value={displayValue}
+          onChange={(e) => {
+            const raw = formatDisplay ? e.target.value.replace(/[^0-9]/g, "") : e.target.value;
+            setLocalValue(raw);
+          }}
+          onFocus={() => setFocused(true)}
           onBlur={handleBlur}
           onKeyDown={handleKeyDown}
           required={required}
+          placeholder={placeholder}
           min={type === "number" ? 1 : undefined}
         />
       )}
@@ -152,7 +176,6 @@ export default function LeadDetailPage() {
   const { data: lead, error: loadError, isLoading: loading, mutate: mutateLead } = useLead(Number(id) || null);
   const { data: rawSettings } = useSiteSettings();
   const settings = rawSettings || { currency_symbol: "\u00a3", currency_code: "GBP", default_price_per_head: "0.00", target_food_cost_percentage: "30.00", price_rounding_step: "50" };
-  const { data: budgetRanges = [] } = useBudgetRanges();
   const { data: productLines = [] } = useProductLines();
   const { data: users = [] } = useUsers();
   const { data: sources = [] } = useSources();
@@ -284,14 +307,7 @@ export default function LeadDetailPage() {
             />
             <AutoSaveField {...fieldProps("event_date")} label="Event Date" type="date" value={lead.event_date || ""} transform={nullableString} />
             <AutoSaveField {...fieldProps("guest_estimate")} label="Guest Estimate" type="number" value={lead.guest_estimate ?? ""} transform={fkTransform} />
-            <AutoSaveField
-              {...fieldProps("budget_range")}
-              label="Budget Range"
-              type="select"
-              value={lead.budget_range ?? ""}
-              transform={fkTransform}
-              options={[{ value: "", label: "-- Select --" }, ...budgetRanges.map((b) => ({ value: b.id, label: b.label }))]}
-            />
+            <AutoSaveField {...fieldProps("budget")} label="Budget" type="text" inputMode="numeric" value={lead.budget ? String(Math.round(Number(lead.budget))) : ""} transform={nullableString} formatDisplay={formatWholeNumber} placeholder="e.g. 5,000" />
             <AutoSaveField
               {...fieldProps("service_style")}
               label="Service Style"

@@ -35,7 +35,7 @@ class LeadListCreateView(generics.ListCreateAPIView):
 
     def get_queryset(self):
         qs = Lead.objects.select_related(
-            'account', 'converted_to_quote', 'budget_range', 'product', 'assigned_to',
+            'account', 'converted_to_quote', 'product', 'assigned_to',
         ).prefetch_related('quotes').all()
         params = self.request.query_params
 
@@ -130,7 +130,7 @@ class LeadBulkUpdateView(APIView):
 
 class LeadDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Lead.objects.select_related(
-        'account', 'converted_to_quote', 'budget_range', 'product', 'assigned_to',
+        'account', 'converted_to_quote', 'product', 'assigned_to',
     ).prefetch_related('quotes').all()
     serializer_class = LeadSerializer
 
