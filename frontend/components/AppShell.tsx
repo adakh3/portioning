@@ -1,5 +1,6 @@
 "use client";
 
+import { Suspense } from "react";
 import { usePathname } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
 import TopNav from "@/components/TopNav";
@@ -34,8 +35,10 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   return (
-    <AuthProvider>
-      <AppShellInner>{children}</AppShellInner>
-    </AuthProvider>
+    <Suspense fallback={null}>
+      <AuthProvider>
+        <AppShellInner>{children}</AppShellInner>
+      </AuthProvider>
+    </Suspense>
   );
 }

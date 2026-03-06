@@ -76,3 +76,23 @@ export function useQueryState(
 
   return [value, setValue];
 }
+
+/**
+ * Clear multiple query-state keys in a single URL update.
+ * Avoids the stale-searchParams race when calling multiple setters sequentially.
+ */
+export function useClearQueryState(keys: string[]) {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  return useCallback(() => {
+    const params = new URLSearchParams(searchParams.toString());
+    for (const key of keys) {
+      params.delete(key);
+      removeSessionStorage(`qs:${pathname}:${key}`);
+    }
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }, [searchParams, keys, pathname, router]);
+}

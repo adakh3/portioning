@@ -1,13 +1,13 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { api, AuthUser } from "./api";
 
 interface AuthContextValue {
   user: AuthUser | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string, returnTo?: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -18,6 +18,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   useEffect(() => {
     // Bootstrap CSRF cookie before any authenticated requests
@@ -38,16 +39,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (loading) return;
     const isLoginPage = pathname === "/login";
     if (!user && !isLoginPage) {
-      router.replace("/login");
+      router.replace(`/login?returnTo=${encodeURIComponent(pathname)}`);
     } else if (user && isLoginPage) {
-      router.replace("/");
+      const returnTo = searchParams.get("returnTo") || "/";
+      router.replace(returnTo);
     }
-  }, [user, loading, pathname, router]);
+  }, [user, loading, pathname, searchParams, router]);
 
-  const login = useCallback(async (email: string, password: string) => {
+  const login = useCallback(async (email: string, password: string, returnTo?: string) => {
     const u = await api.login(email, password);
     setUser(u);
-    router.push("/");
+    router.push(returnTo || "/");
   }, [router]);
 
   const logout = useCallback(async () => {

@@ -46,7 +46,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { useQueryState } from "@/lib/useQueryState";
+import { useQueryState, useClearQueryState } from "@/lib/useQueryState";
 
 // ── Constants ──
 
@@ -288,14 +288,9 @@ function LeadsContent() {
 
   const hasFilters = filterAssigned || filterProduct || filterEventType || filterDateFrom || filterDateTo || filterLeadDateFrom || filterLeadDateTo;
 
+  const clearQueryFilters = useClearQueryState(["assigned", "product", "eventType", "dateFrom", "dateTo", "leadDateFrom", "leadDateTo"]);
   function clearFilters() {
-    setFilterAssigned("");
-    setFilterProduct("");
-    setFilterEventType("");
-    setFilterDateFrom("");
-    setFilterDateTo("");
-    setFilterLeadDateFrom("");
-    setFilterLeadDateTo("");
+    clearQueryFilters();
     setSearch("");
   }
 
