@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { departments, getActiveDepartment } from "@/lib/navigation";
+import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
 const icons: Record<string, React.ReactNode> = {
@@ -31,6 +32,8 @@ const icons: Record<string, React.ReactNode> = {
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const { user } = useAuth();
+  const isManager = user?.role === "manager" || user?.role === "owner";
   const activeDept = getActiveDepartment(pathname);
 
   return (
@@ -70,7 +73,8 @@ export default function Sidebar() {
         })}
       </nav>
 
-      {/* Dashboard link at bottom */}
+      {/* Dashboard link at bottom — manager/owner only */}
+      {isManager && (
       <div className="border-t border-sidebar-border px-4 py-3">
         <Link
           href="/"
@@ -87,6 +91,7 @@ export default function Sidebar() {
           Dashboard
         </Link>
       </div>
+      )}
     </aside>
   );
 }

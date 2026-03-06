@@ -18,6 +18,8 @@ import {
   LaborRole,
   EquipmentItem,
   Invoice,
+  ActivityLogEntry,
+  DashboardStats,
 } from "./api";
 
 // ── Revalidation helper ──
@@ -184,6 +186,21 @@ export function useInvoice(id: number | null) {
   return useSWR<Invoice>(
     id ? `invoice-${id}` : null,
     () => api.getInvoice(id!)
+  );
+}
+
+export function useLeadActivity(id: number | null) {
+  return useSWR<ActivityLogEntry[]>(
+    id ? `lead-activity-${id}` : null,
+    () => api.getLeadActivity(id!)
+  );
+}
+
+export function useDashboardStats(period: string | null) {
+  return useSWR<DashboardStats>(
+    period ? `dashboard-stats-${period}` : null,
+    () => api.getDashboardStats(period!),
+    { dedupingInterval: 30000 }
   );
 }
 

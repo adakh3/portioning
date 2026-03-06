@@ -8,6 +8,7 @@ from bookings.models import Lead, ProductLine, Quote
 from bookings.models.choices import LeadStatusOption
 from bookings.serializers import LeadSerializer, QuoteSerializer
 from bookings.serializers.leads import ProductLineSerializer
+from bookings.activity import log_activity, log_field_changes, TRACKED_FIELDS
 
 
 class UserListView(generics.ListAPIView):
@@ -32,6 +33,11 @@ LEAD_ORDERING_FIELDS = {
 
 class LeadListCreateView(generics.ListCreateAPIView):
     serializer_class = LeadSerializer
+
+    def perform_create(self, serializer):
+        user = self.request.user if self.request.user.is_authenticated else None
+        lead = serializer.save(created_by=user)
+        log_activity(lead, 'created', user=user, description=f"Created lead \"{lead.contact_name}\"")
 
     def get_queryset(self):
         qs = Lead.objects.select_related(
@@ -102,30 +108,72 @@ class LeadBulkUpdateView(APIView):
         if count == 0:
             return Response({'error': 'No leads found'}, status=status.HTTP_404_NOT_FOUND)
 
+        user = request.user if request.user.is_authenticated else None
+
         if action == 'delete':
             deleted_count = count
             leads.delete()
             return Response({'updated': deleted_count})
+
+        # Capture old values for logging
+        lead_list = list(leads.values('id', 'assigned_to_id', 'status', 'product_id'))
 
         if action == 'assign':
             if value is None:
                 leads.update(assigned_to=None)
             else:
                 leads.update(assigned_to_id=value)
+            field, desc = 'assigned_to', 'Bulk updated assignment'
 
         elif action == 'status':
             valid_statuses = set(LeadStatusOption.objects.values_list('value', flat=True))
             if value not in valid_statuses:
                 return Response({'error': f'Invalid status: {value}'}, status=status.HTTP_400_BAD_REQUEST)
             leads.update(status=value)
+            field, desc = 'status', f'Bulk changed status to "{value}"'
 
         elif action == 'product':
             if value is None:
                 leads.update(product=None)
             else:
                 leads.update(product_id=value)
+            field, desc = 'product', 'Bulk updated product'
+
+        # Bulk log
+        from django.contrib.contenttypes.models import ContentType
+        from bookings.models.activity import ActivityLog
+        ct = ContentType.objects.get_for_model(Lead)
+        field_map = {'assign': 'assigned_to_id', 'status': 'status', 'product': 'product_id'}
+        raw_field = field_map.get(action, action)
+        logs = []
+        for ld in lead_list:
+            old_val = ld.get(raw_field, '')
+            logs.append(ActivityLog(
+                content_type=ct,
+                object_id=ld['id'],
+                action='status_change' if action == 'status' else 'updated',
+                field_name=field,
+                old_value=str(old_val) if old_val is not None else '',
+                new_value=str(value) if value is not None else '',
+                description=desc,
+                user=user,
+            ))
+        if logs:
+            ActivityLog.objects.bulk_create(logs)
 
         return Response({'updated': count})
+
+
+def _snapshot_lead(lead):
+    """Capture current field values for change tracking."""
+    data = {}
+    for field in TRACKED_FIELDS:
+        val = getattr(lead, field, None)
+        # FK fields: store the ID
+        if field in ('assigned_to', 'product'):
+            val = getattr(lead, f'{field}_id', None)
+        data[field] = val
+    return data
 
 
 class LeadDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -133,6 +181,14 @@ class LeadDetailView(generics.RetrieveUpdateDestroyAPIView):
         'account', 'converted_to_quote', 'product', 'assigned_to',
     ).prefetch_related('quotes').all()
     serializer_class = LeadSerializer
+
+    def perform_update(self, serializer):
+        lead = self.get_object()
+        old_data = _snapshot_lead(lead)
+        updated = serializer.save()
+        new_data = _snapshot_lead(updated)
+        user = self.request.user if self.request.user.is_authenticated else None
+        log_field_changes(updated, old_data, new_data, user=user)
 
 
 class LeadTransitionView(APIView):
@@ -143,10 +199,17 @@ class LeadTransitionView(APIView):
         new_status = request.data.get('status')
         if not new_status:
             return Response({'error': 'status is required'}, status=status.HTTP_400_BAD_REQUEST)
+        old_status = lead.status
         try:
             lead.transition_to(new_status)
         except ValueError as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        user = request.user if request.user.is_authenticated else None
+        log_activity(
+            lead, 'status_change', user=user,
+            field_name='status', old_value=old_status, new_value=new_status,
+            description=f"Changed status from \"{old_status}\" to \"{new_status}\"",
+        )
         return Response(LeadSerializer(lead).data)
 
 
@@ -178,7 +241,33 @@ class LeadConvertView(APIView):
             service_style=lead.service_style,
         )
 
+        old_status = lead.status
         lead.converted_to_quote = quote
         lead.transition_to('converted')
 
+        user = request.user if request.user.is_authenticated else None
+        log_activity(
+            lead, 'converted', user=user,
+            description=f"Converted lead to Quote #{quote.id}",
+        )
+        log_activity(
+            lead, 'status_change', user=user,
+            field_name='status', old_value=old_status, new_value='converted',
+            description=f"Changed status from \"{old_status}\" to \"converted\"",
+        )
+
         return Response(QuoteSerializer(quote).data, status=status.HTTP_201_CREATED)
+
+
+class LeadActivityView(generics.ListAPIView):
+    """GET /api/bookings/leads/<pk>/activity/ — Activity log for a lead."""
+    from bookings.serializers.activity import ActivityLogSerializer
+    serializer_class = ActivityLogSerializer
+
+    def get_queryset(self):
+        from django.contrib.contenttypes.models import ContentType
+        from bookings.models.activity import ActivityLog
+        ct = ContentType.objects.get_for_model(Lead)
+        return ActivityLog.objects.filter(
+            content_type=ct, object_id=self.kwargs['pk']
+        ).select_related('user')

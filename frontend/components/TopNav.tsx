@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { getActiveDepartment } from "@/lib/navigation";
+import { getActiveDepartment, getVisiblePages } from "@/lib/navigation";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
@@ -19,7 +19,7 @@ export default function TopNav() {
             <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mr-3">
               {dept.name}
             </span>
-            {dept.pages.map((page) => {
+            {getVisiblePages(dept.pages, user?.role).map((page) => {
               const isActive =
                 pathname === page.href ||
                 pathname.startsWith(page.href + "/");

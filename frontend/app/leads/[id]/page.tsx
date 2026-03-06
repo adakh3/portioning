@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import ActivityTimeline from "@/components/ActivityTimeline";
 
 
 const STATUS_BADGE_VARIANT: Record<string, "info" | "warning" | "default" | "success" | "secondary"> = {
@@ -380,6 +381,14 @@ export default function LeadDetailPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Activity Log */}
+      <Card className="mb-6">
+        <CardContent className="p-6">
+          <h2 className="text-lg font-semibold text-foreground mb-4">Activity</h2>
+          <ActivityTimeline leadId={lead.id} />
+        </CardContent>
+      </Card>
 
     </div>
   );

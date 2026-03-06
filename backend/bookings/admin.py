@@ -14,6 +14,7 @@ from .models import (
     Invoice, Payment,
     SiteSettings,
     EventTypeOption, SourceOption, ServiceStyleOption, LeadStatusOption,
+    ActivityLog,
 )
 from .services.lead_import import (
     load_xlsx, load_csv, parse_rows, flag_duplicates, commit_rows, ImportRow,
@@ -340,6 +341,22 @@ class LeadStatusOptionAdmin(admin.ModelAdmin):
     list_display = ['value', 'label', 'sort_order', 'is_active']
     list_editable = ['label', 'sort_order', 'is_active']
     ordering = ['sort_order']
+
+
+# --- Activity Log ---
+
+@admin.register(ActivityLog)
+class ActivityLogAdmin(admin.ModelAdmin):
+    list_display = ['created_at', 'action', 'content_type', 'object_id', 'field_name', 'user', 'description']
+    list_filter = ['action', 'content_type']
+    search_fields = ['description', 'field_name']
+    readonly_fields = ['content_type', 'object_id', 'action', 'field_name', 'old_value', 'new_value', 'description', 'user', 'created_at']
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
 
 
 # --- Settings ---

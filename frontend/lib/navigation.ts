@@ -1,6 +1,8 @@
 export interface NavPage {
   label: string;
   href: string;
+  /** If set, only users with one of these roles can see the link */
+  roles?: string[];
 }
 
 export interface Department {
@@ -14,6 +16,7 @@ export const departments: Department[] = [
     name: "Sales",
     icon: "briefcase",
     pages: [
+      { label: "Dashboard", href: "/", roles: ["manager", "owner"] },
       { label: "Leads", href: "/leads" },
       { label: "Quotes", href: "/quotes" },
       { label: "Events", href: "/events" },
@@ -48,6 +51,11 @@ export const departments: Department[] = [
     ],
   },
 ];
+
+/** Filter pages by user role */
+export function getVisiblePages(pages: NavPage[], userRole?: string): NavPage[] {
+  return pages.filter((p) => !p.roles || (userRole && p.roles.includes(userRole)));
+}
 
 /** Given a pathname, return which department it belongs to */
 export function getActiveDepartment(pathname: string): Department | null {

@@ -47,6 +47,7 @@ class LeadSerializer(serializers.ModelSerializer):
     product_name = serializers.CharField(source='product.name', read_only=True, default=None)
     assigned_to_name = serializers.SerializerMethodField()
     quotes = LeadQuoteSummarySerializer(many=True, read_only=True)
+    created_by_name = serializers.SerializerMethodField()
 
     class Meta:
         model = Lead
@@ -59,6 +60,7 @@ class LeadSerializer(serializers.ModelSerializer):
             'service_style', 'notes',
             'product', 'product_name',
             'assigned_to', 'assigned_to_name',
+            'created_by', 'created_by_name',
             'status', 'status_display',
             'converted_to_quote', 'lost_reason',
             'contacted_at', 'qualified_at', 'converted_at', 'lost_at',
@@ -66,10 +68,15 @@ class LeadSerializer(serializers.ModelSerializer):
             'quotes',
         ]
         read_only_fields = [
-            'status', 'converted_to_quote',
+            'status', 'converted_to_quote', 'created_by',
             'contacted_at', 'qualified_at', 'converted_at', 'lost_at',
             'created_at', 'updated_at',
         ]
+
+    def get_created_by_name(self, obj):
+        if obj.created_by:
+            return f"{obj.created_by.first_name} {obj.created_by.last_name}".strip() or obj.created_by.email
+        return None
 
     def get_status_display(self, obj):
         return _get_lead_status_labels().get(obj.status, obj.status)

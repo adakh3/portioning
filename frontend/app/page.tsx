@@ -1,13 +1,39 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
-import { EventData, Quote, Lead } from "@/lib/api";
-import { useEvents, useQuotes, useLeads } from "@/lib/hooks";
+import { useAuth } from "@/lib/auth";
+import { useEvents, useQuotes, useLeads, useDashboardStats, useSiteSettings } from "@/lib/hooks";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 
+const PERIODS = [
+  { value: "today", label: "Today" },
+  { value: "week", label: "This Week" },
+  { value: "month", label: "This Month" },
+] as const;
+
+function StatCard({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
+  return (
+    <Card>
+      <CardContent className="p-4 text-center">
+        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{label}</p>
+        <p className="text-2xl font-bold text-foreground mt-1">{value}</p>
+        {sub && <p className="text-xs text-muted-foreground mt-0.5">{sub}</p>}
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function Dashboard() {
+  const { user } = useAuth();
+  const isManager = user?.role === "manager" || user?.role === "owner";
+  const [period, setPeriod] = useState<string>("today");
+  const { data: stats } = useDashboardStats(isManager ? period : null);
+  const { data: rawSettings } = useSiteSettings();
+  const cs = rawSettings?.currency_symbol || "\u00a3";
+
   const { data: allEvents } = useEvents({ date_from: new Date().toISOString().split("T")[0] });
   const { data: allQuotes } = useQuotes();
   const { data: allLeads } = useLeads();
@@ -15,35 +41,171 @@ export default function Dashboard() {
   const events = (allEvents || []).slice(0, 5);
   const quotes = (allQuotes || []).filter((q) => q.status === "draft" || q.status === "sent").slice(0, 5);
   const leads = (allLeads || []).slice(0, 5);
-  const loading = !allEvents || !allQuotes || !allLeads;
 
-  if (loading) {
-    return <p className="text-muted-foreground">Loading dashboard...</p>;
-  }
+  const summary = stats?.lead_summary;
+  const kpis = stats?.kpis;
+  const team = stats?.team_activity || [];
+  const salespeople = stats?.salesperson_performance || [];
+  const statusCols = stats?.status_columns || [];
+  const statusDist = stats?.status_distribution || [];
+
+  const pipelineValue = kpis ? Number(kpis.pipeline_value) : 0;
+  const pipelineDisplay = pipelineValue >= 1000
+    ? `${cs}${(pipelineValue / 1000).toFixed(pipelineValue >= 10000 ? 0 : 1)}k`
+    : `${cs}${pipelineValue}`;
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
-        <p className="text-muted-foreground mt-1">Overview of your catering operations</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
+          <p className="text-muted-foreground mt-1">Overview of your catering operations</p>
+        </div>
+        <div className="flex flex-wrap gap-3">
+          <Button asChild size="sm">
+            <Link href="/leads/new">New Lead</Link>
+          </Button>
+          <Button asChild size="sm">
+            <Link href="/quotes/new">New Quote</Link>
+          </Button>
+          <Button asChild size="sm">
+            <Link href="/events/new">New Event</Link>
+          </Button>
+          <Button asChild size="sm" variant="secondary">
+            <Link href="/calculate">Calculator</Link>
+          </Button>
+        </div>
       </div>
 
-      {/* Quick Actions */}
-      <div className="flex flex-wrap gap-3">
-        <Button asChild>
-          <Link href="/leads/new">New Lead</Link>
-        </Button>
-        <Button asChild>
-          <Link href="/quotes/new">New Quote</Link>
-        </Button>
-        <Button asChild>
-          <Link href="/events/new">New Event</Link>
-        </Button>
-        <Button asChild variant="secondary">
-          <Link href="/calculate">Portioning Calculator</Link>
-        </Button>
+      {isManager && (
+      <>
+      {/* Period Toggle */}
+      <div className="flex gap-1 bg-muted rounded-lg p-1 w-fit">
+        {PERIODS.map((p) => (
+          <button
+            key={p.value}
+            onClick={() => setPeriod(p.value)}
+            className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+              period === p.value
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {p.label}
+          </button>
+        ))}
       </div>
 
+      {/* Lead Summary Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <StatCard label="New Leads" value={summary?.new_leads ?? "-"} />
+        <StatCard label="Won" value={summary?.won ?? "-"} />
+        <StatCard label="Lost" value={summary?.lost ?? "-"} />
+        <StatCard label="Active" value={summary?.total_active ?? "-"} />
+      </div>
+
+      {/* KPI Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+        <StatCard label="Conversion Rate" value={kpis ? `${kpis.conversion_rate}%` : "-"} />
+        <StatCard label="Avg Days to Convert" value={kpis?.avg_days_to_convert ?? "-"} />
+        <StatCard
+          label="Pipeline"
+          value={kpis ? pipelineDisplay : "-"}
+          sub={kpis ? `${kpis.pipeline_count} leads` : undefined}
+        />
+      </div>
+
+      {/* Lead Status Distribution */}
+      {statusDist.length > 0 && (() => {
+        const maxCount = Math.max(...statusDist.map((s) => s.count), 1);
+        const totalLeads = statusDist.reduce((sum, s) => sum + s.count, 0);
+        return (
+          <Card>
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-sm font-semibold text-foreground">Lead Distribution by Status</h2>
+                <span className="text-xs text-muted-foreground">{totalLeads} total leads</span>
+              </div>
+              <div className="flex items-end gap-3 h-48">
+                {statusDist.map((s) => {
+                  const barHeight = maxCount > 0 ? (s.count / maxCount) * 100 : 0;
+                  const pct = totalLeads > 0 ? Math.round((s.count / totalLeads) * 100) : 0;
+                  return (
+                    <div key={s.status} className="flex-1 flex flex-col items-center gap-1 h-full justify-end min-w-0">
+                      <span className="text-xs font-medium text-foreground">{s.count}</span>
+                      <div className="w-full flex items-end justify-center" style={{ height: "calc(100% - 2rem)" }}>
+                        <div
+                          className="w-full max-w-14 bg-primary rounded-t transition-all duration-500"
+                          style={{ height: `${barHeight}%`, minHeight: s.count > 0 ? "4px" : "0" }}
+                        />
+                      </div>
+                      <span className="text-[10px] text-muted-foreground text-center leading-tight truncate w-full">{s.label}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })()}
+
+      {/* Salesperson Performance */}
+      {salespeople.length > 0 && (
+        <Card>
+          <CardContent className="p-5">
+            <h2 className="text-sm font-semibold text-foreground mb-1">Salesperson Performance</h2>
+            <p className="text-xs text-muted-foreground mb-3">
+              Pipeline columns show current assigned leads. Period columns reflect activity in the selected period.
+            </p>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border text-left">
+                    <th className="pb-2 pr-4 font-medium text-muted-foreground sticky left-0 bg-card">Salesperson</th>
+                    <th className="pb-2 px-2 font-medium text-muted-foreground text-center" title="Total currently assigned">Assigned</th>
+                    {statusCols.map((sc) => (
+                      <th key={sc.value} className="pb-2 px-2 font-medium text-muted-foreground text-center">{sc.label}</th>
+                    ))}
+                    <th className="pb-2 px-2 font-medium text-muted-foreground text-center border-l border-border" title="Pipeline value of assigned leads">{cs} Value</th>
+                    <th className="pb-2 px-2 font-medium text-muted-foreground text-center border-l border-border" title={`Created in ${period}`}>Created</th>
+                    <th className="pb-2 px-2 font-medium text-muted-foreground text-center" title={`Won in ${period}`}>Won</th>
+                    <th className="pb-2 px-2 font-medium text-muted-foreground text-center" title={`Lost in ${period}`}>Lost</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {salespeople.map((sp) => (
+                    <tr key={sp.user_id} className="border-b border-border last:border-0">
+                      <td className="py-2 pr-4 text-foreground font-medium sticky left-0 bg-card">{sp.user_name}</td>
+                      <td className="py-2 px-2 text-center font-semibold">{sp.total_assigned}</td>
+                      {statusCols.map((sc) => (
+                        <td key={sc.value} className="py-2 px-2 text-center">
+                          {sp.pipeline[sc.value] || <span className="text-muted-foreground">-</span>}
+                        </td>
+                      ))}
+                      <td className="py-2 px-2 text-center border-l border-border">
+                        {sp.pipeline_value > 0
+                          ? `${cs}${sp.pipeline_value >= 1000 ? `${(sp.pipeline_value / 1000).toFixed(sp.pipeline_value >= 10000 ? 0 : 1)}k` : sp.pipeline_value}`
+                          : <span className="text-muted-foreground">-</span>}
+                      </td>
+                      <td className="py-2 px-2 text-center border-l border-border">{sp.period_created || <span className="text-muted-foreground">-</span>}</td>
+                      <td className="py-2 px-2 text-center">
+                        {sp.period_won ? <span className="text-green-600 font-medium">{sp.period_won}</span> : <span className="text-muted-foreground">-</span>}
+                      </td>
+                      <td className="py-2 px-2 text-center">
+                        {sp.period_lost ? <span className="text-red-500 font-medium">{sp.period_lost}</span> : <span className="text-muted-foreground">-</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+      </>
+      )}
+
+      {/* Existing 3-column lists */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Upcoming Events */}
         <DashboardCard title="Upcoming Events" viewAllHref="/events">

@@ -42,6 +42,10 @@ class Lead(models.Model):
         'users.User', null=True, blank=True,
         on_delete=models.SET_NULL, related_name='assigned_leads',
     )
+    created_by = models.ForeignKey(
+        'users.User', null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='created_leads',
+    )
     converted_to_quote = models.ForeignKey(
         'bookings.Quote', null=True, blank=True,
         on_delete=models.SET_NULL, related_name='source_lead',

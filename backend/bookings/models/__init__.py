@@ -7,3 +7,4 @@ from .staffing import LaborRole, StaffMember, Shift
 from .equipment import EquipmentItem, EquipmentReservation
 from .finance import Invoice, Payment
 from .settings import SiteSettings
+from .activity import ActivityLog

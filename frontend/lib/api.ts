@@ -582,6 +582,57 @@ export interface PriceEstimateResult {
   has_unpriced: boolean;
 }
 
+// Activity log
+export interface ActivityLogEntry {
+  id: number;
+  action: string;
+  field_name: string;
+  old_value: string;
+  new_value: string;
+  description: string;
+  user_name: string | null;
+  created_at: string;
+}
+
+// Dashboard stats
+export interface SalespersonPerformance {
+  user_id: number;
+  user_name: string;
+  pipeline: Record<string, number>;
+  pipeline_value: number;
+  total_assigned: number;
+  period_created: number;
+  period_won: number;
+  period_lost: number;
+}
+
+export interface DashboardStats {
+  lead_summary: {
+    new_leads: number;
+    status_transitions: number;
+    won: number;
+    lost: number;
+    total_active: number;
+  };
+  team_activity: {
+    user_id: number;
+    user_name: string;
+    leads_created: number;
+    transitions_made: number;
+    won: number;
+    lost: number;
+  }[];
+  salesperson_performance: SalespersonPerformance[];
+  status_columns: { value: string; label: string }[];
+  status_distribution: { status: string; label: string; count: number }[];
+  kpis: {
+    conversion_rate: number;
+    avg_days_to_convert: number | null;
+    pipeline_value: string;
+    pipeline_count: number;
+  };
+}
+
 // Lead filter params
 export interface LeadFilters {
   status?: string;
@@ -736,6 +787,12 @@ export const api = {
     fetchApi<Lead>(`/bookings/leads/${id}/transition/`, { method: "POST", body: JSON.stringify({ status }) }),
   convertLead: (id: number) =>
     fetchApi<Quote>(`/bookings/leads/${id}/convert/`, { method: "POST" }),
+  getLeadActivity: (id: number) =>
+    fetchApi<ActivityLogEntry[]>(`/bookings/leads/${id}/activity/`),
+
+  // Dashboard
+  getDashboardStats: (period: string = "today") =>
+    fetchApi<DashboardStats>(`/bookings/dashboard/stats/?period=${period}`),
 
   // Bookings: Quotes
   getQuotes: (status?: string) => fetchApi<Quote[]>(`/bookings/quotes/${status ? `?status=${status}` : ""}`),
