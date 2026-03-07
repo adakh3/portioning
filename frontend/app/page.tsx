@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth";
-import { useEvents, useQuotes, useLeads, useDashboardStats, useSiteSettings } from "@/lib/hooks";
+import { useEvents, useQuotes, useLeads, useDashboardStats, useSiteSettings, useReminderCounts } from "@/lib/hooks";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -34,6 +34,7 @@ export default function Dashboard() {
   const { data: rawSettings } = useSiteSettings();
   const cs = rawSettings?.currency_symbol || "\u00a3";
 
+  const { data: reminderCounts } = useReminderCounts();
   const { data: allEvents } = useEvents({ date_from: new Date().toISOString().split("T")[0] });
   const { data: allQuotes } = useQuotes();
   const { data: allLeads } = useLeads();
@@ -203,6 +204,33 @@ export default function Dashboard() {
         </Card>
       )}
       </>
+      )}
+
+      {/* Follow-up Reminders */}
+      {reminderCounts && (reminderCounts.overdue > 0 || reminderCounts.due_today > 0) && (
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                {reminderCounts.overdue > 0 && (
+                  <div className="flex items-center gap-2">
+                    <Badge variant="destructive">{reminderCounts.overdue}</Badge>
+                    <span className="text-sm text-foreground">overdue follow-up{reminderCounts.overdue !== 1 ? "s" : ""}</span>
+                  </div>
+                )}
+                {reminderCounts.due_today > 0 && (
+                  <div className="flex items-center gap-2">
+                    <Badge variant="warning">{reminderCounts.due_today}</Badge>
+                    <span className="text-sm text-foreground">due today</span>
+                  </div>
+                )}
+              </div>
+              <Link href="/follow-ups" className="text-sm text-primary hover:underline">
+                View follow-ups &rarr;
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* Existing 3-column lists */}

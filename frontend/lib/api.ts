@@ -618,6 +618,28 @@ export interface ActivityLogEntry {
   created_at: string;
 }
 
+// Reminders
+export interface Reminder {
+  id: number;
+  lead: number;
+  lead_name: string;
+  user: number;
+  user_name: string;
+  due_at: string;
+  note: string;
+  status: string;
+  snoozed_until: string | null;
+  completed_at: string | null;
+  created_by: number | null;
+  created_by_name: string | null;
+  created_at: string;
+}
+
+export interface ReminderCounts {
+  overdue: number;
+  due_today: number;
+}
+
 // Dashboard stats
 export interface SalespersonPerformance {
   user_id: number;
@@ -938,4 +960,24 @@ export const api = {
   getSiteSettings: () => fetchApi<SiteSettingsData>("/bookings/settings/"),
   updateSiteSettings: (data: Partial<SiteSettingsData>) =>
     fetchApi<SiteSettingsData>("/bookings/settings/", { method: "PATCH", body: JSON.stringify(data) }),
+
+  // Reminders
+  getReminders: (params?: { status?: string; due_before?: string; due_after?: string; lead?: number }) => {
+    const searchParams = new URLSearchParams();
+    if (params?.status) searchParams.set("status", params.status);
+    if (params?.due_before) searchParams.set("due_before", params.due_before);
+    if (params?.due_after) searchParams.set("due_after", params.due_after);
+    if (params?.lead) searchParams.set("lead", params.lead.toString());
+    const qs = searchParams.toString();
+    return fetchApi<Reminder[]>(`/bookings/reminders/${qs ? `?${qs}` : ""}`);
+  },
+  getReminderCounts: () => fetchApi<ReminderCounts>("/bookings/reminders/counts/"),
+  getLeadReminders: (leadId: number) =>
+    fetchApi<Reminder[]>(`/bookings/leads/${leadId}/reminders/`),
+  createReminder: (leadId: number, data: Partial<Reminder>) =>
+    fetchApi<Reminder>(`/bookings/leads/${leadId}/reminders/`, { method: "POST", body: JSON.stringify(data) }),
+  updateReminder: (id: number, data: Partial<Reminder>) =>
+    fetchApi<Reminder>(`/bookings/reminders/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
+  deleteReminder: (id: number) =>
+    fetchApi<void>(`/bookings/reminders/${id}/`, { method: "DELETE" }),
 };

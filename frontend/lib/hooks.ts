@@ -22,6 +22,8 @@ import {
   DashboardStats,
   AllocationRule,
   StaffReportEntry,
+  Reminder,
+  ReminderCounts,
 } from "./api";
 
 // ── Revalidation helper ──
@@ -224,6 +226,27 @@ export function useStaffReport(params?: { date_from?: string; date_to?: string }
     ? `staff-report-${params.date_from || ""}-${params.date_to || ""}`
     : "staff-report";
   return useSWR<StaffReportEntry[]>(key, () => api.getStaffReport(params), {
+    dedupingInterval: 30000,
+  });
+}
+
+export function useReminders(params?: { status?: string; due_before?: string; due_after?: string }) {
+  const key = `reminders-${params?.status || "all"}-${params?.due_before || ""}-${params?.due_after || ""}`;
+  return useSWR<Reminder[]>(key, () => api.getReminders(params), {
+    dedupingInterval: 15000,
+  });
+}
+
+export function useLeadReminders(leadId: number | null) {
+  return useSWR<Reminder[]>(
+    leadId ? `lead-reminders-${leadId}` : null,
+    () => api.getLeadReminders(leadId!),
+    { dedupingInterval: 15000 }
+  );
+}
+
+export function useReminderCounts() {
+  return useSWR<ReminderCounts>("reminder-counts", () => api.getReminderCounts(), {
     dedupingInterval: 30000,
   });
 }

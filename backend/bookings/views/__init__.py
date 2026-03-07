@@ -17,3 +17,7 @@ from .choices import (
     ServiceStyleOptionListView, LeadStatusOptionListView,
     LostReasonOptionListView,
 )
+from .reminders import (
+    ReminderListCreateView, ReminderDetailView,
+    LeadReminderListCreateView, ReminderCountsView,
+)

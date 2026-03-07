@@ -3,8 +3,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { api, Lead, Account, AuthUser, ProductLine } from "@/lib/api";
-import { useLead, useSiteSettings, useProductLines, useUsers, useSources, useEventTypes, useServiceStyles, useLeadStatuses, useLostReasons } from "@/lib/hooks";
+import { api, Lead, Account, AuthUser, ProductLine, Reminder } from "@/lib/api";
+import { useLead, useSiteSettings, useProductLines, useUsers, useSources, useEventTypes, useServiceStyles, useLeadStatuses, useLostReasons, useLeadReminders, revalidate } from "@/lib/hooks";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -418,6 +418,9 @@ export default function LeadDetailPage() {
         </Card>
       )}
 
+      {/* Reminders */}
+      <LeadReminders leadId={lead.id} />
+
       {/* Activity Log */}
       <Card className="mb-6">
         <CardContent className="p-6">
@@ -472,5 +475,164 @@ export default function LeadDetailPage() {
       )}
 
     </div>
+  );
+}
+
+const QUICK_PICKS = [
+  { label: "Tomorrow", days: 1 },
+  { label: "In 3 days", days: 3 },
+  { label: "In 5 days", days: 5 },
+  { label: "In 1 week", days: 7 },
+  { label: "In 2 weeks", days: 14 },
+];
+
+function addDays(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  d.setHours(9, 0, 0, 0); // default to 9 AM
+  return d.toISOString();
+}
+
+function LeadReminders({ leadId }: { leadId: number }) {
+  const { data: reminders = [], mutate } = useLeadReminders(leadId);
+  const [showForm, setShowForm] = useState(false);
+  const [note, setNote] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [selectedDays, setSelectedDays] = useState(3);
+
+  const pendingReminders = reminders.filter((r) => r.status === "pending");
+
+  async function handleCreate() {
+    setSubmitting(true);
+    try {
+      await api.createReminder(leadId, { due_at: addDays(selectedDays), note });
+      setNote("");
+      setSelectedDays(3);
+      setShowForm(false);
+      mutate();
+      revalidate("reminder-counts");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleAction(id: number, status: string) {
+    await api.updateReminder(id, { status });
+    mutate();
+    revalidate("reminder-counts");
+  }
+
+  const now = new Date();
+
+  return (
+    <Card className="mb-6">
+      <CardContent className="p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <h2 className="text-lg font-semibold text-foreground">Reminders</h2>
+            {pendingReminders.length > 0 && (
+              <Badge variant="warning">{pendingReminders.length}</Badge>
+            )}
+          </div>
+          <Button size="sm" variant="secondary" onClick={() => setShowForm(!showForm)}>
+            {showForm ? "Cancel" : "Add Reminder"}
+          </Button>
+        </div>
+
+        {showForm && (
+          <div className="border border-border rounded-lg p-3 mb-4 space-y-3">
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-2">Follow up</label>
+              <div className="flex flex-wrap gap-2">
+                {QUICK_PICKS.map((pick) => (
+                  <button
+                    key={pick.days}
+                    type="button"
+                    onClick={() => setSelectedDays(pick.days)}
+                    className={`px-3 py-1.5 text-sm font-medium rounded-md border transition-colors ${
+                      selectedDays === pick.days
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "bg-background text-foreground border-border hover:bg-muted"
+                    }`}
+                  >
+                    {pick.label}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1.5">
+                {new Date(addDays(selectedDays)).toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" })} at 9:00 AM
+              </p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Note (optional)</label>
+              <Input
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder="e.g. Follow up on pricing"
+              />
+            </div>
+            <Button size="sm" onClick={handleCreate} disabled={submitting}>
+              {submitting ? "Creating..." : "Create Reminder"}
+            </Button>
+          </div>
+        )}
+
+        {reminders.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No reminders set for this lead.</p>
+        ) : (
+          <div className="space-y-2">
+            {reminders.map((r) => {
+              const isOverdue = r.status === "pending" && new Date(r.due_at) < now;
+              return (
+                <div
+                  key={r.id}
+                  className={`flex items-start gap-3 p-3 border rounded-lg ${
+                    r.status !== "pending"
+                      ? "border-border/50 opacity-60"
+                      : isOverdue
+                        ? "border-red-300 bg-red-50 dark:bg-red-950/20"
+                        : "border-border"
+                  }`}
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      {r.note && (
+                        <span className="text-sm text-foreground">{r.note}</span>
+                      )}
+                      {r.status !== "pending" && (
+                        <Badge variant="secondary">{r.status}</Badge>
+                      )}
+                      {isOverdue && <Badge variant="destructive">Overdue</Badge>}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Due: {new Date(r.due_at).toLocaleString()}
+                      {r.completed_at && ` | Completed: ${new Date(r.completed_at).toLocaleString()}`}
+                    </p>
+                  </div>
+                  {r.status === "pending" && (
+                    <div className="flex gap-1 shrink-0">
+                      <Button
+                        size="sm"
+                        variant="default"
+                        onClick={() => handleAction(r.id, "done")}
+                      >
+                        Done
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleAction(r.id, "dismissed")}
+                      >
+                        Dismiss
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

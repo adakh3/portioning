@@ -6,3 +6,4 @@ from .choices import EventTypeOption, SourceOption, ServiceStyleOption, LeadStat
 from .finance import Invoice, Payment
 from .settings import SiteSettings
 from .activity import ActivityLog
+from .reminders import Reminder

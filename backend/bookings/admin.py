@@ -14,6 +14,7 @@ from .models import (
     EventTypeOption, SourceOption, ServiceStyleOption, LeadStatusOption,
     LostReasonOption,
     ActivityLog,
+    Reminder,
 )
 from .services.lead_import import (
     load_xlsx, load_csv, parse_rows, flag_duplicates, commit_rows, ImportRow,
@@ -324,6 +325,16 @@ class ActivityLogAdmin(admin.ModelAdmin):
 
     def has_change_permission(self, request, obj=None):
         return False
+
+
+# --- Reminders ---
+
+@admin.register(Reminder)
+class ReminderAdmin(admin.ModelAdmin):
+    list_display = ['lead', 'user', 'due_at', 'status', 'note', 'created_at']
+    list_filter = ['status', 'user']
+    search_fields = ['note', 'lead__contact_name']
+    readonly_fields = ['created_at', 'updated_at']
 
 
 # --- Settings ---

@@ -15,6 +15,8 @@ from bookings.views import (
     EventTypeOptionListView, SourceOptionListView,
     ServiceStyleOptionListView, LeadStatusOptionListView,
     LostReasonOptionListView,
+    ReminderListCreateView, ReminderDetailView,
+    LeadReminderListCreateView, ReminderCountsView,
 )
 
 urlpatterns = [
@@ -39,6 +41,12 @@ urlpatterns = [
     path('bookings/leads/<int:pk>/transition/', LeadTransitionView.as_view(), name='lead-transition'),
     path('bookings/leads/<int:pk>/convert/', LeadConvertView.as_view(), name='lead-convert'),
     path('bookings/leads/<int:pk>/activity/', LeadActivityView.as_view(), name='lead-activity'),
+    path('bookings/leads/<int:pk>/reminders/', LeadReminderListCreateView.as_view(), name='lead-reminder-list'),
+
+    # Reminders
+    path('bookings/reminders/', ReminderListCreateView.as_view(), name='reminder-list'),
+    path('bookings/reminders/counts/', ReminderCountsView.as_view(), name='reminder-counts'),
+    path('bookings/reminders/<int:pk>/', ReminderDetailView.as_view(), name='reminder-detail'),
 
     # Dashboard
     path('bookings/dashboard/stats/', DashboardStatsView.as_view(), name='dashboard-stats'),

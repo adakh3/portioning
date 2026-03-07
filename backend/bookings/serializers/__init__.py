@@ -9,3 +9,4 @@ from .choices import (
     ServiceStyleOptionSerializer, LeadStatusOptionSerializer,
     LostReasonOptionSerializer,
 )
+from .reminders import ReminderSerializer

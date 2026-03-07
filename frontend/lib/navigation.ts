@@ -18,6 +18,7 @@ export const departments: Department[] = [
     pages: [
       { label: "Dashboard", href: "/", roles: ["manager", "owner"] },
       { label: "Leads", href: "/leads" },
+      { label: "Follow-ups", href: "/follow-ups" },
       { label: "Quotes", href: "/quotes" },
       { label: "Events", href: "/events" },
       { label: "Menu Pricing", href: "/pricing" },
