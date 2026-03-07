@@ -46,6 +46,9 @@ class LeadSerializer(serializers.ModelSerializer):
     event_type_display = serializers.SerializerMethodField()
     product_name = serializers.CharField(source='product.name', read_only=True, default=None)
     assigned_to_name = serializers.SerializerMethodField()
+    lost_reason_option_display = serializers.CharField(
+        source='lost_reason_option.label', read_only=True, default=None,
+    )
     quotes = LeadQuoteSummarySerializer(many=True, read_only=True)
     created_by_name = serializers.SerializerMethodField()
 
@@ -62,7 +65,8 @@ class LeadSerializer(serializers.ModelSerializer):
             'assigned_to', 'assigned_to_name',
             'created_by', 'created_by_name',
             'status', 'status_display',
-            'converted_to_quote', 'lost_reason',
+            'converted_to_quote',
+            'lost_reason_option', 'lost_reason_option_display', 'lost_notes',
             'contacted_at', 'qualified_at', 'converted_at', 'lost_at',
             'created_at', 'updated_at',
             'quotes',

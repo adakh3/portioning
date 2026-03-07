@@ -20,6 +20,8 @@ import {
   Invoice,
   ActivityLogEntry,
   DashboardStats,
+  AllocationRule,
+  StaffReportEntry,
 } from "./api";
 
 // ── Revalidation helper ──
@@ -79,6 +81,13 @@ export function useSources() {
 
 export function useLeadStatuses() {
   return useSWR<ChoiceOption[]>("lead-statuses", () => api.getLeadStatuses(), {
+    dedupingInterval: 300000,
+    revalidateOnFocus: false,
+  });
+}
+
+export function useLostReasons() {
+  return useSWR<ChoiceOption[]>("lost-reasons", () => api.getLostReasons(), {
     dedupingInterval: 300000,
     revalidateOnFocus: false,
   });
@@ -202,6 +211,21 @@ export function useDashboardStats(period: string | null) {
     () => api.getDashboardStats(period!),
     { dedupingInterval: 30000 }
   );
+}
+
+export function useAllocationRules() {
+  return useSWR<AllocationRule[]>("allocation-rules", () => api.getAllocationRules(), {
+    dedupingInterval: 60000,
+  });
+}
+
+export function useStaffReport(params?: { date_from?: string; date_to?: string }) {
+  const key = params
+    ? `staff-report-${params.date_from || ""}-${params.date_to || ""}`
+    : "staff-report";
+  return useSWR<StaffReportEntry[]>(key, () => api.getStaffReport(params), {
+    dedupingInterval: 30000,
+  });
 }
 
 export function useInvoices(params?: { event?: number; status?: string }) {

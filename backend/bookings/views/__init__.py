@@ -7,15 +7,6 @@ from .quotes import (
     QuoteLineItemListCreateView, QuoteLineItemDetailView,
     QuotePDFView,
 )
-from .staffing import (
-    LaborRoleListCreateView, LaborRoleDetailView,
-    StaffMemberListCreateView, StaffMemberDetailView,
-    ShiftListCreateView, ShiftDetailView,
-)
-from .equipment import (
-    EquipmentItemListCreateView, EquipmentItemDetailView,
-    EquipmentReservationListCreateView, EquipmentReservationDetailView,
-)
 from .finance import (
     InvoiceListCreateView, InvoiceDetailView,
     PaymentListCreateView, PaymentDetailView,
@@ -24,4 +15,5 @@ from .settings import SiteSettingsView
 from .choices import (
     EventTypeOptionListView, SourceOptionListView,
     ServiceStyleOptionListView, LeadStatusOptionListView,
+    LostReasonOptionListView,
 )

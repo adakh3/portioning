@@ -21,7 +21,7 @@ def log_activity(instance, action, user=None, field_name='', old_value='', new_v
 TRACKED_FIELDS = [
     'contact_name', 'contact_email', 'contact_phone', 'source',
     'event_date', 'guest_estimate', 'budget', 'event_type',
-    'service_style', 'assigned_to', 'product', 'notes', 'lost_reason',
+    'service_style', 'assigned_to', 'product', 'notes', 'lost_notes',
 ]
 
 FIELD_LABELS = {
@@ -37,7 +37,7 @@ FIELD_LABELS = {
     'assigned_to': 'Assigned To',
     'product': 'Product',
     'notes': 'Notes',
-    'lost_reason': 'Lost Reason',
+    'lost_notes': 'Lost Notes',
 }
 
 

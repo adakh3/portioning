@@ -1,14 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { api, StaffMember, LaborRole } from "@/lib/api";
-import { useStaff, useLaborRoles } from "@/lib/hooks";
+import { api, StaffMember, LaborRole, AllocationRule } from "@/lib/api";
+import { useStaff, useLaborRoles, useAllocationRules, useEventTypes } from "@/lib/hooks";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 
-type Tab = "roster" | "roles";
+type Tab = "roster" | "roles" | "allocation";
 
 export default function StaffPage() {
   const [tab, setTab] = useState<Tab>("roster");
@@ -40,9 +40,25 @@ export default function StaffPage() {
         >
           Labour Roles
         </button>
+        <button
+          onClick={() => setTab("allocation")}
+          className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+            tab === "allocation"
+              ? "border-primary text-primary"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          Allocation Rules
+        </button>
       </div>
 
-      {tab === "roster" ? <StaffRosterTab /> : <LabourRolesTab />}
+      {tab === "roster" ? (
+        <StaffRosterTab />
+      ) : tab === "roles" ? (
+        <LabourRolesTab />
+      ) : (
+        <AllocationRulesTab />
+      )}
     </div>
   );
 }
@@ -578,6 +594,295 @@ function LabourRolesTab() {
                         variant="outline"
                         onClick={() => setEditingId(null)}
                       >
+                        Cancel
+                      </Button>
+                    </div>
+                  </form>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AllocationRulesTab() {
+  const { data: rules = [], error: loadError, isLoading: loading, mutate: mutateRules } = useAllocationRules();
+  const { data: roles = [] } = useLaborRoles();
+  const { data: eventTypes = [] } = useEventTypes();
+  const [error, setError] = useState("");
+  const [showForm, setShowForm] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [formData, setFormData] = useState<Partial<AllocationRule>>({
+    role: undefined,
+    event_type: "",
+    guests_per_staff: 30,
+    minimum_staff: 1,
+  });
+  const [editFormData, setEditFormData] = useState<Partial<AllocationRule>>({});
+
+  async function handleCreate(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setError("");
+    try {
+      await api.createAllocationRule(formData);
+      mutateRules();
+      setShowForm(false);
+      setFormData({ role: undefined, event_type: "", guests_per_staff: 30, minimum_staff: 1 });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create rule");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleUpdate(id: number, e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setError("");
+    try {
+      await api.updateAllocationRule(id, editFormData);
+      mutateRules();
+      setEditingId(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update rule");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete(id: number) {
+    if (!confirm("Delete this allocation rule?")) return;
+    try {
+      await api.deleteAllocationRule(id);
+      mutateRules();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete rule");
+    }
+  }
+
+  function startEdit(rule: AllocationRule) {
+    if (editingId === rule.id) {
+      setEditingId(null);
+    } else {
+      setEditFormData({
+        role: rule.role,
+        event_type: rule.event_type,
+        guests_per_staff: rule.guests_per_staff,
+        minimum_staff: rule.minimum_staff,
+        is_active: rule.is_active,
+      });
+      setEditingId(rule.id);
+    }
+  }
+
+  if (loading) return <p className="text-muted-foreground">Loading allocation rules...</p>;
+  if (loadError) return <p className="text-destructive">Error: {loadError.message}</p>;
+
+  return (
+    <div>
+      <p className="text-sm text-muted-foreground mb-4">
+        Define how many staff of each role are needed per number of guests.
+      </p>
+
+      {error && <p className="text-destructive text-sm mb-4">{error}</p>}
+
+      <div className="flex justify-end mb-4">
+        <Button
+          onClick={() => {
+            setShowForm(!showForm);
+            setFormData({ role: undefined, event_type: "", guests_per_staff: 30, minimum_staff: 1 });
+          }}
+        >
+          {showForm ? "Cancel" : "Add Rule"}
+        </Button>
+      </div>
+
+      {showForm && (
+        <form onSubmit={handleCreate} className="bg-background border border-border rounded-lg p-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Role *</label>
+              <select
+                required
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                value={formData.role || ""}
+                onChange={(e) => setFormData({ ...formData, role: Number(e.target.value) })}
+              >
+                <option value="">Select role...</option>
+                {roles.map((r) => (
+                  <option key={r.id} value={r.id}>{r.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Event Type</label>
+              <select
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                value={formData.event_type || ""}
+                onChange={(e) => setFormData({ ...formData, event_type: e.target.value })}
+              >
+                <option value="">All event types</option>
+                {eventTypes.map((et) => (
+                  <option key={et.value} value={et.value}>{et.label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Guests per Staff *</label>
+              <Input
+                type="number"
+                required
+                min={1}
+                value={formData.guests_per_staff || ""}
+                onChange={(e) => setFormData({ ...formData, guests_per_staff: Number(e.target.value) })}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Minimum Staff</label>
+              <Input
+                type="number"
+                min={1}
+                value={formData.minimum_staff || 1}
+                onChange={(e) => setFormData({ ...formData, minimum_staff: Number(e.target.value) })}
+              />
+            </div>
+          </div>
+          <div className="flex gap-2 mt-4">
+            <Button type="submit" disabled={saving} variant="success">
+              {saving ? "Saving..." : "Save"}
+            </Button>
+            <Button type="button" variant="outline" onClick={() => setShowForm(false)}>
+              Cancel
+            </Button>
+          </div>
+        </form>
+      )}
+
+      {rules.length === 0 ? (
+        <p className="text-muted-foreground">No allocation rules defined.</p>
+      ) : (
+        <div className="space-y-3">
+          {rules.map((rule) => (
+            <Card key={rule.id}>
+              <CardContent className="pt-4 pb-4">
+                <div
+                  className="flex items-start justify-between cursor-pointer"
+                  onClick={() => startEdit(rule)}
+                >
+                  <div>
+                    <h3 className="font-semibold text-foreground">{rule.role_name}</h3>
+                    <p className="text-sm text-muted-foreground mt-0.5">
+                      1 per {rule.guests_per_staff} guests
+                      {rule.event_type ? ` (${rule.event_type})` : " (all events)"}
+                      {" \u00B7 "}min {rule.minimum_staff}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {!rule.is_active && (
+                      <Badge variant="secondary">Inactive</Badge>
+                    )}
+                    <Button
+                      variant="link"
+                      className="p-0 h-auto"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        startEdit(rule);
+                      }}
+                    >
+                      {editingId === rule.id ? "Close" : "Edit"}
+                    </Button>
+                    <Button
+                      variant="link"
+                      className="p-0 h-auto text-destructive"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDelete(rule.id);
+                      }}
+                    >
+                      Delete
+                    </Button>
+                  </div>
+                </div>
+
+                {editingId === rule.id && (
+                  <form
+                    onSubmit={(e) => handleUpdate(rule.id, e)}
+                    className="mt-4 pt-4 border-t border-border"
+                  >
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-foreground mb-1">Role *</label>
+                        <select
+                          required
+                          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                          value={editFormData.role || ""}
+                          onChange={(e) => setEditFormData({ ...editFormData, role: Number(e.target.value) })}
+                        >
+                          {roles.map((r) => (
+                            <option key={r.id} value={r.id}>{r.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-foreground mb-1">Event Type</label>
+                        <select
+                          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                          value={editFormData.event_type || ""}
+                          onChange={(e) => setEditFormData({ ...editFormData, event_type: e.target.value })}
+                        >
+                          <option value="">All event types</option>
+                          {eventTypes.map((et) => (
+                            <option key={et.value} value={et.value}>{et.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-foreground mb-1">Guests per Staff *</label>
+                        <Input
+                          type="number"
+                          required
+                          min={1}
+                          value={editFormData.guests_per_staff || ""}
+                          onChange={(e) =>
+                            setEditFormData({ ...editFormData, guests_per_staff: Number(e.target.value) })
+                          }
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-foreground mb-1">Minimum Staff</label>
+                        <Input
+                          type="number"
+                          min={1}
+                          value={editFormData.minimum_staff || 1}
+                          onChange={(e) =>
+                            setEditFormData({ ...editFormData, minimum_staff: Number(e.target.value) })
+                          }
+                        />
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4 mt-4">
+                      <label className="flex items-center gap-1.5 text-sm text-foreground">
+                        <input
+                          type="checkbox"
+                          checked={editFormData.is_active !== false}
+                          onChange={(e) =>
+                            setEditFormData({ ...editFormData, is_active: e.target.checked })
+                          }
+                          className="rounded border-input"
+                        />
+                        Active
+                      </label>
+                    </div>
+                    <div className="flex gap-2 mt-4">
+                      <Button type="submit" disabled={saving} variant="success">
+                        {saving ? "Saving..." : "Save"}
+                      </Button>
+                      <Button type="button" variant="outline" onClick={() => setEditingId(null)}>
                         Cancel
                       </Button>
                     </div>

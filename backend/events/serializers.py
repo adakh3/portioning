@@ -1,8 +1,8 @@
 from rest_framework import serializers
 from .models import Event, EventConstraintOverride, EventDishComment
 from dishes.models import Dish
-from bookings.serializers.staffing import ShiftSerializer
-from bookings.serializers.equipment import EquipmentReservationSerializer
+from staff.serializers import ShiftSerializer
+from equipment.serializers import EquipmentReservationSerializer
 from bookings.serializers.finance import InvoiceSerializer
 
 

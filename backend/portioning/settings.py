@@ -64,6 +64,8 @@ INSTALLED_APPS = [
     'events',
     'calculator',
     'bookings',
+    'staff',
+    'equipment',
     'users',
     'rest_framework_simplejwt.token_blacklist',
 ]

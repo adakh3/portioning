@@ -147,11 +147,11 @@ class QuoteLineItem(models.Model):
         on_delete=models.SET_NULL, related_name='quote_line_items',
     )
     equipment_item = models.ForeignKey(
-        'bookings.EquipmentItem', null=True, blank=True,
+        'equipment.EquipmentItem', null=True, blank=True,
         on_delete=models.SET_NULL, related_name='quote_line_items',
     )
     labor_role = models.ForeignKey(
-        'bookings.LaborRole', null=True, blank=True,
+        'staff.LaborRole', null=True, blank=True,
         on_delete=models.SET_NULL, related_name='quote_line_items',
     )
     created_at = models.DateTimeField(auto_now_add=True)

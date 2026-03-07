@@ -9,11 +9,10 @@ from django.contrib import messages
 from users.models import User
 from .models import (
     Account, Contact, Venue, Lead, ProductLine, Quote, QuoteLineItem,
-    LaborRole, StaffMember, Shift,
-    EquipmentItem, EquipmentReservation,
     Invoice, Payment,
     SiteSettings,
     EventTypeOption, SourceOption, ServiceStyleOption, LeadStatusOption,
+    LostReasonOption,
     ActivityLog,
 )
 from .services.lead_import import (
@@ -251,45 +250,6 @@ class QuoteAdmin(admin.ModelAdmin):
     inlines = [QuoteLineItemInline]
 
 
-# --- Staffing ---
-
-@admin.register(LaborRole)
-class LaborRoleAdmin(admin.ModelAdmin):
-    list_display = ['name', 'default_hourly_rate', 'is_active']
-    list_filter = ['is_active']
-
-
-@admin.register(StaffMember)
-class StaffMemberAdmin(admin.ModelAdmin):
-    list_display = ['name', 'email', 'phone', 'is_active']
-    list_filter = ['is_active', 'roles']
-    search_fields = ['name', 'email']
-    filter_horizontal = ['roles']
-
-
-@admin.register(Shift)
-class ShiftAdmin(admin.ModelAdmin):
-    list_display = ['event', 'role', 'staff_member', 'start_time', 'end_time', 'status']
-    list_filter = ['status', 'role']
-    search_fields = ['event__name', 'staff_member__name']
-
-
-# --- Equipment ---
-
-@admin.register(EquipmentItem)
-class EquipmentItemAdmin(admin.ModelAdmin):
-    list_display = ['name', 'category', 'stock_quantity', 'rental_price', 'is_active']
-    list_filter = ['category', 'is_active']
-    search_fields = ['name']
-
-
-@admin.register(EquipmentReservation)
-class EquipmentReservationAdmin(admin.ModelAdmin):
-    list_display = ['event', 'equipment', 'quantity_out', 'quantity_returned', 'return_condition']
-    list_filter = ['return_condition']
-    search_fields = ['event__name', 'equipment__name']
-
-
 # --- Finance ---
 
 class PaymentInline(admin.TabularInline):
@@ -338,6 +298,13 @@ class ServiceStyleOptionAdmin(admin.ModelAdmin):
 
 @admin.register(LeadStatusOption)
 class LeadStatusOptionAdmin(admin.ModelAdmin):
+    list_display = ['value', 'label', 'sort_order', 'is_active']
+    list_editable = ['label', 'sort_order', 'is_active']
+    ordering = ['sort_order']
+
+
+@admin.register(LostReasonOption)
+class LostReasonOptionAdmin(admin.ModelAdmin):
     list_display = ['value', 'label', 'sort_order', 'is_active']
     list_editable = ['label', 'sort_order', 'is_active']
     ordering = ['sort_order']

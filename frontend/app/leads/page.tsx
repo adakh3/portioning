@@ -17,7 +17,7 @@ import {
 } from "@dnd-kit/core";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { api, Lead, LeadFilters, AuthUser, ProductLine, ChoiceOption } from "@/lib/api";
-import { useLeads, useUsers, useProductLines, useEventTypes, useLeadStatuses, revalidate } from "@/lib/hooks";
+import { useLeads, useUsers, useProductLines, useEventTypes, useLeadStatuses, useLostReasons, revalidate } from "@/lib/hooks";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -232,6 +232,12 @@ function LeadsContent() {
   const [activeLead, setActiveLead] = useState<Lead | null>(null);
   const [toast, setToast] = useState("");
 
+  // Lost reason dialog state
+  const [pendingLostLeadId, setPendingLostLeadId] = useState<number | null>(null);
+  const [lostReasonId, setLostReasonId] = useState<number | null>(null);
+  const [lostNotesInput, setLostNotesInput] = useState("");
+  const [lostSaving, setLostSaving] = useState(false);
+
   // Build filters for API
   const filters: LeadFilters = useMemo(() => {
     const f: LeadFilters = {};
@@ -251,6 +257,7 @@ function LeadsContent() {
   const { data: productLines } = useProductLines();
   const { data: eventTypes = [] } = useEventTypes();
   const { data: leadStatuses = [] } = useLeadStatuses();
+  const { data: lostReasons = [] } = useLostReasons();
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
@@ -369,6 +376,12 @@ function LeadsContent() {
     const targetStatus = over.id as string;
     if (!COLUMN_IDS.has(targetStatus) || targetStatus === lead.status) return;
 
+    // Intercept lost transitions — show dialog
+    if (targetStatus === "lost") {
+      setPendingLostLeadId(lead.id);
+      return;
+    }
+
     setLeads((prev) =>
       prev.map((l) =>
         l.id === lead.id ? { ...l, status: targetStatus } : l
@@ -392,6 +405,42 @@ function LeadsContent() {
       );
       const msg = e instanceof Error ? e.message : "Transition failed";
       setToast(msg);
+    }
+  }
+
+  async function handleConfirmLost() {
+    if (!pendingLostLeadId || !lostReasonId) return;
+    setLostSaving(true);
+    setLeads((prev) =>
+      prev.map((l) =>
+        l.id === pendingLostLeadId ? { ...l, status: "lost" } : l
+      )
+    );
+    try {
+      await api.transitionLead(pendingLostLeadId, "lost", {
+        lost_reason_option: lostReasonId,
+        lost_notes: lostNotesInput,
+      });
+      revalidate("leads");
+      const qs = Object.entries(filters)
+        .filter(([, v]) => v)
+        .map(([k, v]) => `${k}=${v}`)
+        .sort()
+        .join("&");
+      if (qs) revalidate(`leads?${qs}`);
+    } catch (e: unknown) {
+      setLeads((prev) =>
+        prev.map((l) => {
+          const original = fetchedLeads?.find((fl) => fl.id === l.id);
+          return l.id === pendingLostLeadId && original ? { ...l, status: original.status } : l;
+        })
+      );
+      setToast(e instanceof Error ? e.message : "Failed to mark lost");
+    } finally {
+      setPendingLostLeadId(null);
+      setLostReasonId(null);
+      setLostNotesInput("");
+      setLostSaving(false);
     }
   }
 
@@ -674,6 +723,7 @@ function LeadsContent() {
           onOptimisticUpdate={(leadId, patch) =>
             setLeads((prev) => prev.map((l) => l.id === leadId ? { ...l, ...patch } : l))
           }
+          onMarkLost={(leadId) => setPendingLostLeadId(leadId)}
         />
       )}
 
@@ -696,6 +746,63 @@ function LeadsContent() {
               onClick={() => executeBulkAction("delete")}
             >
               {bulkLoading ? "Deleting..." : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Lost reason dialog */}
+      <Dialog
+        open={pendingLostLeadId !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPendingLostLeadId(null);
+            setLostReasonId(null);
+            setLostNotesInput("");
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Mark Lead as Lost</DialogTitle>
+            <DialogDescription>
+              Select a reason for losing this lead.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <label className="block text-sm font-medium mb-1">Reason *</label>
+              <select
+                value={lostReasonId ?? ""}
+                onChange={(e) => setLostReasonId(e.target.value ? Number(e.target.value) : null)}
+                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              >
+                <option value="">-- Select reason --</option>
+                {lostReasons.map((r) => (
+                  <option key={r.id} value={r.id}>{r.label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Notes (optional)</label>
+              <Textarea
+                value={lostNotesInput}
+                onChange={(e) => setLostNotesInput(e.target.value)}
+                rows={3}
+                placeholder="Additional details..."
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setPendingLostLeadId(null); setLostReasonId(null); setLostNotesInput(""); }}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={!lostReasonId || lostSaving}
+              onClick={handleConfirmLost}
+            >
+              {lostSaving ? "Saving..." : "Mark Lost"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -725,6 +832,7 @@ function LeadsTable({
   filters,
   onToast,
   onOptimisticUpdate,
+  onMarkLost,
 }: {
   leads: Lead[];
   selectedIds: Set<number>;
@@ -737,6 +845,7 @@ function LeadsTable({
   filters: LeadFilters;
   onToast: (msg: string) => void;
   onOptimisticUpdate: (leadId: number, patch: Partial<Lead>) => void;
+  onMarkLost: (leadId: number) => void;
 }) {
   const router = useRouter();
   const { data: eventTypes = [] } = useEventTypes();
@@ -809,6 +918,11 @@ function LeadsTable({
     setSaving({ leadId, field });
     try {
       if (field === "status") {
+        if (value === "lost") {
+          setSaving(null);
+          onMarkLost(leadId);
+          return;
+        }
         onOptimisticUpdate(leadId, { status: value });
         await api.transitionLead(leadId, value);
       } else if (field === "guest_estimate") {

@@ -42,6 +42,7 @@ class LeadListCreateView(generics.ListCreateAPIView):
     def get_queryset(self):
         qs = Lead.objects.select_related(
             'account', 'converted_to_quote', 'product', 'assigned_to',
+            'lost_reason_option',
         ).prefetch_related('quotes').all()
         params = self.request.query_params
 
@@ -179,6 +180,7 @@ def _snapshot_lead(lead):
 class LeadDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Lead.objects.select_related(
         'account', 'converted_to_quote', 'product', 'assigned_to',
+        'lost_reason_option',
     ).prefetch_related('quotes').all()
     serializer_class = LeadSerializer
 
@@ -199,6 +201,25 @@ class LeadTransitionView(APIView):
         new_status = request.data.get('status')
         if not new_status:
             return Response({'error': 'status is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # When marking lost, require lost_reason_option
+        if new_status == 'lost':
+            lost_reason_option_id = request.data.get('lost_reason_option')
+            if not lost_reason_option_id:
+                return Response(
+                    {'error': 'lost_reason_option is required when marking a lead as lost'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            from bookings.models.choices import LostReasonOption
+            try:
+                lost_reason = LostReasonOption.objects.get(pk=lost_reason_option_id, is_active=True)
+            except LostReasonOption.DoesNotExist:
+                return Response({'error': 'Invalid lost_reason_option'}, status=status.HTTP_400_BAD_REQUEST)
+            lead.lost_reason_option = lost_reason
+            lost_notes = request.data.get('lost_notes', '')
+            if lost_notes:
+                lead.lost_notes = lost_notes
+
         old_status = lead.status
         try:
             lead.transition_to(new_status)

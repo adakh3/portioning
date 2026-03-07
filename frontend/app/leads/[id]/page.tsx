@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { api, Lead, Account, AuthUser, ProductLine } from "@/lib/api";
-import { useLead, useSiteSettings, useProductLines, useUsers, useSources, useEventTypes, useServiceStyles, useLeadStatuses } from "@/lib/hooks";
+import { useLead, useSiteSettings, useProductLines, useUsers, useSources, useEventTypes, useServiceStyles, useLeadStatuses, useLostReasons } from "@/lib/hooks";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -183,8 +183,12 @@ export default function LeadDetailPage() {
   const { data: eventTypes = [] } = useEventTypes();
   const { data: serviceStyles = [] } = useServiceStyles();
   const { data: leadStatuses = [] } = useLeadStatuses();
+  const { data: lostReasons = [] } = useLostReasons();
   const [error, setError] = useState("");
   const [transitioning, setTransitioning] = useState(false);
+  const [showLostDialog, setShowLostDialog] = useState(false);
+  const [lostReasonId, setLostReasonId] = useState<number | null>(null);
+  const [lostNotesInput, setLostNotesInput] = useState("");
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [fieldStatus, setFieldStatus] = useState<Record<string, FieldStatus>>({});
 
@@ -201,6 +205,10 @@ export default function LeadDetailPage() {
 
   async function handleTransition(newStatus: string) {
     if (!lead) return;
+    if (newStatus === "lost") {
+      setShowLostDialog(true);
+      return;
+    }
     setTransitioning(true);
     setError("");
     try {
@@ -213,6 +221,26 @@ export default function LeadDetailPage() {
       mutateLead(updated, false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to transition");
+    } finally {
+      setTransitioning(false);
+    }
+  }
+
+  async function handleConfirmLost() {
+    if (!lead || !lostReasonId) return;
+    setTransitioning(true);
+    setError("");
+    try {
+      const updated = await api.transitionLead(lead.id, "lost", {
+        lost_reason_option: lostReasonId,
+        lost_notes: lostNotesInput,
+      });
+      mutateLead(updated, false);
+      setShowLostDialog(false);
+      setLostReasonId(null);
+      setLostNotesInput("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to mark lost");
     } finally {
       setTransitioning(false);
     }
@@ -336,9 +364,17 @@ export default function LeadDetailPage() {
               <AutoSaveField {...fieldProps("notes")} label="Notes" type="textarea" value={lead.notes} />
             </div>
             {lead.status === "lost" && (
-              <div className="md:col-span-2">
-                <AutoSaveField {...fieldProps("lost_reason")} label="Lost Reason" type="textarea" value={lead.lost_reason || ""} />
-              </div>
+              <>
+                {lead.lost_reason_option_display && (
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1">Lost Reason</label>
+                    <p className="text-sm text-muted-foreground py-2">{lead.lost_reason_option_display}</p>
+                  </div>
+                )}
+                <div className="md:col-span-2">
+                  <AutoSaveField {...fieldProps("lost_notes")} label="Lost Notes" type="textarea" value={lead.lost_notes || ""} />
+                </div>
+              </>
             )}
           </div>
 
@@ -389,6 +425,51 @@ export default function LeadDetailPage() {
           <ActivityTimeline leadId={lead.id} />
         </CardContent>
       </Card>
+
+      {/* Mark Lost Dialog */}
+      {showLostDialog && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-background rounded-lg shadow-lg p-6 w-full max-w-md mx-4">
+            <h3 className="text-lg font-semibold text-foreground mb-4">Mark Lead as Lost</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Reason *</label>
+                <select
+                  value={lostReasonId ?? ""}
+                  onChange={(e) => setLostReasonId(e.target.value ? Number(e.target.value) : null)}
+                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                >
+                  <option value="">-- Select reason --</option>
+                  {lostReasons.map((r) => (
+                    <option key={r.id} value={r.id}>{r.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Notes (optional)</label>
+                <Textarea
+                  value={lostNotesInput}
+                  onChange={(e) => setLostNotesInput(e.target.value)}
+                  rows={3}
+                  placeholder="Additional details..."
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 mt-6">
+              <Button variant="secondary" onClick={() => { setShowLostDialog(false); setLostReasonId(null); setLostNotesInput(""); }}>
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                disabled={!lostReasonId || transitioning}
+                onClick={handleConfirmLost}
+              >
+                {transitioning ? "Saving..." : "Mark Lost"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

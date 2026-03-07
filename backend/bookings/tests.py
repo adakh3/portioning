@@ -5,9 +5,11 @@ from rest_framework.test import APIClient
 
 from bookings.models import (
     Account, Contact, Venue, Lead, Quote, QuoteLineItem,
-    LaborRole, StaffMember, EquipmentItem, Invoice, Payment,
+    Invoice, Payment,
     SiteSettings,
 )
+from staff.models import LaborRole, StaffMember
+from equipment.models import EquipmentItem
 from bookings.models.quotes import QuoteStatus
 from tests.base import get_test_user
 
@@ -273,7 +275,7 @@ class TestEquipmentAvailability(TestCase):
         event = Event.objects.create(
             name="Wedding", date="2026-06-15", gents=50, ladies=50,
         )
-        from bookings.models import EquipmentReservation
+        from equipment.models import EquipmentReservation
         EquipmentReservation.objects.create(
             event=event, equipment=self.item, quantity_out=8,
         )
@@ -521,14 +523,14 @@ class TestStaffingAPI(TestCase):
         self.client = _authenticated_client()
 
     def test_create_labor_role(self):
-        res = self.client.post("/api/bookings/labor-roles/", {
+        res = self.client.post("/api/staff/labor-roles/", {
             "name": "Head Chef", "default_hourly_rate": "25.00",
         }, format="json")
         self.assertEqual(res.status_code, 201)
 
     def test_create_staff_member(self):
         role = LaborRole.objects.create(name="Server", default_hourly_rate=Decimal("15.00"))
-        res = self.client.post("/api/bookings/staff/", {
+        res = self.client.post("/api/staff/members/", {
             "name": "Tom", "email": "tom@test.com", "roles": [role.id],
         }, format="json")
         self.assertEqual(res.status_code, 201)
@@ -540,7 +542,7 @@ class TestEquipmentAPI(TestCase):
         self.client = _authenticated_client()
 
     def test_create_equipment(self):
-        res = self.client.post("/api/bookings/equipment/", {
+        res = self.client.post("/api/equipment/items/", {
             "name": "Chafer Dish", "category": "chafer",
             "stock_quantity": 30, "rental_price": "15.00",
         }, format="json")
@@ -549,7 +551,7 @@ class TestEquipmentAPI(TestCase):
 
     def test_list_equipment(self):
         EquipmentItem.objects.create(name="Table", category="table", stock_quantity=10, rental_price=Decimal("50.00"))
-        res = self.client.get("/api/bookings/equipment/")
+        res = self.client.get("/api/equipment/items/")
         self.assertEqual(res.status_code, 200)
         self.assertEqual(len(res.json()), 1)
 

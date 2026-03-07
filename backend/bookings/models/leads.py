@@ -54,7 +54,11 @@ class Lead(models.Model):
         null=True, blank=True,
         help_text="Date the lead was originally generated (e.g. from ad platform)",
     )
-    lost_reason = models.TextField(blank=True)
+    lost_reason_option = models.ForeignKey(
+        'bookings.LostReasonOption', null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='leads',
+    )
+    lost_notes = models.TextField(blank=True)
     contacted_at = models.DateTimeField(null=True, blank=True)
     qualified_at = models.DateTimeField(null=True, blank=True)
     converted_at = models.DateTimeField(null=True, blank=True)

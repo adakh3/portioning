@@ -271,7 +271,9 @@ export interface Lead {
   status: string;
   status_display: string;
   converted_to_quote: number | null;
-  lost_reason: string;
+  lost_reason_option: number | null;
+  lost_reason_option_display: string | null;
+  lost_notes: string;
   contacted_at: string | null;
   qualified_at: string | null;
   converted_at: string | null;
@@ -346,8 +348,30 @@ export interface LaborRole {
   name: string;
   default_hourly_rate: string;
   description: string;
+  color: string;
+  sort_order: number;
   is_active: boolean;
   created_at: string;
+}
+
+export interface AllocationRule {
+  id: number;
+  role: number;
+  role_name: string;
+  event_type: string;
+  guests_per_staff: number;
+  minimum_staff: number;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface StaffReportEntry {
+  staff_member_id: number;
+  staff_member_name: string;
+  total_shifts: number;
+  total_hours: string;
+  total_cost: string;
+  shifts_by_status: Record<string, number>;
 }
 
 export interface StaffMember {
@@ -783,8 +807,8 @@ export const api = {
     fetchApi<Lead>("/bookings/leads/", { method: "POST", body: JSON.stringify(data) }),
   updateLead: (id: number, data: Partial<Lead>) =>
     fetchApi<Lead>(`/bookings/leads/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
-  transitionLead: (id: number, status: string) =>
-    fetchApi<Lead>(`/bookings/leads/${id}/transition/`, { method: "POST", body: JSON.stringify({ status }) }),
+  transitionLead: (id: number, status: string, extra?: { lost_reason_option?: number; lost_notes?: string }) =>
+    fetchApi<Lead>(`/bookings/leads/${id}/transition/`, { method: "POST", body: JSON.stringify({ status, ...extra }) }),
   convertLead: (id: number) =>
     fetchApi<Quote>(`/bookings/leads/${id}/convert/`, { method: "POST" }),
   getLeadActivity: (id: number) =>
@@ -823,45 +847,65 @@ export const api = {
   deleteQuoteLineItem: (quoteId: number, itemId: number) =>
     fetchApi<void>(`/bookings/quotes/${quoteId}/items/${itemId}/`, { method: "DELETE" }),
 
-  // Bookings: Staff & Labor
-  getLaborRoles: () => fetchApi<LaborRole[]>("/bookings/labor-roles/"),
+  // Staff & Labor
+  getLaborRoles: () => fetchApi<LaborRole[]>("/staff/labor-roles/"),
   createLaborRole: (data: Partial<LaborRole>) =>
-    fetchApi<LaborRole>("/bookings/labor-roles/", { method: "POST", body: JSON.stringify(data) }),
+    fetchApi<LaborRole>("/staff/labor-roles/", { method: "POST", body: JSON.stringify(data) }),
   updateLaborRole: (id: number, data: Partial<LaborRole>) =>
-    fetchApi<LaborRole>(`/bookings/labor-roles/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
-  getStaff: () => fetchApi<StaffMember[]>("/bookings/staff/"),
-  getStaffMember: (id: number) => fetchApi<StaffMember>(`/bookings/staff/${id}/`),
+    fetchApi<LaborRole>(`/staff/labor-roles/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
+  deleteLaborRole: (id: number) =>
+    fetchApi<void>(`/staff/labor-roles/${id}/`, { method: "DELETE" }),
+  getStaff: () => fetchApi<StaffMember[]>("/staff/members/"),
+  getStaffMember: (id: number) => fetchApi<StaffMember>(`/staff/members/${id}/`),
   createStaffMember: (data: Partial<StaffMember>) =>
-    fetchApi<StaffMember>("/bookings/staff/", { method: "POST", body: JSON.stringify(data) }),
+    fetchApi<StaffMember>("/staff/members/", { method: "POST", body: JSON.stringify(data) }),
   updateStaffMember: (id: number, data: Partial<StaffMember>) =>
-    fetchApi<StaffMember>(`/bookings/staff/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
+    fetchApi<StaffMember>(`/staff/members/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
 
-  // Bookings: Shifts
+  // Shifts
   getShifts: (eventId?: number) =>
-    fetchApi<Shift[]>(`/bookings/shifts/${eventId ? `?event=${eventId}` : ""}`),
+    fetchApi<Shift[]>(`/staff/shifts/${eventId ? `?event=${eventId}` : ""}`),
   createShift: (data: Partial<Shift>) =>
-    fetchApi<Shift>("/bookings/shifts/", { method: "POST", body: JSON.stringify(data) }),
+    fetchApi<Shift>("/staff/shifts/", { method: "POST", body: JSON.stringify(data) }),
   updateShift: (id: number, data: Partial<Shift>) =>
-    fetchApi<Shift>(`/bookings/shifts/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
+    fetchApi<Shift>(`/staff/shifts/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
   deleteShift: (id: number) =>
-    fetchApi<void>(`/bookings/shifts/${id}/`, { method: "DELETE" }),
+    fetchApi<void>(`/staff/shifts/${id}/`, { method: "DELETE" }),
 
-  // Bookings: Equipment
-  getEquipment: () => fetchApi<EquipmentItem[]>("/bookings/equipment/"),
+  // Allocation Rules
+  getAllocationRules: () => fetchApi<AllocationRule[]>("/staff/allocation-rules/"),
+  createAllocationRule: (data: Partial<AllocationRule>) =>
+    fetchApi<AllocationRule>("/staff/allocation-rules/", { method: "POST", body: JSON.stringify(data) }),
+  updateAllocationRule: (id: number, data: Partial<AllocationRule>) =>
+    fetchApi<AllocationRule>(`/staff/allocation-rules/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
+  deleteAllocationRule: (id: number) =>
+    fetchApi<void>(`/staff/allocation-rules/${id}/`, { method: "DELETE" }),
+
+  // Staff Reports
+  getStaffReport: (params?: { date_from?: string; date_to?: string }) => {
+    const searchParams = new URLSearchParams();
+    if (params?.date_from) searchParams.set("date_from", params.date_from);
+    if (params?.date_to) searchParams.set("date_to", params.date_to);
+    const qs = searchParams.toString();
+    return fetchApi<StaffReportEntry[]>(`/staff/reports/${qs ? `?${qs}` : ""}`);
+  },
+
+  // Equipment
+  getEquipment: () => fetchApi<EquipmentItem[]>("/equipment/items/"),
   createEquipmentItem: (data: Partial<EquipmentItem>) =>
-    fetchApi<EquipmentItem>("/bookings/equipment/", { method: "POST", body: JSON.stringify(data) }),
+    fetchApi<EquipmentItem>("/equipment/items/", { method: "POST", body: JSON.stringify(data) }),
   updateEquipmentItem: (id: number, data: Partial<EquipmentItem>) =>
-    fetchApi<EquipmentItem>(`/bookings/equipment/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
+    fetchApi<EquipmentItem>(`/equipment/items/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
 
-  // Bookings: Equipment Reservations
+  // Equipment Reservations
   getReservations: (eventId?: number) =>
-    fetchApi<EquipmentReservation[]>(`/bookings/equipment-reservations/${eventId ? `?event=${eventId}` : ""}`),
+    fetchApi<EquipmentReservation[]>(`/equipment/reservations/${eventId ? `?event=${eventId}` : ""}`),
   createReservation: (data: Partial<EquipmentReservation>) =>
-    fetchApi<EquipmentReservation>("/bookings/equipment-reservations/", { method: "POST", body: JSON.stringify(data) }),
+    fetchApi<EquipmentReservation>("/equipment/reservations/", { method: "POST", body: JSON.stringify(data) }),
   updateReservation: (id: number, data: Partial<EquipmentReservation>) =>
-    fetchApi<EquipmentReservation>(`/bookings/equipment-reservations/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
+    fetchApi<EquipmentReservation>(`/equipment/reservations/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
   deleteReservation: (id: number) =>
-    fetchApi<void>(`/bookings/equipment-reservations/${id}/`, { method: "DELETE" }),
+    fetchApi<void>(`/equipment/reservations/${id}/`, { method: "DELETE" }),
 
   // Bookings: Invoices
   getInvoices: (params?: { event?: number; status?: string }) => {
@@ -888,6 +932,7 @@ export const api = {
   getServiceStyles: () => fetchApi<ChoiceOption[]>("/bookings/service-styles/"),
   getSources: () => fetchApi<ChoiceOption[]>("/bookings/sources/"),
   getLeadStatuses: () => fetchApi<ChoiceOption[]>("/bookings/lead-statuses/"),
+  getLostReasons: () => fetchApi<ChoiceOption[]>("/bookings/lost-reasons/"),
 
   // Settings
   getSiteSettings: () => fetchApi<SiteSettingsData>("/bookings/settings/"),

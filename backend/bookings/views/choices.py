@@ -2,10 +2,12 @@ from rest_framework import generics
 
 from bookings.models.choices import (
     EventTypeOption, SourceOption, ServiceStyleOption, LeadStatusOption,
+    LostReasonOption,
 )
 from bookings.serializers.choices import (
     EventTypeOptionSerializer, SourceOptionSerializer,
     ServiceStyleOptionSerializer, LeadStatusOptionSerializer,
+    LostReasonOptionSerializer,
 )
 
 
@@ -27,3 +29,8 @@ class ServiceStyleOptionListView(generics.ListAPIView):
 class LeadStatusOptionListView(generics.ListAPIView):
     queryset = LeadStatusOption.objects.filter(is_active=True)
     serializer_class = LeadStatusOptionSerializer
+
+
+class LostReasonOptionListView(generics.ListAPIView):
+    queryset = LostReasonOption.objects.filter(is_active=True)
+    serializer_class = LostReasonOptionSerializer

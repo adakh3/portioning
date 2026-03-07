@@ -9,16 +9,12 @@ from bookings.views import (
     QuoteListCreateView, QuoteDetailView, QuoteTransitionView,
     QuoteLineItemListCreateView, QuoteLineItemDetailView,
     QuotePDFView,
-    LaborRoleListCreateView, LaborRoleDetailView,
-    StaffMemberListCreateView, StaffMemberDetailView,
-    ShiftListCreateView, ShiftDetailView,
-    EquipmentItemListCreateView, EquipmentItemDetailView,
-    EquipmentReservationListCreateView, EquipmentReservationDetailView,
     InvoiceListCreateView, InvoiceDetailView,
     PaymentListCreateView, PaymentDetailView,
     SiteSettingsView,
     EventTypeOptionListView, SourceOptionListView,
     ServiceStyleOptionListView, LeadStatusOptionListView,
+    LostReasonOptionListView,
 )
 
 urlpatterns = [
@@ -55,20 +51,6 @@ urlpatterns = [
     path('bookings/quotes/<int:quote_pk>/items/', QuoteLineItemListCreateView.as_view(), name='quote-item-list'),
     path('bookings/quotes/<int:quote_pk>/items/<int:pk>/', QuoteLineItemDetailView.as_view(), name='quote-item-detail'),
 
-    # Staffing
-    path('bookings/labor-roles/', LaborRoleListCreateView.as_view(), name='labor-role-list'),
-    path('bookings/labor-roles/<int:pk>/', LaborRoleDetailView.as_view(), name='labor-role-detail'),
-    path('bookings/staff/', StaffMemberListCreateView.as_view(), name='staff-list'),
-    path('bookings/staff/<int:pk>/', StaffMemberDetailView.as_view(), name='staff-detail'),
-    path('bookings/shifts/', ShiftListCreateView.as_view(), name='shift-list'),
-    path('bookings/shifts/<int:pk>/', ShiftDetailView.as_view(), name='shift-detail'),
-
-    # Equipment
-    path('bookings/equipment/', EquipmentItemListCreateView.as_view(), name='equipment-list'),
-    path('bookings/equipment/<int:pk>/', EquipmentItemDetailView.as_view(), name='equipment-detail'),
-    path('bookings/equipment-reservations/', EquipmentReservationListCreateView.as_view(), name='equipment-reservation-list'),
-    path('bookings/equipment-reservations/<int:pk>/', EquipmentReservationDetailView.as_view(), name='equipment-reservation-detail'),
-
     # Finance
     path('bookings/invoices/', InvoiceListCreateView.as_view(), name='invoice-list'),
     path('bookings/invoices/<int:pk>/', InvoiceDetailView.as_view(), name='invoice-detail'),
@@ -80,6 +62,7 @@ urlpatterns = [
     path('bookings/sources/', SourceOptionListView.as_view(), name='source-list'),
     path('bookings/service-styles/', ServiceStyleOptionListView.as_view(), name='service-style-list'),
     path('bookings/lead-statuses/', LeadStatusOptionListView.as_view(), name='lead-status-list'),
+    path('bookings/lost-reasons/', LostReasonOptionListView.as_view(), name='lost-reason-list'),
 
     # Settings
     path('bookings/settings/', SiteSettingsView.as_view(), name='site-settings'),
