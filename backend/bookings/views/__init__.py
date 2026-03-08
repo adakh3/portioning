@@ -1,6 +1,6 @@
 from .accounts import AccountListCreateView, AccountDetailView, ContactListCreateView, ContactDetailView
 from .venues import VenueListCreateView, VenueDetailView
-from .leads import UserListView, ProductLineListView, LeadListCreateView, LeadDetailView, LeadTransitionView, LeadConvertView, LeadBulkUpdateView, LeadActivityView
+from .leads import UserListView, ProductLineListView, LeadListCreateView, LeadDetailView, LeadTransitionView, LeadConvertView, LeadBulkUpdateView, LeadActivityView, LeadAutoAssignView
 from .dashboard import DashboardStatsView
 from .quotes import (
     QuoteListCreateView, QuoteDetailView, QuoteTransitionView,

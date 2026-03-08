@@ -640,6 +640,12 @@ export interface ReminderCounts {
   due_today: number;
 }
 
+export interface AutoAssignResult {
+  assigned: number;
+  skipped_no_product: number;
+  skipped_no_staff: number;
+}
+
 // Dashboard stats
 export interface SalespersonPerformance {
   user_id: number | null;
@@ -841,6 +847,8 @@ export const api = {
   // Dashboard
   getDashboardStats: (period: string = "today") =>
     fetchApi<DashboardStats>(`/bookings/dashboard/stats/?period=${period}`),
+  autoAssignLeads: () =>
+    fetchApi<AutoAssignResult>("/bookings/leads/auto-assign/", { method: "POST" }),
 
   // Bookings: Quotes
   getQuotes: (status?: string) => fetchApi<Quote[]>(`/bookings/quotes/${status ? `?status=${status}` : ""}`),

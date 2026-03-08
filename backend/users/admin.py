@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django.contrib.admin.widgets import FilteredSelectMultiple
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 
 from .models import Organisation, User
@@ -19,10 +20,12 @@ class UserAdmin(BaseUserAdmin):
     fieldsets = (
         (None, {"fields": ("email", "password")}),
         ("Personal info", {"fields": ("first_name", "last_name")}),
-        ("Role", {"fields": ("role", "organisation")}),
+        ("Role", {"fields": ("role", "organisation", "product_lines")}),
         ("Permissions", {"fields": ("is_active", "is_staff", "is_superuser", "groups", "user_permissions")}),
         ("Dates", {"fields": ("last_login", "date_joined")}),
     )
+    filter_horizontal = ["product_lines"]
+
     add_fieldsets = (
         (None, {
             "classes": ("wide",),

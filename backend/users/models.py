@@ -45,6 +45,11 @@ class User(AbstractUser):
         blank=True,
         related_name="users",
     )
+    product_lines = models.ManyToManyField(
+        'bookings.ProductLine',
+        blank=True,
+        related_name='salespeople',
+    )
 
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = ["first_name", "last_name"]

@@ -9,6 +9,7 @@ from bookings.models.choices import LeadStatusOption
 from bookings.serializers import LeadSerializer, QuoteSerializer
 from bookings.serializers.leads import ProductLineSerializer
 from bookings.activity import log_activity, log_field_changes, TRACKED_FIELDS
+from bookings.permissions import IsManagerOrOwner
 
 
 class UserListView(generics.ListAPIView):
@@ -292,3 +293,13 @@ class LeadActivityView(generics.ListAPIView):
         return ActivityLog.objects.filter(
             content_type=ct, object_id=self.kwargs['pk']
         ).select_related('user')
+
+
+class LeadAutoAssignView(APIView):
+    """POST /api/bookings/leads/auto-assign/ — Round-robin auto-assign unassigned leads."""
+    permission_classes = [IsManagerOrOwner]
+
+    def post(self, request):
+        from bookings.services.round_robin import run_round_robin
+        result = run_round_robin(request.user)
+        return Response(result)

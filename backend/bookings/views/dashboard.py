@@ -3,7 +3,6 @@ from datetime import timedelta
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Count, Q, Avg, Sum, F
 from django.utils import timezone
-from rest_framework import permissions
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -11,17 +10,7 @@ from bookings.models import Lead
 from bookings.models.activity import ActivityLog
 from bookings.models.choices import LeadStatusOption
 from bookings.models import Reminder
-
-
-class IsManagerOrOwner(permissions.BasePermission):
-    """Only allow users with role 'manager' or 'owner'."""
-
-    def has_permission(self, request, view):
-        return (
-            request.user
-            and request.user.is_authenticated
-            and getattr(request.user, 'role', '') in ('manager', 'owner')
-        )
+from bookings.permissions import IsManagerOrOwner
 
 
 class DashboardStatsView(APIView):

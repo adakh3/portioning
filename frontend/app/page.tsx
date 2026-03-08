@@ -4,9 +4,11 @@ import { useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth";
 import { useEvents, useQuotes, useLeads, useDashboardStats, useSiteSettings, useReminderCounts } from "@/lib/hooks";
+import { api, AutoAssignResult } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { mutate } from "swr";
 
 const PERIODS = [
   { value: "today", label: "Today" },
@@ -30,6 +32,8 @@ export default function Dashboard() {
   const { user } = useAuth();
   const isManager = user?.role === "manager" || user?.role === "owner";
   const [period, setPeriod] = useState<string>("today");
+  const [autoAssigning, setAutoAssigning] = useState(false);
+  const [autoAssignResult, setAutoAssignResult] = useState<AutoAssignResult | null>(null);
   const { data: stats } = useDashboardStats(isManager ? period : null);
   const { data: rawSettings } = useSiteSettings();
   const cs = rawSettings?.currency_symbol || "\u00a3";
@@ -154,7 +158,39 @@ export default function Dashboard() {
       {salespeople.length > 0 && (
         <Card>
           <CardContent className="p-5">
-            <h2 className="text-sm font-semibold text-foreground mb-1">Salesperson Performance</h2>
+            <div className="flex items-center justify-between mb-1">
+              <h2 className="text-sm font-semibold text-foreground">Salesperson Performance</h2>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={autoAssigning}
+                onClick={async () => {
+                  setAutoAssigning(true);
+                  setAutoAssignResult(null);
+                  try {
+                    const result = await api.autoAssignLeads();
+                    setAutoAssignResult(result);
+                    mutate(`dashboard-stats-${period}`);
+                  } catch {
+                    setAutoAssignResult({ assigned: -1, skipped_no_product: 0, skipped_no_staff: 0 });
+                  } finally {
+                    setAutoAssigning(false);
+                  }
+                }}
+              >
+                {autoAssigning ? "Assigning…" : "Auto-Assign"}
+              </Button>
+            </div>
+            {autoAssignResult && (
+              <p className={`text-xs mb-2 ${autoAssignResult.assigned === -1 ? "text-red-500" : "text-muted-foreground"}`}>
+                {autoAssignResult.assigned === -1
+                  ? "Auto-assign failed. Please try again."
+                  : `Assigned ${autoAssignResult.assigned} lead${autoAssignResult.assigned !== 1 ? "s" : ""}`
+                    + (autoAssignResult.skipped_no_product ? `, ${autoAssignResult.skipped_no_product} skipped (no product)` : "")
+                    + (autoAssignResult.skipped_no_staff ? `, ${autoAssignResult.skipped_no_staff} skipped (no staff)` : "")
+                    + "."}
+              </p>
+            )}
             <p className="text-xs text-muted-foreground mb-3">
               Pipeline columns show current assigned leads. Period columns reflect activity in the selected period.
             </p>
