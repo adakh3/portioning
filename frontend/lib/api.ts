@@ -270,13 +270,16 @@ export interface Lead {
   lead_date: string | null;
   status: string;
   status_display: string;
-  converted_to_quote: number | null;
+  won_quote: number | null;
+  won_event: number | null;
+  won_event_name: string | null;
   lost_reason_option: number | null;
   lost_reason_option_display: string | null;
   lost_notes: string;
   contacted_at: string | null;
   qualified_at: string | null;
-  converted_at: string | null;
+  proposal_sent_at: string | null;
+  won_at: string | null;
   lost_at: string | null;
   created_at: string;
   updated_at: string;
@@ -841,6 +844,12 @@ export const api = {
     fetchApi<Lead>(`/bookings/leads/${id}/transition/`, { method: "POST", body: JSON.stringify({ status, ...extra }) }),
   convertLead: (id: number) =>
     fetchApi<Quote>(`/bookings/leads/${id}/convert/`, { method: "POST" }),
+  createQuoteFromLead: (id: number) =>
+    fetchApi<Quote>(`/bookings/leads/${id}/create-quote/`, { method: "POST" }),
+  markLeadWon: (id: number, data: { create_event?: boolean; quote_id?: number }) =>
+    fetchApi<Lead>(`/bookings/leads/${id}/won/`, { method: "POST", body: JSON.stringify(data) }),
+  createEventFromLead: (id: number, data?: { quote_id?: number }) =>
+    fetchApi<EventData>(`/bookings/leads/${id}/create-event/`, { method: "POST", body: JSON.stringify(data || {}) }),
   getLeadActivity: (id: number) =>
     fetchApi<ActivityLogEntry[]>(`/bookings/leads/${id}/activity/`),
 

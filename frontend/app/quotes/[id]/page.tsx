@@ -56,6 +56,7 @@ export default function QuoteDetailPage() {
     notes: "",
     internal_notes: "",
   });
+  const [showAcceptConfirm, setShowAcceptConfirm] = useState(false);
   const [suggestedPrice, setSuggestedPrice] = useState<number | null>(null);
   const handleSuggestedPriceChange = useCallback((price: number | null) => setSuggestedPrice(price), []);
   const [itemData, setItemData] = useState({
@@ -243,14 +244,14 @@ export default function QuoteDetailPage() {
                 <Button onClick={() => handleTransition("sent")} disabled={saving}>
                   {saving ? "..." : "Mark as Sent"}
                 </Button>
-                <Button onClick={() => handleTransition("accepted")} disabled={saving} variant="success">
+                <Button onClick={() => setShowAcceptConfirm(true)} disabled={saving} variant="success">
                   {saving ? "..." : "Accept & Create Event"}
                 </Button>
               </>
             )}
             {quote.status === "sent" && (
               <>
-                <Button onClick={() => handleTransition("accepted")} disabled={saving} variant="success">
+                <Button onClick={() => setShowAcceptConfirm(true)} disabled={saving} variant="success">
                   {saving ? "..." : "Accept & Create Event"}
                 </Button>
                 <Button variant="outline" onClick={() => handleTransition("declined")} disabled={saving} className="border-destructive/50 text-destructive hover:bg-destructive/10">
@@ -501,6 +502,33 @@ export default function QuoteDetailPage() {
           />
         </CardContent>
       </Card>
+
+      {/* Accept Confirmation Dialog */}
+      {showAcceptConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-background rounded-lg shadow-lg p-6 w-full max-w-md mx-4">
+            <h3 className="text-lg font-semibold text-foreground mb-4">Accept Quote</h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              Accepting this quote will create an event{quote.lead ? " and mark the lead as Won" : ""}. Continue?
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button variant="secondary" onClick={() => setShowAcceptConfirm(false)}>
+                Cancel
+              </Button>
+              <Button
+                variant="success"
+                disabled={saving}
+                onClick={async () => {
+                  setShowAcceptConfirm(false);
+                  await handleTransition("accepted");
+                }}
+              >
+                {saving ? "..." : "Accept"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Line Items */}
       <Card>

@@ -9,7 +9,7 @@ const ACTION_ICONS: Record<string, string> = {
   updated: "~",
   status_change: ">",
   assigned: "@",
-  converted: "*",
+  won: "*",
   deleted: "x",
 };
 
@@ -18,7 +18,7 @@ const ACTION_COLORS: Record<string, string> = {
   updated: "bg-gray-400",
   status_change: "bg-amber-500",
   assigned: "bg-purple-500",
-  converted: "bg-green-500",
+  won: "bg-green-500",
   deleted: "bg-red-500",
 };
 

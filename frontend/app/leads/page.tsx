@@ -54,7 +54,8 @@ const COLUMNS = [
   { status: "new", label: "New", color: "bg-primary", badge: "bg-white/20 text-white" },
   { status: "contacted", label: "Contacted", color: "bg-warning", badge: "bg-white/20 text-white" },
   { status: "qualified", label: "Qualified", color: "bg-info", badge: "bg-white/20 text-white" },
-  { status: "converted", label: "Converted", color: "bg-success", badge: "bg-white/20 text-white" },
+  { status: "proposal_sent", label: "Proposal Sent", color: "bg-violet-500", badge: "bg-white/20 text-white" },
+  { status: "won", label: "Won", color: "bg-success", badge: "bg-white/20 text-white" },
   { status: "lost", label: "Lost", color: "bg-muted", badge: "bg-foreground/10 text-foreground" },
 ] as const;
 
@@ -64,7 +65,8 @@ const STATUS_VARIANT: Record<string, "default" | "warning" | "info" | "success" 
   new: "default",
   contacted: "warning",
   qualified: "info",
-  converted: "success",
+  proposal_sent: "info",
+  won: "success",
   lost: "secondary",
 };
 
@@ -208,6 +210,7 @@ export default function LeadsPage() {
 }
 
 function LeadsContent() {
+  const router = useRouter();
   const [viewModeRaw, setViewMode] = useQueryState("view", "kanban");
   const viewMode = (viewModeRaw === "table" ? "table" : "kanban") as "kanban" | "table";
   const [search, setSearch] = useState("");
@@ -237,6 +240,10 @@ function LeadsContent() {
   const [lostReasonId, setLostReasonId] = useState<number | null>(null);
   const [lostNotesInput, setLostNotesInput] = useState("");
   const [lostSaving, setLostSaving] = useState(false);
+
+  // Won dialog state
+  const [pendingWonLeadId, setPendingWonLeadId] = useState<number | null>(null);
+  const [wonSaving, setWonSaving] = useState(false);
 
   // Build filters for API
   const filters: LeadFilters = useMemo(() => {
@@ -382,6 +389,12 @@ function LeadsContent() {
       return;
     }
 
+    // Intercept won transitions — show dialog
+    if (targetStatus === "won") {
+      setPendingWonLeadId(lead.id);
+      return;
+    }
+
     setLeads((prev) =>
       prev.map((l) =>
         l.id === lead.id ? { ...l, status: targetStatus } : l
@@ -441,6 +454,40 @@ function LeadsContent() {
       setLostReasonId(null);
       setLostNotesInput("");
       setLostSaving(false);
+    }
+  }
+
+  async function handleConfirmWon(createEvent: boolean) {
+    if (!pendingWonLeadId) return;
+    setWonSaving(true);
+    setLeads((prev) =>
+      prev.map((l) =>
+        l.id === pendingWonLeadId ? { ...l, status: "won" } : l
+      )
+    );
+    try {
+      const updated = await api.markLeadWon(pendingWonLeadId, { create_event: createEvent });
+      revalidate("leads");
+      const qs = Object.entries(filters)
+        .filter(([, v]) => v)
+        .map(([k, v]) => `${k}=${v}`)
+        .sort()
+        .join("&");
+      if (qs) revalidate(`leads?${qs}`);
+      if (createEvent && updated.won_event) {
+        router.push(`/events/${updated.won_event}`);
+      }
+    } catch (e: unknown) {
+      setLeads((prev) =>
+        prev.map((l) => {
+          const original = fetchedLeads?.find((fl) => fl.id === l.id);
+          return l.id === pendingWonLeadId && original ? { ...l, status: original.status } : l;
+        })
+      );
+      setToast(e instanceof Error ? e.message : "Failed to mark won");
+    } finally {
+      setPendingWonLeadId(null);
+      setWonSaving(false);
     }
   }
 
@@ -739,6 +786,7 @@ function LeadsContent() {
             setLeads((prev) => prev.map((l) => l.id === leadId ? { ...l, ...patch } : l))
           }
           onMarkLost={(leadId) => setPendingLostLeadId(leadId)}
+          onMarkWon={(leadId) => setPendingWonLeadId(leadId)}
         />
       )}
 
@@ -823,6 +871,49 @@ function LeadsContent() {
         </DialogContent>
       </Dialog>
 
+      {/* Won dialog */}
+      <Dialog
+        open={pendingWonLeadId !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingWonLeadId(null);
+        }}
+      >
+        <DialogContent className="border-success/30">
+          <div className="text-center pt-2">
+            <div className="text-5xl mb-3">&#127881;</div>
+            <DialogHeader className="text-center">
+              <DialogTitle className="text-xl text-center">Congratulations!</DialogTitle>
+              <DialogDescription className="text-center">
+                You&apos;re about to close this deal. What&apos;s next?
+              </DialogDescription>
+            </DialogHeader>
+          </div>
+          <div className="flex flex-col gap-3 py-3">
+            <button
+              disabled={wonSaving}
+              onClick={() => handleConfirmWon(true)}
+              className="w-full text-left p-4 rounded-lg border-2 border-success/30 bg-success/5 hover:bg-success/10 hover:border-success/50 transition-colors disabled:opacity-50"
+            >
+              <div className="font-semibold text-foreground">Create Event Now</div>
+              <div className="text-sm text-muted-foreground mt-0.5">Set up the event straight away</div>
+            </button>
+            <button
+              disabled={wonSaving}
+              onClick={() => handleConfirmWon(false)}
+              className="w-full text-left p-4 rounded-lg border border-border hover:bg-muted transition-colors disabled:opacity-50"
+            >
+              <div className="font-semibold text-foreground">Mark as Won</div>
+              <div className="text-sm text-muted-foreground mt-0.5">I&apos;ll create the event later</div>
+            </button>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPendingWonLeadId(null)}>
+              Cancel
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Toast */}
       {toast && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-foreground text-background text-sm px-4 py-2 rounded-lg shadow-lg z-50">
@@ -848,6 +939,7 @@ function LeadsTable({
   onToast,
   onOptimisticUpdate,
   onMarkLost,
+  onMarkWon,
 }: {
   leads: Lead[];
   selectedIds: Set<number>;
@@ -861,6 +953,7 @@ function LeadsTable({
   onToast: (msg: string) => void;
   onOptimisticUpdate: (leadId: number, patch: Partial<Lead>) => void;
   onMarkLost: (leadId: number) => void;
+  onMarkWon: (leadId: number) => void;
 }) {
   const router = useRouter();
   const { data: eventTypes = [] } = useEventTypes();
@@ -936,6 +1029,11 @@ function LeadsTable({
         if (value === "lost") {
           setSaving(null);
           onMarkLost(leadId);
+          return;
+        }
+        if (value === "won") {
+          setSaving(null);
+          onMarkWon(leadId);
           return;
         }
         onOptimisticUpdate(leadId, { status: value });
