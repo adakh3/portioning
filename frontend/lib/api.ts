@@ -642,7 +642,7 @@ export interface ReminderCounts {
 
 // Dashboard stats
 export interface SalespersonPerformance {
-  user_id: number;
+  user_id: number | null;
   user_name: string;
   pipeline: Record<string, number>;
   pipeline_value: number;
@@ -650,6 +650,8 @@ export interface SalespersonPerformance {
   period_created: number;
   period_won: number;
   period_lost: number;
+  overdue_reminders: number;
+  stale_leads: number;
 }
 
 export interface DashboardStats {

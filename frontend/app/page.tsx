@@ -171,12 +171,14 @@ export default function Dashboard() {
                     <th className="pb-2 px-2 font-medium text-muted-foreground text-center border-l border-border" title={`Created in ${period}`}>Created</th>
                     <th className="pb-2 px-2 font-medium text-muted-foreground text-center" title={`Won in ${period}`}>Won</th>
                     <th className="pb-2 px-2 font-medium text-muted-foreground text-center" title={`Lost in ${period}`}>Lost</th>
+                    <th className="pb-2 px-2 font-medium text-muted-foreground text-center border-l border-border" title="Overdue follow-up reminders">Overdue</th>
+                    <th className="pb-2 px-2 font-medium text-muted-foreground text-center" title="Leads with no activity in 7+ days">Stale</th>
                   </tr>
                 </thead>
                 <tbody>
                   {salespeople.map((sp) => (
-                    <tr key={sp.user_id} className="border-b border-border last:border-0">
-                      <td className="py-2 pr-4 text-foreground font-medium sticky left-0 bg-card">{sp.user_name}</td>
+                    <tr key={sp.user_id ?? "unassigned"} className={`border-b border-border last:border-0 ${sp.user_id === null ? "italic text-muted-foreground" : ""}`}>
+                      <td className="py-2 pr-4 font-medium sticky left-0 bg-card">{sp.user_name}</td>
                       <td className="py-2 px-2 text-center font-semibold">{sp.total_assigned}</td>
                       {statusCols.map((sc) => (
                         <td key={sc.value} className="py-2 px-2 text-center">
@@ -194,6 +196,12 @@ export default function Dashboard() {
                       </td>
                       <td className="py-2 px-2 text-center">
                         {sp.period_lost ? <span className="text-red-500 font-medium">{sp.period_lost}</span> : <span className="text-muted-foreground">-</span>}
+                      </td>
+                      <td className="py-2 px-2 text-center border-l border-border">
+                        {sp.overdue_reminders ? <span className="text-red-500 font-medium">{sp.overdue_reminders}</span> : <span className="text-muted-foreground">-</span>}
+                      </td>
+                      <td className="py-2 px-2 text-center">
+                        {sp.stale_leads ? <span className="text-amber-500 font-medium">{sp.stale_leads}</span> : <span className="text-muted-foreground">-</span>}
                       </td>
                     </tr>
                   ))}

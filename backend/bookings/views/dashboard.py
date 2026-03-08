@@ -10,6 +10,7 @@ from rest_framework.views import APIView
 from bookings.models import Lead
 from bookings.models.activity import ActivityLog
 from bookings.models.choices import LeadStatusOption
+from bookings.models import Reminder
 
 
 class IsManagerOrOwner(permissions.BasePermission):
@@ -150,6 +151,31 @@ class DashboardStatsView(APIView):
             .values_list('user__id', 'c')
         )
 
+        # Overdue reminders per assigned user
+        overdue_by_user = dict(
+            Reminder.objects.filter(
+                status='pending',
+                due_at__lt=now,
+                lead__assigned_to__isnull=False,
+            )
+            .values_list('lead__assigned_to')
+            .annotate(c=Count('id'))
+            .values_list('lead__assigned_to', 'c')
+        )
+
+        # Stale leads per assigned user (no activity in 7+ days, still active)
+        stale_cutoff = now - timedelta(days=7)
+        stale_by_user = dict(
+            Lead.objects.filter(
+                assigned_to__isnull=False,
+                updated_at__lt=stale_cutoff,
+            )
+            .exclude(status__in=['converted', 'lost'])
+            .values_list('assigned_to')
+            .annotate(c=Count('id'))
+            .values_list('assigned_to', 'c')
+        )
+
         # Build per-salesperson data
         sp_map = {}
         for row in pipeline_qs:
@@ -168,6 +194,8 @@ class DashboardStatsView(APIView):
                     'period_created': period_created_by_user.get(uid, 0),
                     'period_won': period_won_by_user.get(uid, 0),
                     'period_lost': period_lost_by_user.get(uid, 0),
+                    'overdue_reminders': overdue_by_user.get(uid, 0),
+                    'stale_leads': stale_by_user.get(uid, 0),
                 }
             sp = sp_map[uid]
             st = row['status']
@@ -194,9 +222,57 @@ class DashboardStatsView(APIView):
                 'period_created': period_created_by_user.get(uid, 0),
                 'period_won': period_won_by_user.get(uid, 0),
                 'period_lost': period_lost_by_user.get(uid, 0),
+                'overdue_reminders': overdue_by_user.get(uid, 0),
+                'stale_leads': stale_by_user.get(uid, 0),
             }
 
+        # Unassigned leads row
+        unassigned_qs = (
+            Lead.objects
+            .filter(assigned_to__isnull=True)
+            .values('status')
+            .annotate(count=Count('id'), value=Sum('budget'))
+        )
+        unassigned_pipeline = {sv: 0 for sv in status_values}
+        unassigned_total = 0
+        unassigned_value = 0
+        for row in unassigned_qs:
+            st = row['status']
+            if st in unassigned_pipeline:
+                unassigned_pipeline[st] = row['count']
+            unassigned_total += row['count']
+            unassigned_value += float(row['value'] or 0)
+
+        unassigned_stale = (
+            Lead.objects.filter(
+                assigned_to__isnull=True,
+                updated_at__lt=stale_cutoff,
+            )
+            .exclude(status__in=['converted', 'lost'])
+            .count()
+        )
+        unassigned_overdue = Reminder.objects.filter(
+            status='pending',
+            due_at__lt=now,
+            lead__assigned_to__isnull=True,
+        ).count()
+
+        unassigned_row = {
+            'user_id': None,
+            'user_name': 'Unassigned',
+            'pipeline': unassigned_pipeline,
+            'pipeline_value': unassigned_value,
+            'total_assigned': unassigned_total,
+            'period_created': 0,
+            'period_won': 0,
+            'period_lost': 0,
+            'overdue_reminders': unassigned_overdue,
+            'stale_leads': unassigned_stale,
+        }
+
         salesperson_performance = sorted(sp_map.values(), key=lambda x: x['total_assigned'], reverse=True)
+        if unassigned_total > 0:
+            salesperson_performance.append(unassigned_row)
 
         # ── Status distribution: all leads grouped by status ──
         status_distribution_qs = (
