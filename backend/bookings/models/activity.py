@@ -9,7 +9,7 @@ class ActivityLog(models.Model):
         ('updated', 'Updated'),
         ('status_change', 'Status Change'),
         ('assigned', 'Assigned'),
-        ('converted', 'Converted'),
+        ('won', 'Won'),
         ('deleted', 'Deleted'),
     ]
 

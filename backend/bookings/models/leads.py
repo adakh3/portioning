@@ -46,8 +46,12 @@ class Lead(models.Model):
         'users.User', null=True, blank=True,
         on_delete=models.SET_NULL, related_name='created_leads',
     )
-    converted_to_quote = models.ForeignKey(
+    won_quote = models.ForeignKey(
         'bookings.Quote', null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='source_lead',
+    )
+    won_event = models.ForeignKey(
+        'events.Event', null=True, blank=True,
         on_delete=models.SET_NULL, related_name='source_lead',
     )
     lead_date = models.DateField(
@@ -61,7 +65,8 @@ class Lead(models.Model):
     lost_notes = models.TextField(blank=True)
     contacted_at = models.DateTimeField(null=True, blank=True)
     qualified_at = models.DateTimeField(null=True, blank=True)
-    converted_at = models.DateTimeField(null=True, blank=True)
+    proposal_sent_at = models.DateTimeField(null=True, blank=True)
+    won_at = models.DateTimeField(null=True, blank=True)
     lost_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -89,8 +94,10 @@ class Lead(models.Model):
             self.contacted_at = now
         elif new_status == 'qualified':
             self.qualified_at = now
-        elif new_status == 'converted':
-            self.converted_at = now
+        elif new_status == 'proposal_sent':
+            self.proposal_sent_at = now
+        elif new_status == 'won':
+            self.won_at = now
         elif new_status == 'lost':
             self.lost_at = now
         self.save()
