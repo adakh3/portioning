@@ -485,96 +485,109 @@ function LeadsContent() {
         </div>
       </div>
 
-      {/* Filter bar */}
-      <div className="flex flex-wrap items-end gap-2 mb-4">
-        <Input
-          type="text"
-          placeholder="Search..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-48"
-        />
-        <Select value={filterAssigned || "__all__"} onValueChange={(v) => setFilterAssigned(v === "__all__" ? "" : v)}>
-          <SelectTrigger className="w-40">
-            <SelectValue placeholder="Assigned To" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__all__">All Users</SelectItem>
-            {users?.map((u) => (
-              <SelectItem key={u.id} value={u.id.toString()}>
-                {u.first_name} {u.last_name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={filterProduct || "__all__"} onValueChange={(v) => setFilterProduct(v === "__all__" ? "" : v)}>
-          <SelectTrigger className="w-40">
-            <SelectValue placeholder="Product" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__all__">All Products</SelectItem>
-            {productLines?.map((p) => (
-              <SelectItem key={p.id} value={p.id.toString()}>
-                {p.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={filterEventType || "__all__"} onValueChange={(v) => setFilterEventType(v === "__all__" ? "" : v)}>
-          <SelectTrigger className="w-40">
-            <SelectValue placeholder="Event Type" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__all__">All Types</SelectItem>
-            {eventTypes.map((et) => (
-              <SelectItem key={et.value} value={et.value}>
-                {et.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <div className="flex items-center gap-1">
-          <label className="text-xs text-muted-foreground whitespace-nowrap">Event:</label>
+      {/* Filter bar — collapses when bulk actions are active */}
+      {selectedIds.size > 0 && viewMode === "table" ? (
+        hasFilters ? (
+          <div className="flex items-center gap-2 mb-2 text-xs text-muted-foreground">
+            <span>Filters active</span>
+            <span className="text-border">|</span>
+            <button className="hover:text-foreground underline" onClick={() => setSelectedIds(new Set())}>
+              Show filters
+            </button>
+          </div>
+        ) : null
+      ) : (
+        <div className="flex flex-wrap items-end gap-2 mb-4">
           <Input
-            type="date"
-            value={filterDateFrom}
-            onChange={(e) => setFilterDateFrom(e.target.value)}
-            className="w-36"
+            type="text"
+            placeholder="Search..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-48"
           />
-          <span className="text-muted-foreground text-xs">-</span>
-          <Input
-            type="date"
-            value={filterDateTo}
-            onChange={(e) => setFilterDateTo(e.target.value)}
-            className="w-36"
-          />
+          <Select value={filterAssigned || "__all__"} onValueChange={(v) => setFilterAssigned(v === "__all__" ? "" : v)}>
+            <SelectTrigger className="w-40">
+              <SelectValue placeholder="Assigned To" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">All Users</SelectItem>
+              {users?.map((u) => (
+                <SelectItem key={u.id} value={u.id.toString()}>
+                  {u.first_name} {u.last_name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={filterProduct || "__all__"} onValueChange={(v) => setFilterProduct(v === "__all__" ? "" : v)}>
+            <SelectTrigger className="w-40">
+              <SelectValue placeholder="Product" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">All Products</SelectItem>
+              {productLines?.map((p) => (
+                <SelectItem key={p.id} value={p.id.toString()}>
+                  {p.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={filterEventType || "__all__"} onValueChange={(v) => setFilterEventType(v === "__all__" ? "" : v)}>
+            <SelectTrigger className="w-40">
+              <SelectValue placeholder="Event Type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">All Types</SelectItem>
+              {eventTypes.map((et) => (
+                <SelectItem key={et.value} value={et.value}>
+                  {et.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <div className="flex items-center gap-1">
+            <label className="text-xs text-muted-foreground whitespace-nowrap">Event:</label>
+            <Input
+              type="date"
+              value={filterDateFrom}
+              onChange={(e) => setFilterDateFrom(e.target.value)}
+              className="w-36"
+            />
+            <span className="text-muted-foreground text-xs">-</span>
+            <Input
+              type="date"
+              value={filterDateTo}
+              onChange={(e) => setFilterDateTo(e.target.value)}
+              className="w-36"
+            />
+          </div>
+          <div className="flex items-center gap-1">
+            <label className="text-xs text-muted-foreground whitespace-nowrap">Lead:</label>
+            <Input
+              type="date"
+              value={filterLeadDateFrom}
+              onChange={(e) => setFilterLeadDateFrom(e.target.value)}
+              className="w-36"
+            />
+            <span className="text-muted-foreground text-xs">-</span>
+            <Input
+              type="date"
+              value={filterLeadDateTo}
+              onChange={(e) => setFilterLeadDateTo(e.target.value)}
+              className="w-36"
+            />
+          </div>
+          {hasFilters && (
+            <Button variant="ghost" size="sm" onClick={clearFilters}>
+              Clear filters
+            </Button>
+          )}
         </div>
-        <div className="flex items-center gap-1">
-          <label className="text-xs text-muted-foreground whitespace-nowrap">Lead:</label>
-          <Input
-            type="date"
-            value={filterLeadDateFrom}
-            onChange={(e) => setFilterLeadDateFrom(e.target.value)}
-            className="w-36"
-          />
-          <span className="text-muted-foreground text-xs">-</span>
-          <Input
-            type="date"
-            value={filterLeadDateTo}
-            onChange={(e) => setFilterLeadDateTo(e.target.value)}
-            className="w-36"
-          />
-        </div>
-        {hasFilters && (
-          <Button variant="ghost" size="sm" onClick={clearFilters}>
-            Clear filters
-          </Button>
-        )}
-      </div>
+      )}
 
       {/* Bulk action bar */}
       {selectedIds.size > 0 && viewMode === "table" && (
-        <div className="flex items-center gap-3 mb-3 px-3 py-2 bg-muted rounded-lg border border-border">
+        <div className="flex items-center gap-3 mb-3 px-3 py-2 bg-primary/10 rounded-lg border border-primary/30">
+          <span className="text-sm font-semibold text-primary">Actions:</span>
           <span className="text-sm font-medium">{selectedIds.size} selected</span>
           <div className="h-4 w-px bg-border" />
 
@@ -672,12 +685,14 @@ function LeadsContent() {
             Delete
           </Button>
 
-          <button
-            className="ml-auto text-xs text-muted-foreground hover:text-foreground"
+          <Button
+            variant="ghost"
+            size="sm"
+            className="ml-auto h-8 text-xs"
             onClick={() => setSelectedIds(new Set())}
           >
             Deselect all
-          </button>
+          </Button>
         </div>
       )}
 
