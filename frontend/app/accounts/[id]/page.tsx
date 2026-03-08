@@ -86,13 +86,15 @@ export default function AccountDetailPage() {
   if (!account) return <p className="text-muted-foreground">Account not found.</p>;
 
   return (
-    <div>
-      <Button variant="link" asChild className="mb-4 p-0 h-auto">
-        <Link href="/accounts">&larr; Back to Accounts</Link>
-      </Button>
+    <div className="space-y-6">
+      <div className="flex items-center gap-2 text-sm">
+        <Link href="/accounts" className="text-primary hover:underline">&larr; Accounts</Link>
+        <span className="text-muted-foreground">&middot;</span>
+        <span className="text-muted-foreground">{account.name}</span>
+      </div>
 
-      <Card className="mb-6">
-        <CardContent className="pt-6">
+      <Card>
+        <CardContent className="p-6">
           <div className="flex items-start justify-between mb-4">
             <div>
               {editing ? (
@@ -145,7 +147,7 @@ export default function AccountDetailPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">Type</label>
-                <select value={formData.account_type} onChange={(e) => setFormData({ ...formData, account_type: e.target.value })} className="w-full border border-input rounded-md px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
+                <select value={formData.account_type} onChange={(e) => setFormData({ ...formData, account_type: e.target.value })} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
                   <option value="individual">Individual</option>
                   <option value="company">Company</option>
                   <option value="agency">Agency</option>
@@ -154,7 +156,7 @@ export default function AccountDetailPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">Payment Terms</label>
-                <select value={formData.payment_terms} onChange={(e) => setFormData({ ...formData, payment_terms: e.target.value })} className="w-full border border-input rounded-md px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
+                <select value={formData.payment_terms} onChange={(e) => setFormData({ ...formData, payment_terms: e.target.value })} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
                   <option value="immediate">Immediate</option>
                   <option value="net_15">Net 15</option>
                   <option value="net_30">Net 30</option>
@@ -185,9 +187,9 @@ export default function AccountDetailPage() {
 
       {/* Contacts */}
       <Card>
-        <CardContent className="pt-6">
+        <CardContent className="p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-foreground">Contacts</h2>
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Contacts</h2>
             <Button onClick={() => setShowContactForm(!showContactForm)}>
               {showContactForm ? "Cancel" : "Add Contact"}
             </Button>
@@ -210,7 +212,7 @@ export default function AccountDetailPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Role</label>
-                  <select value={contactData.role} onChange={(e) => setContactData({ ...contactData, role: e.target.value })} className="w-full border border-input rounded-md px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
+                  <select value={contactData.role} onChange={(e) => setContactData({ ...contactData, role: e.target.value })} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
                     <option value="decision_maker">Decision Maker</option>
                     <option value="coordinator">Coordinator</option>
                     <option value="billing">Billing</option>

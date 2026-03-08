@@ -336,7 +336,7 @@ export default function LeadDetailPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-2 text-sm">
-        <Link href="/leads" className="text-primary hover:underline">&larr; Back to Leads</Link>
+        <Link href="/leads" className="text-primary hover:underline">&larr; Leads</Link>
       </div>
 
       {error && <p className="text-destructive">{error}</p>}

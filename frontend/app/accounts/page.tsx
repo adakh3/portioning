@@ -39,8 +39,8 @@ export default function AccountsPage() {
   if (loadError) return <p className="text-destructive">Error: {loadError.message}</p>;
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-6">
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-foreground">Accounts</h1>
         <Button
           onClick={() => setShowForm(!showForm)}
@@ -50,40 +50,44 @@ export default function AccountsPage() {
       </div>
 
       {showForm && (
-        <form onSubmit={handleCreate} className="bg-background border border-border rounded-lg p-4 mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Name *</label>
-              <Input
-                type="text"
-                required
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Type</label>
-              <select
-                value={formData.account_type}
-                onChange={(e) => setFormData({ ...formData, account_type: e.target.value })}
-                className="w-full border border-input rounded-md px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        <Card>
+          <CardContent className="p-6">
+            <form onSubmit={handleCreate}>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Name *</label>
+                  <Input
+                    type="text"
+                    required
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Type</label>
+                  <select
+                    value={formData.account_type}
+                    onChange={(e) => setFormData({ ...formData, account_type: e.target.value })}
+                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  >
+                    <option value="individual">Individual</option>
+                    <option value="company">Company</option>
+                    <option value="agency">Agency</option>
+                    <option value="venue">Venue</option>
+                  </select>
+                </div>
+              </div>
+              <Button
+                type="submit"
+                disabled={saving}
+                variant="success"
+                className="mt-4"
               >
-                <option value="individual">Individual</option>
-                <option value="company">Company</option>
-                <option value="agency">Agency</option>
-                <option value="venue">Venue</option>
-              </select>
-            </div>
-          </div>
-          <Button
-            type="submit"
-            disabled={saving}
-            variant="success"
-            className="mt-4"
-          >
-            {saving ? "Creating..." : "Create Account"}
-          </Button>
-        </form>
+                {saving ? "Creating..." : "Create Account"}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
       )}
 
       <Input
@@ -91,7 +95,7 @@ export default function AccountsPage() {
         placeholder="Search accounts..."
         value={search}
         onChange={(e) => setSearch(e.target.value)}
-        className="w-full md:w-80 mb-4"
+        className="w-full md:w-80"
       />
 
       {filtered.length === 0 ? (
@@ -105,7 +109,7 @@ export default function AccountsPage() {
               className="block"
             >
               <Card className="hover:border-primary/50 transition-colors">
-                <CardContent className="pt-4 pb-4">
+                <CardContent className="p-6">
                   <div className="flex items-start justify-between">
                     <div>
                       <h3 className="font-semibold text-foreground">{account.name}</h3>
