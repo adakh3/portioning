@@ -49,6 +49,7 @@ class LeadSerializer(serializers.ModelSerializer):
     lost_reason_option_display = serializers.CharField(
         source='lost_reason_option.label', read_only=True, default=None,
     )
+    won_event_name = serializers.SerializerMethodField()
     quotes = LeadQuoteSummarySerializer(many=True, read_only=True)
     created_by_name = serializers.SerializerMethodField()
 
@@ -65,15 +66,15 @@ class LeadSerializer(serializers.ModelSerializer):
             'assigned_to', 'assigned_to_name',
             'created_by', 'created_by_name',
             'status', 'status_display',
-            'converted_to_quote',
+            'won_quote', 'won_event', 'won_event_name',
             'lost_reason_option', 'lost_reason_option_display', 'lost_notes',
-            'contacted_at', 'qualified_at', 'converted_at', 'lost_at',
+            'contacted_at', 'qualified_at', 'proposal_sent_at', 'won_at', 'lost_at',
             'created_at', 'updated_at',
             'quotes',
         ]
         read_only_fields = [
-            'status', 'converted_to_quote', 'created_by',
-            'contacted_at', 'qualified_at', 'converted_at', 'lost_at',
+            'status', 'won_quote', 'won_event', 'created_by',
+            'contacted_at', 'qualified_at', 'proposal_sent_at', 'won_at', 'lost_at',
             'created_at', 'updated_at',
         ]
 
@@ -87,6 +88,11 @@ class LeadSerializer(serializers.ModelSerializer):
 
     def get_event_type_display(self, obj):
         return _get_event_type_labels().get(obj.event_type, obj.event_type)
+
+    def get_won_event_name(self, obj):
+        if obj.won_event:
+            return obj.won_event.name
+        return None
 
     def get_assigned_to_name(self, obj):
         if obj.assigned_to:

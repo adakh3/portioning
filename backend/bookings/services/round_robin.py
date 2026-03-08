@@ -13,7 +13,7 @@ def run_round_robin(triggered_by_user):
 
     Returns dict with assigned, skipped_no_product, skipped_no_staff counts.
     """
-    terminal_statuses = ['converted', 'lost']
+    terminal_statuses = ['won', 'lost']
 
     # All unassigned, non-terminal leads
     unassigned = Lead.objects.filter(

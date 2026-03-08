@@ -42,7 +42,7 @@ class LeadListCreateView(generics.ListCreateAPIView):
 
     def get_queryset(self):
         qs = Lead.objects.select_related(
-            'account', 'converted_to_quote', 'product', 'assigned_to',
+            'account', 'won_quote', 'won_event', 'product', 'assigned_to',
             'lost_reason_option',
         ).prefetch_related('quotes').all()
         params = self.request.query_params
@@ -180,7 +180,7 @@ def _snapshot_lead(lead):
 
 class LeadDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Lead.objects.select_related(
-        'account', 'converted_to_quote', 'product', 'assigned_to',
+        'account', 'won_quote', 'won_event', 'product', 'assigned_to',
         'lost_reason_option',
     ).prefetch_related('quotes').all()
     serializer_class = LeadSerializer
@@ -235,50 +235,200 @@ class LeadTransitionView(APIView):
         return Response(LeadSerializer(lead).data)
 
 
-class LeadConvertView(APIView):
-    """POST /api/bookings/leads/<pk>/convert/ — Create Quote from Lead."""
+def _find_or_create_contact(account, name, email, phone):
+    """Find existing Contact by email/phone on account, or create a new one."""
+    from bookings.models.accounts import Contact
+    contact = None
+    if email:
+        contact = Contact.objects.filter(account=account, email=email).first()
+    if not contact and phone:
+        contact = Contact.objects.filter(account=account, phone=phone).first()
+    if not contact and name:
+        contact = Contact.objects.create(
+            account=account,
+            name=name,
+            email=email or "",
+            phone=phone or "",
+            is_primary=True,
+        )
+    return contact
+
+
+class LeadCreateQuoteView(APIView):
+    """POST /api/bookings/leads/<pk>/create-quote/ — Create Quote from Lead (does not change lead status)."""
 
     def post(self, request, pk):
         lead = Lead.objects.select_related('account').get(pk=pk)
-
-        if lead.converted_to_quote:
-            return Response(
-                {'error': 'Lead already converted', 'quote_id': lead.converted_to_quote_id},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
 
         # Create account from lead if none exists
         account = lead.account
         if not account:
             from bookings.models import Account
-            account = Account.objects.create(name=lead.contact_name)
+            account = Account.objects.create(name=lead.contact_name, account_type="individual")
             lead.account = account
+            lead.save(update_fields=['account'])
+
+        contact = _find_or_create_contact(account, lead.contact_name, lead.contact_email, lead.contact_phone)
 
         quote = Quote.objects.create(
             lead=lead,
             account=account,
+            primary_contact=contact,
             event_date=lead.event_date or lead.created_at.date(),
             guest_count=lead.guest_estimate or 1,
             event_type=lead.event_type,
             service_style=lead.service_style,
         )
 
-        old_status = lead.status
-        lead.converted_to_quote = quote
-        lead.transition_to('converted')
-
         user = request.user if request.user.is_authenticated else None
         log_activity(
-            lead, 'converted', user=user,
-            description=f"Converted lead to Quote #{quote.id}",
-        )
-        log_activity(
-            lead, 'status_change', user=user,
-            field_name='status', old_value=old_status, new_value='converted',
-            description=f"Changed status from \"{old_status}\" to \"converted\"",
+            lead, 'updated', user=user,
+            description=f"Created Quote #{quote.id} from lead",
         )
 
         return Response(QuoteSerializer(quote).data, status=status.HTTP_201_CREATED)
+
+
+# Keep old name as alias for backward compat with any imports
+LeadConvertView = LeadCreateQuoteView
+
+
+class LeadWonView(APIView):
+    """POST /api/bookings/leads/<pk>/won/ — Mark lead as Won, optionally create event."""
+
+    def post(self, request, pk):
+        lead = Lead.objects.select_related('account', 'won_quote', 'won_event').get(pk=pk)
+
+        if lead.status == 'won':
+            return Response({'error': 'Lead is already won'}, status=status.HTTP_400_BAD_REQUEST)
+
+        quote_id = request.data.get('quote_id')
+        create_event = request.data.get('create_event', False)
+
+        quote = None
+        if quote_id:
+            try:
+                quote = Quote.objects.get(pk=quote_id, lead=lead)
+            except Quote.DoesNotExist:
+                return Response({'error': 'Quote not found for this lead'}, status=status.HTTP_400_BAD_REQUEST)
+
+        event = None
+        if create_event:
+            event = self._create_event(lead, quote)
+            lead.won_event = event
+
+        if quote:
+            lead.won_quote = quote
+
+        old_status = lead.status
+        lead.transition_to('won')
+
+        user = request.user if request.user.is_authenticated else None
+        desc = "Marked lead as Won"
+        if event:
+            desc += f" and created Event #{event.id}"
+        log_activity(
+            lead, 'status_change', user=user,
+            field_name='status', old_value=old_status, new_value='won',
+            description=desc,
+        )
+
+        return Response(LeadSerializer(lead).data)
+
+    def _create_event(self, lead, quote=None):
+        from events.models import Event
+        account = lead.account
+
+        event_name = f"{lead.contact_name}"
+        if account:
+            event_name = f"{account.name}"
+
+        guest_count = lead.guest_estimate or 1
+        price_per_head = None
+        event_status = 'tentative'
+        based_on_template = None
+
+        if quote:
+            guest_count = quote.guest_count
+            price_per_head = quote.price_per_head
+            event_status = 'confirmed'
+            based_on_template = quote.based_on_template
+
+        # Resolve primary contact from quote or lead strings
+        primary_contact = None
+        if quote and quote.primary_contact:
+            primary_contact = quote.primary_contact
+        elif account:
+            primary_contact = _find_or_create_contact(account, lead.contact_name, lead.contact_email, lead.contact_phone)
+
+        event = Event.objects.create(
+            name=event_name,
+            date=lead.event_date or lead.created_at.date(),
+            gents=guest_count // 2,
+            ladies=guest_count - (guest_count // 2),
+            account=account,
+            primary_contact=primary_contact,
+            event_type=lead.event_type,
+            service_style=lead.service_style,
+            price_per_head=price_per_head,
+            status=event_status,
+            based_on_template=based_on_template,
+        )
+
+        # Copy dishes from quote and auto-calculate portions
+        if quote and quote.dishes.exists():
+            event.dishes.set(quote.dishes.all())
+            from calculator.engine.calculator import calculate_portions
+            from events.models import EventDishComment
+            result = calculate_portions(
+                dish_ids=list(event.dishes.values_list('id', flat=True)),
+                guests={'gents': event.gents, 'ladies': event.ladies},
+            )
+            for p in result['portions']:
+                EventDishComment.objects.create(
+                    event=event,
+                    dish_id=p['dish_id'],
+                    portion_grams=p['grams_per_person'],
+                )
+
+        return event
+
+
+class LeadCreateEventView(APIView):
+    """POST /api/bookings/leads/<pk>/create-event/ — Create event from a won lead."""
+
+    def post(self, request, pk):
+        lead = Lead.objects.select_related('account', 'won_event').get(pk=pk)
+
+        if lead.status != 'won':
+            return Response({'error': 'Lead must be won to create an event'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if lead.won_event:
+            return Response(
+                {'error': 'Event already exists for this lead', 'event_id': lead.won_event_id},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        quote_id = request.data.get('quote_id')
+        quote = None
+        if quote_id:
+            try:
+                quote = Quote.objects.get(pk=quote_id, lead=lead)
+            except Quote.DoesNotExist:
+                return Response({'error': 'Quote not found for this lead'}, status=status.HTTP_400_BAD_REQUEST)
+
+        event = LeadWonView._create_event(None, lead, quote)
+        lead.won_event = event
+        lead.save(update_fields=['won_event'])
+
+        user = request.user if request.user.is_authenticated else None
+        log_activity(
+            lead, 'updated', user=user,
+            description=f"Created Event #{event.id} from won lead",
+        )
+
+        from events.serializers import EventSerializer
+        return Response(EventSerializer(event).data, status=status.HTTP_201_CREATED)
 
 
 class LeadActivityView(generics.ListAPIView):

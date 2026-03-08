@@ -66,7 +66,7 @@ class LeadAdmin(admin.ModelAdmin):
     list_display = ['contact_name', 'event_type', 'event_date', 'lead_date', 'status', 'product', 'assigned_to', 'source', 'guest_estimate', 'created_at']
     list_filter = ['status', 'source', 'event_type', 'product']
     search_fields = ['contact_name', 'contact_email', 'account__name']
-    readonly_fields = ['converted_to_quote', 'contacted_at', 'qualified_at', 'converted_at', 'lost_at']
+    readonly_fields = ['won_quote', 'won_event', 'contacted_at', 'qualified_at', 'proposal_sent_at', 'won_at', 'lost_at']
     change_list_template = "admin/bookings/lead/change_list.html"
 
     def get_urls(self):
