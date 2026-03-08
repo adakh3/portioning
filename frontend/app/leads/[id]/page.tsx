@@ -17,14 +17,16 @@ const STATUS_BADGE_VARIANT: Record<string, "info" | "warning" | "default" | "suc
   new: "info",
   contacted: "warning",
   qualified: "default",
-  converted: "success",
+  proposal_sent: "info",
+  won: "success",
   lost: "secondary",
 };
 
 const TRANSITION_LABELS: Record<string, { label: string; variant: "default" | "success" | "warning" | "secondary" | "destructive" }> = {
   contacted: { label: "Mark Contacted", variant: "warning" },
   qualified: { label: "Mark Qualified", variant: "default" },
-  converted: { label: "Convert to Quote", variant: "success" },
+  proposal_sent: { label: "Mark Proposal Sent", variant: "default" },
+  won: { label: "Mark Won", variant: "success" },
   lost: { label: "Mark Lost", variant: "secondary" },
   new: { label: "Reopen", variant: "default" },
 };
@@ -189,6 +191,9 @@ export default function LeadDetailPage() {
   const [showLostDialog, setShowLostDialog] = useState(false);
   const [lostReasonId, setLostReasonId] = useState<number | null>(null);
   const [lostNotesInput, setLostNotesInput] = useState("");
+  const [showWonDialog, setShowWonDialog] = useState(false);
+  const [creatingQuote, setCreatingQuote] = useState(false);
+  const [showOverflow, setShowOverflow] = useState(false);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [fieldStatus, setFieldStatus] = useState<Record<string, FieldStatus>>({});
 
@@ -209,19 +214,62 @@ export default function LeadDetailPage() {
       setShowLostDialog(true);
       return;
     }
+    if (newStatus === "won") {
+      setShowWonDialog(true);
+      return;
+    }
     setTransitioning(true);
     setError("");
     try {
-      if (newStatus === "converted") {
-        const quote = await api.convertLead(lead.id);
-        router.push(`/quotes/${quote.id}`);
-        return;
-      }
       const updated = await api.transitionLead(lead.id, newStatus);
       mutateLead(updated, false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to transition");
     } finally {
+      setTransitioning(false);
+    }
+  }
+
+  async function handleCreateQuote() {
+    if (!lead) return;
+    setCreatingQuote(true);
+    setError("");
+    try {
+      const quote = await api.createQuoteFromLead(lead.id);
+      router.push(`/quotes/${quote.id}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create quote");
+      setCreatingQuote(false);
+    }
+  }
+
+  async function handleMarkWon(createEvent: boolean, quoteId?: number) {
+    if (!lead) return;
+    setTransitioning(true);
+    setError("");
+    try {
+      const updated = await api.markLeadWon(lead.id, { create_event: createEvent, quote_id: quoteId });
+      mutateLead(updated, false);
+      setShowWonDialog(false);
+      if (createEvent && updated.won_event) {
+        router.push(`/events/${updated.won_event}`);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to mark won");
+    } finally {
+      setTransitioning(false);
+    }
+  }
+
+  async function handleCreateEventFromLead() {
+    if (!lead) return;
+    setTransitioning(true);
+    setError("");
+    try {
+      const event = await api.createEventFromLead(lead.id);
+      router.push(`/events/${event.id}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create event");
       setTransitioning(false);
     }
   }
@@ -250,7 +298,31 @@ export default function LeadDetailPage() {
   if (loadError && !lead) return <p className="text-destructive">Error: {loadError.message}</p>;
   if (!lead) return <p className="text-muted-foreground">Lead not found.</p>;
 
-  const availableTransitions = leadStatuses.map((s) => s.value).filter((s) => s !== lead.status);
+  // Contextual next steps based on current status
+  const NEXT_STEPS: Record<string, string[]> = {
+    new: ["contacted", "lost"],
+    contacted: ["qualified", "lost"],
+    qualified: ["proposal_sent", "won", "lost"],
+    proposal_sent: ["won", "lost"],
+    won: ["new"],
+    lost: ["new"],
+  };
+  const PRIMARY_NEXT: Record<string, string | null> = {
+    new: "contacted",
+    contacted: "qualified",
+    qualified: "proposal_sent",
+    proposal_sent: "won",
+    won: null,
+    lost: "new",
+  };
+  const nextSteps = NEXT_STEPS[lead.status] || [];
+  const primaryStep = PRIMARY_NEXT[lead.status] ?? null;
+  const overflowSteps = nextSteps.filter(s => s !== primaryStep);
+  // For won leads without event, "Create Event" is the primary action
+  const wonNeedsEvent = lead.status === "won" && !lead.won_event;
+  // Include "Create Quote" in overflow for active pipeline stages
+  const showCreateQuoteInOverflow = !["won", "lost"].includes(lead.status);
+  const hasOverflowItems = overflowSteps.length > 0 || showCreateQuoteInOverflow;
   const cs = settings.currency_symbol;
 
   const fieldProps = (field: string) => ({
@@ -262,24 +334,20 @@ export default function LeadDetailPage() {
   });
 
   return (
-    <div>
-      <Link href="/leads" className="text-sm text-primary hover:underline mb-4 inline-block">&larr; Back to Leads</Link>
+    <div className="space-y-6">
+      <div className="flex items-center gap-2 text-sm">
+        <Link href="/leads" className="text-primary hover:underline">&larr; Back to Leads</Link>
+      </div>
 
-      {error && <p className="text-destructive mb-4">{error}</p>}
+      {error && <p className="text-destructive">{error}</p>}
 
-      <Card className="mb-6">
+      <Card>
         <CardContent className="p-6">
-          <div className="flex items-start justify-between gap-4 mb-4">
+          <div className="flex items-start justify-between gap-4">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-3">
-                <AutoSaveField
-                  {...fieldProps("contact_name")}
-                  label=""
-                  type="text"
-                  value={lead.contact_name}
-                  required
-                />
-                <Badge variant={STATUS_BADGE_VARIANT[lead.status] || "secondary"} className="mt-6">
+                <h1 className="text-2xl font-bold text-foreground">{lead.contact_name}</h1>
+                <Badge variant={STATUS_BADGE_VARIANT[lead.status] || "secondary"}>
                   {lead.status_display}
                 </Badge>
               </div>
@@ -289,27 +357,83 @@ export default function LeadDetailPage() {
                 {lead.guest_estimate && ` \u00b7 ${lead.guest_estimate} guests`}
               </p>
             </div>
-            {availableTransitions.length > 0 && (
-              <div className="flex flex-wrap gap-2 shrink-0">
-                {availableTransitions.map((status) => {
-                  const { label, variant } = TRANSITION_LABELS[status] || { label: status, variant: "default" as const };
-                  return (
-                    <Button
-                      key={status}
-                      size="sm"
-                      onClick={() => handleTransition(status)}
-                      disabled={transitioning}
-                      variant={variant}
-                    >
-                      {transitioning ? "..." : label}
-                    </Button>
-                  );
-                })}
-              </div>
-            )}
+            <div className="flex items-center gap-2 shrink-0">
+              {/* Primary action button */}
+              {wonNeedsEvent ? (
+                <Button size="sm" variant="success" onClick={handleCreateEventFromLead} disabled={transitioning}>
+                  {transitioning ? "..." : "Create Event"}
+                </Button>
+              ) : primaryStep ? (
+                <Button
+                  size="sm"
+                  onClick={() => handleTransition(primaryStep)}
+                  disabled={transitioning}
+                  variant={TRANSITION_LABELS[primaryStep]?.variant || "default"}
+                >
+                  {transitioning ? "..." : TRANSITION_LABELS[primaryStep]?.label || primaryStep}
+                </Button>
+              ) : null}
+
+              {/* Overflow menu */}
+              {hasOverflowItems && (
+                <div className="relative">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setShowOverflow(!showOverflow)}
+                    className="px-2"
+                  >
+                    &#8943;
+                  </Button>
+                  {showOverflow && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setShowOverflow(false)} />
+                      <div className="absolute right-0 top-full mt-1 z-50 bg-background border border-border rounded-md shadow-lg py-1 min-w-[160px]">
+                        {overflowSteps.map((status) => {
+                          const { label } = TRANSITION_LABELS[status] || { label: status };
+                          return (
+                            <button
+                              key={status}
+                              className="w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors disabled:opacity-50"
+                              disabled={transitioning}
+                              onClick={() => {
+                                setShowOverflow(false);
+                                handleTransition(status);
+                              }}
+                            >
+                              {label}
+                            </button>
+                          );
+                        })}
+                        {showCreateQuoteInOverflow && (
+                          <button
+                            className="w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors disabled:opacity-50"
+                            disabled={creatingQuote || transitioning}
+                            onClick={() => {
+                              setShowOverflow(false);
+                              handleCreateQuote();
+                            }}
+                          >
+                            Create Quote
+                          </button>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
+        </CardContent>
+      </Card>
+
+      {/* Contact */}
+      <Card>
+        <CardContent className="p-6">
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Contact</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <AutoSaveField {...fieldProps("contact_name")} label="Name" type="text" value={lead.contact_name} required />
             <AutoSaveField {...fieldProps("contact_email")} label="Email" type="email" value={lead.contact_email} />
             <AutoSaveField {...fieldProps("contact_phone")} label="Phone" type="tel" value={lead.contact_phone} />
             <AutoSaveField
@@ -320,83 +444,109 @@ export default function LeadDetailPage() {
               transform={fkTransform}
               options={[{ value: "", label: "-- No account --" }, ...accounts.map((a) => ({ value: a.id, label: a.name }))]}
             />
-            <AutoSaveField
-              {...fieldProps("source")}
-              label="Source"
-              type="select"
-              value={lead.source}
-              options={sources.map((s) => ({ value: s.value, label: s.label }))}
-            />
-            <AutoSaveField
-              {...fieldProps("event_type")}
-              label="Event Type"
-              type="select"
-              value={lead.event_type}
-              options={eventTypes.map((et) => ({ value: et.value, label: et.label }))}
-            />
-            <AutoSaveField {...fieldProps("event_date")} label="Event Date" type="date" value={lead.event_date || ""} transform={nullableString} />
-            <AutoSaveField {...fieldProps("guest_estimate")} label="Guest Estimate" type="number" value={lead.guest_estimate ?? ""} transform={fkTransform} />
-            <AutoSaveField {...fieldProps("budget")} label="Budget" type="text" inputMode="numeric" value={lead.budget ? String(Math.round(Number(lead.budget))) : ""} transform={nullableString} formatDisplay={formatWholeNumber} placeholder="e.g. 5,000" />
-            <AutoSaveField
-              {...fieldProps("service_style")}
-              label="Service Style"
-              type="select"
-              value={lead.service_style || ""}
-              options={[{ value: "", label: "-- Select --" }, ...serviceStyles.map((ss) => ({ value: ss.value, label: ss.label }))]}
-            />
-            <AutoSaveField
-              {...fieldProps("product")}
-              label="Product / Service"
-              type="select"
-              value={lead.product ?? ""}
-              transform={fkTransform}
-              options={[{ value: "", label: "-- Select --" }, ...productLines.map((p) => ({ value: p.id, label: p.name }))]}
-            />
-            <AutoSaveField
-              {...fieldProps("assigned_to")}
-              label="Assigned To"
-              type="select"
-              value={lead.assigned_to ?? ""}
-              transform={fkTransform}
-              options={[{ value: "", label: "-- Unassigned --" }, ...users.map((u) => ({ value: u.id, label: `${u.first_name} ${u.last_name}` }))]}
-            />
-            <div className="md:col-span-2">
-              <AutoSaveField {...fieldProps("notes")} label="Notes" type="textarea" value={lead.notes} />
-            </div>
-            {lead.status === "lost" && (
-              <>
-                {lead.lost_reason_option_display && (
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-1">Lost Reason</label>
-                    <p className="text-sm text-muted-foreground py-2">{lead.lost_reason_option_display}</p>
-                  </div>
-                )}
-                <div className="md:col-span-2">
-                  <AutoSaveField {...fieldProps("lost_notes")} label="Lost Notes" type="textarea" value={lead.lost_notes || ""} />
-                </div>
-              </>
-            )}
           </div>
+        </CardContent>
+      </Card>
 
-          {/* Timeline */}
-          <div className="mt-6 border-t border-border pt-4">
-            <h3 className="text-sm font-medium text-foreground mb-2">Timeline</h3>
-            <div className="text-sm text-muted-foreground space-y-1">
-              <div>Created: {new Date(lead.created_at).toLocaleString()}</div>
-              {lead.contacted_at && <div>Contacted: {new Date(lead.contacted_at).toLocaleString()}</div>}
-              {lead.qualified_at && <div>Qualified: {new Date(lead.qualified_at).toLocaleString()}</div>}
-              {lead.converted_at && <div>Converted: {new Date(lead.converted_at).toLocaleString()}</div>}
-              {lead.lost_at && <div>Lost: {new Date(lead.lost_at).toLocaleString()}</div>}
+      {/* Event Details */}
+      <Card>
+        <CardContent className="p-6">
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Event Details</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <AutoSaveField
+                {...fieldProps("event_type")}
+                label="Event Type"
+                type="select"
+                value={lead.event_type}
+                options={eventTypes.map((et) => ({ value: et.value, label: et.label }))}
+              />
+              <AutoSaveField {...fieldProps("event_date")} label="Event Date" type="date" value={lead.event_date || ""} transform={nullableString} />
+              <AutoSaveField {...fieldProps("guest_estimate")} label="Guest Estimate" type="number" value={lead.guest_estimate ?? ""} transform={fkTransform} />
+              <AutoSaveField {...fieldProps("budget")} label="Budget" type="text" inputMode="numeric" value={lead.budget ? String(Math.round(Number(lead.budget))) : ""} transform={nullableString} formatDisplay={formatWholeNumber} placeholder="e.g. 5,000" />
+              <AutoSaveField
+                {...fieldProps("service_style")}
+                label="Service Style"
+                type="select"
+                value={lead.service_style || ""}
+                options={[{ value: "", label: "-- Select --" }, ...serviceStyles.map((ss) => ({ value: ss.value, label: ss.label }))]}
+              />
             </div>
+        </CardContent>
+      </Card>
+
+      {/* Assignment */}
+      <Card>
+        <CardContent className="p-6">
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Assignment</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <AutoSaveField
+                {...fieldProps("product")}
+                label="Product / Service"
+                type="select"
+                value={lead.product ?? ""}
+                transform={fkTransform}
+                options={[{ value: "", label: "-- Select --" }, ...productLines.map((p) => ({ value: p.id, label: p.name }))]}
+              />
+              <AutoSaveField
+                {...fieldProps("assigned_to")}
+                label="Assigned To"
+                type="select"
+                value={lead.assigned_to ?? ""}
+                transform={fkTransform}
+                options={[{ value: "", label: "-- Unassigned --" }, ...users.map((u) => ({ value: u.id, label: `${u.first_name} ${u.last_name}` }))]}
+              />
+              <AutoSaveField
+                {...fieldProps("source")}
+                label="Source"
+                type="select"
+                value={lead.source}
+                options={sources.map((s) => ({ value: s.value, label: s.label }))}
+              />
+            </div>
+        </CardContent>
+      </Card>
+
+      {/* Notes */}
+      <Card>
+        <CardContent className="p-6">
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Notes</h2>
+          <AutoSaveField {...fieldProps("notes")} label="Notes" type="textarea" value={lead.notes} />
+          {lead.status === "lost" && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+              {lead.lost_reason_option_display && (
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Lost Reason</label>
+                  <p className="text-sm text-muted-foreground py-2">{lead.lost_reason_option_display}</p>
+                </div>
+              )}
+              <div className="md:col-span-2">
+                <AutoSaveField {...fieldProps("lost_notes")} label="Lost Notes" type="textarea" value={lead.lost_notes || ""} />
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Timeline */}
+      <Card>
+        <CardContent className="p-6">
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Timeline</h2>
+          <div className="text-sm text-muted-foreground space-y-1">
+            <div>Created: {new Date(lead.created_at).toLocaleString()}</div>
+            {lead.contacted_at && <div>Contacted: {new Date(lead.contacted_at).toLocaleString()}</div>}
+            {lead.qualified_at && <div>Qualified: {new Date(lead.qualified_at).toLocaleString()}</div>}
+            {lead.proposal_sent_at && <div>Proposal Sent: {new Date(lead.proposal_sent_at).toLocaleString()}</div>}
+            {lead.won_at && <div>Won: {new Date(lead.won_at).toLocaleString()}</div>}
+            {lead.lost_at && <div>Lost: {new Date(lead.lost_at).toLocaleString()}</div>}
           </div>
         </CardContent>
       </Card>
 
       {/* Linked Quotes */}
       {lead.quotes && lead.quotes.length > 0 && (
-        <Card className="mb-6">
+        <Card>
           <CardContent className="p-6">
-            <h2 className="text-lg font-semibold text-foreground mb-4">Quotes</h2>
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Quotes</h2>
             <div className="space-y-3">
               {lead.quotes.map((q) => (
                 <Link
@@ -418,16 +568,81 @@ export default function LeadDetailPage() {
         </Card>
       )}
 
+      {/* Linked Event */}
+      {lead.won_event && (
+        <Card>
+          <CardContent className="p-6">
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Event</h2>
+            <Link
+              href={`/events/${lead.won_event}`}
+              className="flex items-center justify-between p-3 border border-border rounded hover:bg-muted transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <span className="font-medium text-foreground">{lead.won_event_name || `Event #${lead.won_event}`}</span>
+                <Badge variant="success">Created</Badge>
+              </div>
+              <span className="text-sm text-primary">View Event &rarr;</span>
+            </Link>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Reminders */}
       <LeadReminders leadId={lead.id} />
 
       {/* Activity Log */}
-      <Card className="mb-6">
+      <Card>
         <CardContent className="p-6">
-          <h2 className="text-lg font-semibold text-foreground mb-4">Activity</h2>
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Activity</h2>
           <ActivityTimeline leadId={lead.id} />
         </CardContent>
       </Card>
+
+      {/* Mark Won Dialog */}
+      {showWonDialog && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-background rounded-lg shadow-lg p-6 w-full max-w-md mx-4 border-2 border-success/30">
+            <div className="text-center mb-4">
+              <div className="text-5xl mb-3">&#127881;</div>
+              <h3 className="text-xl font-semibold text-foreground">Congratulations!</h3>
+              <p className="text-sm text-muted-foreground mt-1">
+                You&apos;re about to close this deal. What&apos;s next?
+              </p>
+            </div>
+            {lead.quotes && lead.quotes.filter(q => q.status === "accepted").length > 0 && (
+              <p className="text-xs text-muted-foreground text-center mb-4 bg-muted rounded-md px-3 py-2">
+                The event will use data from the accepted quote.
+              </p>
+            )}
+            <div className="space-y-3">
+              <button
+                disabled={transitioning}
+                onClick={() => {
+                  const acceptedQuote = lead.quotes?.find(q => q.status === "accepted");
+                  handleMarkWon(true, acceptedQuote?.id);
+                }}
+                className="w-full text-left p-4 rounded-lg border-2 border-success/30 bg-success/5 hover:bg-success/10 hover:border-success/50 transition-colors disabled:opacity-50"
+              >
+                <div className="font-semibold text-foreground">Create Event Now</div>
+                <div className="text-sm text-muted-foreground mt-0.5">Set up the event straight away</div>
+              </button>
+              <button
+                disabled={transitioning}
+                onClick={() => handleMarkWon(false)}
+                className="w-full text-left p-4 rounded-lg border border-border hover:bg-muted transition-colors disabled:opacity-50"
+              >
+                <div className="font-semibold text-foreground">Mark as Won</div>
+                <div className="text-sm text-muted-foreground mt-0.5">I&apos;ll create the event later</div>
+              </button>
+            </div>
+            <div className="flex justify-end mt-4">
+              <Button variant="secondary" onClick={() => setShowWonDialog(false)}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Mark Lost Dialog */}
       {showLostDialog && (
@@ -525,11 +740,11 @@ function LeadReminders({ leadId }: { leadId: number }) {
   const now = new Date();
 
   return (
-    <Card className="mb-6">
+    <Card>
       <CardContent className="p-6">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            <h2 className="text-lg font-semibold text-foreground">Reminders</h2>
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Reminders</h2>
             {pendingReminders.length > 0 && (
               <Badge variant="warning">{pendingReminders.length}</Badge>
             )}

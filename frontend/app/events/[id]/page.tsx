@@ -35,20 +35,6 @@ const statusBadgeVariant: Record<string, "warning" | "info" | "secondary" | "suc
 };
 
 
-function ChevronIcon({ open }: { open: boolean }) {
-  return (
-    <svg
-      className={`w-5 h-5 text-muted-foreground transition-transform ${open ? "rotate-90" : ""}`}
-      fill="none"
-      viewBox="0 0 24 24"
-      stroke="currentColor"
-      strokeWidth={2}
-    >
-      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-    </svg>
-  );
-}
-
 function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div>
@@ -83,17 +69,6 @@ export default function EventDetailPage() {
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-
-  // Section collapse
-  const [sections, setSections] = useState({
-    customer: true,
-    menu: true,
-    guests: true,
-    timeline: true,
-    staffing: true,
-    equipment: true,
-    invoices: true,
-  });
 
   // Venue mode
   const [venueMode, setVenueMode] = useState<"saved" | "custom">("saved");
@@ -138,10 +113,6 @@ export default function EventDetailPage() {
   // Equipment add form
   const [newEquipId, setNewEquipId] = useState<number | "">("");
   const [newEquipQty, setNewEquipQty] = useState(1);
-
-  const toggleSection = (key: keyof typeof sections) => {
-    setSections((prev) => ({ ...prev, [key]: !prev[key] }));
-  };
 
   const syncFormToEvent = useCallback((data: EventData) => {
     setFormName(data.name);
@@ -420,7 +391,7 @@ export default function EventDetailPage() {
 
       {/* Header Section */}
       <Card>
-        <CardContent className="pt-5 pb-5">
+        <CardContent className="p-6">
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-center gap-3 flex-1 min-w-0">
               {editing ? (
@@ -577,15 +548,8 @@ export default function EventDetailPage() {
 
       {/* Customer & Venue Section */}
       <Card>
-        <button
-          onClick={() => toggleSection("customer")}
-          className="w-full flex items-center justify-between p-5 text-left"
-        >
-          <h2 className="text-lg font-semibold text-foreground">Customer &amp; Venue</h2>
-          <ChevronIcon open={sections.customer} />
-        </button>
-        {sections.customer && (
-          <div className="px-5 pb-5 border-t border-border pt-4">
+        <CardContent className="p-6">
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Customer &amp; Venue</h2>
             {editing ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
@@ -723,22 +687,14 @@ export default function EventDetailPage() {
                 {event.notes && <div className="col-span-full"><InfoRow label="Notes" value={event.notes} /></div>}
               </dl>
             )}
-          </div>
-        )}
+        </CardContent>
       </Card>
 
       {/* Menu Section */}
       <Card>
-        <button
-          onClick={() => toggleSection("menu")}
-          className="w-full flex items-center justify-between p-5 text-left"
-        >
-          <h2 className="text-lg font-semibold text-foreground">Menu</h2>
-          <ChevronIcon open={sections.menu} />
-        </button>
-        {sections.menu && (
-          <div className="px-5 pb-5 border-t border-border pt-4">
-            <MenuBuilder
+        <CardContent className="p-6">
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Menu</h2>
+          <MenuBuilder
               selectedDishIds={event.dishes}
               basedOnTemplate={event.based_on_template}
               onSave={handleMenuSave}
@@ -746,21 +702,13 @@ export default function EventDetailPage() {
               onUseSuggestedPrice={(price) => setFormPricePerHead(price.toFixed(2))}
               currencySymbol={settings.currency_symbol}
             />
-          </div>
-        )}
+        </CardContent>
       </Card>
 
       {/* Guest Counts Section */}
       <Card>
-        <button
-          onClick={() => toggleSection("guests")}
-          className="w-full flex items-center justify-between p-5 text-left"
-        >
-          <h2 className="text-lg font-semibold text-foreground">Guest Counts</h2>
-          <ChevronIcon open={sections.guests} />
-        </button>
-        {sections.guests && (
-          <div className="px-5 pb-5 border-t border-border pt-4">
+        <CardContent className="p-6">
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Guest Counts</h2>
             {editing ? (
               <div className="space-y-4">
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
@@ -880,21 +828,13 @@ export default function EventDetailPage() {
                 <InfoRow label="Big Eaters" value={event.big_eaters ? `Yes (+${event.big_eaters_percentage}%)` : "No"} />
               </dl>
             )}
-          </div>
-        )}
+        </CardContent>
       </Card>
 
       {/* Timeline Section */}
       <Card>
-        <button
-          onClick={() => toggleSection("timeline")}
-          className="w-full flex items-center justify-between p-5 text-left"
-        >
-          <h2 className="text-lg font-semibold text-foreground">Timeline</h2>
-          <ChevronIcon open={sections.timeline} />
-        </button>
-        {sections.timeline && (
-          <div className="px-5 pb-5 border-t border-border pt-4">
+        <CardContent className="p-6">
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Timeline</h2>
             {editing ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
@@ -922,21 +862,13 @@ export default function EventDetailPage() {
                 <InfoRow label="End Time" value={formatDateTime(event.end_time)} />
               </dl>
             )}
-          </div>
-        )}
+        </CardContent>
       </Card>
 
       {/* Staffing Section */}
       <Card>
-        <button
-          onClick={() => toggleSection("staffing")}
-          className="w-full flex items-center justify-between p-5 text-left"
-        >
-          <h2 className="text-lg font-semibold text-foreground">Staffing</h2>
-          <ChevronIcon open={sections.staffing} />
-        </button>
-        {sections.staffing && (
-          <div className="px-5 pb-5 border-t border-border pt-4">
+        <CardContent className="p-6">
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Staffing</h2>
             {event.shifts.length > 0 ? (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -1000,21 +932,13 @@ export default function EventDetailPage() {
                 </Button>
               </div>
             </div>
-          </div>
-        )}
+        </CardContent>
       </Card>
 
       {/* Equipment Section */}
       <Card>
-        <button
-          onClick={() => toggleSection("equipment")}
-          className="w-full flex items-center justify-between p-5 text-left"
-        >
-          <h2 className="text-lg font-semibold text-foreground">Equipment</h2>
-          <ChevronIcon open={sections.equipment} />
-        </button>
-        {sections.equipment && (
-          <div className="px-5 pb-5 border-t border-border pt-4">
+        <CardContent className="p-6">
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Equipment</h2>
             {event.equipment_reservations.length > 0 ? (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -1063,21 +987,13 @@ export default function EventDetailPage() {
                 <Button size="sm" onClick={handleAddEquipment} disabled={saving || newEquipId === ""}>Add</Button>
               </div>
             </div>
-          </div>
-        )}
+        </CardContent>
       </Card>
 
       {/* Invoices Section */}
       <Card>
-        <button
-          onClick={() => toggleSection("invoices")}
-          className="w-full flex items-center justify-between p-5 text-left"
-        >
-          <h2 className="text-lg font-semibold text-foreground">Invoices</h2>
-          <ChevronIcon open={sections.invoices} />
-        </button>
-        {sections.invoices && (
-          <div className="px-5 pb-5 border-t border-border pt-4">
+        <CardContent className="p-6">
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Invoices</h2>
             {event.invoices.length > 0 ? (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -1124,8 +1040,7 @@ export default function EventDetailPage() {
                 {saving ? "Creating..." : "Create Invoice"}
               </Button>
             </div>
-          </div>
-        )}
+        </CardContent>
       </Card>
     </div>
   );
