@@ -89,12 +89,19 @@ class TestLeadTransitions(TestCase):
         self.assertEqual(self.lead.status, "qualified")
         self.assertIsNotNone(self.lead.qualified_at)
 
-    def test_qualified_to_converted(self):
+    def test_qualified_to_won(self):
         self.lead.transition_to("contacted")
         self.lead.transition_to("qualified")
-        self.lead.transition_to("converted")
-        self.assertEqual(self.lead.status, "converted")
-        self.assertIsNotNone(self.lead.converted_at)
+        self.lead.transition_to("won")
+        self.assertEqual(self.lead.status, "won")
+        self.assertIsNotNone(self.lead.won_at)
+
+    def test_proposal_sent(self):
+        self.lead.transition_to("contacted")
+        self.lead.transition_to("qualified")
+        self.lead.transition_to("proposal_sent")
+        self.assertEqual(self.lead.status, "proposal_sent")
+        self.assertIsNotNone(self.lead.proposal_sent_at)
 
     def test_same_status_transition_raises(self):
         with self.assertRaises(ValueError):
@@ -391,7 +398,8 @@ class TestLeadAPI(TestCase):
         }, format="json")
         self.assertEqual(res.status_code, 400)
 
-    def test_convert_lead_creates_quote(self):
+    def test_create_quote_from_lead(self):
+        """Creating a quote does NOT change lead status."""
         account = make_account()
         lead = make_lead(account=account)
         lead.transition_to("contacted")
@@ -404,26 +412,69 @@ class TestLeadAPI(TestCase):
         self.assertEqual(data["guest_count"], 100)
 
         lead.refresh_from_db()
-        self.assertEqual(lead.status, "converted")
-        self.assertIsNotNone(lead.converted_to_quote)
+        # Status should NOT have changed — quotes are decoupled
+        self.assertEqual(lead.status, "qualified")
 
-    def test_convert_from_any_status_succeeds(self):
-        lead = make_lead()  # status = new
-        res = self.client.post(f"/api/bookings/leads/{lead.id}/convert/")
-        self.assertEqual(res.status_code, 201)
-        lead.refresh_from_db()
-        self.assertEqual(lead.status, "converted")
+    def test_create_multiple_quotes(self):
+        """A lead can have multiple quotes."""
+        lead = make_lead()
+        res1 = self.client.post(f"/api/bookings/leads/{lead.id}/convert/")
+        self.assertEqual(res1.status_code, 201)
+        res2 = self.client.post(f"/api/bookings/leads/{lead.id}/convert/")
+        self.assertEqual(res2.status_code, 201)
+        self.assertNotEqual(res1.json()["id"], res2.json()["id"])
 
-    def test_convert_creates_account_if_none(self):
+    def test_create_quote_creates_account_if_none(self):
         lead = make_lead(account=None)
-        lead.transition_to("contacted")
-        lead.transition_to("qualified")
-
         res = self.client.post(f"/api/bookings/leads/{lead.id}/convert/")
         self.assertEqual(res.status_code, 201)
         lead.refresh_from_db()
         self.assertIsNotNone(lead.account)
         self.assertEqual(lead.account.name, "John Smith")
+
+    def test_mark_won_creates_event(self):
+        lead = make_lead()
+        lead.transition_to("contacted")
+        lead.transition_to("qualified")
+
+        res = self.client.post(f"/api/bookings/leads/{lead.id}/won/", {
+            "create_event": True,
+        }, format="json")
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertEqual(data["status"], "won")
+        self.assertIsNotNone(data["won_at"])
+        self.assertIsNotNone(data["won_event"])
+
+    def test_mark_won_without_event(self):
+        lead = make_lead()
+        res = self.client.post(f"/api/bookings/leads/{lead.id}/won/", {
+            "create_event": False,
+        }, format="json")
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertEqual(data["status"], "won")
+        self.assertIsNone(data["won_event"])
+
+    def test_quote_acceptance_auto_wins_lead(self):
+        """When a quote linked to a lead is accepted, the lead auto-transitions to won."""
+        from bookings.models.quotes import QuoteStatus
+        account = make_account()
+        lead = make_lead(account=account)
+        lead.transition_to("contacted")
+        lead.transition_to("qualified")
+        quote = make_quote(account=account, lead=lead)
+
+        # Accept the quote
+        res = self.client.post(f"/api/bookings/quotes/{quote.id}/transition/", {
+            "status": "accepted",
+        }, format="json")
+        self.assertEqual(res.status_code, 200)
+
+        lead.refresh_from_db()
+        self.assertEqual(lead.status, "won")
+        self.assertIsNotNone(lead.won_event)
+        self.assertEqual(lead.won_quote, quote)
 
 
 class TestQuoteAPI(TestCase):

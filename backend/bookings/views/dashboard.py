@@ -39,9 +39,9 @@ class DashboardStatsView(APIView):
         # Lead summary
         new_leads = period_logs.filter(action='created').count()
         status_transitions = period_logs.filter(action='status_change').count()
-        won = period_logs.filter(action='status_change', new_value='converted').count()
+        won = period_logs.filter(action='status_change', new_value='won').count()
         lost = period_logs.filter(action='status_change', new_value='lost').count()
-        total_active = Lead.objects.exclude(status__in=['converted', 'lost']).count()
+        total_active = Lead.objects.exclude(status__in=['won', 'lost']).count()
 
         # Team activity — per user (period-scoped from activity logs)
         team_raw = (
@@ -51,7 +51,7 @@ class DashboardStatsView(APIView):
             .annotate(
                 leads_created=Count('id', filter=Q(action='created')),
                 transitions_made=Count('id', filter=Q(action='status_change')),
-                won=Count('id', filter=Q(action='status_change', new_value='converted')),
+                won=Count('id', filter=Q(action='status_change', new_value='won')),
                 lost=Count('id', filter=Q(action='status_change', new_value='lost')),
             )
             .order_by('-leads_created')
@@ -74,20 +74,20 @@ class DashboardStatsView(APIView):
             conversion_rate = round(won / new_leads * 100, 1)
 
         converted_lead_ids = list(
-            period_logs.filter(action='status_change', new_value='converted')
+            period_logs.filter(action='status_change', new_value='won')
             .values_list('object_id', flat=True)
         )
         avg_days = None
         if converted_lead_ids:
             result = (
-                Lead.objects.filter(id__in=converted_lead_ids, converted_at__isnull=False)
-                .annotate(days=F('converted_at') - F('created_at'))
+                Lead.objects.filter(id__in=converted_lead_ids, won_at__isnull=False)
+                .annotate(days=F('won_at') - F('created_at'))
                 .aggregate(avg_days=Avg('days'))
             )
             if result['avg_days']:
                 avg_days = round(result['avg_days'].total_seconds() / 86400, 1)
 
-        pipeline = Lead.objects.exclude(status__in=['converted', 'lost']).aggregate(
+        pipeline = Lead.objects.exclude(status__in=['won', 'lost']).aggregate(
             pipeline_value=Sum('budget'),
             pipeline_count=Count('id'),
         )
@@ -120,7 +120,7 @@ class DashboardStatsView(APIView):
         # Period activity per assigned user (won/lost in the period)
         period_won_by_user = dict(
             period_logs
-            .filter(action='status_change', new_value='converted', user__isnull=False)
+            .filter(action='status_change', new_value='won', user__isnull=False)
             .values_list('user__id')
             .annotate(c=Count('id'))
             .values_list('user__id', 'c')
@@ -159,7 +159,7 @@ class DashboardStatsView(APIView):
                 assigned_to__isnull=False,
                 updated_at__lt=stale_cutoff,
             )
-            .exclude(status__in=['converted', 'lost'])
+            .exclude(status__in=['won', 'lost'])
             .values_list('assigned_to')
             .annotate(c=Count('id'))
             .values_list('assigned_to', 'c')
@@ -237,7 +237,7 @@ class DashboardStatsView(APIView):
                 assigned_to__isnull=True,
                 updated_at__lt=stale_cutoff,
             )
-            .exclude(status__in=['converted', 'lost'])
+            .exclude(status__in=['won', 'lost'])
             .count()
         )
         unassigned_overdue = Reminder.objects.filter(

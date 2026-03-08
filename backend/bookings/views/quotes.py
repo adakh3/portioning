@@ -44,7 +44,7 @@ class QuoteTransitionView(APIView):
         # Auto-create Event when quote is accepted
         if new_status == QuoteStatus.ACCEPTED and not quote.event:
             from events.models import Event
-            event_name = f"{quote.account.name} — {quote.get_event_type_display()}"
+            event_name = f"{quote.account.name} — {quote.event_type}"
             guest_count = quote.guest_count
             event = Event.objects.create(
                 name=event_name,
@@ -81,6 +81,19 @@ class QuoteTransitionView(APIView):
 
             quote.event = event
             quote.save(update_fields=['event', 'updated_at'])
+
+            # Auto-win the lead if it exists and isn't already won
+            if quote.lead and quote.lead.status != 'won':
+                from bookings.activity import log_activity
+                old_status = quote.lead.status
+                quote.lead.won_event = event
+                quote.lead.won_quote = quote
+                quote.lead.transition_to('won')
+                log_activity(
+                    quote.lead, 'status_change',
+                    field_name='status', old_value=old_status, new_value='won',
+                    description=f"Auto-marked as Won via quote acceptance (Quote #{quote.id})",
+                )
 
         # Re-fetch with all relations for serializer
         quote = Quote.objects.select_related('account', 'venue', 'lead', 'event', 'based_on_template', 'primary_contact').prefetch_related('line_items', 'dishes').get(pk=pk)
