@@ -11,9 +11,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { mutate } from "swr";
 
 const PERIODS = [
+  { value: "all", label: "All Time" },
   { value: "today", label: "Today" },
   { value: "week", label: "This Week" },
   { value: "month", label: "This Month" },
+  { value: "custom", label: "Custom" },
 ] as const;
 
 function StatCard({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
@@ -31,10 +33,16 @@ function StatCard({ label, value, sub }: { label: string; value: string | number
 export default function Dashboard() {
   const { user } = useAuth();
   const isManager = user?.role === "manager" || user?.role === "owner";
-  const [period, setPeriod] = useState<string>("today");
+  const [period, setPeriod] = useState<string>("all");
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo] = useState("");
   const [autoAssigning, setAutoAssigning] = useState(false);
   const [autoAssignResult, setAutoAssignResult] = useState<AutoAssignResult | null>(null);
-  const { data: stats } = useDashboardStats(isManager ? period : null);
+  const { data: stats } = useDashboardStats(
+    isManager ? period : null,
+    period === "custom" ? customFrom || undefined : undefined,
+    period === "custom" ? customTo || undefined : undefined,
+  );
   const { data: rawSettings } = useSiteSettings();
   const cs = rawSettings?.currency_symbol || "\u00a3";
 
@@ -85,20 +93,39 @@ export default function Dashboard() {
       {isManager && (
       <>
       {/* Period Toggle */}
-      <div className="flex gap-1 bg-muted rounded-lg p-1 w-fit">
-        {PERIODS.map((p) => (
-          <button
-            key={p.value}
-            onClick={() => setPeriod(p.value)}
-            className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-              period === p.value
-                ? "bg-background text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {p.label}
-          </button>
-        ))}
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex gap-1 bg-muted rounded-lg p-1 w-fit">
+          {PERIODS.map((p) => (
+            <button
+              key={p.value}
+              onClick={() => setPeriod(p.value)}
+              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                period === p.value
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+        {period === "custom" && (
+          <div className="flex items-center gap-2">
+            <input
+              type="date"
+              value={customFrom}
+              onChange={(e) => setCustomFrom(e.target.value)}
+              className="px-2 py-1.5 text-sm border border-border rounded-md bg-background text-foreground"
+            />
+            <span className="text-sm text-muted-foreground">to</span>
+            <input
+              type="date"
+              value={customTo}
+              onChange={(e) => setCustomTo(e.target.value)}
+              className="px-2 py-1.5 text-sm border border-border rounded-md bg-background text-foreground"
+            />
+          </div>
+        )}
       </div>
 
       {/* Lead Summary Cards */}
@@ -155,7 +182,7 @@ export default function Dashboard() {
       })()}
 
       {/* Salesperson Performance */}
-      {salespeople.length > 0 && (
+      {(
         <Card>
           <CardContent className="p-5">
             <div className="flex items-center justify-between mb-1">
@@ -170,7 +197,9 @@ export default function Dashboard() {
                   try {
                     const result = await api.autoAssignLeads();
                     setAutoAssignResult(result);
-                    mutate(`dashboard-stats-${period}`);
+                    mutate(period === "custom"
+                      ? `dashboard-stats-custom-${customFrom}-${customTo}`
+                      : `dashboard-stats-${period}`);
                   } catch {
                     setAutoAssignResult({ assigned: -1, skipped_no_product: 0, skipped_no_staff: 0 });
                   } finally {
@@ -191,31 +220,29 @@ export default function Dashboard() {
                     + "."}
               </p>
             )}
-            <p className="text-xs text-muted-foreground mb-3">
-              Pipeline columns show current assigned leads. Period columns reflect activity in the selected period.
-            </p>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border text-left">
                     <th className="pb-2 pr-4 font-medium text-muted-foreground sticky left-0 bg-card">Salesperson</th>
-                    <th className="pb-2 px-2 font-medium text-muted-foreground text-center" title="Total currently assigned">Assigned</th>
                     {statusCols.map((sc) => (
                       <th key={sc.value} className="pb-2 px-2 font-medium text-muted-foreground text-center">{sc.label}</th>
                     ))}
-                    <th className="pb-2 px-2 font-medium text-muted-foreground text-center border-l border-border" title="Pipeline value of assigned leads">{cs} Value</th>
-                    <th className="pb-2 px-2 font-medium text-muted-foreground text-center border-l border-border" title={`Created in ${period}`}>Created</th>
-                    <th className="pb-2 px-2 font-medium text-muted-foreground text-center" title={`Won in ${period}`}>Won</th>
-                    <th className="pb-2 px-2 font-medium text-muted-foreground text-center" title={`Lost in ${period}`}>Lost</th>
+                    <th className="pb-2 px-2 font-medium text-muted-foreground text-center border-l border-border">Value</th>
                     <th className="pb-2 px-2 font-medium text-muted-foreground text-center border-l border-border" title="Overdue follow-up reminders">Overdue</th>
                     <th className="pb-2 px-2 font-medium text-muted-foreground text-center" title="Leads with no activity in 7+ days">Stale</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {salespeople.map((sp) => (
+                  {salespeople.length === 0 ? (
+                    <tr>
+                      <td colSpan={statusCols.length + 4} className="py-6 text-center text-sm text-muted-foreground">
+                        No leads in this period
+                      </td>
+                    </tr>
+                  ) : salespeople.map((sp) => (
                     <tr key={sp.user_id ?? "unassigned"} className={`border-b border-border last:border-0 ${sp.user_id === null ? "italic text-muted-foreground" : ""}`}>
                       <td className="py-2 pr-4 font-medium sticky left-0 bg-card">{sp.user_name}</td>
-                      <td className="py-2 px-2 text-center font-semibold">{sp.total_assigned}</td>
                       {statusCols.map((sc) => (
                         <td key={sc.value} className="py-2 px-2 text-center">
                           {sp.pipeline[sc.value] || <span className="text-muted-foreground">-</span>}
@@ -225,13 +252,6 @@ export default function Dashboard() {
                         {sp.pipeline_value > 0
                           ? `${cs}${sp.pipeline_value >= 1000 ? `${(sp.pipeline_value / 1000).toFixed(sp.pipeline_value >= 10000 ? 0 : 1)}k` : sp.pipeline_value}`
                           : <span className="text-muted-foreground">-</span>}
-                      </td>
-                      <td className="py-2 px-2 text-center border-l border-border">{sp.period_created || <span className="text-muted-foreground">-</span>}</td>
-                      <td className="py-2 px-2 text-center">
-                        {sp.period_won ? <span className="text-green-600 font-medium">{sp.period_won}</span> : <span className="text-muted-foreground">-</span>}
-                      </td>
-                      <td className="py-2 px-2 text-center">
-                        {sp.period_lost ? <span className="text-red-500 font-medium">{sp.period_lost}</span> : <span className="text-muted-foreground">-</span>}
                       </td>
                       <td className="py-2 px-2 text-center border-l border-border">
                         {sp.overdue_reminders ? <span className="text-red-500 font-medium">{sp.overdue_reminders}</span> : <span className="text-muted-foreground">-</span>}

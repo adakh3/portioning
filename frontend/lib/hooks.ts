@@ -207,10 +207,15 @@ export function useLeadActivity(id: number | null) {
   );
 }
 
-export function useDashboardStats(period: string | null) {
+export function useDashboardStats(period: string | null, dateFrom?: string, dateTo?: string) {
+  const key = period
+    ? period === "custom"
+      ? `dashboard-stats-custom-${dateFrom || ""}-${dateTo || ""}`
+      : `dashboard-stats-${period}`
+    : null;
   return useSWR<DashboardStats>(
-    period ? `dashboard-stats-${period}` : null,
-    () => api.getDashboardStats(period!),
+    key,
+    () => api.getDashboardStats(period!, dateFrom, dateTo),
     { dedupingInterval: 30000 }
   );
 }

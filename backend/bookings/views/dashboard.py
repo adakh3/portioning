@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Count, Q, Avg, Sum, F
@@ -14,27 +14,42 @@ from bookings.permissions import IsManagerOrOwner
 
 
 class DashboardStatsView(APIView):
-    """GET /api/bookings/dashboard/stats/?period=today|week|month"""
+    """GET /api/bookings/dashboard/stats/?period=all|today|week|month|custom"""
     permission_classes = [IsManagerOrOwner]
 
     def get(self, request):
-        period = request.query_params.get('period', 'today')
+        period = request.query_params.get('period', 'all')
         now = timezone.now()
+        until = None
 
-        if period == 'week':
+        if period == 'custom':
+            date_from = request.query_params.get('date_from')
+            date_to = request.query_params.get('date_to')
+            since = (
+                timezone.make_aware(datetime.strptime(date_from, '%Y-%m-%d'))
+                if date_from else None
+            )
+            until = (
+                timezone.make_aware(datetime.strptime(date_to, '%Y-%m-%d')) + timedelta(days=1)
+                if date_to else None
+            )
+        elif period == 'week':
             since = now - timedelta(days=7)
         elif period == 'month':
             since = now - timedelta(days=30)
-        else:  # today
+        elif period == 'today':
             since = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        else:  # all
+            since = None
 
         ct = ContentType.objects.get_for_model(Lead)
 
         # Activity logs in period
-        period_logs = ActivityLog.objects.filter(
-            content_type=ct,
-            created_at__gte=since,
-        )
+        period_logs = ActivityLog.objects.filter(content_type=ct)
+        if since:
+            period_logs = period_logs.filter(created_at__gte=since)
+        if until:
+            period_logs = period_logs.filter(created_at__lt=until)
 
         # Lead summary
         new_leads = period_logs.filter(action='created').count()
@@ -102,10 +117,14 @@ class DashboardStatsView(APIView):
         status_values = [s[0] for s in statuses]
         status_labels = {s[0]: s[1] for s in statuses}
 
-        # Current pipeline per assigned_to (snapshot — not period-filtered)
+        # Pipeline per assigned_to — filtered by period when set
+        lead_qs = Lead.objects.filter(assigned_to__isnull=False)
+        if since:
+            lead_qs = lead_qs.filter(created_at__gte=since)
+        if until:
+            lead_qs = lead_qs.filter(created_at__lt=until)
         pipeline_qs = (
-            Lead.objects
-            .filter(assigned_to__isnull=False)
+            lead_qs
             .values(
                 'assigned_to__id',
                 'assigned_to__first_name',
@@ -115,29 +134,6 @@ class DashboardStatsView(APIView):
             )
             .annotate(count=Count('id'), value=Sum('budget'))
             .order_by('assigned_to__first_name', 'assigned_to__last_name')
-        )
-
-        # Period activity per assigned user (won/lost in the period)
-        period_won_by_user = dict(
-            period_logs
-            .filter(action='status_change', new_value='won', user__isnull=False)
-            .values_list('user__id')
-            .annotate(c=Count('id'))
-            .values_list('user__id', 'c')
-        )
-        period_lost_by_user = dict(
-            period_logs
-            .filter(action='status_change', new_value='lost', user__isnull=False)
-            .values_list('user__id')
-            .annotate(c=Count('id'))
-            .values_list('user__id', 'c')
-        )
-        period_created_by_user = dict(
-            period_logs
-            .filter(action='created', user__isnull=False)
-            .values_list('user__id')
-            .annotate(c=Count('id'))
-            .values_list('user__id', 'c')
         )
 
         # Overdue reminders per assigned user
@@ -180,9 +176,6 @@ class DashboardStatsView(APIView):
                     'pipeline': {sv: 0 for sv in status_values},
                     'pipeline_value': 0,
                     'total_assigned': 0,
-                    'period_created': period_created_by_user.get(uid, 0),
-                    'period_won': period_won_by_user.get(uid, 0),
-                    'period_lost': period_lost_by_user.get(uid, 0),
                     'overdue_reminders': overdue_by_user.get(uid, 0),
                     'stale_leads': stale_by_user.get(uid, 0),
                 }
@@ -193,32 +186,14 @@ class DashboardStatsView(APIView):
             sp['total_assigned'] += row['count']
             sp['pipeline_value'] += float(row['value'] or 0)
 
-        # Also include users who have period activity but no currently-assigned leads
-        all_period_users = set(period_won_by_user) | set(period_lost_by_user) | set(period_created_by_user)
-        for uid in all_period_users - set(sp_map):
-            from users.models import User
-            try:
-                u = User.objects.get(pk=uid)
-                name = f"{u.first_name} {u.last_name}".strip() or u.email
-            except User.DoesNotExist:
-                continue
-            sp_map[uid] = {
-                'user_id': uid,
-                'user_name': name,
-                'pipeline': {sv: 0 for sv in status_values},
-                'pipeline_value': 0,
-                'total_assigned': 0,
-                'period_created': period_created_by_user.get(uid, 0),
-                'period_won': period_won_by_user.get(uid, 0),
-                'period_lost': period_lost_by_user.get(uid, 0),
-                'overdue_reminders': overdue_by_user.get(uid, 0),
-                'stale_leads': stale_by_user.get(uid, 0),
-            }
-
         # Unassigned leads row
+        unassigned_lead_qs = Lead.objects.filter(assigned_to__isnull=True)
+        if since:
+            unassigned_lead_qs = unassigned_lead_qs.filter(created_at__gte=since)
+        if until:
+            unassigned_lead_qs = unassigned_lead_qs.filter(created_at__lt=until)
         unassigned_qs = (
-            Lead.objects
-            .filter(assigned_to__isnull=True)
+            unassigned_lead_qs
             .values('status')
             .annotate(count=Count('id'), value=Sum('budget'))
         )
@@ -252,9 +227,6 @@ class DashboardStatsView(APIView):
             'pipeline': unassigned_pipeline,
             'pipeline_value': unassigned_value,
             'total_assigned': unassigned_total,
-            'period_created': 0,
-            'period_won': 0,
-            'period_lost': 0,
             'overdue_reminders': unassigned_overdue,
             'stale_leads': unassigned_stale,
         }

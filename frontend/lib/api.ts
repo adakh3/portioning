@@ -854,8 +854,12 @@ export const api = {
     fetchApi<ActivityLogEntry[]>(`/bookings/leads/${id}/activity/`),
 
   // Dashboard
-  getDashboardStats: (period: string = "today") =>
-    fetchApi<DashboardStats>(`/bookings/dashboard/stats/?period=${period}`),
+  getDashboardStats: (period: string = "today", dateFrom?: string, dateTo?: string) => {
+    const params = new URLSearchParams({ period });
+    if (dateFrom) params.set("date_from", dateFrom);
+    if (dateTo) params.set("date_to", dateTo);
+    return fetchApi<DashboardStats>(`/bookings/dashboard/stats/?${params.toString()}`);
+  },
   autoAssignLeads: () =>
     fetchApi<AutoAssignResult>("/bookings/leads/auto-assign/", { method: "POST" }),
 
