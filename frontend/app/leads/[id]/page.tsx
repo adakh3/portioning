@@ -491,9 +491,8 @@ export default function LeadDetailPage() {
   const overflowSteps = nextSteps.filter(s => s !== primaryStep);
   // For won leads without event, "Create Event" is the primary action
   const wonNeedsEvent = l.status === "won" && !l.won_event;
-  // Include "Create Quote" in overflow for active pipeline stages
-  const showCreateQuoteInOverflow = !["won", "lost"].includes(l.status);
-  const hasOverflowItems = overflowSteps.length > 0 || showCreateQuoteInOverflow;
+  const showCreateQuoteButton = !["won", "lost"].includes(l.status);
+  const hasOverflowItems = overflowSteps.length > 0;
   const cs = settings.currency_symbol;
 
   const fieldProps = (field: string) => ({
@@ -529,6 +528,13 @@ export default function LeadDetailPage() {
               </p>
             </div>
             <div className="flex items-center gap-2 shrink-0">
+              {/* Create Quote button */}
+              {showCreateQuoteButton && (
+                <Button size="sm" variant="outline" onClick={handleCreateQuote} disabled={creatingQuote}>
+                  {creatingQuote ? "Creating..." : "Create Quote"}
+                </Button>
+              )}
+
               {/* Primary action button */}
               {wonNeedsEvent ? (
                 <Button size="sm" variant="success" onClick={handleCreateEventFromLead} disabled={transitioning}>
@@ -576,18 +582,6 @@ export default function LeadDetailPage() {
                             </button>
                           );
                         })}
-                        {showCreateQuoteInOverflow && (
-                          <button
-                            className="w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors disabled:opacity-50"
-                            disabled={creatingQuote || transitioning}
-                            onClick={() => {
-                              setShowOverflow(false);
-                              handleCreateQuote();
-                            }}
-                          >
-                            Create Quote
-                          </button>
-                        )}
                       </div>
                     </>
                   )}

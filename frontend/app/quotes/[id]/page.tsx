@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { api, Contact } from "@/lib/api";
-import { useQuote, useAccounts, useVenues, useSiteSettings, useEventTypes, useServiceStyles, revalidate } from "@/lib/hooks";
+import { useQuote, useAccounts, useVenues, useSiteSettings, useEventTypes, useServiceStyles, useLeads, revalidate } from "@/lib/hooks";
 import MenuBuilder from "@/components/MenuBuilder";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -41,6 +41,8 @@ export default function QuoteDetailPage() {
   const settings = rawSettings || { currency_symbol: "£", currency_code: "GBP", default_price_per_head: "0.00", target_food_cost_percentage: "30.00", price_rounding_step: "50" };
   const { data: eventTypes = [] } = useEventTypes();
   const { data: serviceStyles = [] } = useServiceStyles();
+  const { data: allLeads = [] } = useLeads();
+  const leads = allLeads.filter((l) => !["won", "lost"].includes(l.status));
   const [showItemForm, setShowItemForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -66,6 +68,7 @@ export default function QuoteDetailPage() {
 
   // Create mode state
   const [createData, setCreateData] = useState({
+    lead: "",
     account: "",
     primary_contact: "",
     venue: "",
@@ -110,12 +113,32 @@ export default function QuoteDetailPage() {
   const setCreate = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setCreateData({ ...createData, [field]: e.target.value });
 
+  function handleLeadSelect(e: React.ChangeEvent<HTMLSelectElement>) {
+    const leadId = e.target.value;
+    if (!leadId) {
+      setCreateData((prev) => ({ ...prev, lead: "" }));
+      return;
+    }
+    const selectedLead = leads.find((l) => l.id === Number(leadId));
+    if (!selectedLead) return;
+    setCreateData((prev) => ({
+      ...prev,
+      lead: leadId,
+      account: selectedLead.account ? String(selectedLead.account) : prev.account,
+      event_date: selectedLead.event_date || prev.event_date,
+      guest_count: selectedLead.guest_estimate ? String(selectedLead.guest_estimate) : prev.guest_count,
+      event_type: selectedLead.event_type || prev.event_type,
+      service_style: selectedLead.service_style || prev.service_style,
+    }));
+  }
+
   async function handleCreateQuoteSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
     setError("");
     try {
       const data = {
+        lead: createData.lead ? Number(createData.lead) : null,
         account: Number(createData.account),
         primary_contact: createData.primary_contact ? Number(createData.primary_contact) : null,
         venue: createData.venue ? Number(createData.venue) : null,
@@ -291,6 +314,17 @@ export default function QuoteDetailPage() {
           <Card>
             <CardContent className="p-6">
               <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Customer</h2>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-foreground mb-1">Link to Lead</label>
+                <select value={createData.lead} onChange={handleLeadSelect} className={selectClass}>
+                  <option value="">-- No lead (standalone quote) --</option>
+                  {leads.map((l) => (
+                    <option key={l.id} value={l.id}>
+                      {l.contact_name}{l.event_type_display ? ` — ${l.event_type_display}` : ""}{l.event_date ? ` (${l.event_date})` : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Account *</label>
