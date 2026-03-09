@@ -127,7 +127,7 @@ function EventsContent() {
                   </Button>
                   {event.status !== "completed" && event.status !== "cancelled" && (
                     <Button size="sm" asChild>
-                      <Link href={`/events/${event.id}`}>Edit Event</Link>
+                      <Link href={`/events/${event.id}?edit=true`}>Edit Event</Link>
                     </Button>
                   )}
                 </div>

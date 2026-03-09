@@ -117,12 +117,13 @@ class DashboardStatsView(APIView):
         status_values = [s[0] for s in statuses]
         status_labels = {s[0]: s[1] for s in statuses}
 
-        # Pipeline per assigned_to — filtered by period when set
+        # Pipeline per assigned_to — scoped to leads with activity in period
+        active_lead_ids = list(
+            period_logs.values_list('object_id', flat=True).distinct()
+        ) if since or until else None
         lead_qs = Lead.objects.filter(assigned_to__isnull=False)
-        if since:
-            lead_qs = lead_qs.filter(created_at__gte=since)
-        if until:
-            lead_qs = lead_qs.filter(created_at__lt=until)
+        if active_lead_ids is not None:
+            lead_qs = lead_qs.filter(id__in=active_lead_ids)
         pipeline_qs = (
             lead_qs
             .values(
@@ -188,10 +189,8 @@ class DashboardStatsView(APIView):
 
         # Unassigned leads row
         unassigned_lead_qs = Lead.objects.filter(assigned_to__isnull=True)
-        if since:
-            unassigned_lead_qs = unassigned_lead_qs.filter(created_at__gte=since)
-        if until:
-            unassigned_lead_qs = unassigned_lead_qs.filter(created_at__lt=until)
+        if active_lead_ids is not None:
+            unassigned_lead_qs = unassigned_lead_qs.filter(id__in=active_lead_ids)
         unassigned_qs = (
             unassigned_lead_qs
             .values('status')

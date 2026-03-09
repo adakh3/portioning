@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useEffect, useState, useCallback, useRef } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   api,
@@ -47,10 +47,13 @@ function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
 export default function EventDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const eventId = Number(params.id);
+  const searchParams = useSearchParams();
+  const isNew = params.id === "new";
+  const startInEditMode = searchParams.get("edit") === "true";
+  const eventId = isNew ? NaN : Number(params.id);
 
   // SWR hooks
-  const { data: event, error: loadError, isLoading: eventLoading, mutate: mutateEvent } = useEvent(isNaN(eventId) ? null : eventId);
+  const { data: event, error: loadError, isLoading: eventLoading, mutate: mutateEvent } = useEvent(isNew || isNaN(eventId) ? null : eventId);
   const { data: accounts = [] } = useAccounts();
   const { data: venues = [] } = useVenues();
   const { data: laborRoles = [] } = useLaborRoles();
@@ -64,11 +67,18 @@ export default function EventDetailPage() {
   const serviceStyleLabels: Record<string, string> = Object.fromEntries(serviceStylesData.map((ss) => [ss.value, ss.label]));
 
   // Core state
-  const loading = eventLoading;
+  const loading = isNew ? false : eventLoading;
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState(isNew);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [formStatus, setFormStatus] = useState("tentative");
+
+  // Menu state for create mode (no event ID to persist to yet)
+  const [menuData, setMenuData] = useState<{
+    dish_ids: number[];
+    based_on_template: number | null;
+  }>({ dish_ids: [], based_on_template: null });
 
   // Venue mode
   const [venueMode, setVenueMode] = useState<"saved" | "custom">("saved");
@@ -144,15 +154,27 @@ export default function EventDetailPage() {
   }, []);
 
   useEffect(() => {
-    if (event) syncFormToEvent(event);
-  }, [event, syncFormToEvent]);
+    if (event) {
+      syncFormToEvent(event);
+      if (startInEditMode) setEditing(true);
+    }
+  }, [event, syncFormToEvent, startInEditMode]);
+
+  // Set default price from settings in create mode
+  const defaultPriceApplied = useRef(false);
+  useEffect(() => {
+    if (isNew && rawSettings && parseFloat(rawSettings.default_price_per_head) > 0 && !defaultPriceApplied.current) {
+      setFormPricePerHead(rawSettings.default_price_per_head);
+      defaultPriceApplied.current = true;
+    }
+  }, [isNew, rawSettings]);
 
   useEffect(() => {
     if (loadError) setError(loadError instanceof Error ? loadError.message : "Failed to load event");
   }, [loadError]);
 
   const handleSaveAll = async () => {
-    if (!event) return;
+    if (!isNew && !event) return;
     if (!formName.trim()) {
       setError("Event name is required");
       return;
@@ -166,32 +188,43 @@ export default function EventDetailPage() {
       return;
     }
     setSaving(true);
+    const payload = {
+      name: formName,
+      date: formDate,
+      account: formAccount,
+      primary_contact: formContact,
+      venue: venueMode === "saved" ? formVenue : null,
+      venue_address: venueMode === "custom" ? formVenueAddress : "",
+      event_type: formEventType,
+      service_style: formServiceStyle,
+      price_per_head: formPricePerHead || null,
+      notes: formNotes,
+      gents: formGents,
+      ladies: formLadies,
+      guaranteed_count: formGuaranteed,
+      final_count: formFinalCount,
+      final_count_due: formFinalCountDue || null,
+      big_eaters: formBigEaters,
+      big_eaters_percentage: formBigEatersPercent,
+      setup_time: formSetupTime || null,
+      guest_arrival_time: formArrivalTime || null,
+      meal_time: formMealTime || null,
+      end_time: formEndTime || null,
+    };
     try {
-      await api.updateEvent(event.id, {
-        name: formName,
-        date: formDate,
-        account: formAccount,
-        primary_contact: formContact,
-        venue: venueMode === "saved" ? formVenue : null,
-        venue_address: venueMode === "custom" ? formVenueAddress : "",
-        event_type: formEventType,
-        service_style: formServiceStyle,
-        price_per_head: formPricePerHead || null,
-        notes: formNotes,
-        gents: formGents,
-        ladies: formLadies,
-        guaranteed_count: formGuaranteed,
-        final_count: formFinalCount,
-        final_count_due: formFinalCountDue || null,
-        big_eaters: formBigEaters,
-        big_eaters_percentage: formBigEatersPercent,
-        setup_time: formSetupTime || null,
-        guest_arrival_time: formArrivalTime || null,
-        meal_time: formMealTime || null,
-        end_time: formEndTime || null,
-      } as Partial<EventData>);
-      await mutateEvent();
-      setEditing(false);
+      if (isNew) {
+        const created = await api.createEvent({
+          ...payload,
+          status: formStatus,
+          dish_ids: menuData.dish_ids,
+          based_on_template: menuData.based_on_template,
+        });
+        router.push(`/events/${created.id}`);
+      } else {
+        await api.updateEvent(event!.id, payload as Partial<EventData>);
+        await mutateEvent();
+        setEditing(false);
+      }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Save failed");
     } finally {
@@ -200,6 +233,10 @@ export default function EventDetailPage() {
   };
 
   const handleCancelEdit = () => {
+    if (isNew) {
+      router.push("/events");
+      return;
+    }
     if (event) syncFormToEvent(event);
     setEditing(false);
   };
@@ -338,7 +375,7 @@ export default function EventDetailPage() {
   };
 
   // Contacts for selected account
-  const selectedAccount = accounts.find((a) => a.id === (editing ? formAccount : event?.account));
+  const selectedAccount = accounts.find((a) => a.id === (editing || isNew ? formAccount : event?.account));
   const contactsForAccount: Contact[] = selectedAccount?.contacts || [];
 
   if (loading) {
@@ -349,7 +386,7 @@ export default function EventDetailPage() {
     );
   }
 
-  if (!event) {
+  if (!isNew && !event) {
     return (
       <div className="flex items-center justify-center py-20">
         <p className="text-destructive">{error || "Event not found"}</p>
@@ -357,15 +394,15 @@ export default function EventDetailPage() {
     );
   }
 
-  const totalLaborCost = event.shifts.reduce(
+  const totalLaborCost = event?.shifts.reduce(
     (sum, s) => sum + parseFloat(s.shift_cost || "0"),
     0
-  );
+  ) ?? 0;
 
-  const totalEquipmentCost = event.equipment_reservations.reduce(
+  const totalEquipmentCost = event?.equipment_reservations.reduce(
     (sum, r) => sum + parseFloat(r.line_cost || "0"),
     0
-  );
+  ) ?? 0;
 
   const formatDateTime = (dt: string | null) => {
     if (!dt) return "\u2014";
@@ -403,10 +440,11 @@ export default function EventDetailPage() {
                   value={formName}
                   onChange={(e) => setFormName(e.target.value)}
                   className="text-2xl font-bold h-auto py-1 max-w-md"
+                  placeholder="Event name"
                 />
               ) : (
                 <h1 className="text-2xl font-bold text-foreground truncate">
-                  {event.name}
+                  {event!.name}
                 </h1>
               )}
               {editing ? (
@@ -417,11 +455,22 @@ export default function EventDetailPage() {
                   className="w-auto"
                 />
               ) : (
-                <span className="text-muted-foreground text-sm whitespace-nowrap">{event.date}</span>
+                <span className="text-muted-foreground text-sm whitespace-nowrap">{event!.date}</span>
               )}
-              <Badge variant={statusBadgeVariant[event.status] || "secondary"} className="whitespace-nowrap">
-                {event.status_display || event.status}
-              </Badge>
+              {isNew ? (
+                <select
+                  value={formStatus}
+                  onChange={(e) => setFormStatus(e.target.value)}
+                  className="flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                >
+                  <option value="tentative">Tentative</option>
+                  <option value="confirmed">Confirmed</option>
+                </select>
+              ) : (
+                <Badge variant={statusBadgeVariant[event!.status] || "secondary"} className="whitespace-nowrap">
+                  {event!.status_display || event!.status}
+                </Badge>
+              )}
             </div>
             <div className="flex gap-2 flex-shrink-0">
               {editing ? (
@@ -438,7 +487,7 @@ export default function EventDetailPage() {
                     onClick={handleSaveAll}
                     disabled={saving}
                   >
-                    {saving ? "Saving..." : "Save"}
+                    {saving ? (isNew ? "Creating..." : "Saving...") : (isNew ? "Create Event" : "Save")}
                   </Button>
                 </>
               ) : (
@@ -450,7 +499,7 @@ export default function EventDetailPage() {
                     Edit
                   </Button>
                   {/* Status transitions */}
-                  {event.status === "tentative" && (
+                  {event!.status === "tentative" && (
                     <Button
                       variant="success"
                       size="sm"
@@ -460,7 +509,7 @@ export default function EventDetailPage() {
                       Confirm
                     </Button>
                   )}
-                  {event.status === "confirmed" && (
+                  {event!.status === "confirmed" && (
                     <Button
                       variant="warning"
                       size="sm"
@@ -470,7 +519,7 @@ export default function EventDetailPage() {
                       Start
                     </Button>
                   )}
-                  {event.status === "in_progress" && (
+                  {event!.status === "in_progress" && (
                     <Button
                       variant="success"
                       size="sm"
@@ -480,7 +529,7 @@ export default function EventDetailPage() {
                       Complete
                     </Button>
                   )}
-                  {event.status === "cancelled" && (
+                  {event!.status === "cancelled" && (
                     <Button
                       variant="warning"
                       size="sm"
@@ -490,9 +539,9 @@ export default function EventDetailPage() {
                       Reactivate
                     </Button>
                   )}
-                  {(event.status === "tentative" ||
-                    event.status === "confirmed" ||
-                    event.status === "in_progress") && (
+                  {(event!.status === "tentative" ||
+                    event!.status === "confirmed" ||
+                    event!.status === "in_progress") && (
                     <Button
                       variant="outline"
                       size="sm"
@@ -505,13 +554,13 @@ export default function EventDetailPage() {
                   <Button
                     variant="destructive"
                     size="sm"
-                    onClick={() => setShowDeleteConfirm(true)}
+                    onClick={() => { setError(null); setShowDeleteConfirm(true); }}
                   >
                     Delete
                   </Button>
-                  {event.source_quote_id && (
+                  {event!.source_quote_id && (
                     <Button variant="link" size="sm" asChild>
-                      <Link href={`/quotes/${event.source_quote_id}`}>
+                      <Link href={`/quotes/${event!.source_quote_id}`}>
                         View Quote &rarr;
                       </Link>
                     </Button>
@@ -524,7 +573,7 @@ export default function EventDetailPage() {
       </Card>
 
       {/* Delete confirmation */}
-      {showDeleteConfirm && (
+      {!isNew && showDeleteConfirm && (
         <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 flex items-center justify-between">
           <p className="text-destructive text-sm">
             Are you sure you want to delete this event? This cannot be undone.
@@ -681,30 +730,15 @@ export default function EventDetailPage() {
               </div>
             ) : (
               <dl className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                <InfoRow label="Account" value={event.account_name} />
-                <InfoRow label="Primary Contact" value={event.contact_name} />
-                <InfoRow label="Venue" value={event.venue_name || event.venue_address || null} />
-                <InfoRow label="Event Type" value={eventTypeLabels[event.event_type] || event.event_type} />
-                <InfoRow label="Service Style" value={serviceStyleLabels[event.service_style] || event.service_style} />
-                <InfoRow label="Price Per Head" value={event.price_per_head ? `${settings.currency_symbol}${event.price_per_head}` : null} />
-                {event.notes && <div className="col-span-full"><InfoRow label="Notes" value={event.notes} /></div>}
+                <InfoRow label="Account" value={event!.account_name} />
+                <InfoRow label="Primary Contact" value={event!.contact_name} />
+                <InfoRow label="Venue" value={event!.venue_name || event!.venue_address || null} />
+                <InfoRow label="Event Type" value={eventTypeLabels[event!.event_type] || event!.event_type} />
+                <InfoRow label="Service Style" value={serviceStyleLabels[event!.service_style] || event!.service_style} />
+                <InfoRow label="Price Per Head" value={event!.price_per_head ? `${settings.currency_symbol}${event!.price_per_head}` : null} />
+                {event!.notes && <div className="col-span-full"><InfoRow label="Notes" value={event!.notes} /></div>}
               </dl>
             )}
-        </CardContent>
-      </Card>
-
-      {/* Menu Section */}
-      <Card>
-        <CardContent className="p-6">
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Menu</h2>
-          <MenuBuilder
-              selectedDishIds={event.dishes}
-              basedOnTemplate={event.based_on_template}
-              onSave={handleMenuSave}
-              onSuggestedPriceChange={handleSuggestedPriceChange}
-              onUseSuggestedPrice={(price) => setFormPricePerHead(price.toFixed(2))}
-              currencySymbol={settings.currency_symbol}
-            />
         </CardContent>
       </Card>
 
@@ -822,15 +856,43 @@ export default function EventDetailPage() {
               </div>
             ) : (
               <dl className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                <InfoRow label="Gents" value={event.gents} />
-                <InfoRow label="Ladies" value={event.ladies} />
-                <InfoRow label="Total" value={event.gents + event.ladies} />
-                <InfoRow label="Guaranteed Count" value={event.guaranteed_count} />
-                <InfoRow label="Final Count" value={event.final_count} />
-                <InfoRow label="Final Count Due" value={event.final_count_due} />
-                <InfoRow label="Big Eaters" value={event.big_eaters ? `Yes (+${event.big_eaters_percentage}%)` : "No"} />
+                <InfoRow label="Gents" value={event!.gents} />
+                <InfoRow label="Ladies" value={event!.ladies} />
+                <InfoRow label="Total" value={event!.gents + event!.ladies} />
+                <InfoRow label="Guaranteed Count" value={event!.guaranteed_count} />
+                <InfoRow label="Final Count" value={event!.final_count} />
+                <InfoRow label="Final Count Due" value={event!.final_count_due} />
+                <InfoRow label="Big Eaters" value={event!.big_eaters ? `Yes (+${event!.big_eaters_percentage}%)` : "No"} />
               </dl>
             )}
+        </CardContent>
+      </Card>
+
+      {/* Menu Section */}
+      <Card>
+        <CardContent className="p-6">
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Menu</h2>
+          {isNew ? (
+            <MenuBuilder
+              selectedDishIds={menuData.dish_ids}
+              basedOnTemplate={menuData.based_on_template}
+              onChange={setMenuData}
+              onSuggestedPriceChange={handleSuggestedPriceChange}
+              onUseSuggestedPrice={(price) => setFormPricePerHead(price.toFixed(2))}
+              guestCount={formTotalGuests}
+              currencySymbol={settings.currency_symbol}
+            />
+          ) : (
+            <MenuBuilder
+              selectedDishIds={event!.dishes}
+              basedOnTemplate={event!.based_on_template}
+              onSave={handleMenuSave}
+              onSuggestedPriceChange={handleSuggestedPriceChange}
+              onUseSuggestedPrice={(price) => setFormPricePerHead(price.toFixed(2))}
+              guestCount={editing ? formTotalGuests : (event!.gents + event!.ladies)}
+              currencySymbol={settings.currency_symbol}
+            />
+          )}
         </CardContent>
       </Card>
 
@@ -859,20 +921,21 @@ export default function EventDetailPage() {
               </div>
             ) : (
               <dl className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <InfoRow label="Setup Time" value={formatDateTime(event.setup_time)} />
-                <InfoRow label="Guest Arrival" value={formatDateTime(event.guest_arrival_time)} />
-                <InfoRow label="Meal Time" value={formatDateTime(event.meal_time)} />
-                <InfoRow label="End Time" value={formatDateTime(event.end_time)} />
+                <InfoRow label="Setup Time" value={formatDateTime(event!.setup_time)} />
+                <InfoRow label="Guest Arrival" value={formatDateTime(event!.guest_arrival_time)} />
+                <InfoRow label="Meal Time" value={formatDateTime(event!.meal_time)} />
+                <InfoRow label="End Time" value={formatDateTime(event!.end_time)} />
               </dl>
             )}
         </CardContent>
       </Card>
 
+      {!isNew && <>
       {/* Staffing Section */}
       <Card>
         <CardContent className="p-6">
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Staffing</h2>
-            {event.shifts.length > 0 ? (
+            {event!.shifts.length > 0 ? (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-muted border-b border-border">
@@ -887,7 +950,7 @@ export default function EventDetailPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {event.shifts.map((shift) => (
+                    {event!.shifts.map((shift) => (
                       <tr key={shift.id} className="border-b border-border hover:bg-muted">
                         <td className="px-3 py-2 text-foreground">{shift.role_name}</td>
                         <td className="px-3 py-2 text-foreground">{shift.staff_member_name || "Unassigned"}</td>
@@ -942,7 +1005,7 @@ export default function EventDetailPage() {
       <Card>
         <CardContent className="p-6">
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Equipment</h2>
-            {event.equipment_reservations.length > 0 ? (
+            {event!.equipment_reservations.length > 0 ? (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-muted border-b border-border">
@@ -954,7 +1017,7 @@ export default function EventDetailPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {event.equipment_reservations.map((res) => (
+                    {event!.equipment_reservations.map((res) => (
                       <tr key={res.id} className="border-b border-border hover:bg-muted">
                         <td className="px-3 py-2 text-foreground">{res.equipment_name}</td>
                         <td className="px-3 py-2 text-right text-foreground">{res.quantity_out}</td>
@@ -997,7 +1060,7 @@ export default function EventDetailPage() {
       <Card>
         <CardContent className="p-6">
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Invoices</h2>
-            {event.invoices.length > 0 ? (
+            {event!.invoices.length > 0 ? (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-muted border-b border-border">
@@ -1010,7 +1073,7 @@ export default function EventDetailPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {event.invoices.map((inv) => (
+                    {event!.invoices.map((inv) => (
                       <tr key={inv.id} className="border-b border-border hover:bg-muted">
                         <td className="px-3 py-2">
                           <Link href={`/invoices/${inv.id}`} className="text-primary hover:text-primary/80 font-medium">{inv.invoice_number}</Link>
@@ -1045,6 +1108,7 @@ export default function EventDetailPage() {
             </div>
         </CardContent>
       </Card>
+      </>}
     </div>
   );
 }

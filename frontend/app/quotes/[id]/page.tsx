@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useCallback } from "react";
-import { useParams } from "next/navigation";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { api, Contact } from "@/lib/api";
-import { useQuote, useVenues, useSiteSettings, useEventTypes, useServiceStyles } from "@/lib/hooks";
+import { useQuote, useAccounts, useVenues, useSiteSettings, useEventTypes, useServiceStyles, revalidate } from "@/lib/hooks";
 import MenuBuilder from "@/components/MenuBuilder";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -31,7 +31,11 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 export default function QuoteDetailPage() {
   const { id } = useParams();
-  const { data: quote, error: loadError, isLoading: loading, mutate: mutateQuote } = useQuote(Number(id) || null);
+  const router = useRouter();
+  const isNew = id === "new";
+  const { data: quote, error: loadError, isLoading: quoteLoading, mutate: mutateQuote } = useQuote(isNew ? null : (Number(id) || null));
+  const loading = isNew ? false : quoteLoading;
+  const { data: accounts = [] } = useAccounts();
   const { data: venues = [] } = useVenues();
   const { data: rawSettings } = useSiteSettings();
   const settings = rawSettings || { currency_symbol: "£", currency_code: "GBP", default_price_per_head: "0.00", target_food_cost_percentage: "30.00", price_rounding_step: "50" };
@@ -59,6 +63,83 @@ export default function QuoteDetailPage() {
   const [showAcceptConfirm, setShowAcceptConfirm] = useState(false);
   const [suggestedPrice, setSuggestedPrice] = useState<number | null>(null);
   const handleSuggestedPriceChange = useCallback((price: number | null) => setSuggestedPrice(price), []);
+
+  // Create mode state
+  const [createData, setCreateData] = useState({
+    account: "",
+    primary_contact: "",
+    venue: "",
+    venue_address: "",
+    event_date: "",
+    guest_count: "",
+    price_per_head: "",
+    event_type: "other",
+    service_style: "",
+    tax_rate: "0.2000",
+    valid_until: "",
+    notes: "",
+    internal_notes: "",
+  });
+  const [menuData, setMenuData] = useState<{
+    dish_ids: number[];
+    based_on_template: number | null;
+  }>({ dish_ids: [], based_on_template: null });
+  const [createContacts, setCreateContacts] = useState<Contact[]>([]);
+
+  // Set default price from settings in create mode
+  const defaultPriceApplied = useRef(false);
+  useEffect(() => {
+    if (isNew && rawSettings && parseFloat(rawSettings.default_price_per_head) > 0 && !defaultPriceApplied.current) {
+      setCreateData((prev) => ({ ...prev, price_per_head: rawSettings.default_price_per_head }));
+      defaultPriceApplied.current = true;
+    }
+  }, [isNew, rawSettings]);
+
+  // Load contacts when account changes in create mode
+  useEffect(() => {
+    if (!isNew) return;
+    if (createData.account) {
+      const acct = accounts.find((a) => a.id === Number(createData.account));
+      setCreateContacts(acct?.contacts || []);
+      setCreateData((prev) => ({ ...prev, primary_contact: "" }));
+    } else {
+      setCreateContacts([]);
+    }
+  }, [isNew, createData.account, accounts]);
+
+  const setCreate = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
+    setCreateData({ ...createData, [field]: e.target.value });
+
+  async function handleCreateQuoteSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setError("");
+    try {
+      const data = {
+        account: Number(createData.account),
+        primary_contact: createData.primary_contact ? Number(createData.primary_contact) : null,
+        venue: createData.venue ? Number(createData.venue) : null,
+        venue_address: createData.venue_address,
+        event_date: createData.event_date,
+        guest_count: Number(createData.guest_count),
+        price_per_head: createData.price_per_head ? createData.price_per_head : null,
+        event_type: createData.event_type,
+        service_style: createData.service_style || undefined,
+        tax_rate: createData.tax_rate,
+        valid_until: createData.valid_until || null,
+        notes: createData.notes,
+        internal_notes: createData.internal_notes,
+        dish_ids: menuData.dish_ids,
+        based_on_template: menuData.based_on_template,
+      };
+      const newQuote = await api.createQuote(data);
+      revalidate("quotes");
+      router.push(`/quotes/${newQuote.id}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create quote");
+      setSaving(false);
+    }
+  }
   const [itemData, setItemData] = useState({
     category: "food",
     description: "",
@@ -167,24 +248,236 @@ export default function QuoteDetailPage() {
   }
 
   if (loading) return <p className="text-muted-foreground">Loading...</p>;
-  if (loadError && !quote) return <p className="text-destructive">Error: {loadError.message}</p>;
-  if (!quote) return <p className="text-muted-foreground">Quote not found.</p>;
+  if (!isNew && loadError && !quote) return <p className="text-destructive">Error: {loadError.message}</p>;
+  if (!isNew && !quote) return <p className="text-muted-foreground">Quote not found.</p>;
 
   const cs = settings.currency_symbol;
 
   const setEdit = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setEditData({ ...editData, [field]: e.target.value });
 
+  const selectClass = "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring";
+  const venueSelected = !!createData.venue;
+
+  // Create mode
+  if (isNew) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center gap-2 text-sm">
+          <Link href="/quotes" className="text-primary hover:underline">&larr; Quotes</Link>
+        </div>
+
+        {error && <p className="text-destructive">{error}</p>}
+
+        <form onSubmit={handleCreateQuoteSubmit} className="space-y-6">
+          {/* Header */}
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-start justify-between">
+                <h1 className="text-2xl font-bold text-foreground">New Quote</h1>
+                <div className="flex gap-3">
+                  <Button type="button" variant="outline" onClick={() => router.push("/quotes")}>
+                    Discard
+                  </Button>
+                  <Button type="submit" disabled={saving}>
+                    {saving ? "Creating..." : "Create Quote"}
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Customer */}
+          <Card>
+            <CardContent className="p-6">
+              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Customer</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Account *</label>
+                  <select required value={createData.account} onChange={setCreate("account")} className={selectClass}>
+                    <option value="">-- Select Account --</option>
+                    {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Contact Person</label>
+                  <select value={createData.primary_contact} onChange={setCreate("primary_contact")} disabled={!createData.account} className={`${selectClass} disabled:cursor-not-allowed disabled:opacity-50`}>
+                    <option value="">-- Select Contact --</option>
+                    {createContacts.map((c) => <option key={c.id} value={c.id}>{c.name} ({c.role})</option>)}
+                  </select>
+                  {createData.account && createContacts.length === 0 && (
+                    <p className="text-xs text-muted-foreground mt-1">No contacts on this account</p>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Event Details */}
+          <Card>
+            <CardContent className="p-6">
+              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Event Details</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Event Date *</label>
+                  <Input type="date" required value={createData.event_date} onChange={setCreate("event_date")} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Guest Count *</label>
+                  <Input type="number" required min={1} value={createData.guest_count} onChange={setCreate("guest_count")} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Event Type</label>
+                  <select value={createData.event_type} onChange={setCreate("event_type")} className={selectClass}>
+                    {eventTypes.map((et) => <option key={et.id} value={et.value}>{et.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Service Style</label>
+                  <select value={createData.service_style} onChange={setCreate("service_style")} className={selectClass}>
+                    <option value="">-- Select --</option>
+                    {serviceStyles.map((ss) => <option key={ss.id} value={ss.value}>{ss.label}</option>)}
+                  </select>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Venue */}
+          <Card>
+            <CardContent className="p-6">
+              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Venue</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Saved Venue</label>
+                  <select value={createData.venue} onChange={setCreate("venue")} className={selectClass}>
+                    <option value="">-- No saved venue --</option>
+                    {venues.map((v) => <option key={v.id} value={v.id}>{v.name} — {v.city}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">
+                    {venueSelected ? "Additional Address Notes" : "Venue Address (freeform)"}
+                  </label>
+                  <Textarea
+                    value={createData.venue_address}
+                    onChange={setCreate("venue_address")}
+                    rows={2}
+                    placeholder={venueSelected ? "e.g. Use the garden entrance" : "e.g. 42 Oak Lane, Manchester, M1 2AB"}
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Menu */}
+          <Card>
+            <CardContent className="p-6">
+              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Menu</h2>
+              <MenuBuilder
+                selectedDishIds={menuData.dish_ids}
+                basedOnTemplate={menuData.based_on_template}
+                guestCount={createData.guest_count ? Number(createData.guest_count) : undefined}
+                onChange={setMenuData}
+                onSuggestedPriceChange={handleSuggestedPriceChange}
+                onUseSuggestedPrice={(price) => setCreateData((prev) => ({ ...prev, price_per_head: price.toFixed(2) }))}
+                currencySymbol={cs}
+                priceRoundingStep={Number(settings.price_rounding_step) || 50}
+              />
+            </CardContent>
+          </Card>
+
+          {/* Pricing & Terms */}
+          <Card>
+            <CardContent className="p-6">
+              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Pricing &amp; Terms</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Price Per Head ({cs})</label>
+                  <div className="flex gap-2">
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min={0}
+                      value={createData.price_per_head}
+                      onChange={setCreate("price_per_head")}
+                      placeholder="0.00"
+                    />
+                    {suggestedPrice !== null && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setCreateData({ ...createData, price_per_head: suggestedPrice.toFixed(2) })}
+                        className="whitespace-nowrap border-success/30 text-success bg-success/10 hover:bg-success/15 hover:text-success"
+                      >
+                        Use {cs}{suggestedPrice.toFixed(2)}
+                      </Button>
+                    )}
+                  </div>
+                  {suggestedPrice !== null && (
+                    <p className="text-xs text-success/80 mt-1">
+                      Suggested: {cs}{suggestedPrice.toFixed(2)}/head
+                    </p>
+                  )}
+                  {createData.price_per_head && createData.guest_count && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Food total: {cs}{(parseFloat(createData.price_per_head) * Number(createData.guest_count)).toFixed(2)} ({createData.guest_count} guests)
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Tax Rate (%)</label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min={0}
+                    max={100}
+                    value={Math.round(parseFloat(createData.tax_rate) * 10000) / 100}
+                    onChange={(e) => setCreateData({ ...createData, tax_rate: (parseFloat(e.target.value) / 100).toFixed(4) })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Valid Until</label>
+                  <Input type="date" value={createData.valid_until} onChange={setCreate("valid_until")} />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Notes */}
+          <Card>
+            <CardContent className="p-6">
+              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Notes</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Notes (customer-visible)</label>
+                  <Textarea value={createData.notes} onChange={setCreate("notes")} rows={3} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Internal Notes</label>
+                  <Textarea value={createData.internal_notes} onChange={setCreate("internal_notes")} rows={3} />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </form>
+      </div>
+    );
+  }
+
+  // At this point, quote is guaranteed to be defined
+  const q = quote!;
+
   return (
     <div className="space-y-6">
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-sm">
         <Link href="/quotes" className="text-primary hover:underline">&larr; Quotes</Link>
-        {quote.lead && quote.lead_name && (
+        {q.lead && q.lead_name && (
           <>
             <span className="text-muted-foreground">&middot;</span>
             <span className="text-muted-foreground">From Lead:</span>
-            <Link href={`/leads/${quote.lead}`} className="text-primary hover:underline">{quote.lead_name}</Link>
+            <Link href={`/leads/${q.lead}`} className="text-primary hover:underline">{q.lead_name}</Link>
           </>
         )}
       </div>
@@ -197,20 +490,20 @@ export default function QuoteDetailPage() {
           <div className="flex items-start justify-between">
             <div>
               <div className="flex items-center gap-3">
-                <h1 className="text-2xl font-bold text-foreground">Quote #{quote.id} v{quote.version}</h1>
-                <Badge variant={STATUS_BADGE_VARIANT[quote.status] || "secondary"}>
-                  {quote.status_display}
+                <h1 className="text-2xl font-bold text-foreground">Quote #{q.id} v{q.version}</h1>
+                <Badge variant={STATUS_BADGE_VARIANT[q.status] || "secondary"}>
+                  {q.status_display}
                 </Badge>
               </div>
               <p className="text-sm text-muted-foreground mt-1">
-                Created {new Date(quote.created_at).toLocaleDateString()}
-                {quote.sent_at && ` · Sent ${new Date(quote.sent_at).toLocaleDateString()}`}
-                {quote.accepted_at && ` · Accepted ${new Date(quote.accepted_at).toLocaleDateString()}`}
+                Created {new Date(q.created_at).toLocaleDateString()}
+                {q.sent_at && ` · Sent ${new Date(q.sent_at).toLocaleDateString()}`}
+                {q.accepted_at && ` · Accepted ${new Date(q.accepted_at).toLocaleDateString()}`}
               </p>
             </div>
             <div className="text-right">
-              <p className="text-2xl font-bold text-foreground">{cs}{quote.total}</p>
-              <p className="text-xs text-muted-foreground">Subtotal: {cs}{quote.subtotal} + Tax: {cs}{quote.tax_amount}</p>
+              <p className="text-2xl font-bold text-foreground">{cs}{q.total}</p>
+              <p className="text-xs text-muted-foreground">Subtotal: {cs}{q.subtotal} + Tax: {cs}{q.tax_amount}</p>
             </div>
           </div>
 
@@ -225,11 +518,11 @@ export default function QuoteDetailPage() {
               variant="outline"
               onClick={async () => {
                 try {
-                  const blob = await api.downloadQuotePDF(quote.id);
+                  const blob = await api.downloadQuotePDF(q.id);
                   const url = URL.createObjectURL(blob);
                   const a = document.createElement("a");
                   a.href = url;
-                  a.download = `Quote-${quote.id}-v${quote.version}.pdf`;
+                  a.download = `Quote-${q.id}-v${q.version}.pdf`;
                   a.click();
                   URL.revokeObjectURL(url);
                 } catch (err) {
@@ -239,7 +532,7 @@ export default function QuoteDetailPage() {
             >
               Download PDF
             </Button>
-            {quote.status === "draft" && (
+            {q.status === "draft" && (
               <>
                 <Button onClick={() => handleTransition("sent")} disabled={saving}>
                   {saving ? "..." : "Mark as Sent"}
@@ -249,7 +542,7 @@ export default function QuoteDetailPage() {
                 </Button>
               </>
             )}
-            {quote.status === "sent" && (
+            {q.status === "sent" && (
               <>
                 <Button onClick={() => setShowAcceptConfirm(true)} disabled={saving} variant="success">
                   {saving ? "..." : "Accept & Create Event"}
@@ -262,7 +555,7 @@ export default function QuoteDetailPage() {
                 </Button>
               </>
             )}
-            {(quote.status === "expired" || quote.status === "declined") && (
+            {(q.status === "expired" || q.status === "declined") && (
               <Button variant="outline" onClick={() => handleTransition("draft")} disabled={saving}>
                 {saving ? "..." : "Reopen as Draft"}
               </Button>
@@ -270,10 +563,10 @@ export default function QuoteDetailPage() {
           </div>
 
           {/* Event link when accepted */}
-          {quote.status === "accepted" && quote.event_id && (
+          {q.status === "accepted" && q.event_id && (
             <div className="mt-4 p-3 bg-success/10 border border-success/20 rounded flex items-center justify-between">
               <span className="text-success text-sm">Event created from this quote</span>
-              <Link href={`/events/${quote.event_id}`} className="text-success font-medium text-sm hover:underline">
+              <Link href={`/events/${q.event_id}`} className="text-success font-medium text-sm hover:underline">
                 View Event &rarr;
               </Link>
             </div>
@@ -388,16 +681,16 @@ export default function QuoteDetailPage() {
               <div className="space-y-2 text-sm">
                 <div>
                   <span className="text-muted-foreground">Account:</span>{" "}
-                  <Link href={`/accounts/${quote.account}`} className="text-primary hover:underline font-medium">{quote.account_name}</Link>
+                  <Link href={`/accounts/${q.account}`} className="text-primary hover:underline font-medium">{q.account_name}</Link>
                 </div>
-                {quote.contact_name ? (
+                {q.contact_name ? (
                   <div>
-                    <span className="text-muted-foreground">Contact:</span> {quote.contact_name}
-                    {quote.contact_email && (
-                      <span className="text-muted-foreground ml-2">{quote.contact_email}</span>
+                    <span className="text-muted-foreground">Contact:</span> {q.contact_name}
+                    {q.contact_email && (
+                      <span className="text-muted-foreground ml-2">{q.contact_email}</span>
                     )}
-                    {quote.contact_phone && (
-                      <span className="text-muted-foreground ml-2">{quote.contact_phone}</span>
+                    {q.contact_phone && (
+                      <span className="text-muted-foreground ml-2">{q.contact_phone}</span>
                     )}
                   </div>
                 ) : (
@@ -411,13 +704,13 @@ export default function QuoteDetailPage() {
             <CardContent className="p-6">
               <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Venue</h2>
               <div className="space-y-2 text-sm">
-                {quote.venue_name ? (
-                  <div><span className="text-muted-foreground">Venue:</span> <span className="font-medium">{quote.venue_name}</span></div>
-                ) : !quote.venue_address ? (
+                {q.venue_name ? (
+                  <div><span className="text-muted-foreground">Venue:</span> <span className="font-medium">{q.venue_name}</span></div>
+                ) : !q.venue_address ? (
                   <div className="text-muted-foreground italic">No venue set</div>
                 ) : null}
-                {quote.venue_address && (
-                  <div><span className="text-muted-foreground">Address:</span> {quote.venue_address}</div>
+                {q.venue_address && (
+                  <div><span className="text-muted-foreground">Address:</span> {q.venue_address}</div>
                 )}
               </div>
             </CardContent>
@@ -433,45 +726,45 @@ export default function QuoteDetailPage() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
               <div>
                 <span className="text-muted-foreground block">Date</span>
-                <span className="font-medium text-foreground">{quote.event_date}</span>
+                <span className="font-medium text-foreground">{q.event_date}</span>
               </div>
               <div>
                 <span className="text-muted-foreground block">Guests</span>
-                <span className="font-medium text-foreground">{quote.guest_count}</span>
+                <span className="font-medium text-foreground">{q.guest_count}</span>
               </div>
               <div>
                 <span className="text-muted-foreground block">Event Type</span>
-                <span className="font-medium text-foreground capitalize">{quote.event_type.replace(/_/g, " ")}</span>
+                <span className="font-medium text-foreground capitalize">{q.event_type.replace(/_/g, " ")}</span>
               </div>
               <div>
                 <span className="text-muted-foreground block">Service Style</span>
-                <span className="font-medium text-foreground capitalize">{quote.service_style ? quote.service_style.replace(/_/g, " ") : "—"}</span>
+                <span className="font-medium text-foreground capitalize">{q.service_style ? q.service_style.replace(/_/g, " ") : "—"}</span>
               </div>
               <div>
                 <span className="text-muted-foreground block">Price Per Head</span>
-                <span className="font-medium text-foreground">{quote.price_per_head ? `${cs}${quote.price_per_head}` : "—"}</span>
+                <span className="font-medium text-foreground">{q.price_per_head ? `${cs}${q.price_per_head}` : "—"}</span>
               </div>
               <div>
                 <span className="text-muted-foreground block">Tax Rate</span>
-                <span className="font-medium text-foreground">{(parseFloat(quote.tax_rate) * 100).toFixed(0)}%</span>
+                <span className="font-medium text-foreground">{(parseFloat(q.tax_rate) * 100).toFixed(0)}%</span>
               </div>
               <div>
                 <span className="text-muted-foreground block">Valid Until</span>
-                <span className="font-medium text-foreground">{quote.valid_until || "—"}</span>
+                <span className="font-medium text-foreground">{q.valid_until || "—"}</span>
               </div>
             </div>
-            {(quote.notes || quote.internal_notes) && (
+            {(q.notes || q.internal_notes) && (
               <div className="mt-4 pt-4 border-t border-border grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                {quote.notes && (
+                {q.notes && (
                   <div>
                     <span className="text-muted-foreground block mb-1">Notes (customer-visible)</span>
-                    <p className="text-foreground">{quote.notes}</p>
+                    <p className="text-foreground">{q.notes}</p>
                   </div>
                 )}
-                {quote.internal_notes && (
+                {q.internal_notes && (
                   <div>
                     <span className="text-muted-foreground block mb-1">Internal Notes</span>
-                    <p className="text-foreground/70 italic">{quote.internal_notes}</p>
+                    <p className="text-foreground/70 italic">{q.internal_notes}</p>
                   </div>
                 )}
               </div>
@@ -485,11 +778,11 @@ export default function QuoteDetailPage() {
         <CardContent className="p-6">
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Menu</h2>
           <MenuBuilder
-            selectedDishIds={quote.dishes || []}
-            basedOnTemplate={quote.based_on_template || null}
-            guestCount={editing && editData.guest_count ? Number(editData.guest_count) : quote.guest_count}
+            selectedDishIds={q.dishes || []}
+            basedOnTemplate={q.based_on_template || null}
+            guestCount={editing && editData.guest_count ? Number(editData.guest_count) : q.guest_count}
             onSave={async (data) => {
-              await api.updateQuote(quote.id, {
+              await api.updateQuote(q.id, {
                 dish_ids: data.dish_ids,
                 based_on_template: data.based_on_template,
               });
@@ -509,7 +802,7 @@ export default function QuoteDetailPage() {
           <div className="bg-background rounded-lg shadow-lg p-6 w-full max-w-md mx-4">
             <h3 className="text-lg font-semibold text-foreground mb-4">Accept Quote</h3>
             <p className="text-sm text-muted-foreground mb-4">
-              Accepting this quote will create an event{quote.lead ? " and mark the lead as Won" : ""}. Continue?
+              Accepting this quote will create an event{q.lead ? " and mark the lead as Won" : ""}. Continue?
             </p>
             <div className="flex justify-end gap-2">
               <Button variant="secondary" onClick={() => setShowAcceptConfirm(false)}>
@@ -586,7 +879,7 @@ export default function QuoteDetailPage() {
             </form>
           )}
 
-          {quote.line_items.length === 0 && parseFloat(quote.food_total) === 0 ? (
+          {q.line_items.length === 0 && parseFloat(q.food_total) === 0 ? (
             <p className="text-muted-foreground text-sm">No line items yet. Click &quot;Add Item&quot; to start building this quote.</p>
           ) : (
             <div className="overflow-x-auto">
@@ -603,7 +896,7 @@ export default function QuoteDetailPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {quote.line_items.map((item) => (
+                  {q.line_items.map((item) => (
                     <tr key={item.id} className="border-b border-border/50">
                       <td className="py-2">
                         <Badge variant="secondary" className="text-xs">
@@ -624,28 +917,28 @@ export default function QuoteDetailPage() {
                   ))}
                 </tbody>
                 <tfoot>
-                  {parseFloat(quote.food_total) > 0 && (
+                  {parseFloat(q.food_total) > 0 && (
                     <tr className="border-t border-border">
                       <td colSpan={5} className="pt-3 text-right text-muted-foreground">
-                        Food ({cs}{quote.price_per_head} x {quote.guest_count} guests)
+                        Food ({cs}{q.price_per_head} x {q.guest_count} guests)
                       </td>
-                      <td className="pt-3 text-right font-medium">{cs}{quote.food_total}</td>
+                      <td className="pt-3 text-right font-medium">{cs}{q.food_total}</td>
                       <td></td>
                     </tr>
                   )}
-                  <tr className={parseFloat(quote.food_total) > 0 ? "" : "border-t border-border"}>
+                  <tr className={parseFloat(q.food_total) > 0 ? "" : "border-t border-border"}>
                     <td colSpan={5} className="pt-3 text-right text-muted-foreground">Subtotal</td>
-                    <td className="pt-3 text-right font-medium">{cs}{quote.subtotal}</td>
+                    <td className="pt-3 text-right font-medium">{cs}{q.subtotal}</td>
                     <td></td>
                   </tr>
                   <tr>
-                    <td colSpan={5} className="py-1 text-right text-muted-foreground">VAT ({(parseFloat(quote.tax_rate) * 100).toFixed(0)}%)</td>
-                    <td className="py-1 text-right">{cs}{quote.tax_amount}</td>
+                    <td colSpan={5} className="py-1 text-right text-muted-foreground">VAT ({(parseFloat(q.tax_rate) * 100).toFixed(0)}%)</td>
+                    <td className="py-1 text-right">{cs}{q.tax_amount}</td>
                     <td></td>
                   </tr>
                   <tr className="border-t border-border">
                     <td colSpan={5} className="pt-2 text-right font-semibold text-foreground">Total</td>
-                    <td className="pt-2 text-right font-bold text-lg text-foreground">{cs}{quote.total}</td>
+                    <td className="pt-2 text-right font-bold text-lg text-foreground">{cs}{q.total}</td>
                     <td></td>
                   </tr>
                 </tfoot>

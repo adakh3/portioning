@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { api, Lead, Account, AuthUser, ProductLine, Reminder } from "@/lib/api";
-import { useLead, useSiteSettings, useProductLines, useUsers, useSources, useEventTypes, useServiceStyles, useLeadStatuses, useLostReasons, useLeadReminders, revalidate } from "@/lib/hooks";
+import { useAccounts, useLead, useSiteSettings, useProductLines, useUsers, useSources, useEventTypes, useServiceStyles, useLeadStatuses, useLostReasons, useLeadReminders, revalidate } from "@/lib/hooks";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -176,7 +176,9 @@ function AutoSaveField({
 export default function LeadDetailPage() {
   const { id } = useParams();
   const router = useRouter();
-  const { data: lead, error: loadError, isLoading: loading, mutate: mutateLead } = useLead(Number(id) || null);
+  const isNew = id === "new";
+  const { data: lead, error: loadError, isLoading: leadLoading, mutate: mutateLead } = useLead(isNew ? null : (Number(id) || null));
+  const loading = isNew ? false : leadLoading;
   const { data: rawSettings } = useSiteSettings();
   const settings = rawSettings || { currency_symbol: "\u00a3", currency_code: "GBP", default_price_per_head: "0.00", target_food_cost_percentage: "30.00", price_rounding_step: "50" };
   const { data: productLines = [] } = useProductLines();
@@ -186,7 +188,9 @@ export default function LeadDetailPage() {
   const { data: serviceStyles = [] } = useServiceStyles();
   const { data: leadStatuses = [] } = useLeadStatuses();
   const { data: lostReasons = [] } = useLostReasons();
+  const { data: accountsList = [] } = useAccounts();
   const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
   const [transitioning, setTransitioning] = useState(false);
   const [showLostDialog, setShowLostDialog] = useState(false);
   const [lostReasonId, setLostReasonId] = useState<number | null>(null);
@@ -196,6 +200,48 @@ export default function LeadDetailPage() {
   const [showOverflow, setShowOverflow] = useState(false);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [fieldStatus, setFieldStatus] = useState<Record<string, FieldStatus>>({});
+
+  // Create mode form state
+  const [formData, setFormData] = useState({
+    account: "" as string | number,
+    contact_name: "",
+    contact_email: "",
+    contact_phone: "",
+    source: "website",
+    event_date: "",
+    guest_estimate: "",
+    budget: "",
+    event_type: "other",
+    service_style: "",
+    product: "" as string | number,
+    assigned_to: "" as string | number,
+    notes: "",
+  });
+  const setField = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
+    setFormData({ ...formData, [field]: e.target.value });
+
+  async function handleCreate(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setError("");
+    try {
+      const data = {
+        ...formData,
+        account: formData.account ? Number(formData.account) : null,
+        guest_estimate: formData.guest_estimate ? Number(formData.guest_estimate) : null,
+        event_date: formData.event_date || null,
+        budget: formData.budget || null,
+        product: formData.product ? Number(formData.product) : null,
+        assigned_to: formData.assigned_to ? Number(formData.assigned_to) : null,
+      };
+      const newLead = await api.createLead(data);
+      revalidate("leads");
+      router.push(`/leads/${newLead.id}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create lead");
+      setSaving(false);
+    }
+  }
 
   useEffect(() => {
     api.getAccounts().then(setAccounts).catch(() => {});
@@ -295,8 +341,133 @@ export default function LeadDetailPage() {
   }
 
   if (loading) return <p className="text-muted-foreground">Loading...</p>;
-  if (loadError && !lead) return <p className="text-destructive">Error: {loadError.message}</p>;
-  if (!lead) return <p className="text-muted-foreground">Lead not found.</p>;
+  if (!isNew && loadError && !lead) return <p className="text-destructive">Error: {loadError.message}</p>;
+  if (!isNew && !lead) return <p className="text-muted-foreground">Lead not found.</p>;
+
+  // Create mode — render a form
+  if (isNew) {
+    const selectClass = "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring";
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center gap-2 text-sm">
+          <Link href="/leads" className="text-primary hover:underline">&larr; Leads</Link>
+        </div>
+
+        {error && <p className="text-destructive">{error}</p>}
+
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center gap-3 mb-6">
+              <h1 className="text-2xl font-bold text-foreground">New Lead</h1>
+            </div>
+            <form onSubmit={handleCreate}>
+              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Contact</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Contact Name *</label>
+                  <Input type="text" required value={formData.contact_name} onChange={setField("contact_name")} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Account (optional)</label>
+                  <select value={formData.account} onChange={setField("account")} className={selectClass}>
+                    <option value="">-- No account --</option>
+                    {accountsList.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Email</label>
+                  <Input type="email" value={formData.contact_email} onChange={setField("contact_email")} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Phone</label>
+                  <Input type="text" value={formData.contact_phone} onChange={setField("contact_phone")} />
+                </div>
+              </div>
+
+              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Event Details</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Event Type</label>
+                  <select value={formData.event_type} onChange={setField("event_type")} className={selectClass}>
+                    {eventTypes.map((et) => <option key={et.id} value={et.value}>{et.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Event Date</label>
+                  <Input type="date" value={formData.event_date} onChange={setField("event_date")} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Guest Estimate</label>
+                  <Input type="number" min="1" value={formData.guest_estimate} onChange={setField("guest_estimate")} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Budget</label>
+                  <Input
+                    type="text"
+                    inputMode="numeric"
+                    value={formData.budget ? parseInt(formData.budget, 10).toLocaleString() : ""}
+                    onChange={(e) => {
+                      const raw = e.target.value.replace(/[^0-9]/g, "");
+                      setFormData({ ...formData, budget: raw });
+                    }}
+                    placeholder="e.g. 5,000"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Service Style</label>
+                  <select value={formData.service_style} onChange={setField("service_style")} className={selectClass}>
+                    <option value="">-- Select --</option>
+                    {serviceStyles.map((ss) => <option key={ss.id} value={ss.value}>{ss.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Source</label>
+                  <select value={formData.source} onChange={setField("source")} className={selectClass}>
+                    {sources.map((s) => <option key={s.id} value={s.value}>{s.label}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Assignment</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Product / Service</label>
+                  <select value={formData.product} onChange={setField("product")} className={selectClass}>
+                    <option value="">-- Select --</option>
+                    {productLines.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Assigned To</label>
+                  <select value={formData.assigned_to} onChange={setField("assigned_to")} className={selectClass}>
+                    <option value="">-- Unassigned --</option>
+                    {users.map((u) => <option key={u.id} value={u.id}>{u.first_name} {u.last_name}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Notes</h2>
+              <div className="mb-6">
+                <Textarea value={formData.notes} onChange={setField("notes")} rows={3} />
+              </div>
+
+              <div className="flex gap-3">
+                <Button type="submit" disabled={saving}>
+                  {saving ? "Creating..." : "Create Lead"}
+                </Button>
+                <Button type="button" variant="outline" onClick={() => router.push("/leads")}>
+                  Discard
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // At this point, lead is guaranteed to be defined (isNew early-returns above, and !lead guard returns)
+  const l = lead!;
 
   // Contextual next steps based on current status
   const NEXT_STEPS: Record<string, string[]> = {
@@ -315,19 +486,19 @@ export default function LeadDetailPage() {
     won: null,
     lost: "new",
   };
-  const nextSteps = NEXT_STEPS[lead.status] || [];
-  const primaryStep = PRIMARY_NEXT[lead.status] ?? null;
+  const nextSteps = NEXT_STEPS[l.status] || [];
+  const primaryStep = PRIMARY_NEXT[l.status] ?? null;
   const overflowSteps = nextSteps.filter(s => s !== primaryStep);
   // For won leads without event, "Create Event" is the primary action
-  const wonNeedsEvent = lead.status === "won" && !lead.won_event;
+  const wonNeedsEvent = l.status === "won" && !l.won_event;
   // Include "Create Quote" in overflow for active pipeline stages
-  const showCreateQuoteInOverflow = !["won", "lost"].includes(lead.status);
+  const showCreateQuoteInOverflow = !["won", "lost"].includes(l.status);
   const hasOverflowItems = overflowSteps.length > 0 || showCreateQuoteInOverflow;
   const cs = settings.currency_symbol;
 
   const fieldProps = (field: string) => ({
     field,
-    leadId: lead.id,
+    leadId: l.id,
     mutateLead,
     status: fieldStatus[field] || "idle" as FieldStatus,
     setStatus: setStatus(field),
@@ -346,15 +517,15 @@ export default function LeadDetailPage() {
           <div className="flex items-start justify-between gap-4">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-3">
-                <h1 className="text-2xl font-bold text-foreground">{lead.contact_name}</h1>
-                <Badge variant={STATUS_BADGE_VARIANT[lead.status] || "secondary"}>
-                  {lead.status_display}
+                <h1 className="text-2xl font-bold text-foreground">{l.contact_name}</h1>
+                <Badge variant={STATUS_BADGE_VARIANT[l.status] || "secondary"}>
+                  {l.status_display}
                 </Badge>
               </div>
               <p className="text-sm text-muted-foreground mt-1">
-                {lead.event_type_display}
-                {lead.event_date && ` \u00b7 ${lead.event_date}`}
-                {lead.guest_estimate && ` \u00b7 ${lead.guest_estimate} guests`}
+                {l.event_type_display}
+                {l.event_date && ` \u00b7 ${l.event_date}`}
+                {l.guest_estimate && ` \u00b7 ${l.guest_estimate} guests`}
               </p>
             </div>
             <div className="flex items-center gap-2 shrink-0">
@@ -433,14 +604,14 @@ export default function LeadDetailPage() {
         <CardContent className="p-6">
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Contact</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <AutoSaveField {...fieldProps("contact_name")} label="Name" type="text" value={lead.contact_name} required />
-            <AutoSaveField {...fieldProps("contact_email")} label="Email" type="email" value={lead.contact_email} />
-            <AutoSaveField {...fieldProps("contact_phone")} label="Phone" type="tel" value={lead.contact_phone} />
+            <AutoSaveField {...fieldProps("contact_name")} label="Name" type="text" value={l.contact_name} required />
+            <AutoSaveField {...fieldProps("contact_email")} label="Email" type="email" value={l.contact_email} />
+            <AutoSaveField {...fieldProps("contact_phone")} label="Phone" type="tel" value={l.contact_phone} />
             <AutoSaveField
               {...fieldProps("account")}
               label="Account"
               type="select"
-              value={lead.account ?? ""}
+              value={l.account ?? ""}
               transform={fkTransform}
               options={[{ value: "", label: "-- No account --" }, ...accounts.map((a) => ({ value: a.id, label: a.name }))]}
             />
@@ -457,17 +628,17 @@ export default function LeadDetailPage() {
                 {...fieldProps("event_type")}
                 label="Event Type"
                 type="select"
-                value={lead.event_type}
+                value={l.event_type}
                 options={eventTypes.map((et) => ({ value: et.value, label: et.label }))}
               />
-              <AutoSaveField {...fieldProps("event_date")} label="Event Date" type="date" value={lead.event_date || ""} transform={nullableString} />
-              <AutoSaveField {...fieldProps("guest_estimate")} label="Guest Estimate" type="number" value={lead.guest_estimate ?? ""} transform={fkTransform} />
-              <AutoSaveField {...fieldProps("budget")} label="Budget" type="text" inputMode="numeric" value={lead.budget ? String(Math.round(Number(lead.budget))) : ""} transform={nullableString} formatDisplay={formatWholeNumber} placeholder="e.g. 5,000" />
+              <AutoSaveField {...fieldProps("event_date")} label="Event Date" type="date" value={l.event_date || ""} transform={nullableString} />
+              <AutoSaveField {...fieldProps("guest_estimate")} label="Guest Estimate" type="number" value={l.guest_estimate ?? ""} transform={fkTransform} />
+              <AutoSaveField {...fieldProps("budget")} label="Budget" type="text" inputMode="numeric" value={l.budget ? String(Math.round(Number(l.budget))) : ""} transform={nullableString} formatDisplay={formatWholeNumber} placeholder="e.g. 5,000" />
               <AutoSaveField
                 {...fieldProps("service_style")}
                 label="Service Style"
                 type="select"
-                value={lead.service_style || ""}
+                value={l.service_style || ""}
                 options={[{ value: "", label: "-- Select --" }, ...serviceStyles.map((ss) => ({ value: ss.value, label: ss.label }))]}
               />
             </div>
@@ -483,7 +654,7 @@ export default function LeadDetailPage() {
                 {...fieldProps("product")}
                 label="Product / Service"
                 type="select"
-                value={lead.product ?? ""}
+                value={l.product ?? ""}
                 transform={fkTransform}
                 options={[{ value: "", label: "-- Select --" }, ...productLines.map((p) => ({ value: p.id, label: p.name }))]}
               />
@@ -491,7 +662,7 @@ export default function LeadDetailPage() {
                 {...fieldProps("assigned_to")}
                 label="Assigned To"
                 type="select"
-                value={lead.assigned_to ?? ""}
+                value={l.assigned_to ?? ""}
                 transform={fkTransform}
                 options={[{ value: "", label: "-- Unassigned --" }, ...users.map((u) => ({ value: u.id, label: `${u.first_name} ${u.last_name}` }))]}
               />
@@ -499,7 +670,7 @@ export default function LeadDetailPage() {
                 {...fieldProps("source")}
                 label="Source"
                 type="select"
-                value={lead.source}
+                value={l.source}
                 options={sources.map((s) => ({ value: s.value, label: s.label }))}
               />
             </div>
@@ -510,17 +681,17 @@ export default function LeadDetailPage() {
       <Card>
         <CardContent className="p-6">
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Notes</h2>
-          <AutoSaveField {...fieldProps("notes")} label="Notes" type="textarea" value={lead.notes} />
-          {lead.status === "lost" && (
+          <AutoSaveField {...fieldProps("notes")} label="Notes" type="textarea" value={l.notes} />
+          {l.status === "lost" && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-              {lead.lost_reason_option_display && (
+              {l.lost_reason_option_display && (
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Lost Reason</label>
-                  <p className="text-sm text-muted-foreground py-2">{lead.lost_reason_option_display}</p>
+                  <p className="text-sm text-muted-foreground py-2">{l.lost_reason_option_display}</p>
                 </div>
               )}
               <div className="md:col-span-2">
-                <AutoSaveField {...fieldProps("lost_notes")} label="Lost Notes" type="textarea" value={lead.lost_notes || ""} />
+                <AutoSaveField {...fieldProps("lost_notes")} label="Lost Notes" type="textarea" value={l.lost_notes || ""} />
               </div>
             </div>
           )}
@@ -532,23 +703,23 @@ export default function LeadDetailPage() {
         <CardContent className="p-6">
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Timeline</h2>
           <div className="text-sm text-muted-foreground space-y-1">
-            <div>Created: {new Date(lead.created_at).toLocaleString()}</div>
-            {lead.contacted_at && <div>Contacted: {new Date(lead.contacted_at).toLocaleString()}</div>}
-            {lead.qualified_at && <div>Qualified: {new Date(lead.qualified_at).toLocaleString()}</div>}
-            {lead.proposal_sent_at && <div>Proposal Sent: {new Date(lead.proposal_sent_at).toLocaleString()}</div>}
-            {lead.won_at && <div>Won: {new Date(lead.won_at).toLocaleString()}</div>}
-            {lead.lost_at && <div>Lost: {new Date(lead.lost_at).toLocaleString()}</div>}
+            <div>Created: {new Date(l.created_at).toLocaleString()}</div>
+            {l.contacted_at && <div>Contacted: {new Date(l.contacted_at).toLocaleString()}</div>}
+            {l.qualified_at && <div>Qualified: {new Date(l.qualified_at).toLocaleString()}</div>}
+            {l.proposal_sent_at && <div>Proposal Sent: {new Date(l.proposal_sent_at).toLocaleString()}</div>}
+            {l.won_at && <div>Won: {new Date(l.won_at).toLocaleString()}</div>}
+            {l.lost_at && <div>Lost: {new Date(l.lost_at).toLocaleString()}</div>}
           </div>
         </CardContent>
       </Card>
 
       {/* Linked Quotes */}
-      {lead.quotes && lead.quotes.length > 0 && (
+      {l.quotes && l.quotes.length > 0 && (
         <Card>
           <CardContent className="p-6">
             <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Quotes</h2>
             <div className="space-y-3">
-              {lead.quotes.map((q) => (
+              {l.quotes.map((q) => (
                 <Link
                   key={q.id}
                   href={`/quotes/${q.id}`}
@@ -569,16 +740,16 @@ export default function LeadDetailPage() {
       )}
 
       {/* Linked Event */}
-      {lead.won_event && (
+      {l.won_event && (
         <Card>
           <CardContent className="p-6">
             <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Event</h2>
             <Link
-              href={`/events/${lead.won_event}`}
+              href={`/events/${l.won_event}`}
               className="flex items-center justify-between p-3 border border-border rounded hover:bg-muted transition-colors"
             >
               <div className="flex items-center gap-3">
-                <span className="font-medium text-foreground">{lead.won_event_name || `Event #${lead.won_event}`}</span>
+                <span className="font-medium text-foreground">{l.won_event_name || `Event #${l.won_event}`}</span>
                 <Badge variant="success">Created</Badge>
               </div>
               <span className="text-sm text-primary">View Event &rarr;</span>
@@ -588,13 +759,13 @@ export default function LeadDetailPage() {
       )}
 
       {/* Reminders */}
-      <LeadReminders leadId={lead.id} />
+      <LeadReminders leadId={l.id} />
 
       {/* Activity Log */}
       <Card>
         <CardContent className="p-6">
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Activity</h2>
-          <ActivityTimeline leadId={lead.id} />
+          <ActivityTimeline leadId={l.id} />
         </CardContent>
       </Card>
 
@@ -609,7 +780,7 @@ export default function LeadDetailPage() {
                 You&apos;re about to close this deal. What&apos;s next?
               </p>
             </div>
-            {lead.quotes && lead.quotes.filter(q => q.status === "accepted").length > 0 && (
+            {l.quotes && l.quotes.filter(q => q.status === "accepted").length > 0 && (
               <p className="text-xs text-muted-foreground text-center mb-4 bg-muted rounded-md px-3 py-2">
                 The event will use data from the accepted quote.
               </p>
@@ -618,7 +789,7 @@ export default function LeadDetailPage() {
               <button
                 disabled={transitioning}
                 onClick={() => {
-                  const acceptedQuote = lead.quotes?.find(q => q.status === "accepted");
+                  const acceptedQuote = l.quotes?.find(q => q.status === "accepted");
                   handleMarkWon(true, acceptedQuote?.id);
                 }}
                 className="w-full text-left p-4 rounded-lg border-2 border-success/30 bg-success/5 hover:bg-success/10 hover:border-success/50 transition-colors disabled:opacity-50"
