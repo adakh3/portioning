@@ -22,10 +22,10 @@ class QuoteLineItemSerializer(serializers.ModelSerializer):
 class QuoteSerializer(serializers.ModelSerializer):
     line_items = QuoteLineItemSerializer(many=True, read_only=True)
     account_name = serializers.CharField(source='account.name', read_only=True)
-    contact_name = serializers.CharField(source='primary_contact.name', read_only=True, default=None)
-    contact_email = serializers.CharField(source='primary_contact.email', read_only=True, default=None)
-    contact_phone = serializers.CharField(source='primary_contact.phone', read_only=True, default=None)
-    venue_name = serializers.CharField(source='venue.name', read_only=True, default=None)
+    contact_name = serializers.SerializerMethodField()
+    contact_email = serializers.SerializerMethodField()
+    contact_phone = serializers.SerializerMethodField()
+    venue_name = serializers.SerializerMethodField()
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     is_editable = serializers.BooleanField(read_only=True)
     lead_name = serializers.SerializerMethodField()
@@ -61,6 +61,18 @@ class QuoteSerializer(serializers.ModelSerializer):
             'sent_at', 'accepted_at', 'event',
             'created_at', 'updated_at',
         ]
+
+    def get_contact_name(self, obj):
+        return obj.primary_contact.name if obj.primary_contact else None
+
+    def get_contact_email(self, obj):
+        return obj.primary_contact.email if obj.primary_contact else None
+
+    def get_contact_phone(self, obj):
+        return obj.primary_contact.phone if obj.primary_contact else None
+
+    def get_venue_name(self, obj):
+        return obj.venue.name if obj.venue else None
 
     def get_event_id(self, obj):
         return obj.event_id
