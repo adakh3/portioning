@@ -29,7 +29,7 @@ class QuoteSerializer(serializers.ModelSerializer):
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     is_editable = serializers.BooleanField(read_only=True)
     lead_name = serializers.SerializerMethodField()
-    event_id = serializers.IntegerField(source='event.id', read_only=True, default=None)
+    event_id = serializers.SerializerMethodField()
 
     food_total = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
 
@@ -61,6 +61,9 @@ class QuoteSerializer(serializers.ModelSerializer):
             'sent_at', 'accepted_at', 'event',
             'created_at', 'updated_at',
         ]
+
+    def get_event_id(self, obj):
+        return obj.event_id
 
     def get_lead_name(self, obj):
         if obj.lead:
