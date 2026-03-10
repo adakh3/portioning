@@ -595,35 +595,23 @@ function LeadsContent() {
           </Select>
           <div className="flex items-center gap-1">
             <label className="text-xs text-muted-foreground whitespace-nowrap">Event:</label>
-            <Input
-              type="date"
-              value={filterDateFrom}
-              onChange={(e) => setFilterDateFrom(e.target.value)}
-              className="w-36"
-            />
+            <Input type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)} className={`w-36 ${!filterDateFrom ? "text-muted-foreground/50" : ""}`} />
             <span className="text-muted-foreground text-xs">-</span>
-            <Input
-              type="date"
-              value={filterDateTo}
-              onChange={(e) => setFilterDateTo(e.target.value)}
-              className="w-36"
-            />
+            <Input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)} className={`w-36 ${!filterDateTo ? "text-muted-foreground/50" : ""}`} />
+            {(filterDateFrom || filterDateTo) && (
+              <button type="button" onClick={() => { setFilterDateFrom(""); setFilterDateTo(""); }}
+                className="text-muted-foreground hover:text-foreground text-xs px-1" title="Clear event dates">&times;</button>
+            )}
           </div>
           <div className="flex items-center gap-1">
             <label className="text-xs text-muted-foreground whitespace-nowrap">Lead:</label>
-            <Input
-              type="date"
-              value={filterLeadDateFrom}
-              onChange={(e) => setFilterLeadDateFrom(e.target.value)}
-              className="w-36"
-            />
+            <Input type="date" value={filterLeadDateFrom} onChange={(e) => setFilterLeadDateFrom(e.target.value)} className={`w-36 ${!filterLeadDateFrom ? "text-muted-foreground/50" : ""}`} />
             <span className="text-muted-foreground text-xs">-</span>
-            <Input
-              type="date"
-              value={filterLeadDateTo}
-              onChange={(e) => setFilterLeadDateTo(e.target.value)}
-              className="w-36"
-            />
+            <Input type="date" value={filterLeadDateTo} onChange={(e) => setFilterLeadDateTo(e.target.value)} className={`w-36 ${!filterLeadDateTo ? "text-muted-foreground/50" : ""}`} />
+            {(filterLeadDateFrom || filterLeadDateTo) && (
+              <button type="button" onClick={() => { setFilterLeadDateFrom(""); setFilterLeadDateTo(""); }}
+                className="text-muted-foreground hover:text-foreground text-xs px-1" title="Clear lead dates">&times;</button>
+            )}
           </div>
           {hasFilters && (
             <Button variant="ghost" size="sm" onClick={clearFilters}>
