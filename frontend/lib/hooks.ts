@@ -32,6 +32,13 @@ export function revalidate(...keys: string[]) {
   keys.forEach((k) => mutate(k));
 }
 
+// ── Date format ──
+
+export function useDateFormat(): string {
+  const { data } = useSiteSettings();
+  return data?.date_format || "DD/MM/YYYY";
+}
+
 // ── Shared lookups (long dedupe, used by many pages) ──
 
 export function useAccounts() {

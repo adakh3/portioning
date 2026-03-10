@@ -3,31 +3,31 @@
 import { useState } from "react";
 import Link from "next/link";
 import { api, Reminder } from "@/lib/api";
-import { useReminders } from "@/lib/hooks";
+import { useReminders, useDateFormat } from "@/lib/hooks";
 import { revalidate } from "@/lib/hooks";
+import { formatDateTime as sharedFormatDateTime } from "@/lib/dateFormat";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
-function formatDue(dateStr: string) {
+function formatDue(dateStr: string, dateFormat: string) {
   const d = new Date(dateStr);
   const now = new Date();
   const diffMs = d.getTime() - now.getTime();
   const diffMins = Math.round(diffMs / 60000);
   const diffHours = Math.round(diffMs / 3600000);
 
-  const timeStr = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  const dateDisplay = d.toLocaleDateString([], { month: "short", day: "numeric" });
+  const fallback = sharedFormatDateTime(dateStr, dateFormat);
 
   if (diffMins < 0) {
     const ago = Math.abs(diffMins);
     if (ago < 60) return `${ago}m ago`;
     if (ago < 1440) return `${Math.round(ago / 60)}h ago`;
-    return `${dateDisplay} ${timeStr}`;
+    return fallback;
   }
   if (diffMins < 60) return `in ${diffMins}m`;
   if (diffHours < 24) return `in ${diffHours}h`;
-  return `${dateDisplay} ${timeStr}`;
+  return fallback;
 }
 
 function ReminderCard({
@@ -37,6 +37,7 @@ function ReminderCard({
   reminder: Reminder;
   onAction: () => void;
 }) {
+  const dateFormat = useDateFormat();
   const [acting, setActing] = useState(false);
   const [showSnooze, setShowSnooze] = useState(false);
 
@@ -85,7 +86,7 @@ function ReminderCard({
             </p>
           )}
           <p className="text-xs text-muted-foreground mt-1">
-            Due: {formatDue(reminder.due_at)}
+            Due: {formatDue(reminder.due_at, dateFormat)}
           </p>
         </div>
         <div className="flex items-center gap-1 shrink-0">

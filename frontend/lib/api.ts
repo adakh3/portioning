@@ -488,6 +488,7 @@ export interface ChoiceOption {
 export interface SiteSettingsData {
   currency_symbol: string;
   currency_code: string;
+  date_format: string;
   default_price_per_head: string;
   target_food_cost_percentage: string;
   price_rounding_step: string;
@@ -681,6 +682,7 @@ export interface DashboardStats {
   }[];
   salesperson_performance: SalespersonPerformance[];
   status_columns: { value: string; label: string }[];
+  lost_reasons: { reason: string; count: number }[];
   status_distribution: { status: string; label: string; count: number }[];
   kpis: {
     conversion_rate: number;

@@ -4,7 +4,8 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { api, Lead, Account, AuthUser, ProductLine, Reminder } from "@/lib/api";
-import { useAccounts, useLead, useSiteSettings, useProductLines, useUsers, useSources, useEventTypes, useServiceStyles, useLeadStatuses, useLostReasons, useLeadReminders, revalidate } from "@/lib/hooks";
+import { useAccounts, useLead, useSiteSettings, useDateFormat, useProductLines, useUsers, useSources, useEventTypes, useServiceStyles, useLeadStatuses, useLostReasons, useLeadReminders, revalidate } from "@/lib/hooks";
+import { formatDate, formatDateTime } from "@/lib/dateFormat";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -180,7 +181,8 @@ export default function LeadDetailPage() {
   const { data: lead, error: loadError, isLoading: leadLoading, mutate: mutateLead } = useLead(isNew ? null : (Number(id) || null));
   const loading = isNew ? false : leadLoading;
   const { data: rawSettings } = useSiteSettings();
-  const settings = rawSettings || { currency_symbol: "\u00a3", currency_code: "GBP", default_price_per_head: "0.00", target_food_cost_percentage: "30.00", price_rounding_step: "50" };
+  const settings = rawSettings || { currency_symbol: "\u00a3", currency_code: "GBP", date_format: "DD/MM/YYYY", default_price_per_head: "0.00", target_food_cost_percentage: "30.00", price_rounding_step: "50" };
+  const dateFormat = useDateFormat();
   const { data: productLines = [] } = useProductLines();
   const { data: users = [] } = useUsers();
   const { data: sources = [] } = useSources();
@@ -697,12 +699,12 @@ export default function LeadDetailPage() {
         <CardContent className="p-6">
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Timeline</h2>
           <div className="text-sm text-muted-foreground space-y-1">
-            <div>Created: {new Date(l.created_at).toLocaleString()}</div>
-            {l.contacted_at && <div>Contacted: {new Date(l.contacted_at).toLocaleString()}</div>}
-            {l.qualified_at && <div>Qualified: {new Date(l.qualified_at).toLocaleString()}</div>}
-            {l.proposal_sent_at && <div>Proposal Sent: {new Date(l.proposal_sent_at).toLocaleString()}</div>}
-            {l.won_at && <div>Won: {new Date(l.won_at).toLocaleString()}</div>}
-            {l.lost_at && <div>Lost: {new Date(l.lost_at).toLocaleString()}</div>}
+            <div>Created: {formatDateTime(l.created_at, dateFormat)}</div>
+            {l.contacted_at && <div>Contacted: {formatDateTime(l.contacted_at, dateFormat)}</div>}
+            {l.qualified_at && <div>Qualified: {formatDateTime(l.qualified_at, dateFormat)}</div>}
+            {l.proposal_sent_at && <div>Proposal Sent: {formatDateTime(l.proposal_sent_at, dateFormat)}</div>}
+            {l.won_at && <div>Won: {formatDateTime(l.won_at, dateFormat)}</div>}
+            {l.lost_at && <div>Lost: {formatDateTime(l.lost_at, dateFormat)}</div>}
           </div>
         </CardContent>
       </Card>
@@ -874,6 +876,7 @@ function addDays(days: number): string {
 }
 
 function LeadReminders({ leadId }: { leadId: number }) {
+  const dateFormat = useDateFormat();
   const { data: reminders = [], mutate } = useLeadReminders(leadId);
   const [showForm, setShowForm] = useState(false);
   const [note, setNote] = useState("");
@@ -940,7 +943,7 @@ function LeadReminders({ leadId }: { leadId: number }) {
                 ))}
               </div>
               <p className="text-xs text-muted-foreground mt-1.5">
-                {new Date(addDays(selectedDays)).toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" })} at 9:00 AM
+                {formatDate(addDays(selectedDays), dateFormat)} at 9:00 AM
               </p>
             </div>
             <div>
@@ -985,8 +988,8 @@ function LeadReminders({ leadId }: { leadId: number }) {
                       {isOverdue && <Badge variant="destructive">Overdue</Badge>}
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Due: {new Date(r.due_at).toLocaleString()}
-                      {r.completed_at && ` | Completed: ${new Date(r.completed_at).toLocaleString()}`}
+                      Due: {formatDateTime(r.due_at, dateFormat)}
+                      {r.completed_at && ` | Completed: ${formatDateTime(r.completed_at, dateFormat)}`}
                     </p>
                   </div>
                   {r.status === "pending" && (

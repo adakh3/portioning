@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
 import { api, Invoice } from "@/lib/api";
-import { useInvoice } from "@/lib/hooks";
+import { useInvoice, useDateFormat } from "@/lib/hooks";
+import { formatDate as sharedFormatDate } from "@/lib/dateFormat";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,12 +19,6 @@ const STATUS_BADGE_VARIANT: Record<string, "secondary" | "info" | "warning" | "s
   overdue: "destructive",
   void: "outline",
 };
-
-function formatDate(dateStr: string): string {
-  if (!dateStr) return "-";
-  const d = new Date(dateStr);
-  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
-}
 
 function invoiceTypeLabel(type: string): string {
   const labels: Record<string, string> = {
@@ -44,6 +39,7 @@ export default function InvoiceDetailPage() {
   const invoiceId = Number(params.id);
 
   const { data: invoice, error: loadError, isLoading: loading, mutate: mutateInvoice } = useInvoice(invoiceId || null);
+  const dateFormat = useDateFormat();
   const [error, setError] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
 
@@ -147,11 +143,11 @@ export default function InvoiceDetailPage() {
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Issue Date</p>
-              <p className="text-sm font-medium text-foreground">{formatDate(invoice.issue_date)}</p>
+              <p className="text-sm font-medium text-foreground">{sharedFormatDate(invoice.issue_date, dateFormat)}</p>
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Due Date</p>
-              <p className="text-sm font-medium text-foreground">{formatDate(invoice.due_date)}</p>
+              <p className="text-sm font-medium text-foreground">{sharedFormatDate(invoice.due_date, dateFormat)}</p>
             </div>
           </div>
         </CardContent>
@@ -293,7 +289,7 @@ export default function InvoiceDetailPage() {
                       <td className="px-4 py-2 text-right font-medium text-foreground">
                         {"\u00A3"}{parseFloat(payment.amount).toFixed(2)}
                       </td>
-                      <td className="px-4 py-2 text-muted-foreground">{formatDate(payment.payment_date)}</td>
+                      <td className="px-4 py-2 text-muted-foreground">{sharedFormatDate(payment.payment_date, dateFormat)}</td>
                       <td className="px-4 py-2 text-muted-foreground capitalize">
                         {payment.method.replace("_", " ")}
                       </td>

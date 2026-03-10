@@ -2,7 +2,8 @@
 
 import { Suspense } from "react";
 import Link from "next/link";
-import { useQuotes, useSiteSettings } from "@/lib/hooks";
+import { useQuotes, useSiteSettings, useDateFormat } from "@/lib/hooks";
+import { formatDate } from "@/lib/dateFormat";
 import { useQueryState } from "@/lib/useQueryState";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -30,7 +31,8 @@ function QuotesContent() {
   const [filter, setFilter] = useQueryState("status", "all");
   const { data: quotes = [], error: loadError, isLoading: loading } = useQuotes(filter);
   const { data: rawSettings } = useSiteSettings();
-  const settings = rawSettings || { currency_symbol: "£", currency_code: "GBP", default_price_per_head: "0.00", target_food_cost_percentage: "30.00", price_rounding_step: "50" };
+  const settings = rawSettings || { currency_symbol: "£", currency_code: "GBP", date_format: "DD/MM/YYYY", default_price_per_head: "0.00", target_food_cost_percentage: "30.00", price_rounding_step: "50" };
+  const dateFormat = useDateFormat();
 
   if (loadError) return <p className="text-destructive">Error: {loadError.message}</p>;
 
@@ -87,7 +89,7 @@ function QuotesContent() {
                     </div>
                     <div className="text-right">
                       <p className="font-semibold text-foreground">{settings.currency_symbol}{quote.total}</p>
-                      <p className="text-xs text-muted-foreground">{new Date(quote.created_at).toLocaleDateString()}</p>
+                      <p className="text-xs text-muted-foreground">{formatDate(quote.created_at, dateFormat)}</p>
                     </div>
                   </div>
                 </CardContent>

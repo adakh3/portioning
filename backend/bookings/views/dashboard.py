@@ -117,10 +117,12 @@ class DashboardStatsView(APIView):
         status_values = [s[0] for s in statuses]
         status_labels = {s[0]: s[1] for s in statuses}
 
-        # Pipeline per assigned_to — scoped to leads with activity in period
+        # Lead IDs that had any activity in the period
         active_lead_ids = list(
             period_logs.values_list('object_id', flat=True).distinct()
         ) if since or until else None
+
+        # Pipeline per assigned_to — scoped to leads with activity in period
         lead_qs = Lead.objects.filter(assigned_to__isnull=False)
         if active_lead_ids is not None:
             lead_qs = lead_qs.filter(id__in=active_lead_ids)
@@ -234,9 +236,31 @@ class DashboardStatsView(APIView):
         if unassigned_total > 0:
             salesperson_performance.append(unassigned_row)
 
-        # ── Status distribution: all leads grouped by status ──
+        # ── Lost reasons breakdown (period-scoped) ──
+        lost_lead_ids = list(
+            period_logs.filter(action='status_change', new_value='lost')
+            .values_list('object_id', flat=True)
+        )
+        lost_reasons = []
+        if lost_lead_ids:
+            lost_reason_qs = (
+                Lead.objects.filter(id__in=lost_lead_ids)
+                .values('lost_reason_option__label')
+                .annotate(count=Count('id'))
+                .order_by('-count')
+            )
+            for row in lost_reason_qs:
+                lost_reasons.append({
+                    'reason': row['lost_reason_option__label'] or 'No reason given',
+                    'count': row['count'],
+                })
+
+        # ── Status distribution: leads with activity in period, grouped by status ──
+        status_dist_lead_qs = Lead.objects.all()
+        if active_lead_ids is not None:
+            status_dist_lead_qs = status_dist_lead_qs.filter(id__in=active_lead_ids)
         status_distribution_qs = (
-            Lead.objects
+            status_dist_lead_qs
             .values('status')
             .annotate(count=Count('id'))
         )
@@ -257,6 +281,7 @@ class DashboardStatsView(APIView):
             'team_activity': team_activity,
             'salesperson_performance': salesperson_performance,
             'status_columns': [{'value': v, 'label': status_labels[v]} for v in status_values],
+            'lost_reasons': lost_reasons,
             'status_distribution': status_distribution,
             'kpis': {
                 'conversion_rate': conversion_rate,

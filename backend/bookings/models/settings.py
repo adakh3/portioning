@@ -4,8 +4,18 @@ from django.db import models
 
 
 class SiteSettings(models.Model):
+    DATE_FORMAT_CHOICES = [
+        ('DD/MM/YYYY', 'DD/MM/YYYY (UK / Europe)'),
+        ('MM/DD/YYYY', 'MM/DD/YYYY (US)'),
+        ('YYYY-MM-DD', 'YYYY-MM-DD (ISO)'),
+    ]
+
     currency_symbol = models.CharField(max_length=10, default='£', help_text='e.g. £, $, €')
     currency_code = models.CharField(max_length=10, default='GBP', help_text='e.g. GBP, USD, EUR')
+    date_format = models.CharField(
+        max_length=10, choices=DATE_FORMAT_CHOICES, default='DD/MM/YYYY',
+        help_text='Date display format across the application',
+    )
     default_price_per_head = models.DecimalField(
         max_digits=10, decimal_places=2, default=Decimal('0.00'),
         help_text='Default food price per head for new quotes/events',

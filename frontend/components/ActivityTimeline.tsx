@@ -1,7 +1,8 @@
 "use client";
 
 import { ActivityLogEntry } from "@/lib/api";
-import { useLeadActivity } from "@/lib/hooks";
+import { useLeadActivity, useDateFormat } from "@/lib/hooks";
+import { formatDate, formatDateTime } from "@/lib/dateFormat";
 import { Card, CardContent } from "@/components/ui/card";
 
 const ACTION_ICONS: Record<string, string> = {
@@ -22,7 +23,7 @@ const ACTION_COLORS: Record<string, string> = {
   deleted: "bg-red-500",
 };
 
-function timeAgo(dateStr: string): string {
+function timeAgo(dateStr: string, dateFormat: string): string {
   const now = new Date();
   const date = new Date(dateStr);
   const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
@@ -33,10 +34,11 @@ function timeAgo(dateStr: string): string {
   if (hours < 24) return `${hours}h ago`;
   const days = Math.floor(hours / 24);
   if (days < 30) return `${days}d ago`;
-  return date.toLocaleDateString();
+  return formatDate(dateStr, dateFormat);
 }
 
 export default function ActivityTimeline({ leadId }: { leadId: number }) {
+  const dateFormat = useDateFormat();
   const { data: activities, isLoading } = useLeadActivity(leadId);
 
   if (isLoading) {
@@ -67,8 +69,8 @@ export default function ActivityTimeline({ leadId }: { leadId: number }) {
               <p className="text-sm text-foreground">{entry.description}</p>
               <p className="text-xs text-muted-foreground">
                 {entry.user_name && <span>{entry.user_name} &middot; </span>}
-                <span title={new Date(entry.created_at).toLocaleString()}>
-                  {timeAgo(entry.created_at)}
+                <span title={formatDateTime(entry.created_at, dateFormat)}>
+                  {timeAgo(entry.created_at, dateFormat)}
                 </span>
               </p>
             </div>

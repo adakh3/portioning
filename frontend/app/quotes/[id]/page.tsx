@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { api, Contact } from "@/lib/api";
-import { useQuote, useAccounts, useVenues, useSiteSettings, useEventTypes, useServiceStyles, useLeads, revalidate } from "@/lib/hooks";
+import { useQuote, useAccounts, useVenues, useSiteSettings, useDateFormat, useEventTypes, useServiceStyles, useLeads, revalidate } from "@/lib/hooks";
+import { formatDate } from "@/lib/dateFormat";
 import MenuBuilder from "@/components/MenuBuilder";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -38,7 +39,8 @@ export default function QuoteDetailPage() {
   const { data: accounts = [] } = useAccounts();
   const { data: venues = [] } = useVenues();
   const { data: rawSettings } = useSiteSettings();
-  const settings = rawSettings || { currency_symbol: "£", currency_code: "GBP", default_price_per_head: "0.00", target_food_cost_percentage: "30.00", price_rounding_step: "50" };
+  const settings = rawSettings || { currency_symbol: "£", currency_code: "GBP", date_format: "DD/MM/YYYY", default_price_per_head: "0.00", target_food_cost_percentage: "30.00", price_rounding_step: "50" };
+  const dateFormat = useDateFormat();
   const { data: eventTypes = [] } = useEventTypes();
   const { data: serviceStyles = [] } = useServiceStyles();
   const { data: allLeads = [] } = useLeads();
@@ -530,9 +532,9 @@ export default function QuoteDetailPage() {
                 </Badge>
               </div>
               <p className="text-sm text-muted-foreground mt-1">
-                Created {new Date(q.created_at).toLocaleDateString()}
-                {q.sent_at && ` · Sent ${new Date(q.sent_at).toLocaleDateString()}`}
-                {q.accepted_at && ` · Accepted ${new Date(q.accepted_at).toLocaleDateString()}`}
+                Created {formatDate(q.created_at, dateFormat)}
+                {q.sent_at && ` · Sent ${formatDate(q.sent_at, dateFormat)}`}
+                {q.accepted_at && ` · Accepted ${formatDate(q.accepted_at, dateFormat)}`}
               </p>
             </div>
             <div className="text-right">

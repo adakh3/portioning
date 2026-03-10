@@ -17,6 +17,7 @@ export default function SettingsPage() {
   const [formData, setFormData] = useState({
     currency_symbol: "",
     currency_code: "",
+    date_format: "DD/MM/YYYY",
     default_price_per_head: "",
     target_food_cost_percentage: "",
     price_rounding_step: "50",
@@ -27,6 +28,7 @@ export default function SettingsPage() {
       setFormData({
         currency_symbol: settings.currency_symbol,
         currency_code: settings.currency_code,
+        date_format: settings.date_format || "DD/MM/YYYY",
         default_price_per_head: settings.default_price_per_head,
         target_food_cost_percentage: settings.target_food_cost_percentage,
         price_rounding_step: settings.price_rounding_step || "50",
@@ -87,6 +89,31 @@ export default function SettingsPage() {
                   value={formData.currency_code}
                   onChange={(e) => setFormData({ ...formData, currency_code: e.target.value })}
                 />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Regional</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Date Format</label>
+                <select
+                  value={formData.date_format}
+                  onChange={(e) => setFormData({ ...formData, date_format: e.target.value })}
+                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                >
+                  <option value="DD/MM/YYYY">DD/MM/YYYY (UK / Europe)</option>
+                  <option value="MM/DD/YYYY">MM/DD/YYYY (US)</option>
+                  <option value="YYYY-MM-DD">YYYY-MM-DD (ISO)</option>
+                </select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Controls how dates are displayed across the application.
+                </p>
               </div>
             </div>
           </CardContent>

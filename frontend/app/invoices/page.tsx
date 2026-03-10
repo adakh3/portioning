@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useState } from "react";
 import { Invoice } from "@/lib/api";
-import { useInvoices } from "@/lib/hooks";
+import { useInvoices, useDateFormat } from "@/lib/hooks";
+import { formatDate as sharedFormatDate } from "@/lib/dateFormat";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 
@@ -26,12 +27,6 @@ const STATUS_BADGE_VARIANT: Record<string, "secondary" | "info" | "warning" | "s
   void: "outline",
 };
 
-function formatDate(dateStr: string): string {
-  if (!dateStr) return "-";
-  const d = new Date(dateStr);
-  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
-}
-
 function invoiceTypeLabel(type: string): string {
   const labels: Record<string, string> = {
     deposit: "Deposit",
@@ -43,6 +38,7 @@ function invoiceTypeLabel(type: string): string {
 }
 
 export default function InvoicesPage() {
+  const dateFormat = useDateFormat();
   const [statusFilter, setStatusFilter] = useState("");
   const { data: invoices = [], error: loadError, isLoading: loading } = useInvoices(
     statusFilter ? { status: statusFilter } : undefined
@@ -129,7 +125,7 @@ export default function InvoicesPage() {
                         {invoice.status}
                       </Badge>
                     </td>
-                    <td className="px-4 py-3 text-muted-foreground">{formatDate(invoice.due_date)}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{sharedFormatDate(invoice.due_date, dateFormat)}</td>
                   </tr>
                 ))}
               </tbody>

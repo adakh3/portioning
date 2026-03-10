@@ -17,7 +17,8 @@ import {
 } from "@dnd-kit/core";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { api, Lead, LeadFilters, AuthUser, ProductLine, ChoiceOption } from "@/lib/api";
-import { useLeads, useUsers, useProductLines, useEventTypes, useLeadStatuses, useLostReasons, revalidate } from "@/lib/hooks";
+import { useLeads, useUsers, useProductLines, useEventTypes, useLeadStatuses, useLostReasons, useDateFormat, revalidate } from "@/lib/hooks";
+import { formatDate } from "@/lib/dateFormat";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -211,6 +212,7 @@ export default function LeadsPage() {
 
 function LeadsContent() {
   const router = useRouter();
+  const dateFormat = useDateFormat();
   const [viewModeRaw, setViewMode] = useQueryState("view", "kanban");
   const viewMode = (viewModeRaw === "table" ? "table" : "kanban") as "kanban" | "table";
   const [search, setSearch] = useState("");
@@ -956,6 +958,7 @@ function LeadsTable({
   onMarkWon: (leadId: number) => void;
 }) {
   const router = useRouter();
+  const dateFormat = useDateFormat();
   const { data: eventTypes = [] } = useEventTypes();
   const { data: leadStatuses = [] } = useLeadStatuses();
   const allSelected = leads.length > 0 && selectedIds.size === leads.length;
@@ -1593,7 +1596,7 @@ function LeadsTable({
                   className="hidden xl:table-cell text-muted-foreground text-xs"
                   onClick={() => router.push(`/leads/${lead.id}`)}
                 >
-                  {new Date(lead.created_at).toLocaleDateString()}
+                  {formatDate(lead.created_at, dateFormat)}
                 </TableCell>
               </TableRow>
             ))

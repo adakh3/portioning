@@ -61,6 +61,7 @@ export default function Dashboard() {
   const salespeople = stats?.salesperson_performance || [];
   const statusCols = stats?.status_columns || [];
   const statusDist = stats?.status_distribution || [];
+  const lostReasons = stats?.lost_reasons || [];
 
   const pipelineValue = kpis ? Number(kpis.pipeline_value) : 0;
   const pipelineDisplay = pipelineValue >= 1000
@@ -172,6 +173,41 @@ export default function Dashboard() {
                         />
                       </div>
                       <span className="text-[10px] text-muted-foreground text-center leading-tight truncate w-full">{s.label}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })()}
+
+      {/* Lost Reasons */}
+      {lostReasons.length > 0 && (() => {
+        const maxCount = Math.max(...lostReasons.map((r) => r.count), 1);
+        const totalLost = lostReasons.reduce((sum, r) => sum + r.count, 0);
+        return (
+          <Card>
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-sm font-semibold text-foreground">Lost Reasons</h2>
+                <span className="text-xs text-muted-foreground">{totalLost} lost lead{totalLost !== 1 ? "s" : ""}</span>
+              </div>
+              <div className="space-y-3">
+                {lostReasons.map((r) => {
+                  const pct = totalLost > 0 ? Math.round((r.count / totalLost) * 100) : 0;
+                  const barWidth = maxCount > 0 ? (r.count / maxCount) * 100 : 0;
+                  return (
+                    <div key={r.reason} className="flex items-center gap-3">
+                      <span className="text-sm text-foreground w-40 shrink-0 truncate" title={r.reason}>{r.reason}</span>
+                      <div className="flex-1 h-6 bg-muted rounded overflow-hidden">
+                        <div
+                          className="h-full bg-red-500/70 rounded transition-all duration-500"
+                          style={{ width: `${barWidth}%`, minWidth: r.count > 0 ? "4px" : "0" }}
+                        />
+                      </div>
+                      <span className="text-sm font-medium text-foreground w-8 text-right">{r.count}</span>
+                      <span className="text-xs text-muted-foreground w-10 text-right">{pct}%</span>
                     </div>
                   );
                 })}
