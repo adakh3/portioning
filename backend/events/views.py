@@ -4,6 +4,7 @@ from django.db.models import Q
 from rest_framework import generics
 from rest_framework.views import APIView
 from rest_framework.response import Response
+from bookings.permissions import is_salesperson
 from .models import Event, EventStatus
 from .serializers import EventSerializer
 
@@ -24,6 +25,10 @@ def _auto_advance_event_statuses():
 class EventListCreateView(generics.ListCreateAPIView):
     serializer_class = EventSerializer
 
+    def perform_create(self, serializer):
+        user = self.request.user if self.request.user.is_authenticated else None
+        serializer.save(created_by=user)
+
     def get_queryset(self):
         _auto_advance_event_statuses()
         qs = Event.objects.select_related(
@@ -34,6 +39,12 @@ class EventListCreateView(generics.ListCreateAPIView):
             'equipment_reservations', 'equipment_reservations__equipment',
             'invoices', 'invoices__payments',
         ).all()
+
+        # Salesperson sees only events they created
+        user = self.request.user
+        if is_salesperson(user):
+            qs = qs.filter(Q(created_by=user))
+
         status = self.request.query_params.get('status')
         if status:
             qs = qs.filter(status=status)

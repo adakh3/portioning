@@ -1,3 +1,4 @@
+from django.db.models import Q
 from django.http import HttpResponse
 from rest_framework import generics, status
 from rest_framework.response import Response
@@ -7,13 +8,24 @@ from bookings.models import Quote, QuoteLineItem
 from bookings.models.quotes import QuoteStatus
 from bookings.serializers import QuoteSerializer, QuoteLineItemSerializer
 from bookings.pdf import generate_quote_pdf
+from bookings.permissions import is_salesperson
 
 
 class QuoteListCreateView(generics.ListCreateAPIView):
     serializer_class = QuoteSerializer
 
+    def perform_create(self, serializer):
+        user = self.request.user if self.request.user.is_authenticated else None
+        serializer.save(created_by=user)
+
     def get_queryset(self):
         qs = Quote.objects.select_related('account', 'venue', 'lead', 'event', 'based_on_template', 'primary_contact').prefetch_related('line_items', 'dishes').all()
+
+        # Salesperson sees only quotes they created or linked to their leads
+        user = self.request.user
+        if is_salesperson(user):
+            qs = qs.filter(Q(lead__assigned_to=user) | Q(created_by=user))
+
         quote_status = self.request.query_params.get('status')
         if quote_status:
             qs = qs.filter(status=quote_status)
@@ -44,6 +56,7 @@ class QuoteTransitionView(APIView):
         # Auto-create Event when quote is accepted
         if new_status == QuoteStatus.ACCEPTED and not quote.event:
             from events.models import Event
+            user = request.user if request.user.is_authenticated else None
             event_name = f"{quote.account.name} — {quote.event_type}"
             guest_count = quote.guest_count
             event = Event.objects.create(
@@ -60,6 +73,7 @@ class QuoteTransitionView(APIView):
                 price_per_head=quote.price_per_head,
                 status='confirmed',
                 based_on_template=quote.based_on_template,
+                created_by=user,
             )
             # Copy menu (dishes) from quote to event
             if quote.dishes.exists():

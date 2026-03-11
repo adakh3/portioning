@@ -32,12 +32,12 @@ class User(AbstractUser):
         ("owner", "Owner"),
         ("manager", "Manager"),
         ("chef", "Chef"),
-        ("staff", "Staff"),
+        ("salesperson", "Salesperson"),
     ]
 
     username = None
     email = models.EmailField(unique=True)
-    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default="staff")
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default="salesperson")
     organisation = models.ForeignKey(
         Organisation,
         on_delete=models.SET_NULL,

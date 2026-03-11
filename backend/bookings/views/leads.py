@@ -1,3 +1,4 @@
+from django.db.models import Q
 from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -9,7 +10,7 @@ from bookings.models.choices import LeadStatusOption
 from bookings.serializers import LeadSerializer, QuoteSerializer
 from bookings.serializers.leads import ProductLineSerializer
 from bookings.activity import log_activity, log_field_changes, TRACKED_FIELDS
-from bookings.permissions import IsManagerOrOwner
+from bookings.permissions import IsManagerOrOwner, is_salesperson
 
 
 class UserListView(generics.ListAPIView):
@@ -45,6 +46,12 @@ class LeadListCreateView(generics.ListCreateAPIView):
             'account', 'won_quote', 'won_event', 'product', 'assigned_to',
             'lost_reason_option',
         ).prefetch_related('quotes').all()
+
+        # Salesperson sees only their own leads
+        user = self.request.user
+        if is_salesperson(user):
+            qs = qs.filter(Q(assigned_to=user) | Q(created_by=user))
+
         params = self.request.query_params
 
         # Status filter
@@ -270,6 +277,8 @@ class LeadCreateQuoteView(APIView):
 
         contact = _find_or_create_contact(account, lead.contact_name, lead.contact_email, lead.contact_phone)
 
+        user = request.user if request.user.is_authenticated else None
+
         quote = Quote.objects.create(
             lead=lead,
             account=account,
@@ -278,9 +287,8 @@ class LeadCreateQuoteView(APIView):
             guest_count=lead.guest_estimate or 1,
             event_type=lead.event_type,
             service_style=lead.service_style,
+            created_by=user,
         )
-
-        user = request.user if request.user.is_authenticated else None
         log_activity(
             lead, 'updated', user=user,
             description=f"Created Quote #{quote.id} from lead",
@@ -312,9 +320,11 @@ class LeadWonView(APIView):
             except Quote.DoesNotExist:
                 return Response({'error': 'Quote not found for this lead'}, status=status.HTTP_400_BAD_REQUEST)
 
+        user = request.user if request.user.is_authenticated else None
+
         event = None
         if create_event:
-            event = self._create_event(lead, quote)
+            event = self._create_event(lead, quote, user=user)
             lead.won_event = event
 
         if quote:
@@ -323,7 +333,6 @@ class LeadWonView(APIView):
         old_status = lead.status
         lead.transition_to('won')
 
-        user = request.user if request.user.is_authenticated else None
         desc = "Marked lead as Won"
         if event:
             desc += f" and created Event #{event.id}"
@@ -335,7 +344,7 @@ class LeadWonView(APIView):
 
         return Response(LeadSerializer(lead).data)
 
-    def _create_event(self, lead, quote=None):
+    def _create_event(self, lead, quote=None, user=None):
         from events.models import Event
         account = lead.account
 
@@ -373,6 +382,7 @@ class LeadWonView(APIView):
             price_per_head=price_per_head,
             status=event_status,
             based_on_template=based_on_template,
+            created_by=user,
         )
 
         # Copy dishes from quote and auto-calculate portions
@@ -417,11 +427,10 @@ class LeadCreateEventView(APIView):
             except Quote.DoesNotExist:
                 return Response({'error': 'Quote not found for this lead'}, status=status.HTTP_400_BAD_REQUEST)
 
-        event = LeadWonView._create_event(None, lead, quote)
+        user = request.user if request.user.is_authenticated else None
+        event = LeadWonView._create_event(None, lead, quote, user=user)
         lead.won_event = event
         lead.save(update_fields=['won_event'])
-
-        user = request.user if request.user.is_authenticated else None
         log_activity(
             lead, 'updated', user=user,
             description=f"Created Event #{event.id} from won lead",

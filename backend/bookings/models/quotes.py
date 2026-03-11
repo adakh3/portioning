@@ -1,5 +1,6 @@
 from decimal import Decimal
 
+from django.conf import settings
 from django.core.validators import MinValueValidator
 from django.db import models
 from django.utils import timezone
@@ -64,6 +65,10 @@ class Quote(models.Model):
     )
     notes = models.TextField(blank=True, help_text='Customer-visible notes')
     internal_notes = models.TextField(blank=True, help_text='Staff-only notes')
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='created_quotes',
+    )
     sent_at = models.DateTimeField(null=True, blank=True)
     accepted_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)

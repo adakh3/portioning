@@ -1,5 +1,6 @@
 from decimal import Decimal
 
+from django.conf import settings
 from django.db import models
 
 class EventStatus(models.TextChoices):
@@ -31,6 +32,10 @@ class Event(models.Model):
         'menus.MenuTemplate', null=True, blank=True, on_delete=models.SET_NULL
     )
     notes = models.TextField(blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='created_events',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     # Booking fields

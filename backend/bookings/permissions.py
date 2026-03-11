@@ -10,3 +10,12 @@ class IsManagerOrOwner(permissions.BasePermission):
             and request.user.is_authenticated
             and getattr(request.user, 'role', '') in ('manager', 'owner')
         )
+
+
+def is_salesperson(user):
+    """Return True if the authenticated user has the salesperson role."""
+    return (
+        user
+        and user.is_authenticated
+        and getattr(user, 'role', '') == 'salesperson'
+    )

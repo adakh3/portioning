@@ -17,6 +17,7 @@ import {
 } from "@dnd-kit/core";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { api, Lead, LeadFilters, AuthUser, ProductLine, ChoiceOption } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { useLeads, useUsers, useProductLines, useEventTypes, useLeadStatuses, useLostReasons, useDateFormat, revalidate } from "@/lib/hooks";
 import { formatDate } from "@/lib/dateFormat";
 import { Button } from "@/components/ui/button";
@@ -212,6 +213,8 @@ export default function LeadsPage() {
 
 function LeadsContent() {
   const router = useRouter();
+  const { user: currentUser } = useAuth();
+  const isSalesperson = currentUser?.role === "salesperson";
   const dateFormat = useDateFormat();
   const [viewModeRaw, setViewMode] = useQueryState("view", "kanban");
   const viewMode = (viewModeRaw === "table" ? "table" : "kanban") as "kanban" | "table";
@@ -554,19 +557,21 @@ function LeadsContent() {
             onChange={(e) => setSearch(e.target.value)}
             className="w-48"
           />
-          <Select value={filterAssigned || "__all__"} onValueChange={(v) => setFilterAssigned(v === "__all__" ? "" : v)}>
-            <SelectTrigger className="w-40">
-              <SelectValue placeholder="Assigned To" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__all__">All Users</SelectItem>
-              {users?.map((u) => (
-                <SelectItem key={u.id} value={u.id.toString()}>
-                  {u.first_name} {u.last_name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {!isSalesperson && (
+            <Select value={filterAssigned || "__all__"} onValueChange={(v) => setFilterAssigned(v === "__all__" ? "" : v)}>
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="Assigned To" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">All Users</SelectItem>
+                {users?.map((u) => (
+                  <SelectItem key={u.id} value={u.id.toString()}>
+                    {u.first_name} {u.last_name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           <Select value={filterProduct || "__all__"} onValueChange={(v) => setFilterProduct(v === "__all__" ? "" : v)}>
             <SelectTrigger className="w-40">
               <SelectValue placeholder="Product" />
