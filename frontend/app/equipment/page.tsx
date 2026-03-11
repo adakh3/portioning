@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { formatCurrency } from "@/lib/utils";
 
 const CATEGORIES = [
   { value: "chafer", label: "Chafer / Warmer" },
@@ -240,7 +241,7 @@ export default function EquipmentPage() {
                     </span>
                     {item.rental_price && (
                       <span className="text-sm font-medium text-foreground">
-                        {"\u00A3"}{parseFloat(item.rental_price).toFixed(2)}/event
+                        {formatCurrency(item.rental_price)}/event
                       </span>
                     )}
                   </div>

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { api, Contact } from "@/lib/api";
 import { useQuote, useAccounts, useVenues, useSiteSettings, useDateFormat, useEventTypes, useServiceStyles, useLeads, revalidate } from "@/lib/hooks";
 import { formatDate } from "@/lib/dateFormat";
+import { formatCurrency } from "@/lib/utils";
 import MenuBuilder from "@/components/MenuBuilder";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -446,18 +447,18 @@ export default function QuoteDetailPage() {
                         onClick={() => setCreateData({ ...createData, price_per_head: suggestedPrice.toFixed(2) })}
                         className="whitespace-nowrap border-success/30 text-success bg-success/10 hover:bg-success/15 hover:text-success"
                       >
-                        Use {cs}{suggestedPrice.toFixed(2)}
+                        Use {formatCurrency(suggestedPrice, cs)}
                       </Button>
                     )}
                   </div>
                   {suggestedPrice !== null && (
                     <p className="text-xs text-success/80 mt-1">
-                      Suggested: {cs}{suggestedPrice.toFixed(2)}/head
+                      Suggested: {formatCurrency(suggestedPrice, cs)}/head
                     </p>
                   )}
                   {createData.price_per_head && createData.guest_count && (
                     <p className="text-xs text-muted-foreground mt-1">
-                      Food total: {cs}{(parseFloat(createData.price_per_head) * Number(createData.guest_count)).toFixed(2)} ({createData.guest_count} guests)
+                      Food total: {formatCurrency(parseFloat(createData.price_per_head) * Number(createData.guest_count), cs)} ({createData.guest_count} guests)
                     </p>
                   )}
                 </div>
@@ -538,8 +539,8 @@ export default function QuoteDetailPage() {
               </p>
             </div>
             <div className="text-right">
-              <p className="text-2xl font-bold text-foreground">{cs}{q.total}</p>
-              <p className="text-xs text-muted-foreground">Subtotal: {cs}{q.subtotal} + Tax: {cs}{q.tax_amount}</p>
+              <p className="text-2xl font-bold text-foreground">{formatCurrency(q.total, cs)}</p>
+              <p className="text-xs text-muted-foreground">Subtotal: {formatCurrency(q.subtotal, cs)} + Tax: {formatCurrency(q.tax_amount, cs)}</p>
             </div>
           </div>
 
@@ -641,18 +642,18 @@ export default function QuoteDetailPage() {
                     onClick={() => setEditData({ ...editData, price_per_head: suggestedPrice.toFixed(2) })}
                     className="whitespace-nowrap border-success/30 text-success bg-success/10 hover:bg-success/15 hover:text-success"
                   >
-                    Use {cs}{suggestedPrice.toFixed(2)}
+                    Use {formatCurrency(suggestedPrice, cs)}
                   </Button>
                 )}
               </div>
               {suggestedPrice !== null && (
                 <p className="text-xs text-success/80 mt-1">
-                  Suggested: {cs}{suggestedPrice.toFixed(2)}/head
+                  Suggested: {formatCurrency(suggestedPrice, cs)}/head
                 </p>
               )}
               {editData.price_per_head && editData.guest_count && (
                 <p className="text-xs text-muted-foreground mt-1">
-                  Food total: {cs}{(parseFloat(editData.price_per_head) * Number(editData.guest_count)).toFixed(2)}
+                  Food total: {formatCurrency(parseFloat(editData.price_per_head) * Number(editData.guest_count), cs)}
                 </p>
               )}
             </div>
@@ -778,7 +779,7 @@ export default function QuoteDetailPage() {
               </div>
               <div>
                 <span className="text-muted-foreground block">Price Per Head</span>
-                <span className="font-medium text-foreground">{q.price_per_head ? `${cs}${q.price_per_head}` : "—"}</span>
+                <span className="font-medium text-foreground">{q.price_per_head ? formatCurrency(q.price_per_head, cs) : "—"}</span>
               </div>
               <div>
                 <span className="text-muted-foreground block">Tax Rate</span>
@@ -942,8 +943,8 @@ export default function QuoteDetailPage() {
                       <td className="py-2 text-foreground">{item.description}</td>
                       <td className="py-2 text-right text-foreground/80">{item.quantity}</td>
                       <td className="py-2 text-muted-foreground">{item.unit.replace(/_/g, " ")}</td>
-                      <td className="py-2 text-right text-foreground/80">{cs}{item.unit_price}</td>
-                      <td className="py-2 text-right font-medium text-foreground">{cs}{item.line_total}</td>
+                      <td className="py-2 text-right text-foreground/80">{formatCurrency(item.unit_price, cs)}</td>
+                      <td className="py-2 text-right font-medium text-foreground">{formatCurrency(item.line_total, cs)}</td>
                       <td className="py-2 text-right">
                         <Button variant="ghost" size="sm" onClick={() => handleDeleteItem(item.id)} className="text-destructive hover:text-destructive h-auto py-0.5 px-1.5 text-xs">
                           Remove
@@ -956,25 +957,25 @@ export default function QuoteDetailPage() {
                   {parseFloat(q.food_total) > 0 && (
                     <tr className="border-t border-border">
                       <td colSpan={5} className="pt-3 text-right text-muted-foreground">
-                        Food ({cs}{q.price_per_head} x {q.guest_count} guests)
+                        Food ({formatCurrency(q.price_per_head ?? 0, cs)} x {q.guest_count} guests)
                       </td>
-                      <td className="pt-3 text-right font-medium">{cs}{q.food_total}</td>
+                      <td className="pt-3 text-right font-medium">{formatCurrency(q.food_total, cs)}</td>
                       <td></td>
                     </tr>
                   )}
                   <tr className={parseFloat(q.food_total) > 0 ? "" : "border-t border-border"}>
                     <td colSpan={5} className="pt-3 text-right text-muted-foreground">Subtotal</td>
-                    <td className="pt-3 text-right font-medium">{cs}{q.subtotal}</td>
+                    <td className="pt-3 text-right font-medium">{formatCurrency(q.subtotal, cs)}</td>
                     <td></td>
                   </tr>
                   <tr>
                     <td colSpan={5} className="py-1 text-right text-muted-foreground">VAT ({(parseFloat(q.tax_rate) * 100).toFixed(0)}%)</td>
-                    <td className="py-1 text-right">{cs}{q.tax_amount}</td>
+                    <td className="py-1 text-right">{formatCurrency(q.tax_amount, cs)}</td>
                     <td></td>
                   </tr>
                   <tr className="border-t border-border">
                     <td colSpan={5} className="pt-2 text-right font-semibold text-foreground">Total</td>
-                    <td className="pt-2 text-right font-bold text-lg text-foreground">{cs}{q.total}</td>
+                    <td className="pt-2 text-right font-bold text-lg text-foreground">{formatCurrency(q.total, cs)}</td>
                     <td></td>
                   </tr>
                 </tfoot>

@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { useState } from "react";
 import { Invoice } from "@/lib/api";
-import { useInvoices, useDateFormat } from "@/lib/hooks";
+import { useInvoices, useDateFormat, useSiteSettings } from "@/lib/hooks";
 import { formatDate as sharedFormatDate } from "@/lib/dateFormat";
+import { formatCurrency } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 
@@ -39,6 +40,8 @@ function invoiceTypeLabel(type: string): string {
 
 export default function InvoicesPage() {
   const dateFormat = useDateFormat();
+  const { data: rawSettings } = useSiteSettings();
+  const cs = rawSettings?.currency_symbol || "£";
   const [statusFilter, setStatusFilter] = useState("");
   const { data: invoices = [], error: loadError, isLoading: loading } = useInvoices(
     statusFilter ? { status: statusFilter } : undefined
@@ -83,8 +86,8 @@ export default function InvoicesPage() {
                   <th className="text-left px-4 py-3 font-medium text-muted-foreground">Invoice #</th>
                   <th className="text-left px-4 py-3 font-medium text-muted-foreground">Event</th>
                   <th className="text-left px-4 py-3 font-medium text-muted-foreground">Type</th>
-                  <th className="text-right px-4 py-3 font-medium text-muted-foreground">Total ({"\u00A3"})</th>
-                  <th className="text-right px-4 py-3 font-medium text-muted-foreground">Balance ({"\u00A3"})</th>
+                  <th className="text-right px-4 py-3 font-medium text-muted-foreground">Total ({cs})</th>
+                  <th className="text-right px-4 py-3 font-medium text-muted-foreground">Balance ({cs})</th>
                   <th className="text-left px-4 py-3 font-medium text-muted-foreground">Status</th>
                   <th className="text-left px-4 py-3 font-medium text-muted-foreground">Due Date</th>
                 </tr>
@@ -115,10 +118,10 @@ export default function InvoicesPage() {
                       {invoiceTypeLabel(invoice.invoice_type)}
                     </td>
                     <td className="px-4 py-3 text-right font-medium text-foreground">
-                      {"\u00A3"}{parseFloat(invoice.total).toFixed(2)}
+                      {formatCurrency(invoice.total, cs)}
                     </td>
                     <td className="px-4 py-3 text-right font-medium text-foreground">
-                      {"\u00A3"}{parseFloat(invoice.balance_due).toFixed(2)}
+                      {formatCurrency(invoice.balance_due, cs)}
                     </td>
                     <td className="px-4 py-3">
                       <Badge variant={STATUS_BADGE_VARIANT[invoice.status] || "secondary"} className="capitalize">

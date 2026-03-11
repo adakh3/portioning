@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { api, MenuTemplateDetail, PriceTier, PriceCheckResult, PriceCheckBreakdownItem, PriceEstimateResult } from "@/lib/api";
 import { useDishes, useCategories, useMenus } from "@/lib/hooks";
+import { formatCurrency } from "@/lib/utils";
 
 interface CalculatedPrice {
   price: number;
@@ -326,7 +327,7 @@ export default function MenuBuilder({
             /* Template, unmodified, has tier */
             <div className="flex items-center gap-3 flex-wrap bg-success/10 border border-success/20 rounded-lg px-4 py-2.5">
               <span className="text-sm font-medium text-success">
-                {currencySymbol}{applyExtra(tierPrice.price).toLocaleString()}/head
+                {formatCurrency(applyExtra(tierPrice.price), currencySymbol)}/head
               </span>
               <span className="text-xs text-success/80">
                 ({tierPrice.label} tier)
@@ -362,7 +363,7 @@ export default function MenuBuilder({
                 <div className="flex flex-col gap-1.5 w-full">
                   <div className="flex items-center gap-3 flex-wrap">
                     <span className="text-sm font-medium text-success">
-                      {currencySymbol}{applyExtra(calculatedPrice.price).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/head
+                      {formatCurrency(applyExtra(calculatedPrice.price), currencySymbol)}/head
                     </span>
                     {calculatedPrice.hasUnpriced && (
                       <span className="inline-flex items-center bg-warning/15 text-warning text-xs font-medium px-2 py-0.5 rounded">
@@ -371,7 +372,7 @@ export default function MenuBuilder({
                     )}
                     {calculatedPrice.source === "template_adjusted" && (
                       <span className="text-xs text-success/80">
-                        ({calculatedPrice.tierLabel} tier {calculatedPrice.totalAdjustment !== undefined && calculatedPrice.totalAdjustment >= 0 ? "+" : ""}{currencySymbol}{calculatedPrice.totalAdjustment?.toFixed(2)})
+                        ({calculatedPrice.tierLabel} tier {calculatedPrice.totalAdjustment !== undefined && calculatedPrice.totalAdjustment >= 0 ? "+" : ""}{formatCurrency(calculatedPrice.totalAdjustment ?? 0, currencySymbol)})
                       </span>
                     )}
                     {calculatedPrice.source === "computed" && (
@@ -412,7 +413,7 @@ export default function MenuBuilder({
                               : "bg-info/10 text-info border border-info/20"
                           }`}
                         >
-                          {item.amount >= 0 ? "+" : ""}{currencySymbol}{item.amount} {item.dish}
+                          {item.amount >= 0 ? "+" : ""}{formatCurrency(item.amount, currencySymbol)} {item.dish}
                         </span>
                       ))}
                     </div>

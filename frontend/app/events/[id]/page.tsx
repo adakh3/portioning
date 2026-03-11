@@ -27,6 +27,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { formatCurrency } from "@/lib/utils";
 
 const statusBadgeVariant: Record<string, "warning" | "info" | "secondary" | "success" | "destructive"> = {
   tentative: "warning",
@@ -717,7 +718,7 @@ export default function EventDetailPage() {
                         onClick={() => setFormPricePerHead(suggestedPrice.toFixed(2))}
                         className="whitespace-nowrap border-success/30 text-success bg-success/10 hover:bg-success/15"
                       >
-                        Use {settings.currency_symbol}{suggestedPrice.toFixed(2)}
+                        Use {formatCurrency(suggestedPrice, settings.currency_symbol)}
                       </Button>
                     )}
                   </div>
@@ -738,7 +739,7 @@ export default function EventDetailPage() {
                 <InfoRow label="Venue" value={event!.venue_name || event!.venue_address || null} />
                 <InfoRow label="Event Type" value={eventTypeLabels[event!.event_type] || event!.event_type} />
                 <InfoRow label="Service Style" value={serviceStyleLabels[event!.service_style] || event!.service_style} />
-                <InfoRow label="Price Per Head" value={event!.price_per_head ? `${settings.currency_symbol}${event!.price_per_head}` : null} />
+                <InfoRow label="Price Per Head" value={event!.price_per_head ? formatCurrency(event!.price_per_head, settings.currency_symbol) : null} />
                 {event!.notes && <div className="col-span-full"><InfoRow label="Notes" value={event!.notes} /></div>}
               </dl>
             )}
@@ -959,7 +960,7 @@ export default function EventDetailPage() {
                         <td className="px-3 py-2 text-foreground">{shift.staff_member_name || "Unassigned"}</td>
                         <td className="px-3 py-2 text-muted-foreground text-xs">{formatDateTime(shift.start_time)}</td>
                         <td className="px-3 py-2 text-muted-foreground text-xs">{formatDateTime(shift.end_time)}</td>
-                        <td className="px-3 py-2 text-right text-foreground">{parseFloat(shift.shift_cost).toFixed(2)}</td>
+                        <td className="px-3 py-2 text-right text-foreground">{formatCurrency(shift.shift_cost, settings.currency_symbol)}</td>
                         <td className="px-3 py-2 text-center">
                           <Badge variant="secondary">{shift.status}</Badge>
                         </td>
@@ -972,7 +973,7 @@ export default function EventDetailPage() {
                   <tfoot className="bg-muted border-t border-border">
                     <tr className="font-semibold">
                       <td colSpan={4} className="px-3 py-2 text-foreground">Total Labor Cost</td>
-                      <td className="px-3 py-2 text-right text-foreground">{totalLaborCost.toFixed(2)}</td>
+                      <td className="px-3 py-2 text-right text-foreground">{formatCurrency(totalLaborCost, settings.currency_symbol)}</td>
                       <td colSpan={2}></td>
                     </tr>
                   </tfoot>
@@ -1024,7 +1025,7 @@ export default function EventDetailPage() {
                       <tr key={res.id} className="border-b border-border hover:bg-muted">
                         <td className="px-3 py-2 text-foreground">{res.equipment_name}</td>
                         <td className="px-3 py-2 text-right text-foreground">{res.quantity_out}</td>
-                        <td className="px-3 py-2 text-right text-foreground">{parseFloat(res.line_cost).toFixed(2)}</td>
+                        <td className="px-3 py-2 text-right text-foreground">{formatCurrency(res.line_cost, settings.currency_symbol)}</td>
                         <td className="px-3 py-2 text-center">
                           <Button variant="ghost" size="sm" onClick={() => handleDeleteReservation(res.id)} disabled={saving} className="text-destructive hover:text-destructive" title="Delete reservation">X</Button>
                         </td>
@@ -1034,7 +1035,7 @@ export default function EventDetailPage() {
                   <tfoot className="bg-muted border-t border-border">
                     <tr className="font-semibold">
                       <td colSpan={2} className="px-3 py-2 text-foreground">Total Equipment Cost</td>
-                      <td className="px-3 py-2 text-right text-foreground">{totalEquipmentCost.toFixed(2)}</td>
+                      <td className="px-3 py-2 text-right text-foreground">{formatCurrency(totalEquipmentCost, settings.currency_symbol)}</td>
                       <td></td>
                     </tr>
                   </tfoot>
@@ -1082,7 +1083,7 @@ export default function EventDetailPage() {
                           <Link href={`/invoices/${inv.id}`} className="text-primary hover:text-primary/80 font-medium">{inv.invoice_number}</Link>
                         </td>
                         <td className="px-3 py-2 text-muted-foreground capitalize">{inv.invoice_type}</td>
-                        <td className="px-3 py-2 text-right text-foreground">{parseFloat(inv.total).toFixed(2)}</td>
+                        <td className="px-3 py-2 text-right text-foreground">{formatCurrency(inv.total, settings.currency_symbol)}</td>
                         <td className="px-3 py-2 text-center">
                           <Badge variant={
                             inv.status === "paid" ? "success" :
@@ -1091,7 +1092,7 @@ export default function EventDetailPage() {
                             "secondary"
                           }>{inv.status}</Badge>
                         </td>
-                        <td className="px-3 py-2 text-right text-foreground">{parseFloat(inv.balance_due).toFixed(2)}</td>
+                        <td className="px-3 py-2 text-right text-foreground">{formatCurrency(inv.balance_due, settings.currency_symbol)}</td>
                       </tr>
                     ))}
                   </tbody>

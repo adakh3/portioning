@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { useQuotes, useSiteSettings, useDateFormat } from "@/lib/hooks";
 import { formatDate } from "@/lib/dateFormat";
+import { formatCurrency } from "@/lib/utils";
 import { useQueryState } from "@/lib/useQueryState";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -88,7 +89,7 @@ function QuotesContent() {
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className="font-semibold text-foreground">{settings.currency_symbol}{quote.total}</p>
+                      <p className="font-semibold text-foreground">{formatCurrency(quote.total, settings.currency_symbol)}</p>
                       <p className="text-xs text-muted-foreground">{formatDate(quote.created_at, dateFormat)}</p>
                     </div>
                   </div>

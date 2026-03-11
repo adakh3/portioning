@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { formatCurrency } from "@/lib/utils";
 
 type Tab = "roster" | "roles" | "allocation";
 
@@ -264,7 +265,7 @@ function StaffRosterTab() {
                   <div className="text-right">
                     {member.hourly_rate && (
                       <span className="text-sm font-medium text-foreground">
-                        {"\u00A3"}{parseFloat(member.hourly_rate).toFixed(2)}/hr
+                        {formatCurrency(member.hourly_rate)}/hr
                       </span>
                     )}
                     <Button
@@ -518,7 +519,7 @@ function LabourRolesTab() {
                   </div>
                   <div className="text-right">
                     <span className="text-sm font-medium text-foreground">
-                      {"\u00A3"}{parseFloat(role.default_hourly_rate).toFixed(2)}/hr
+                      {formatCurrency(role.default_hourly_rate)}/hr
                     </span>
                     <Button
                       variant="link"

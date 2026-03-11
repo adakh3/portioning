@@ -6,6 +6,7 @@ import Link from "next/link";
 import { api, Lead, Account, AuthUser, ProductLine, Reminder } from "@/lib/api";
 import { useAccounts, useLead, useSiteSettings, useDateFormat, useProductLines, useUsers, useSources, useEventTypes, useServiceStyles, useLeadStatuses, useLostReasons, useLeadReminders, revalidate } from "@/lib/hooks";
 import { formatDate, formatDateTime } from "@/lib/dateFormat";
+import { formatCurrency } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -727,7 +728,7 @@ export default function LeadDetailPage() {
                       {q.status_display}
                     </Badge>
                   </div>
-                  <span className="font-semibold text-foreground">{cs}{q.total}</span>
+                  <span className="font-semibold text-foreground">{formatCurrency(q.total, cs)}</span>
                 </Link>
               ))}
             </div>
