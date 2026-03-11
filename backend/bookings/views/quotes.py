@@ -148,6 +148,8 @@ class QuotePDFView(APIView):
     def get(self, request, pk):
         quote = Quote.objects.select_related(
             'account', 'venue', 'primary_contact', 'based_on_template',
+            'created_by', 'created_by__organisation',
+            'lead', 'lead__assigned_to', 'lead__assigned_to__organisation',
         ).prefetch_related('line_items', 'dishes').get(pk=pk)
         pdf_bytes = generate_quote_pdf(quote)
         response = HttpResponse(pdf_bytes, content_type='application/pdf')

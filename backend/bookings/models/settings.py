@@ -28,6 +28,10 @@ class SiteSettings(models.Model):
         default=50,
         help_text='Round calculated prices to the nearest N (e.g. 50, 100). Set to 1 to disable rounding.',
     )
+    quotation_terms = models.TextField(
+        blank=True,
+        help_text='Terms & Conditions text printed on quotation PDFs.',
+    )
 
     class Meta:
         verbose_name = 'Site Settings'
