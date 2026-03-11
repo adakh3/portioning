@@ -436,6 +436,7 @@ export default function QuoteDetailPage() {
                       type="number"
                       step="0.01"
                       min={0}
+                      max={9999999.99}
                       value={createData.price_per_head}
                       onChange={setCreate("price_per_head")}
                       placeholder="0.00"
@@ -634,7 +635,7 @@ export default function QuoteDetailPage() {
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">Price Per Head ({cs})</label>
               <div className="flex gap-2">
-                <Input type="number" step="0.01" min={0} value={editData.price_per_head} onChange={setEdit("price_per_head")} placeholder="0.00" />
+                <Input type="number" step="0.01" min={0} max={9999999.99} value={editData.price_per_head} onChange={setEdit("price_per_head")} placeholder="0.00" />
                 {suggestedPrice !== null && (
                   <Button
                     type="button"

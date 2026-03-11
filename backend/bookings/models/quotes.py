@@ -1,7 +1,7 @@
 from decimal import Decimal
 
 from django.conf import settings
-from django.core.validators import MinValueValidator
+from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
 from django.utils import timezone
 
@@ -45,6 +45,7 @@ class Quote(models.Model):
     guest_count = models.IntegerField(validators=[MinValueValidator(1)])
     price_per_head = models.DecimalField(
         max_digits=10, decimal_places=2, null=True, blank=True,
+        validators=[MaxValueValidator(Decimal('9999999.99'))],
         help_text='Food/menu price per head',
     )
     event_type = models.CharField(max_length=50, default='other')

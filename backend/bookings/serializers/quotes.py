@@ -31,7 +31,7 @@ class QuoteSerializer(serializers.ModelSerializer):
     lead_name = serializers.SerializerMethodField()
     event_id = serializers.SerializerMethodField()
 
-    food_total = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
+    food_total = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
 
     # Menu fields
     dish_ids = serializers.PrimaryKeyRelatedField(
