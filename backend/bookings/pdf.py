@@ -10,7 +10,7 @@ from reportlab.platypus import (
 )
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 
-from bookings.models.settings import SiteSettings
+from bookings.models.settings import OrgSettings
 from bookings.models.choices import EventTypeOption, ServiceStyleOption
 
 
@@ -41,7 +41,7 @@ def generate_quote_pdf(quote):
     Returns:
         bytes — PDF file content
     """
-    settings = SiteSettings.load()
+    settings = OrgSettings.for_org(quote.organisation)
     cs = settings.currency_symbol
 
     buf = io.BytesIO()
@@ -240,7 +240,7 @@ def generate_quote_pdf(quote):
 
     totals_data = [
         ['Subtotal', f'{cs}{quote.subtotal}'],
-        [f'VAT ({tax_pct}%)', f'{cs}{quote.tax_amount}'],
+        [f'{settings.tax_label} ({tax_pct}%)', f'{cs}{quote.tax_amount}'],
     ]
     totals_table = Table(totals_data, colWidths=[380, 95])
     totals_table.setStyle(TableStyle([

@@ -2,6 +2,9 @@ from django.db import models
 
 
 class Venue(models.Model):
+    organisation = models.ForeignKey(
+        'users.Organisation', on_delete=models.CASCADE, related_name='venues',
+    )
     name = models.CharField(max_length=200)
     address_line1 = models.CharField(max_length=200, blank=True)
     address_line2 = models.CharField(max_length=200, blank=True)

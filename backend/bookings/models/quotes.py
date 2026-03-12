@@ -23,6 +23,10 @@ QUOTE_TRANSITIONS = {
 
 
 class Quote(models.Model):
+    organisation = models.ForeignKey(
+        'users.Organisation',
+        on_delete=models.CASCADE, related_name='quotes',
+    )
     lead = models.ForeignKey(
         'bookings.Lead', null=True, blank=True,
         on_delete=models.SET_NULL, related_name='quotes',

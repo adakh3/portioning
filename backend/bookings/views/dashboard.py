@@ -11,6 +11,7 @@ from bookings.models.activity import ActivityLog
 from bookings.models.choices import LeadStatusOption
 from bookings.models import Reminder
 from bookings.permissions import IsManagerOrOwner
+from users.mixins import get_request_org
 
 
 class DashboardStatsView(APIView):
@@ -42,10 +43,12 @@ class DashboardStatsView(APIView):
         else:  # all
             since = None
 
+        org = get_request_org(request)
         ct = ContentType.objects.get_for_model(Lead)
 
-        # Activity logs in period
-        period_logs = ActivityLog.objects.filter(content_type=ct)
+        # Restrict activity logs to leads in this org
+        org_lead_ids = Lead.objects.filter(organisation=org).values_list('id', flat=True)
+        period_logs = ActivityLog.objects.filter(content_type=ct, object_id__in=org_lead_ids)
         if since:
             period_logs = period_logs.filter(created_at__gte=since)
         if until:
@@ -56,7 +59,7 @@ class DashboardStatsView(APIView):
         status_transitions = period_logs.filter(action='status_change').count()
         won = period_logs.filter(action='status_change', new_value='won').count()
         lost = period_logs.filter(action='status_change', new_value='lost').count()
-        total_active = Lead.objects.exclude(status__in=['won', 'lost']).count()
+        total_active = Lead.objects.filter(organisation=org).exclude(status__in=['won', 'lost']).count()
 
         # Team activity — per user (period-scoped from activity logs)
         team_raw = (
@@ -102,7 +105,7 @@ class DashboardStatsView(APIView):
             if result['avg_days']:
                 avg_days = round(result['avg_days'].total_seconds() / 86400, 1)
 
-        pipeline = Lead.objects.exclude(status__in=['won', 'lost']).aggregate(
+        pipeline = Lead.objects.filter(organisation=org).exclude(status__in=['won', 'lost']).aggregate(
             pipeline_value=Sum('budget'),
             pipeline_count=Count('id'),
         )
@@ -110,7 +113,7 @@ class DashboardStatsView(APIView):
         # ── Salesperson performance ──
         # All statuses in DB order
         statuses = list(
-            LeadStatusOption.objects.filter(is_active=True)
+            LeadStatusOption.objects.filter(is_active=True, organisation=org)
             .order_by('sort_order')
             .values_list('value', 'label')
         )
@@ -123,7 +126,7 @@ class DashboardStatsView(APIView):
         ) if since or until else None
 
         # Pipeline per assigned_to — scoped to leads with activity in period
-        lead_qs = Lead.objects.filter(assigned_to__isnull=False)
+        lead_qs = Lead.objects.filter(organisation=org, assigned_to__isnull=False)
         if active_lead_ids is not None:
             lead_qs = lead_qs.filter(id__in=active_lead_ids)
         pipeline_qs = (
@@ -155,6 +158,7 @@ class DashboardStatsView(APIView):
         stale_cutoff = now - timedelta(days=7)
         stale_by_user = dict(
             Lead.objects.filter(
+                organisation=org,
                 assigned_to__isnull=False,
                 updated_at__lt=stale_cutoff,
             )
@@ -190,7 +194,7 @@ class DashboardStatsView(APIView):
             sp['pipeline_value'] += float(row['value'] or 0)
 
         # Unassigned leads row
-        unassigned_lead_qs = Lead.objects.filter(assigned_to__isnull=True)
+        unassigned_lead_qs = Lead.objects.filter(organisation=org, assigned_to__isnull=True)
         if active_lead_ids is not None:
             unassigned_lead_qs = unassigned_lead_qs.filter(id__in=active_lead_ids)
         unassigned_qs = (
@@ -210,6 +214,7 @@ class DashboardStatsView(APIView):
 
         unassigned_stale = (
             Lead.objects.filter(
+                organisation=org,
                 assigned_to__isnull=True,
                 updated_at__lt=stale_cutoff,
             )
@@ -256,7 +261,7 @@ class DashboardStatsView(APIView):
                 })
 
         # ── Status distribution: leads with activity in period, grouped by status ──
-        status_dist_lead_qs = Lead.objects.all()
+        status_dist_lead_qs = Lead.objects.filter(organisation=org)
         if active_lead_ids is not None:
             status_dist_lead_qs = status_dist_lead_qs.filter(id__in=active_lead_ids)
         status_distribution_qs = (

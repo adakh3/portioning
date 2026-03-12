@@ -4,6 +4,6 @@ from .leads import Lead, ProductLine
 from .quotes import Quote, QuoteLineItem
 from .choices import EventTypeOption, SourceOption, ServiceStyleOption, LeadStatusOption, LostReasonOption
 from .finance import Invoice, Payment
-from .settings import SiteSettings
+from .settings import SiteSettings, OrgSettings
 from .activity import ActivityLog
 from .reminders import Reminder

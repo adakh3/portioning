@@ -5,6 +5,7 @@ from rules.models import (
     GlobalConfig, BudgetProfile, GuestProfile,
     CombinationRule, GlobalConstraint, CategoryConstraint,
 )
+from users.models import Organisation
 
 
 class Command(BaseCommand):
@@ -14,6 +15,11 @@ class Command(BaseCommand):
         parser.add_argument('--reset', action='store_true', help='Delete existing data before seeding')
 
     def handle(self, *args, **options):
+        # Ensure a default organisation exists for seed data
+        self.org, _ = Organisation.objects.get_or_create(
+            slug='default',
+            defaults={'name': 'Default Organisation', 'country': 'PK'},
+        )
         if options['reset']:
             self.stdout.write('Resetting data...')
             MenuDishPortion.objects.all().delete()
@@ -61,7 +67,7 @@ class Command(BaseCommand):
         ]
         for name, display, order, additive, pool, unit, baseline, min_dish, fixed in cat_data:
             cat, _ = DishCategory.objects.update_or_create(
-                name=name, defaults={
+                name=name, organisation=self.org, defaults={
                     'display_name': display,
                     'display_order': order,
                     'protein_is_additive': additive,
@@ -197,6 +203,7 @@ class Command(BaseCommand):
         for name, cat, protein, portion, pop, cpg, veg in dish_data:
             dish, _ = Dish.objects.get_or_create(
                 name=name,
+                organisation=self.org,
                 defaults={
                     'category': categories[cat],
                     'protein_type': protein,
@@ -211,7 +218,7 @@ class Command(BaseCommand):
         # ── Global Config ──
         # Protein ceiling 590g calibrated from real Majestic Celebration Banquet:
         # BBQ(330) + curry(190) + rice(70) = 590g
-        GlobalConfig.objects.update_or_create(pk=1, defaults={
+        GlobalConfig.objects.update_or_create(organisation=self.org, defaults={
             'popularity_enabled': True,
             'popularity_strength': 0.3,
             'protein_pool_ceiling_grams': 590,
@@ -232,6 +239,7 @@ class Command(BaseCommand):
         for name, desc, is_default, protein_ceil, dessert_ceil, cat_names in profile_data:
             profile, created = BudgetProfile.objects.get_or_create(
                 name=name,
+                organisation=self.org,
                 defaults={
                     'description': desc,
                     'is_default': is_default,
@@ -244,10 +252,10 @@ class Command(BaseCommand):
 
         # ── Guest Profiles ──
         for name, mult in [('gents', 1.0), ('ladies', 1.0)]:
-            GuestProfile.objects.get_or_create(name=name, defaults={'portion_multiplier': mult})
+            GuestProfile.objects.get_or_create(name=name, organisation=self.org, defaults={'portion_multiplier': mult})
 
         # ── Global Constraint ──
-        GlobalConstraint.objects.get_or_create(pk=1, defaults={
+        GlobalConstraint.objects.get_or_create(organisation=self.org, defaults={
             'max_total_food_per_person_grams': 1000,
             'min_portion_per_dish_grams': 30,
         })
@@ -409,6 +417,7 @@ class Command(BaseCommand):
     def _create_menu(self, name, description, dishes, dish_portions):
         menu, created = MenuTemplate.objects.get_or_create(
             name=name,
+            organisation=self.org,
             defaults={
                 'description': description,
                 'default_gents': 50,

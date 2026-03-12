@@ -3,7 +3,7 @@ from .venues import VenueSerializer
 from .leads import LeadSerializer
 from .quotes import QuoteSerializer, QuoteLineItemSerializer
 from .finance import InvoiceSerializer, PaymentSerializer
-from .settings import SiteSettingsSerializer
+from .settings import OrgSettingsSerializer
 from .choices import (
     EventTypeOptionSerializer, SourceOptionSerializer,
     ServiceStyleOptionSerializer, LeadStatusOptionSerializer,

@@ -16,6 +16,10 @@ class UnitType(models.TextChoices):
 
 
 class DishCategory(models.Model):
+    organisation = models.ForeignKey(
+        'users.Organisation',
+        on_delete=models.CASCADE, related_name='dish_categories',
+    )
     name = models.CharField(max_length=50, unique=True)
     display_name = models.CharField(max_length=100)
     display_order = models.IntegerField(default=0)
@@ -76,6 +80,10 @@ class ProteinType(models.TextChoices):
 
 
 class Dish(models.Model):
+    organisation = models.ForeignKey(
+        'users.Organisation',
+        on_delete=models.CASCADE, related_name='dishes',
+    )
     name = models.CharField(max_length=200)
     category = models.ForeignKey(DishCategory, on_delete=models.CASCADE, related_name='dishes')
     protein_type = models.CharField(max_length=20, choices=ProteinType.choices, default=ProteinType.NONE)
@@ -117,10 +125,10 @@ class Dish(models.Model):
     @property
     def computed_selling_price(self):
         """Selling price per gram based on cost and target food cost %."""
-        from bookings.models import SiteSettings
+        from bookings.models import OrgSettings
         if not self.cost_per_gram:
             return None
-        settings = SiteSettings.load()
+        settings = OrgSettings.for_org(self.organisation)
         if not settings.target_food_cost_percentage:
             return None
         cost = Decimal(str(self.cost_per_gram))
@@ -128,8 +136,8 @@ class Dish(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.selling_price_override and self.cost_per_gram:
-            from bookings.models import SiteSettings
-            settings = SiteSettings.load()
+            from bookings.models import OrgSettings
+            settings = OrgSettings.for_org(self.organisation)
             if settings.target_food_cost_percentage:
                 cost = Decimal(str(self.cost_per_gram))
                 self.selling_price_per_gram = cost / (

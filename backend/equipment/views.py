@@ -1,15 +1,16 @@
 from rest_framework import generics
 
+from users.mixins import OrgQuerySetMixin, OrgCreateMixin
 from .models import EquipmentItem, EquipmentReservation
 from .serializers import EquipmentItemSerializer, EquipmentReservationSerializer
 
 
-class EquipmentItemListCreateView(generics.ListCreateAPIView):
+class EquipmentItemListCreateView(OrgQuerySetMixin, OrgCreateMixin, generics.ListCreateAPIView):
     queryset = EquipmentItem.objects.all()
     serializer_class = EquipmentItemSerializer
 
 
-class EquipmentItemDetailView(generics.RetrieveUpdateDestroyAPIView):
+class EquipmentItemDetailView(OrgQuerySetMixin, generics.RetrieveUpdateDestroyAPIView):
     queryset = EquipmentItem.objects.all()
     serializer_class = EquipmentItemSerializer
 

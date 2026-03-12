@@ -2,14 +2,15 @@ from rest_framework import generics
 
 from bookings.models import Account, Contact
 from bookings.serializers import AccountSerializer, ContactSerializer
+from users.mixins import OrgQuerySetMixin, OrgCreateMixin
 
 
-class AccountListCreateView(generics.ListCreateAPIView):
+class AccountListCreateView(OrgQuerySetMixin, OrgCreateMixin, generics.ListCreateAPIView):
     queryset = Account.objects.prefetch_related('contacts').all()
     serializer_class = AccountSerializer
 
 
-class AccountDetailView(generics.RetrieveUpdateDestroyAPIView):
+class AccountDetailView(OrgQuerySetMixin, generics.RetrieveUpdateDestroyAPIView):
     queryset = Account.objects.prefetch_related('contacts').all()
     serializer_class = AccountSerializer
 

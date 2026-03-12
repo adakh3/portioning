@@ -22,6 +22,9 @@ class ContactRole(models.TextChoices):
 
 
 class Account(models.Model):
+    organisation = models.ForeignKey(
+        'users.Organisation', on_delete=models.CASCADE, related_name='accounts',
+    )
     name = models.CharField(max_length=200)
     account_type = models.CharField(
         max_length=20,

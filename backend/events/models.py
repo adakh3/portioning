@@ -21,6 +21,10 @@ EVENT_STATUS_TRANSITIONS = {
 
 
 class Event(models.Model):
+    organisation = models.ForeignKey(
+        'users.Organisation',
+        on_delete=models.CASCADE, related_name='events',
+    )
     name = models.CharField(max_length=200)
     date = models.DateField()
     gents = models.IntegerField(default=0)

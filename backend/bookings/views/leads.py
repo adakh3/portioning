@@ -5,6 +5,7 @@ from rest_framework.views import APIView
 
 from users.models import User
 from users.serializers import UserSerializer
+from users.mixins import get_request_org
 from bookings.models import Lead, ProductLine, Quote
 from bookings.models.choices import LeadStatusOption
 from bookings.serializers import LeadSerializer, QuoteSerializer
@@ -14,13 +15,25 @@ from bookings.permissions import IsManagerOrOwner, is_salesperson
 
 
 class UserListView(generics.ListAPIView):
-    queryset = User.objects.filter(is_active=True).order_by('first_name', 'last_name')
     serializer_class = UserSerializer
+
+    def get_queryset(self):
+        qs = User.objects.filter(is_active=True).order_by('first_name', 'last_name')
+        org = get_request_org(self.request)
+        if org:
+            qs = qs.filter(organisation=org)
+        return qs
 
 
 class ProductLineListView(generics.ListAPIView):
-    queryset = ProductLine.objects.filter(is_active=True)
     serializer_class = ProductLineSerializer
+
+    def get_queryset(self):
+        qs = ProductLine.objects.filter(is_active=True)
+        org = get_request_org(self.request)
+        if org:
+            qs = qs.filter(organisation=org)
+        return qs
 
 
 LEAD_ORDERING_FIELDS = {
@@ -38,14 +51,14 @@ class LeadListCreateView(generics.ListCreateAPIView):
 
     def perform_create(self, serializer):
         user = self.request.user if self.request.user.is_authenticated else None
-        lead = serializer.save(created_by=user)
+        lead = serializer.save(created_by=user, organisation=get_request_org(self.request))
         log_activity(lead, 'created', user=user, description=f"Created lead \"{lead.contact_name}\"")
 
     def get_queryset(self):
         qs = Lead.objects.select_related(
             'account', 'won_quote', 'won_event', 'product', 'assigned_to',
             'lost_reason_option',
-        ).prefetch_related('quotes').all()
+        ).prefetch_related('quotes').filter(organisation=get_request_org(self.request))
 
         # Salesperson sees only their own leads
         user = self.request.user
@@ -111,7 +124,7 @@ class LeadBulkUpdateView(APIView):
         if action not in ('assign', 'status', 'product', 'delete'):
             return Response({'error': 'action must be one of: assign, status, product, delete'}, status=status.HTTP_400_BAD_REQUEST)
 
-        leads = Lead.objects.filter(id__in=ids)
+        leads = Lead.objects.filter(id__in=ids, organisation=get_request_org(request))
         count = leads.count()
 
         if count == 0:
@@ -186,11 +199,13 @@ def _snapshot_lead(lead):
 
 
 class LeadDetailView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = Lead.objects.select_related(
-        'account', 'won_quote', 'won_event', 'product', 'assigned_to',
-        'lost_reason_option',
-    ).prefetch_related('quotes').all()
     serializer_class = LeadSerializer
+
+    def get_queryset(self):
+        return Lead.objects.select_related(
+            'account', 'won_quote', 'won_event', 'product', 'assigned_to',
+            'lost_reason_option',
+        ).prefetch_related('quotes').filter(organisation=get_request_org(self.request))
 
     def perform_update(self, serializer):
         lead = self.get_object()
@@ -271,7 +286,7 @@ class LeadCreateQuoteView(APIView):
         account = lead.account
         if not account:
             from bookings.models import Account
-            account = Account.objects.create(name=lead.contact_name, account_type="individual")
+            account = Account.objects.create(name=lead.contact_name, account_type="individual", organisation=lead.organisation)
             lead.account = account
             lead.save(update_fields=['account'])
 
@@ -288,6 +303,7 @@ class LeadCreateQuoteView(APIView):
             event_type=lead.event_type,
             service_style=lead.service_style,
             created_by=user,
+            organisation=lead.organisation,
         )
         log_activity(
             lead, 'updated', user=user,
@@ -383,6 +399,7 @@ class LeadWonView(APIView):
             status=event_status,
             based_on_template=based_on_template,
             created_by=user,
+            organisation=lead.organisation,
         )
 
         # Copy dishes from quote and auto-calculate portions
@@ -393,6 +410,7 @@ class LeadWonView(APIView):
             result = calculate_portions(
                 dish_ids=list(event.dishes.values_list('id', flat=True)),
                 guests={'gents': event.gents, 'ladies': event.ladies},
+                org=lead.organisation,
             )
             for p in result['portions']:
                 EventDishComment.objects.create(

@@ -1,66 +1,45 @@
 from django.db import models
 
 
-class EventTypeOption(models.Model):
-    value = models.CharField(max_length=50, unique=True)
+class ChoiceOptionBase(models.Model):
+    """Abstract base for org-scoped choice option models."""
+    organisation = models.ForeignKey(
+        'users.Organisation',
+        on_delete=models.CASCADE,
+    )
+    value = models.CharField(max_length=50)
     label = models.CharField(max_length=100)
     sort_order = models.IntegerField(default=0)
     is_active = models.BooleanField(default=True)
 
     class Meta:
+        abstract = True
         ordering = ['sort_order', 'pk']
 
     def __str__(self):
         return self.label
 
 
-class SourceOption(models.Model):
-    value = models.CharField(max_length=50, unique=True)
-    label = models.CharField(max_length=100)
-    sort_order = models.IntegerField(default=0)
-    is_active = models.BooleanField(default=True)
-
-    class Meta:
-        ordering = ['sort_order', 'pk']
-
-    def __str__(self):
-        return self.label
+class EventTypeOption(ChoiceOptionBase):
+    class Meta(ChoiceOptionBase.Meta):
+        unique_together = [('organisation', 'value')]
 
 
-class ServiceStyleOption(models.Model):
-    value = models.CharField(max_length=50, unique=True)
-    label = models.CharField(max_length=100)
-    sort_order = models.IntegerField(default=0)
-    is_active = models.BooleanField(default=True)
-
-    class Meta:
-        ordering = ['sort_order', 'pk']
-
-    def __str__(self):
-        return self.label
+class SourceOption(ChoiceOptionBase):
+    class Meta(ChoiceOptionBase.Meta):
+        unique_together = [('organisation', 'value')]
 
 
-class LeadStatusOption(models.Model):
-    value = models.CharField(max_length=50, unique=True)
-    label = models.CharField(max_length=100)
-    sort_order = models.IntegerField(default=0)
-    is_active = models.BooleanField(default=True)
-
-    class Meta:
-        ordering = ['sort_order', 'pk']
-
-    def __str__(self):
-        return self.label
+class ServiceStyleOption(ChoiceOptionBase):
+    class Meta(ChoiceOptionBase.Meta):
+        unique_together = [('organisation', 'value')]
 
 
-class LostReasonOption(models.Model):
-    value = models.CharField(max_length=50, unique=True)
-    label = models.CharField(max_length=100)
-    sort_order = models.IntegerField(default=0)
-    is_active = models.BooleanField(default=True)
+class LeadStatusOption(ChoiceOptionBase):
+    class Meta(ChoiceOptionBase.Meta):
+        unique_together = [('organisation', 'value')]
 
-    class Meta:
-        ordering = ['sort_order', 'pk']
 
-    def __str__(self):
-        return self.label
+class LostReasonOption(ChoiceOptionBase):
+    class Meta(ChoiceOptionBase.Meta):
+        unique_together = [('organisation', 'value')]

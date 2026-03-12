@@ -9,6 +9,10 @@ MENU_TYPE_CHOICES = [
 
 
 class MenuTemplate(models.Model):
+    organisation = models.ForeignKey(
+        'users.Organisation',
+        on_delete=models.CASCADE, related_name='menu_templates',
+    )
     name = models.CharField(max_length=200)
     description = models.TextField(blank=True)
     menu_type = models.CharField(max_length=20, choices=MENU_TYPE_CHOICES, default='custom')

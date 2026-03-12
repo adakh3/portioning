@@ -7,6 +7,7 @@ from rest_framework import generics
 from rest_framework.views import APIView
 from rest_framework.response import Response
 
+from users.mixins import OrgQuerySetMixin, OrgCreateMixin
 from .models import LaborRole, StaffMember, Shift, AllocationRule
 from .serializers import (
     LaborRoleSerializer, StaffMemberSerializer,
@@ -14,22 +15,22 @@ from .serializers import (
 )
 
 
-class LaborRoleListCreateView(generics.ListCreateAPIView):
+class LaborRoleListCreateView(OrgQuerySetMixin, OrgCreateMixin, generics.ListCreateAPIView):
     queryset = LaborRole.objects.all()
     serializer_class = LaborRoleSerializer
 
 
-class LaborRoleDetailView(generics.RetrieveUpdateDestroyAPIView):
+class LaborRoleDetailView(OrgQuerySetMixin, generics.RetrieveUpdateDestroyAPIView):
     queryset = LaborRole.objects.all()
     serializer_class = LaborRoleSerializer
 
 
-class StaffMemberListCreateView(generics.ListCreateAPIView):
+class StaffMemberListCreateView(OrgQuerySetMixin, OrgCreateMixin, generics.ListCreateAPIView):
     queryset = StaffMember.objects.prefetch_related('roles').all()
     serializer_class = StaffMemberSerializer
 
 
-class StaffMemberDetailView(generics.RetrieveUpdateDestroyAPIView):
+class StaffMemberDetailView(OrgQuerySetMixin, generics.RetrieveUpdateDestroyAPIView):
     queryset = StaffMember.objects.prefetch_related('roles').all()
     serializer_class = StaffMemberSerializer
 

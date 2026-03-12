@@ -9,6 +9,7 @@ from bookings.models.quotes import QuoteStatus
 from bookings.serializers import QuoteSerializer, QuoteLineItemSerializer
 from bookings.pdf import generate_quote_pdf
 from bookings.permissions import is_salesperson
+from users.mixins import get_request_org
 
 
 class QuoteListCreateView(generics.ListCreateAPIView):
@@ -16,10 +17,10 @@ class QuoteListCreateView(generics.ListCreateAPIView):
 
     def perform_create(self, serializer):
         user = self.request.user if self.request.user.is_authenticated else None
-        serializer.save(created_by=user)
+        serializer.save(created_by=user, organisation=get_request_org(self.request))
 
     def get_queryset(self):
-        qs = Quote.objects.select_related('account', 'venue', 'lead', 'event', 'based_on_template', 'primary_contact').prefetch_related('line_items', 'dishes').all()
+        qs = Quote.objects.select_related('account', 'venue', 'lead', 'event', 'based_on_template', 'primary_contact').prefetch_related('line_items', 'dishes').filter(organisation=get_request_org(self.request))
 
         # Salesperson sees only quotes they created or linked to their leads
         user = self.request.user
@@ -33,8 +34,10 @@ class QuoteListCreateView(generics.ListCreateAPIView):
 
 
 class QuoteDetailView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = Quote.objects.select_related('account', 'venue', 'lead', 'event', 'based_on_template', 'primary_contact').prefetch_related('line_items', 'dishes').all()
     serializer_class = QuoteSerializer
+
+    def get_queryset(self):
+        return Quote.objects.select_related('account', 'venue', 'lead', 'event', 'based_on_template', 'primary_contact').prefetch_related('line_items', 'dishes').filter(organisation=get_request_org(self.request))
 
     def perform_update(self, serializer):
         serializer.save()
@@ -74,6 +77,7 @@ class QuoteTransitionView(APIView):
                 status='confirmed',
                 based_on_template=quote.based_on_template,
                 created_by=user,
+                organisation=quote.organisation,
             )
             # Copy menu (dishes) from quote to event
             if quote.dishes.exists():
@@ -85,6 +89,7 @@ class QuoteTransitionView(APIView):
                 result = calculate_portions(
                     dish_ids=list(event.dishes.values_list('id', flat=True)),
                     guests={'gents': event.gents, 'ladies': event.ladies},
+                    org=quote.organisation,
                 )
                 for p in result['portions']:
                     EventDishComment.objects.create(

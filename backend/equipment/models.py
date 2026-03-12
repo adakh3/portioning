@@ -17,6 +17,10 @@ class EquipmentCategory(models.TextChoices):
 
 
 class EquipmentItem(models.Model):
+    organisation = models.ForeignKey(
+        'users.Organisation',
+        on_delete=models.CASCADE, related_name='equipment_items',
+    )
     name = models.CharField(max_length=200)
     category = models.CharField(max_length=20, choices=EquipmentCategory.choices, default=EquipmentCategory.OTHER)
     description = models.TextField(blank=True)

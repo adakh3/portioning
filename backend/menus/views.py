@@ -2,16 +2,17 @@ from rest_framework import generics, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from users.mixins import OrgQuerySetMixin
 from .models import MenuTemplate, MenuTemplatePriceTier
 from .serializers import MenuTemplateListSerializer, MenuTemplateDetailSerializer
 
 
-class MenuTemplateListView(generics.ListAPIView):
+class MenuTemplateListView(OrgQuerySetMixin, generics.ListAPIView):
     queryset = MenuTemplate.objects.filter(is_active=True)
     serializer_class = MenuTemplateListSerializer
 
 
-class MenuTemplateDetailView(generics.RetrieveAPIView):
+class MenuTemplateDetailView(OrgQuerySetMixin, generics.RetrieveAPIView):
     queryset = MenuTemplate.objects.filter(is_active=True).prefetch_related('portions__dish')
     serializer_class = MenuTemplateDetailSerializer
 
@@ -32,7 +33,7 @@ class MenuTemplatePreviewView(APIView):
         # Get ladies multiplier from GuestProfile
         ladies_multiplier = 1.0  # fallback default
         try:
-            ladies_profile = GuestProfile.objects.get(name='Ladies')
+            ladies_profile = GuestProfile.objects.get(name='Ladies', organisation=menu.organisation)
             ladies_multiplier = ladies_profile.portion_multiplier
         except GuestProfile.DoesNotExist:
             pass
@@ -189,8 +190,9 @@ class MenuPriceCheckView(APIView):
         adjusted_price = tier_price + total_adjustment
 
         # Apply rounding step from settings
-        from bookings.models import SiteSettings
-        step = SiteSettings.load().price_rounding_step
+        from bookings.models import OrgSettings
+        from users.mixins import get_request_org
+        step = OrgSettings.for_org(get_request_org(request)).price_rounding_step
         if step > 1:
             adjusted_price = round(adjusted_price / step) * step
 

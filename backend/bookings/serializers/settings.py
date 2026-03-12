@@ -1,9 +1,13 @@
 from rest_framework import serializers
 
-from bookings.models import SiteSettings
+from bookings.models import OrgSettings
 
 
-class SiteSettingsSerializer(serializers.ModelSerializer):
+class OrgSettingsSerializer(serializers.ModelSerializer):
     class Meta:
-        model = SiteSettings
-        fields = ['currency_symbol', 'currency_code', 'date_format', 'default_price_per_head', 'target_food_cost_percentage', 'price_rounding_step']
+        model = OrgSettings
+        fields = [
+            'currency_symbol', 'currency_code', 'date_format', 'timezone',
+            'tax_label', 'default_tax_rate',
+            'default_price_per_head', 'target_food_cost_percentage', 'price_rounding_step',
+        ]

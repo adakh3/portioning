@@ -2,7 +2,10 @@ from django.db import models
 
 
 class GlobalConfig(models.Model):
-    """Singleton — global portioning settings."""
+    """Per-org portioning settings (one per organisation)."""
+    organisation = models.OneToOneField(
+        'users.Organisation', on_delete=models.CASCADE, related_name='portioning_config',
+    )
     popularity_enabled = models.BooleanField(default=True)
     popularity_strength = models.FloatField(
         default=0.3,
@@ -34,20 +37,19 @@ class GlobalConfig(models.Model):
         verbose_name_plural = 'global config'
 
     def __str__(self):
-        return "Global Config"
-
-    def save(self, *args, **kwargs):
-        self.pk = 1
-        super().save(*args, **kwargs)
+        return f"Global Config ({self.organisation})"
 
     @classmethod
-    def load(cls):
-        obj, _ = cls.objects.get_or_create(pk=1)
+    def for_org(cls, org):
+        obj, _ = cls.objects.get_or_create(organisation=org)
         return obj
 
 
 class BudgetProfile(models.Model):
     """Named budget profile — overrides pool ceilings for different tiers."""
+    organisation = models.ForeignKey(
+        'users.Organisation', on_delete=models.CASCADE, related_name='budget_profiles',
+    )
     name = models.CharField(max_length=100)
     description = models.TextField(blank=True)
     categories = models.ManyToManyField(
@@ -81,13 +83,21 @@ class BudgetProfile(models.Model):
 
     def save(self, *args, **kwargs):
         if self.is_default:
-            BudgetProfile.objects.filter(is_default=True).exclude(pk=self.pk).update(is_default=False)
+            BudgetProfile.objects.filter(
+                is_default=True, organisation=self.organisation,
+            ).exclude(pk=self.pk).update(is_default=False)
         super().save(*args, **kwargs)
 
 
 class GuestProfile(models.Model):
-    name = models.CharField(max_length=50, unique=True)
+    organisation = models.ForeignKey(
+        'users.Organisation', on_delete=models.CASCADE, related_name='guest_profiles',
+    )
+    name = models.CharField(max_length=50)
     portion_multiplier = models.FloatField(help_text="1.0 for adult, 0.6 for child, etc.")
+
+    class Meta:
+        unique_together = [('organisation', 'name')]
 
     def __str__(self):
         return f"{self.name} (x{self.portion_multiplier})"
@@ -95,6 +105,9 @@ class GuestProfile(models.Model):
 
 class CombinationRule(models.Model):
     """When certain category combos appear, reduce portions."""
+    organisation = models.ForeignKey(
+        'users.Organisation', on_delete=models.CASCADE, related_name='combination_rules',
+    )
     categories = models.ManyToManyField('dishes.DishCategory')
     reduction_factor = models.FloatField(help_text="e.g. 0.85 = reduce by 15%")
     description = models.CharField(max_length=200)
@@ -105,7 +118,10 @@ class CombinationRule(models.Model):
 
 
 class GlobalConstraint(models.Model):
-    """Singleton — hard caps and floors."""
+    """Per-org hard caps and floors (one per organisation)."""
+    organisation = models.OneToOneField(
+        'users.Organisation', on_delete=models.CASCADE, related_name='portioning_constraint',
+    )
     max_total_food_per_person_grams = models.FloatField(default=1000)
     min_portion_per_dish_grams = models.FloatField(default=30)
 
@@ -114,15 +130,11 @@ class GlobalConstraint(models.Model):
         verbose_name_plural = 'global constraints'
 
     def __str__(self):
-        return f"Global Constraint (max food={self.max_total_food_per_person_grams}g)"
-
-    def save(self, *args, **kwargs):
-        self.pk = 1
-        super().save(*args, **kwargs)
+        return f"Global Constraint ({self.organisation})"
 
     @classmethod
-    def load(cls):
-        obj, _ = cls.objects.get_or_create(pk=1)
+    def for_org(cls, org):
+        obj, _ = cls.objects.get_or_create(organisation=org)
         return obj
 
 

@@ -6,6 +6,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from bookings.permissions import is_salesperson
 from .models import Event, EventStatus
+from users.mixins import get_request_org
 from .serializers import EventSerializer
 
 
@@ -27,7 +28,7 @@ class EventListCreateView(generics.ListCreateAPIView):
 
     def perform_create(self, serializer):
         user = self.request.user if self.request.user.is_authenticated else None
-        serializer.save(created_by=user)
+        serializer.save(created_by=user, organisation=get_request_org(self.request))
 
     def get_queryset(self):
         _auto_advance_event_statuses()
@@ -38,7 +39,7 @@ class EventListCreateView(generics.ListCreateAPIView):
             'shifts', 'shifts__staff_member', 'shifts__role',
             'equipment_reservations', 'equipment_reservations__equipment',
             'invoices', 'invoices__payments',
-        ).all()
+        ).filter(organisation=get_request_org(self.request))
 
         # Salesperson sees only events they created
         user = self.request.user
@@ -69,7 +70,7 @@ class EventDetailView(generics.RetrieveUpdateDestroyAPIView):
             'shifts', 'shifts__staff_member', 'shifts__role',
             'equipment_reservations', 'equipment_reservations__equipment',
             'invoices', 'invoices__payments',
-        ).all()
+        ).filter(organisation=get_request_org(self.request))
 
 
 class EventCalculateView(APIView):
@@ -91,5 +92,6 @@ class EventCalculateView(APIView):
             constraint_overrides=constraint_overrides,
             big_eaters=event.big_eaters,
             big_eaters_percentage=event.big_eaters_percentage,
+            org=event.organisation,
         )
         return Response(result)

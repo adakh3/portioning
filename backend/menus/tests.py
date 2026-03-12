@@ -2,13 +2,14 @@ from decimal import Decimal
 
 from django.test import TestCase
 
-from bookings.models import SiteSettings
+from bookings.models import OrgSettings
 from dishes.models import Dish, DishCategory, PoolType
 from menus.models import MenuTemplate, MenuDishPortion, MenuTemplatePriceTier
 from menus.serializers import MenuTemplateDetailSerializer, MenuTemplateListSerializer
+from users.models import Organisation
 
 
-def make_category(name="cat", **kwargs):
+def make_category(org, name="cat", **kwargs):
     defaults = {
         "name": name,
         "display_name": name.title(),
@@ -16,19 +17,21 @@ def make_category(name="cat", **kwargs):
         "pool": PoolType.PROTEIN,
         "baseline_budget_grams": 200,
         "min_per_dish_grams": 50,
+        "organisation": org,
     }
     defaults.update(kwargs)
     return DishCategory.objects.create(**defaults)
 
 
-def make_dish(category=None, **kwargs):
+def make_dish(org, category=None, **kwargs):
     if category is None:
-        category = make_category()
+        category = make_category(org)
     defaults = {
         "name": "Dish",
         "category": category,
         "default_portion_grams": 100,
         "cost_per_gram": Decimal("0.0100"),
+        "organisation": org,
     }
     defaults.update(kwargs)
     return Dish.objects.create(**defaults)
@@ -38,29 +41,30 @@ class TestSuggestedPricePerHead(TestCase):
     """MenuTemplateDetailSerializer.suggested_price_per_head sums selling × portion."""
 
     def setUp(self):
-        self.settings = SiteSettings.load()
+        self.org = Organisation.objects.create(name='Test Org', slug='test-org', country='PK')
+        self.settings = OrgSettings.for_org(self.org)
         self.settings.target_food_cost_percentage = Decimal("30.00")
         self.settings.save()
-        self.cat = make_category(name="mains")
-        self.template = MenuTemplate.objects.create(name="Test Menu")
+        self.cat = make_category(self.org, name="mains")
+        self.template = MenuTemplate.objects.create(name="Test Menu", organisation=self.org)
 
     def test_single_dish(self):
-        dish = make_dish(category=self.cat, name="D1", cost_per_gram=Decimal("0.0300"))
+        dish = make_dish(self.org, category=self.cat, name="D1", cost_per_gram=Decimal("0.0300"))
         MenuDishPortion.objects.create(menu=self.template, dish=dish, portion_grams=150)
         data = MenuTemplateDetailSerializer(self.template).data
         self.assertAlmostEqual(data["suggested_price_per_head"], 15.0, places=2)
         self.assertFalse(data["has_unpriced_dishes"])
 
     def test_multiple_dishes_sum(self):
-        d1 = make_dish(category=self.cat, name="D1", cost_per_gram=Decimal("0.0300"))
-        d2 = make_dish(category=self.cat, name="D2", cost_per_gram=Decimal("0.0600"))
+        d1 = make_dish(self.org, category=self.cat, name="D1", cost_per_gram=Decimal("0.0300"))
+        d2 = make_dish(self.org, category=self.cat, name="D2", cost_per_gram=Decimal("0.0600"))
         MenuDishPortion.objects.create(menu=self.template, dish=d1, portion_grams=100)
         MenuDishPortion.objects.create(menu=self.template, dish=d2, portion_grams=80)
         data = MenuTemplateDetailSerializer(self.template).data
         self.assertAlmostEqual(data["suggested_price_per_head"], 26.0, places=2)
 
     def test_null_when_no_priced_dishes(self):
-        dish = make_dish(category=self.cat, name="Free", cost_per_gram=Decimal("0.0000"))
+        dish = make_dish(self.org, category=self.cat, name="Free", cost_per_gram=Decimal("0.0000"))
         MenuDishPortion.objects.create(menu=self.template, dish=dish, portion_grams=100)
         data = MenuTemplateDetailSerializer(self.template).data
         self.assertIsNone(data["suggested_price_per_head"])
@@ -75,15 +79,16 @@ class TestHasUnpricedDishes(TestCase):
     """has_unpriced_dishes flag in MenuTemplateDetailSerializer."""
 
     def setUp(self):
-        self.settings = SiteSettings.load()
+        self.org = Organisation.objects.create(name='Test Org', slug='test-org', country='PK')
+        self.settings = OrgSettings.for_org(self.org)
         self.settings.target_food_cost_percentage = Decimal("30.00")
         self.settings.save()
-        self.cat = make_category(name="sides")
-        self.template = MenuTemplate.objects.create(name="Mixed Menu")
+        self.cat = make_category(self.org, name="sides")
+        self.template = MenuTemplate.objects.create(name="Mixed Menu", organisation=self.org)
 
     def test_true_when_mix_of_priced_and_unpriced(self):
-        priced = make_dish(category=self.cat, name="Priced", cost_per_gram=Decimal("0.0300"))
-        unpriced = make_dish(category=self.cat, name="Unpriced", cost_per_gram=Decimal("0.0000"))
+        priced = make_dish(self.org, category=self.cat, name="Priced", cost_per_gram=Decimal("0.0300"))
+        unpriced = make_dish(self.org, category=self.cat, name="Unpriced", cost_per_gram=Decimal("0.0000"))
         MenuDishPortion.objects.create(menu=self.template, dish=priced, portion_grams=100)
         MenuDishPortion.objects.create(menu=self.template, dish=unpriced, portion_grams=50)
         data = MenuTemplateDetailSerializer(self.template).data
@@ -91,13 +96,14 @@ class TestHasUnpricedDishes(TestCase):
         self.assertAlmostEqual(data["suggested_price_per_head"], 10.0, places=2)
 
     def test_false_when_all_priced(self):
-        dish = make_dish(category=self.cat, name="D", cost_per_gram=Decimal("0.0300"))
+        dish = make_dish(self.org, category=self.cat, name="D", cost_per_gram=Decimal("0.0300"))
         MenuDishPortion.objects.create(menu=self.template, dish=dish, portion_grams=100)
         data = MenuTemplateDetailSerializer(self.template).data
         self.assertFalse(data["has_unpriced_dishes"])
 
     def test_override_dish_counted_as_priced(self):
         dish = make_dish(
+            self.org,
             category=self.cat,
             name="Override",
             cost_per_gram=Decimal("0.0100"),
@@ -113,13 +119,16 @@ class TestHasUnpricedDishes(TestCase):
 class TestMenuType(TestCase):
     """menu_type field is serialized correctly."""
 
+    def setUp(self):
+        self.org = Organisation.objects.create(name='Test Org', slug='test-org', country='PK')
+
     def test_default_is_custom(self):
-        menu = MenuTemplate.objects.create(name="My Menu")
+        menu = MenuTemplate.objects.create(name="My Menu", organisation=self.org)
         data = MenuTemplateListSerializer(menu).data
         self.assertEqual(data["menu_type"], "custom")
 
     def test_barat_type(self):
-        menu = MenuTemplate.objects.create(name="Wedding", menu_type="barat")
+        menu = MenuTemplate.objects.create(name="Wedding", menu_type="barat", organisation=self.org)
         data = MenuTemplateListSerializer(menu).data
         self.assertEqual(data["menu_type"], "barat")
 
@@ -127,8 +136,11 @@ class TestMenuType(TestCase):
 class TestPriceTiers(TestCase):
     """MenuTemplatePriceTier model and serialization."""
 
+    def setUp(self):
+        self.org = Organisation.objects.create(name='Test Org', slug='test-org', country='PK')
+
     def test_tiers_serialized_in_list(self):
-        menu = MenuTemplate.objects.create(name="Tier Test", menu_type="barat")
+        menu = MenuTemplate.objects.create(name="Tier Test", menu_type="barat", organisation=self.org)
         MenuTemplatePriceTier.objects.create(menu=menu, min_guests=50, price_per_head=Decimal("3000"))
         MenuTemplatePriceTier.objects.create(menu=menu, min_guests=100, price_per_head=Decimal("2500"))
         MenuTemplatePriceTier.objects.create(menu=menu, min_guests=200, price_per_head=Decimal("2000"))
@@ -139,14 +151,14 @@ class TestPriceTiers(TestCase):
         self.assertEqual(data["price_tiers"][2]["min_guests"], 200)
 
     def test_tiers_serialized_in_detail(self):
-        menu = MenuTemplate.objects.create(name="Detail Tier", menu_type="mehndi")
+        menu = MenuTemplate.objects.create(name="Detail Tier", menu_type="mehndi", organisation=self.org)
         MenuTemplatePriceTier.objects.create(menu=menu, min_guests=50, price_per_head=Decimal("2500"))
         data = MenuTemplateDetailSerializer(menu).data
         self.assertEqual(len(data["price_tiers"]), 1)
         self.assertEqual(data["price_tiers"][0]["price_per_head"], "2500.00")
 
     def test_unique_together(self):
-        menu = MenuTemplate.objects.create(name="Unique Test")
+        menu = MenuTemplate.objects.create(name="Unique Test", organisation=self.org)
         MenuTemplatePriceTier.objects.create(menu=menu, min_guests=50, price_per_head=Decimal("1000"))
         from django.db import IntegrityError
         with self.assertRaises(IntegrityError):
