@@ -4,14 +4,14 @@ from django.conf import settings
 from django.contrib.auth import authenticate
 from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
 from django.utils.decorators import method_decorator
-from rest_framework import status
+from rest_framework import serializers as drf_serializers, status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from .models import User
+from .models import Organisation, User
 from .serializers import LoginSerializer, UserSerializer
 
 logger = logging.getLogger(__name__)
@@ -98,6 +98,8 @@ class LogoutView(APIView):
                 token.blacklist()
             except (InvalidToken, TokenError):
                 pass  # Token already invalid/expired — still clear cookies
+        # Clear org override on logout
+        request.session.pop('org_override', None)
         response = Response({"detail": "Logged out."})
         return _clear_auth_cookies(response)
 
@@ -154,4 +156,73 @@ class MeView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        return Response(UserSerializer(request.user).data)
+        return Response(
+            UserSerializer(request.user, context={'request': request}).data
+        )
+
+
+class SwitchOrgView(APIView):
+    """Allow superusers to switch their effective organisation via session."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        if not request.user.is_superuser:
+            return Response(
+                {"detail": "Only superusers can switch organisations."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        audit_logger = logging.getLogger('tenant.audit')
+        org_id = request.data.get('org_id')
+
+        if org_id == 'all':
+            # Explicit all-orgs mode
+            request.session['org_override'] = '__all__'
+            request.organisation = None
+            request._org_all_override = True
+            audit_logger.info(
+                "Superuser %s (pk=%s) switched to all-orgs mode",
+                request.user.email, request.user.pk,
+            )
+        elif org_id is None:
+            # Clear override — back to own org
+            request.session.pop('org_override', None)
+            request.organisation = request.user.organisation
+            request._org_all_override = False
+            audit_logger.info(
+                "Superuser %s (pk=%s) cleared org override (own org)",
+                request.user.email, request.user.pk,
+            )
+        else:
+            try:
+                org = Organisation.objects.get(pk=org_id, is_active=True)
+            except Organisation.DoesNotExist:
+                return Response(
+                    {"detail": "Organisation not found."},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+            request.session['org_override'] = org.pk
+            request.organisation = org
+            request._org_all_override = False
+            audit_logger.info(
+                "Superuser %s (pk=%s) switched to org %s (pk=%s)",
+                request.user.email, request.user.pk, org.name, org.pk,
+            )
+
+        return Response(
+            UserSerializer(request.user, context={'request': request}).data
+        )
+
+
+class OrganisationListView(APIView):
+    """List all active organisations — superusers only."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if not request.user.is_superuser:
+            return Response(
+                {"detail": "Only superusers can list organisations."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        orgs = Organisation.objects.filter(is_active=True).order_by('name').values('id', 'name')
+        return Response(list(orgs))

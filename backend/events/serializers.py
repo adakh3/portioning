@@ -4,6 +4,7 @@ from dishes.models import Dish
 from staff.serializers import ShiftSerializer
 from equipment.serializers import EquipmentReservationSerializer
 from bookings.serializers.finance import InvoiceSerializer
+from users.mixins import get_request_org
 
 
 class EventConstraintOverrideSerializer(serializers.ModelSerializer):
@@ -13,7 +14,7 @@ class EventConstraintOverrideSerializer(serializers.ModelSerializer):
 
 
 class EventDishCommentSerializer(serializers.ModelSerializer):
-    dish_id = serializers.PrimaryKeyRelatedField(source='dish', queryset=Dish.objects.all())
+    dish_id = serializers.PrimaryKeyRelatedField(source='dish', queryset=Dish.objects.none())
     dish_name = serializers.CharField(source='dish.name', read_only=True)
 
     class Meta:
@@ -24,7 +25,7 @@ class EventDishCommentSerializer(serializers.ModelSerializer):
 class EventSerializer(serializers.ModelSerializer):
     constraint_override = EventConstraintOverrideSerializer(required=False)
     dish_ids = serializers.PrimaryKeyRelatedField(
-        many=True, source='dishes', queryset=Dish.objects.all(), write_only=True, required=False
+        many=True, source='dishes', queryset=Dish.objects.none(), write_only=True, required=False
     )
     dish_comments = EventDishCommentSerializer(many=True, required=False)
 
@@ -39,6 +40,17 @@ class EventSerializer(serializers.ModelSerializer):
     shifts = ShiftSerializer(many=True, read_only=True)
     equipment_reservations = EquipmentReservationSerializer(many=True, read_only=True)
     invoices = InvoiceSerializer(many=True, read_only=True)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        request = self.context.get('request')
+        if request:
+            org = get_request_org(request)
+            if org:
+                dish_qs = Dish.objects.filter(organisation=org)
+            else:
+                dish_qs = Dish.objects.all()
+            self.fields['dish_ids'].child_relation.queryset = dish_qs
 
     class Meta:
         model = Event
@@ -109,6 +121,7 @@ class EventSerializer(serializers.ModelSerializer):
             result = calculate_portions(
                 dish_ids=list(instance.dishes.values_list('id', flat=True)),
                 guests={'gents': instance.gents, 'ladies': instance.ladies},
+                org=instance.organisation,
             )
             for p in result['portions']:
                 EventDishComment.objects.create(

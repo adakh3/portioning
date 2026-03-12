@@ -5,7 +5,7 @@ from rest_framework.views import APIView
 
 from users.models import User
 from users.serializers import UserSerializer
-from users.mixins import get_request_org, apply_org_filter
+from users.mixins import get_request_org, apply_org_filter, get_org_object_or_404
 from bookings.models import Lead, ProductLine, Quote
 from bookings.models.choices import LeadStatusOption
 from bookings.serializers import LeadSerializer, QuoteSerializer
@@ -149,7 +149,11 @@ class LeadBulkUpdateView(APIView):
             field, desc = 'assigned_to', 'Bulk updated assignment'
 
         elif action == 'status':
-            valid_statuses = set(LeadStatusOption.objects.values_list('value', flat=True))
+            org = get_request_org(request)
+            status_qs = LeadStatusOption.objects.all()
+            if org:
+                status_qs = status_qs.filter(organisation=org)
+            valid_statuses = set(status_qs.values_list('value', flat=True))
             if value not in valid_statuses:
                 return Response({'error': f'Invalid status: {value}'}, status=status.HTTP_400_BAD_REQUEST)
             leads.update(status=value)
@@ -203,7 +207,7 @@ class LeadDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = LeadSerializer
 
     def get_queryset(self):
-        return Lead.objects.select_related(
+        qs = Lead.objects.select_related(
             'account', 'won_quote', 'won_event', 'product', 'assigned_to',
             'lost_reason_option',
         ).prefetch_related('quotes')
@@ -222,7 +226,7 @@ class LeadTransitionView(APIView):
     """POST /api/bookings/leads/<pk>/transition/ {status: "contacted"}"""
 
     def post(self, request, pk):
-        lead = Lead.objects.get(pk=pk)
+        lead = get_org_object_or_404(Lead, request, pk=pk)
         new_status = request.data.get('status')
         if not new_status:
             return Response({'error': 'status is required'}, status=status.HTTP_400_BAD_REQUEST)
@@ -237,7 +241,9 @@ class LeadTransitionView(APIView):
                 )
             from bookings.models.choices import LostReasonOption
             try:
-                lost_reason = LostReasonOption.objects.get(pk=lost_reason_option_id, is_active=True)
+                lost_reason = LostReasonOption.objects.get(
+                    pk=lost_reason_option_id, is_active=True, organisation=lead.organisation,
+                )
             except LostReasonOption.DoesNotExist:
                 return Response({'error': 'Invalid lost_reason_option'}, status=status.HTTP_400_BAD_REQUEST)
             lead.lost_reason_option = lost_reason
@@ -282,7 +288,7 @@ class LeadCreateQuoteView(APIView):
     """POST /api/bookings/leads/<pk>/create-quote/ — Create Quote from Lead (does not change lead status)."""
 
     def post(self, request, pk):
-        lead = Lead.objects.select_related('account').get(pk=pk)
+        lead = get_org_object_or_404(Lead.objects.select_related('account'), request, pk=pk)
 
         # Create account from lead if none exists
         account = lead.account
@@ -323,7 +329,9 @@ class LeadWonView(APIView):
     """POST /api/bookings/leads/<pk>/won/ — Mark lead as Won, optionally create event."""
 
     def post(self, request, pk):
-        lead = Lead.objects.select_related('account', 'won_quote', 'won_event').get(pk=pk)
+        lead = get_org_object_or_404(
+            Lead.objects.select_related('account', 'won_quote', 'won_event'), request, pk=pk,
+        )
 
         if lead.status == 'won':
             return Response({'error': 'Lead is already won'}, status=status.HTTP_400_BAD_REQUEST)
@@ -428,7 +436,9 @@ class LeadCreateEventView(APIView):
     """POST /api/bookings/leads/<pk>/create-event/ — Create event from a won lead."""
 
     def post(self, request, pk):
-        lead = Lead.objects.select_related('account', 'won_event').get(pk=pk)
+        lead = get_org_object_or_404(
+            Lead.objects.select_related('account', 'won_event'), request, pk=pk,
+        )
 
         if lead.status != 'won':
             return Response({'error': 'Lead must be won to create an event'}, status=status.HTTP_400_BAD_REQUEST)
@@ -468,6 +478,8 @@ class LeadActivityView(generics.ListAPIView):
     def get_queryset(self):
         from django.contrib.contenttypes.models import ContentType
         from bookings.models.activity import ActivityLog
+        # Validate that the lead belongs to the user's org
+        get_org_object_or_404(Lead, self.request, pk=self.kwargs['pk'])
         ct = ContentType.objects.get_for_model(Lead)
         return ActivityLog.objects.filter(
             content_type=ct, object_id=self.kwargs['pk']
@@ -480,5 +492,5 @@ class LeadAutoAssignView(APIView):
 
     def post(self, request):
         from bookings.services.round_robin import run_round_robin
-        result = run_round_robin(request.user)
+        result = run_round_robin(request.user, org=get_request_org(request))
         return Response(result)

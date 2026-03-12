@@ -1,6 +1,7 @@
 from decimal import Decimal
 
 from django.db import models
+from users.managers import TenantManager
 
 
 class PoolType(models.TextChoices):
@@ -16,6 +17,8 @@ class UnitType(models.TextChoices):
 
 
 class DishCategory(models.Model):
+    objects = TenantManager()
+
     organisation = models.ForeignKey(
         'users.Organisation',
         on_delete=models.CASCADE, related_name='dish_categories',
@@ -80,6 +83,8 @@ class ProteinType(models.TextChoices):
 
 
 class Dish(models.Model):
+    objects = TenantManager()
+
     organisation = models.ForeignKey(
         'users.Organisation',
         on_delete=models.CASCADE, related_name='dishes',

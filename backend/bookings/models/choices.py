@@ -1,4 +1,5 @@
 from django.db import models
+from users.managers import TenantManager
 
 
 class ChoiceOptionBase(models.Model):
@@ -21,25 +22,35 @@ class ChoiceOptionBase(models.Model):
 
 
 class EventTypeOption(ChoiceOptionBase):
+    objects = TenantManager()
+
     class Meta(ChoiceOptionBase.Meta):
         unique_together = [('organisation', 'value')]
 
 
 class SourceOption(ChoiceOptionBase):
+    objects = TenantManager()
+
     class Meta(ChoiceOptionBase.Meta):
         unique_together = [('organisation', 'value')]
 
 
 class ServiceStyleOption(ChoiceOptionBase):
+    objects = TenantManager()
+
     class Meta(ChoiceOptionBase.Meta):
         unique_together = [('organisation', 'value')]
 
 
 class LeadStatusOption(ChoiceOptionBase):
+    objects = TenantManager()
+
     class Meta(ChoiceOptionBase.Meta):
         unique_together = [('organisation', 'value')]
 
 
 class LostReasonOption(ChoiceOptionBase):
+    objects = TenantManager()
+
     class Meta(ChoiceOptionBase.Meta):
         unique_together = [('organisation', 'value')]

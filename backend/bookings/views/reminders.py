@@ -6,6 +6,7 @@ from bookings.activity import log_activity
 from bookings.models import Lead
 from bookings.models.reminders import Reminder
 from bookings.serializers.reminders import ReminderSerializer
+from users.mixins import get_request_org, is_superuser_without_org, get_org_object_or_404
 
 
 class ReminderListCreateView(generics.ListCreateAPIView):
@@ -15,6 +16,10 @@ class ReminderListCreateView(generics.ListCreateAPIView):
 
     def get_queryset(self):
         qs = Reminder.objects.select_related('lead', 'user', 'created_by').all()
+        if not is_superuser_without_org(self.request):
+            org = get_request_org(self.request)
+            if org is not None:
+                qs = qs.filter(lead__organisation=org)
         params = self.request.query_params
 
         # Default to current user
@@ -50,8 +55,15 @@ class ReminderListCreateView(generics.ListCreateAPIView):
 
 class ReminderDetailView(generics.RetrieveUpdateDestroyAPIView):
     """GET/PATCH/DELETE /api/bookings/reminders/<pk>/"""
-    queryset = Reminder.objects.select_related('lead', 'user', 'created_by').all()
     serializer_class = ReminderSerializer
+
+    def get_queryset(self):
+        qs = Reminder.objects.select_related('lead', 'user', 'created_by').all()
+        if not is_superuser_without_org(self.request):
+            org = get_request_org(self.request)
+            if org is not None:
+                qs = qs.filter(lead__organisation=org)
+        return qs
 
     def perform_update(self, serializer):
         reminder = self.get_object()
@@ -80,13 +92,15 @@ class LeadReminderListCreateView(generics.ListCreateAPIView):
     serializer_class = ReminderSerializer
 
     def get_queryset(self):
+        # Validate lead belongs to user's org
+        get_org_object_or_404(Lead, self.request, pk=self.kwargs['pk'])
         return Reminder.objects.select_related(
             'lead', 'user', 'created_by',
         ).filter(lead_id=self.kwargs['pk'])
 
     def perform_create(self, serializer):
         user = self.request.user if self.request.user.is_authenticated else None
-        lead = Lead.objects.get(pk=self.kwargs['pk'])
+        lead = get_org_object_or_404(Lead, self.request, pk=self.kwargs['pk'])
         serializer.save(
             lead=lead,
             created_by=user,
@@ -106,6 +120,10 @@ class ReminderCountsView(generics.GenericAPIView):
         today_end = today_start + timezone.timedelta(days=1)
 
         base = Reminder.objects.filter(user=request.user, status='pending')
+        if not is_superuser_without_org(request):
+            org = get_request_org(request)
+            if org is not None:
+                base = base.filter(lead__organisation=org)
         overdue = base.filter(due_at__lt=now).count()
         due_today = base.filter(due_at__gte=now, due_at__lt=today_end).count()
 

@@ -2,7 +2,7 @@ from rest_framework import generics, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from users.mixins import OrgQuerySetMixin
+from users.mixins import OrgQuerySetMixin, apply_org_filter
 from .models import MenuTemplate, MenuTemplatePriceTier
 from .serializers import MenuTemplateListSerializer, MenuTemplateDetailSerializer
 
@@ -23,9 +23,10 @@ class MenuTemplatePreviewView(APIView):
     def get(self, request, pk):
         from rules.models import GuestProfile
 
-        menu = MenuTemplate.objects.filter(
-            is_active=True, pk=pk
-        ).prefetch_related('portions__dish__category').first()
+        qs = apply_org_filter(
+            MenuTemplate.objects.filter(is_active=True), request,
+        )
+        menu = qs.filter(pk=pk).prefetch_related('portions__dish__category').first()
 
         if menu is None:
             return Response({'detail': 'Not found.'}, status=404)
@@ -108,7 +109,9 @@ class MenuPriceCheckView(APIView):
     def post(self, request, pk):
         from dishes.models import Dish
 
-        menu = MenuTemplate.objects.filter(is_active=True, pk=pk).first()
+        menu = apply_org_filter(
+            MenuTemplate.objects.filter(is_active=True), request,
+        ).filter(pk=pk).first()
         if menu is None:
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
 
@@ -155,11 +158,11 @@ class MenuPriceCheckView(APIView):
 
         # 3. Load added and removed dishes with their categories
         added_dishes = (
-            Dish.objects.filter(id__in=added_ids).select_related('category')
+            Dish.objects.filter(id__in=added_ids, organisation=menu.organisation).select_related('category')
             if added_ids else []
         )
         removed_dishes = (
-            Dish.objects.filter(id__in=removed_ids).select_related('category')
+            Dish.objects.filter(id__in=removed_ids, organisation=menu.organisation).select_related('category')
             if removed_ids else []
         )
 

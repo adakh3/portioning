@@ -2,6 +2,7 @@ from decimal import Decimal
 
 from django.conf import settings
 from django.db import models
+from users.managers import TenantManager
 
 class EventStatus(models.TextChoices):
     TENTATIVE = 'tentative', 'Tentative'
@@ -21,6 +22,8 @@ EVENT_STATUS_TRANSITIONS = {
 
 
 class Event(models.Model):
+    objects = TenantManager()
+
     organisation = models.ForeignKey(
         'users.Organisation',
         on_delete=models.CASCADE, related_name='events',

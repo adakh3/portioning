@@ -4,6 +4,7 @@ from django.conf import settings
 from django.core.validators import MinValueValidator
 from django.db import models
 from django.utils import timezone
+from users.managers import TenantManager
 
 class QuoteStatus(models.TextChoices):
     DRAFT = 'draft', 'Draft'
@@ -23,6 +24,8 @@ QUOTE_TRANSITIONS = {
 
 
 class Quote(models.Model):
+    objects = TenantManager()
+
     organisation = models.ForeignKey(
         'users.Organisation',
         on_delete=models.CASCADE, related_name='quotes',

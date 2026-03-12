@@ -9,7 +9,7 @@ from bookings.models.quotes import QuoteStatus
 from bookings.serializers import QuoteSerializer, QuoteLineItemSerializer
 from bookings.pdf import generate_quote_pdf
 from bookings.permissions import is_salesperson
-from users.mixins import get_request_org, apply_org_filter
+from users.mixins import get_request_org, apply_org_filter, get_org_object_or_404
 
 
 class QuoteListCreateView(generics.ListCreateAPIView):
@@ -49,7 +49,10 @@ class QuoteTransitionView(APIView):
     """POST /api/bookings/quotes/<pk>/transition/ {status: "sent"}"""
 
     def post(self, request, pk):
-        quote = Quote.objects.select_related('account', 'lead', 'based_on_template', 'primary_contact', 'venue').prefetch_related('dishes').get(pk=pk)
+        quote = get_org_object_or_404(
+            Quote.objects.select_related('account', 'lead', 'based_on_template', 'primary_contact', 'venue').prefetch_related('dishes'),
+            request, pk=pk,
+        )
         new_status = request.data.get('status')
         if not new_status:
             return Response({'error': 'status is required'}, status=status.HTTP_400_BAD_REQUEST)
@@ -117,20 +120,30 @@ class QuoteTransitionView(APIView):
                 )
 
         # Re-fetch with all relations for serializer
-        quote = Quote.objects.select_related('account', 'venue', 'lead', 'event', 'based_on_template', 'primary_contact').prefetch_related('line_items', 'dishes').get(pk=pk)
+        quote = get_org_object_or_404(
+            Quote.objects.select_related('account', 'venue', 'lead', 'event', 'based_on_template', 'primary_contact').prefetch_related('line_items', 'dishes'),
+            request, pk=pk,
+        )
         return Response(QuoteSerializer(quote).data)
 
 
 class QuoteLineItemListCreateView(generics.ListCreateAPIView):
     serializer_class = QuoteLineItemSerializer
 
-    def get_queryset(self):
-        return QuoteLineItem.objects.filter(
+    def _get_org_filtered_qs(self):
+        qs = QuoteLineItem.objects.filter(
             quote_id=self.kwargs['quote_pk']
         ).select_related('quote', 'menu_item', 'equipment_item', 'labor_role')
+        org = get_request_org(self.request)
+        if org is not None:
+            qs = qs.filter(quote__organisation=org)
+        return qs
+
+    def get_queryset(self):
+        return self._get_org_filtered_qs()
 
     def perform_create(self, serializer):
-        quote = Quote.objects.get(pk=self.kwargs['quote_pk'])
+        quote = get_org_object_or_404(Quote, self.request, pk=self.kwargs['quote_pk'])
         serializer.save(quote=quote)
 
 
@@ -138,9 +151,13 @@ class QuoteLineItemDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = QuoteLineItemSerializer
 
     def get_queryset(self):
-        return QuoteLineItem.objects.filter(
+        qs = QuoteLineItem.objects.filter(
             quote_id=self.kwargs['quote_pk']
         ).select_related('quote', 'menu_item', 'equipment_item', 'labor_role')
+        org = get_request_org(self.request)
+        if org is not None:
+            qs = qs.filter(quote__organisation=org)
+        return qs
 
     def perform_update(self, serializer):
         serializer.save()
@@ -153,9 +170,12 @@ class QuotePDFView(APIView):
     """GET /api/bookings/quotes/<pk>/pdf/ — Download quote as PDF"""
 
     def get(self, request, pk):
-        quote = Quote.objects.select_related(
-            'account', 'venue', 'primary_contact', 'based_on_template',
-        ).prefetch_related('line_items', 'dishes').get(pk=pk)
+        quote = get_org_object_or_404(
+            Quote.objects.select_related(
+                'account', 'venue', 'primary_contact', 'based_on_template',
+            ).prefetch_related('line_items', 'dishes'),
+            request, pk=pk,
+        )
         pdf_bytes = generate_quote_pdf(quote)
         response = HttpResponse(pdf_bytes, content_type='application/pdf')
         response['Content-Disposition'] = f'attachment; filename="Quote-{quote.pk}-v{quote.version}.pdf"'

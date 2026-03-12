@@ -44,7 +44,7 @@ class DashboardStatsView(APIView):
             since = None
 
         org = get_request_org(request)
-        base_leads = base_leads
+        base_leads = apply_org_filter(Lead.objects.all(), request)
         ct = ContentType.objects.get_for_model(Lead)
 
         # Restrict activity logs to leads in this org
@@ -99,7 +99,7 @@ class DashboardStatsView(APIView):
         avg_days = None
         if converted_lead_ids:
             result = (
-                Lead.objects.filter(id__in=converted_lead_ids, won_at__isnull=False)
+                base_leads.filter(id__in=converted_lead_ids, won_at__isnull=False)
                 .annotate(days=F('won_at') - F('created_at'))
                 .aggregate(avg_days=Avg('days'))
             )
@@ -144,12 +144,15 @@ class DashboardStatsView(APIView):
         )
 
         # Overdue reminders per assigned user
+        reminder_base = Reminder.objects.filter(
+            status='pending',
+            due_at__lt=now,
+            lead__assigned_to__isnull=False,
+        )
+        if org is not None:
+            reminder_base = reminder_base.filter(lead__organisation=org)
         overdue_by_user = dict(
-            Reminder.objects.filter(
-                status='pending',
-                due_at__lt=now,
-                lead__assigned_to__isnull=False,
-            )
+            reminder_base
             .values_list('lead__assigned_to')
             .annotate(c=Count('id'))
             .values_list('lead__assigned_to', 'c')
@@ -220,11 +223,14 @@ class DashboardStatsView(APIView):
             .exclude(status__in=['won', 'lost'])
             .count()
         )
-        unassigned_overdue = Reminder.objects.filter(
+        unassigned_reminder_base = Reminder.objects.filter(
             status='pending',
             due_at__lt=now,
             lead__assigned_to__isnull=True,
-        ).count()
+        )
+        if org is not None:
+            unassigned_reminder_base = unassigned_reminder_base.filter(lead__organisation=org)
+        unassigned_overdue = unassigned_reminder_base.count()
 
         unassigned_row = {
             'user_id': None,

@@ -2,9 +2,12 @@ from decimal import Decimal
 
 from django.core.validators import MinValueValidator
 from django.db import models
+from users.managers import TenantManager
 
 
 class LaborRole(models.Model):
+    objects = TenantManager()
+
     organisation = models.ForeignKey(
         'users.Organisation',
         on_delete=models.CASCADE, related_name='labor_roles',
@@ -26,6 +29,8 @@ class LaborRole(models.Model):
 
 
 class StaffMember(models.Model):
+    objects = TenantManager()
+
     organisation = models.ForeignKey(
         'users.Organisation',
         on_delete=models.CASCADE, related_name='staff_members',

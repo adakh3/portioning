@@ -1,8 +1,11 @@
 from django.db import models
+from users.managers import TenantManager
 
 
 class GlobalConfig(models.Model):
     """Per-org portioning settings (one per organisation)."""
+    objects = TenantManager()
+
     organisation = models.OneToOneField(
         'users.Organisation', on_delete=models.CASCADE, related_name='portioning_config',
     )
@@ -47,6 +50,8 @@ class GlobalConfig(models.Model):
 
 class BudgetProfile(models.Model):
     """Named budget profile — overrides pool ceilings for different tiers."""
+    objects = TenantManager()
+
     organisation = models.ForeignKey(
         'users.Organisation', on_delete=models.CASCADE, related_name='budget_profiles',
     )
@@ -90,6 +95,8 @@ class BudgetProfile(models.Model):
 
 
 class GuestProfile(models.Model):
+    objects = TenantManager()
+
     organisation = models.ForeignKey(
         'users.Organisation', on_delete=models.CASCADE, related_name='guest_profiles',
     )
@@ -105,6 +112,8 @@ class GuestProfile(models.Model):
 
 class CombinationRule(models.Model):
     """When certain category combos appear, reduce portions."""
+    objects = TenantManager()
+
     organisation = models.ForeignKey(
         'users.Organisation', on_delete=models.CASCADE, related_name='combination_rules',
     )
@@ -119,6 +128,8 @@ class CombinationRule(models.Model):
 
 class GlobalConstraint(models.Model):
     """Per-org hard caps and floors (one per organisation)."""
+    objects = TenantManager()
+
     organisation = models.OneToOneField(
         'users.Organisation', on_delete=models.CASCADE, related_name='portioning_constraint',
     )

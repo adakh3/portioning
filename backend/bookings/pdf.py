@@ -131,14 +131,14 @@ def generate_quote_pdf(quote):
     # ── Event Details ──
     elements.append(Paragraph('EVENT DETAILS', section_style))
 
-    et_label = EventTypeOption.objects.filter(value=quote.event_type).values_list('label', flat=True).first() or quote.event_type
+    et_label = EventTypeOption.objects.filter(value=quote.event_type, organisation=quote.organisation).values_list('label', flat=True).first() or quote.event_type
     event_data = [
         ['Date', str(quote.event_date.strftime('%d %B %Y'))],
         ['Guest Count', str(quote.guest_count)],
         ['Event Type', et_label],
     ]
     if quote.service_style:
-        ss_label = ServiceStyleOption.objects.filter(value=quote.service_style).values_list('label', flat=True).first() or quote.service_style
+        ss_label = ServiceStyleOption.objects.filter(value=quote.service_style, organisation=quote.organisation).values_list('label', flat=True).first() or quote.service_style
         event_data.append(['Service Style', ss_label])
 
     # Venue

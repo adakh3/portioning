@@ -1,6 +1,7 @@
 from decimal import Decimal
 
 from django.db import models
+from users.managers import TenantManager
 
 
 DATE_FORMAT_CHOICES = [
@@ -55,6 +56,8 @@ class SiteSettings(models.Model):
 
 
 class OrgSettings(models.Model):
+    objects = TenantManager()
+
     organisation = models.OneToOneField(
         'users.Organisation', on_delete=models.CASCADE, related_name='settings',
     )

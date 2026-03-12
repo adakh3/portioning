@@ -1,7 +1,10 @@
 from django.db import models
+from users.managers import TenantManager
 
 
 class Venue(models.Model):
+    objects = TenantManager()
+
     organisation = models.ForeignKey(
         'users.Organisation', on_delete=models.CASCADE, related_name='venues',
     )

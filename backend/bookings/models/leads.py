@@ -1,8 +1,11 @@
 from django.db import models
 from django.utils import timezone
+from users.managers import TenantManager
 
 
 class ProductLine(models.Model):
+    objects = TenantManager()
+
     name = models.CharField(max_length=100)
     organisation = models.ForeignKey(
         'users.Organisation', null=True, blank=True,
@@ -19,6 +22,8 @@ class ProductLine(models.Model):
 
 
 class Lead(models.Model):
+    objects = TenantManager()
+
     organisation = models.ForeignKey(
         'users.Organisation',
         on_delete=models.CASCADE, related_name='leads',
@@ -80,8 +85,8 @@ class Lead(models.Model):
 
     def __str__(self):
         from bookings.models.choices import EventTypeOption, LeadStatusOption
-        et_label = EventTypeOption.objects.filter(value=self.event_type).values_list('label', flat=True).first() or self.event_type
-        st_label = LeadStatusOption.objects.filter(value=self.status).values_list('label', flat=True).first() or self.status
+        et_label = EventTypeOption.objects.filter(value=self.event_type, organisation=self.organisation).values_list('label', flat=True).first() or self.event_type
+        st_label = LeadStatusOption.objects.filter(value=self.status, organisation=self.organisation).values_list('label', flat=True).first() or self.status
         return f"{self.contact_name} — {et_label} ({st_label})"
 
     def can_transition_to(self, new_status):

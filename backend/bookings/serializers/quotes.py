@@ -3,6 +3,7 @@ from rest_framework import serializers
 from bookings.models import Quote, QuoteLineItem
 from bookings.models.choices import EventTypeOption
 from dishes.models import Dish
+from users.mixins import get_request_org
 
 
 class QuoteLineItemSerializer(serializers.ModelSerializer):
@@ -35,10 +36,20 @@ class QuoteSerializer(serializers.ModelSerializer):
 
     # Menu fields
     dish_ids = serializers.PrimaryKeyRelatedField(
-        many=True, source='dishes', queryset=Dish.objects.all(),
+        many=True, source='dishes', queryset=Dish.objects.none(),
         write_only=True, required=False,
     )
     dish_names = serializers.SerializerMethodField()
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        request = self.context.get('request')
+        if request:
+            org = get_request_org(request)
+            if org:
+                self.fields['dish_ids'].child_relation.queryset = Dish.objects.filter(organisation=org)
+            else:
+                self.fields['dish_ids'].child_relation.queryset = Dish.objects.all()
 
     class Meta:
         model = Quote
@@ -80,7 +91,12 @@ class QuoteSerializer(serializers.ModelSerializer):
     def get_lead_name(self, obj):
         if obj.lead:
             lead = obj.lead
-            et_label = EventTypeOption.objects.filter(value=lead.event_type).values_list('label', flat=True).first() or lead.event_type
+            et_label = (
+                EventTypeOption.objects.filter(
+                    value=lead.event_type, organisation=obj.organisation,
+                ).values_list('label', flat=True).first()
+                or lead.event_type
+            )
             return f"{lead.contact_name} — {et_label}"
         return None
 

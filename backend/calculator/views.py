@@ -216,7 +216,11 @@ class PriceEstimateView(APIView):
         # Load selling prices
         selling_prices = {}
         has_unpriced = False
-        for d in Dish.objects.filter(id__in=dish_ids):
+        org = get_request_org(request)
+        dish_qs = Dish.objects.filter(id__in=dish_ids)
+        if org:
+            dish_qs = dish_qs.filter(organisation=org)
+        for d in dish_qs:
             if d.selling_price_per_gram and d.selling_price_per_gram > 0:
                 selling_prices[d.id] = float(d.selling_price_per_gram)
             else:

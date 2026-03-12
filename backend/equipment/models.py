@@ -2,6 +2,7 @@ from decimal import Decimal
 
 from django.core.validators import MinValueValidator
 from django.db import models
+from users.managers import TenantManager
 
 
 class EquipmentCategory(models.TextChoices):
@@ -17,6 +18,8 @@ class EquipmentCategory(models.TextChoices):
 
 
 class EquipmentItem(models.Model):
+    objects = TenantManager()
+
     organisation = models.ForeignKey(
         'users.Organisation',
         on_delete=models.CASCADE, related_name='equipment_items',
