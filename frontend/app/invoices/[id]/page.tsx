@@ -4,12 +4,14 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
 import { api, Invoice } from "@/lib/api";
-import { useInvoice, useDateFormat } from "@/lib/hooks";
+import { useInvoice, useDateFormat, useSiteSettings } from "@/lib/hooks";
 import { formatDate as sharedFormatDate } from "@/lib/dateFormat";
+import { formatCurrency } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { ValidatedInput } from "@/components/ui/validated-input";
 
 const STATUS_BADGE_VARIANT: Record<string, "secondary" | "info" | "warning" | "success" | "destructive" | "outline"> = {
   draft: "secondary",
@@ -40,6 +42,8 @@ export default function InvoiceDetailPage() {
 
   const { data: invoice, error: loadError, isLoading: loading, mutate: mutateInvoice } = useInvoice(invoiceId || null);
   const dateFormat = useDateFormat();
+  const { data: rawSettings } = useSiteSettings();
+  const cs = rawSettings?.currency_symbol || "£";
   const [error, setError] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
 
@@ -111,12 +115,12 @@ export default function InvoiceDetailPage() {
             <div className="text-right">
               <p className="text-sm text-muted-foreground">Total</p>
               <p className="text-2xl font-bold text-foreground">
-                {"\u00A3"}{parseFloat(invoice.total).toFixed(2)}
+                {formatCurrency(invoice.total, cs)}
               </p>
               <p className="text-sm text-muted-foreground mt-1">
                 Balance Due:{" "}
                 <span className="font-semibold text-foreground">
-                  {"\u00A3"}{parseFloat(invoice.balance_due).toFixed(2)}
+                  {formatCurrency(invoice.balance_due, cs)}
                 </span>
               </p>
             </div>
@@ -163,7 +167,7 @@ export default function InvoiceDetailPage() {
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Subtotal</span>
               <span className="font-medium text-foreground">
-                {"\u00A3"}{parseFloat(invoice.subtotal).toFixed(2)}
+                {formatCurrency(invoice.subtotal, cs)}
               </span>
             </div>
             <div className="flex justify-between text-sm">
@@ -173,13 +177,13 @@ export default function InvoiceDetailPage() {
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Tax Amount</span>
               <span className="font-medium text-foreground">
-                {"\u00A3"}{parseFloat(invoice.tax_amount).toFixed(2)}
+                {formatCurrency(invoice.tax_amount, cs)}
               </span>
             </div>
             <div className="flex justify-between text-sm pt-2 border-t border-border">
               <span className="font-semibold text-foreground">Total</span>
               <span className="font-bold text-foreground">
-                {"\u00A3"}{parseFloat(invoice.total).toFixed(2)}
+                {formatCurrency(invoice.total, cs)}
               </span>
             </div>
           </div>
@@ -207,7 +211,7 @@ export default function InvoiceDetailPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Amount *</label>
-                  <Input
+                  <ValidatedInput
                     type="number"
                     step="0.01"
                     min="0.01"
@@ -245,6 +249,7 @@ export default function InvoiceDetailPage() {
                   <label className="block text-sm font-medium text-foreground mb-1">Reference</label>
                   <Input
                     type="text"
+                    maxLength={50}
                     value={paymentData.reference}
                     onChange={(e) => setPaymentData({ ...paymentData, reference: e.target.value })}
                     placeholder="Transaction ref, check #, etc."
@@ -287,7 +292,7 @@ export default function InvoiceDetailPage() {
                   {invoice.payments.map((payment) => (
                     <tr key={payment.id} className="border-b border-border">
                       <td className="px-4 py-2 text-right font-medium text-foreground">
-                        {"\u00A3"}{parseFloat(payment.amount).toFixed(2)}
+                        {formatCurrency(payment.amount, cs)}
                       </td>
                       <td className="px-4 py-2 text-muted-foreground">{sharedFormatDate(payment.payment_date, dateFormat)}</td>
                       <td className="px-4 py-2 text-muted-foreground capitalize">

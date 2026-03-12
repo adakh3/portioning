@@ -5,8 +5,10 @@ import { api, StaffMember, LaborRole, AllocationRule } from "@/lib/api";
 import { useStaff, useLaborRoles, useAllocationRules, useEventTypes } from "@/lib/hooks";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ValidatedInput } from "@/components/ui/validated-input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { formatCurrency } from "@/lib/utils";
 
 type Tab = "roster" | "roles" | "allocation";
 
@@ -168,31 +170,36 @@ function StaffRosterTab() {
               <Input
                 type="text"
                 required
+                maxLength={60}
                 value={formData.name || ""}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               />
             </div>
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">Email</label>
-              <Input
+              <ValidatedInput
                 type="email"
+                maxLength={100}
                 value={formData.email || ""}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
               />
             </div>
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">Phone</label>
-              <Input
-                type="text"
+              <ValidatedInput
+                type="tel"
+                maxLength={20}
                 value={formData.phone || ""}
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
               />
             </div>
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">Hourly Rate</label>
-              <Input
+              <ValidatedInput
                 type="number"
                 step="0.01"
+                min={0}
+                max={9999.99}
                 value={formData.hourly_rate || ""}
                 onChange={(e) => setFormData({ ...formData, hourly_rate: e.target.value })}
                 placeholder="0.00"
@@ -264,7 +271,7 @@ function StaffRosterTab() {
                   <div className="text-right">
                     {member.hourly_rate && (
                       <span className="text-sm font-medium text-foreground">
-                        {"\u00A3"}{parseFloat(member.hourly_rate).toFixed(2)}/hr
+                        {formatCurrency(member.hourly_rate)}/hr
                       </span>
                     )}
                     <Button
@@ -291,31 +298,36 @@ function StaffRosterTab() {
                         <Input
                           type="text"
                           required
+                          maxLength={60}
                           value={editFormData.name || ""}
                           onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
                         />
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-foreground mb-1">Email</label>
-                        <Input
+                        <ValidatedInput
                           type="email"
+                          maxLength={100}
                           value={editFormData.email || ""}
                           onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
                         />
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-foreground mb-1">Phone</label>
-                        <Input
-                          type="text"
+                        <ValidatedInput
+                          type="tel"
+                          maxLength={20}
                           value={editFormData.phone || ""}
                           onChange={(e) => setEditFormData({ ...editFormData, phone: e.target.value })}
                         />
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-foreground mb-1">Hourly Rate</label>
-                        <Input
+                        <ValidatedInput
                           type="number"
                           step="0.01"
+                          min={0}
+                          max={9999.99}
                           value={editFormData.hourly_rate || ""}
                           onChange={(e) =>
                             setEditFormData({ ...editFormData, hourly_rate: e.target.value })
@@ -454,15 +466,18 @@ function LabourRolesTab() {
               <Input
                 type="text"
                 required
+                maxLength={60}
                 value={formData.name || ""}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               />
             </div>
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">Default Hourly Rate *</label>
-              <Input
+              <ValidatedInput
                 type="number"
                 step="0.01"
+                min={0}
+                max={9999.99}
                 required
                 value={formData.default_hourly_rate || ""}
                 onChange={(e) =>
@@ -518,7 +533,7 @@ function LabourRolesTab() {
                   </div>
                   <div className="text-right">
                     <span className="text-sm font-medium text-foreground">
-                      {"\u00A3"}{parseFloat(role.default_hourly_rate).toFixed(2)}/hr
+                      {formatCurrency(role.default_hourly_rate)}/hr
                     </span>
                     <Button
                       variant="link"
@@ -544,6 +559,7 @@ function LabourRolesTab() {
                         <Input
                           type="text"
                           required
+                          maxLength={60}
                           value={editFormData.name || ""}
                           onChange={(e) =>
                             setEditFormData({ ...editFormData, name: e.target.value })
@@ -554,9 +570,11 @@ function LabourRolesTab() {
                         <label className="block text-sm font-medium text-foreground mb-1">
                           Default Hourly Rate *
                         </label>
-                        <Input
+                        <ValidatedInput
                           type="number"
                           step="0.01"
+                          min={0}
+                          max={9999.99}
                           required
                           value={editFormData.default_hourly_rate || ""}
                           onChange={(e) =>
@@ -734,7 +752,7 @@ function AllocationRulesTab() {
             </div>
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">Guests per Staff *</label>
-              <Input
+              <ValidatedInput
                 type="number"
                 required
                 min={1}
@@ -744,7 +762,7 @@ function AllocationRulesTab() {
             </div>
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">Minimum Staff</label>
-              <Input
+              <ValidatedInput
                 type="number"
                 min={1}
                 value={formData.minimum_staff || 1}
@@ -843,7 +861,7 @@ function AllocationRulesTab() {
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-foreground mb-1">Guests per Staff *</label>
-                        <Input
+                        <ValidatedInput
                           type="number"
                           required
                           min={1}
@@ -855,7 +873,7 @@ function AllocationRulesTab() {
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-foreground mb-1">Minimum Staff</label>
-                        <Input
+                        <ValidatedInput
                           type="number"
                           min={1}
                           value={editFormData.minimum_staff || 1}

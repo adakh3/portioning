@@ -6,10 +6,11 @@ import Link from "next/link";
 import { api, Lead, Account, AuthUser, ProductLine, Reminder } from "@/lib/api";
 import { useAccounts, useLead, useSiteSettings, useDateFormat, useProductLines, useUsers, useSources, useEventTypes, useServiceStyles, useLeadStatuses, useLostReasons, useLeadReminders, revalidate } from "@/lib/hooks";
 import { formatDate, formatDateTime } from "@/lib/dateFormat";
+import { formatCurrency } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { ValidatedInput } from "@/components/ui/validated-input";
 import { Textarea } from "@/components/ui/textarea";
 import ActivityTimeline from "@/components/ActivityTimeline";
 
@@ -154,7 +155,7 @@ function AutoSaveField({
           rows={3}
         />
       ) : (
-        <Input
+        <ValidatedInput
           type={formatDisplay ? "text" : type}
           inputMode={inputMode}
           value={displayValue}
@@ -367,7 +368,7 @@ export default function LeadDetailPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Contact Name *</label>
-                  <Input type="text" required value={formData.contact_name} onChange={setField("contact_name")} />
+                  <ValidatedInput type="text" required maxLength={60} value={formData.contact_name} onChange={setField("contact_name")} />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Account (optional)</label>
@@ -378,11 +379,11 @@ export default function LeadDetailPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Email</label>
-                  <Input type="email" value={formData.contact_email} onChange={setField("contact_email")} />
+                  <ValidatedInput type="email" maxLength={100} value={formData.contact_email} onChange={setField("contact_email")} />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Phone</label>
-                  <Input type="text" value={formData.contact_phone} onChange={setField("contact_phone")} />
+                  <ValidatedInput type="tel" maxLength={20} value={formData.contact_phone} onChange={setField("contact_phone")} />
                 </div>
               </div>
 
@@ -396,20 +397,21 @@ export default function LeadDetailPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Event Date</label>
-                  <Input type="date" value={formData.event_date} onChange={setField("event_date")} />
+                  <ValidatedInput type="date" value={formData.event_date} onChange={setField("event_date")} />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Guest Estimate</label>
-                  <Input type="number" min="1" value={formData.guest_estimate} onChange={setField("guest_estimate")} />
+                  <ValidatedInput type="number" min={1} max={50000} value={formData.guest_estimate} onChange={setField("guest_estimate")} />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Budget</label>
-                  <Input
+                  <ValidatedInput
                     type="text"
                     inputMode="numeric"
                     value={formData.budget ? parseInt(formData.budget, 10).toLocaleString() : ""}
+                    maxLength={15}
                     onChange={(e) => {
-                      const raw = e.target.value.replace(/[^0-9]/g, "");
+                      const raw = e.target.value.replace(/[^0-9]/g, "").slice(0, 10);
                       setFormData({ ...formData, budget: raw });
                     }}
                     placeholder="e.g. 5,000"
@@ -450,7 +452,7 @@ export default function LeadDetailPage() {
 
               <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Notes</h2>
               <div className="mb-6">
-                <Textarea value={formData.notes} onChange={setField("notes")} rows={3} />
+                <Textarea maxLength={2000} value={formData.notes} onChange={setField("notes")} rows={3} />
               </div>
 
               <div className="flex gap-3">
@@ -727,7 +729,7 @@ export default function LeadDetailPage() {
                       {q.status_display}
                     </Badge>
                   </div>
-                  <span className="font-semibold text-foreground">{cs}{q.total}</span>
+                  <span className="font-semibold text-foreground">{formatCurrency(q.total, cs)}</span>
                 </Link>
               ))}
             </div>
@@ -948,7 +950,7 @@ function LeadReminders({ leadId }: { leadId: number }) {
             </div>
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">Note (optional)</label>
-              <Input
+              <ValidatedInput
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
                 placeholder="e.g. Follow up on pricing"

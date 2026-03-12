@@ -12,11 +12,15 @@ class EquipmentItemSerializer(serializers.ModelSerializer):
             'notes', 'is_active', 'created_at', 'updated_at',
         ]
         read_only_fields = ['created_at', 'updated_at']
+        extra_kwargs = {
+            'description': {'max_length': 2000},
+            'notes': {'max_length': 5000},
+        }
 
 
 class EquipmentReservationSerializer(serializers.ModelSerializer):
     equipment_name = serializers.CharField(source='equipment.name', read_only=True)
-    line_cost = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
+    line_cost = serializers.SerializerMethodField()
 
     class Meta:
         model = EquipmentReservation
@@ -26,3 +30,10 @@ class EquipmentReservationSerializer(serializers.ModelSerializer):
             'notes', 'line_cost', 'created_at',
         ]
         read_only_fields = ['created_at']
+        extra_kwargs = {'notes': {'max_length': 5000}}
+
+    def get_line_cost(self, obj):
+        try:
+            return str(obj.line_cost)
+        except Exception:
+            return None

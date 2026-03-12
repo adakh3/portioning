@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from django.core.validators import MinValueValidator
+from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
 from users.managers import TenantManager
 
@@ -27,15 +27,15 @@ class EquipmentItem(models.Model):
     name = models.CharField(max_length=200)
     category = models.CharField(max_length=20, choices=EquipmentCategory.choices, default=EquipmentCategory.OTHER)
     description = models.TextField(blank=True)
-    stock_quantity = models.IntegerField(default=0, validators=[MinValueValidator(0)])
+    stock_quantity = models.IntegerField(default=0, validators=[MinValueValidator(0), MaxValueValidator(99999)])
     rental_price = models.DecimalField(
         max_digits=10, decimal_places=2, default=Decimal('0.00'),
-        validators=[MinValueValidator(Decimal('0.00'))],
+        validators=[MinValueValidator(Decimal('0.00')), MaxValueValidator(Decimal('99999.99'))],
         help_text='Per unit per event',
     )
     replacement_cost = models.DecimalField(
         max_digits=10, decimal_places=2, null=True, blank=True,
-        validators=[MinValueValidator(Decimal('0.00'))],
+        validators=[MinValueValidator(Decimal('0.00')), MaxValueValidator(Decimal('999999.99'))],
     )
     notes = models.TextField(blank=True)
     is_active = models.BooleanField(default=True)
@@ -66,8 +66,8 @@ class ReturnCondition(models.TextChoices):
 class EquipmentReservation(models.Model):
     event = models.ForeignKey('events.Event', on_delete=models.CASCADE, related_name='equipment_reservations')
     equipment = models.ForeignKey(EquipmentItem, on_delete=models.PROTECT, related_name='reservations')
-    quantity_out = models.IntegerField(validators=[MinValueValidator(1)])
-    quantity_returned = models.IntegerField(null=True, blank=True, validators=[MinValueValidator(0)])
+    quantity_out = models.IntegerField(validators=[MinValueValidator(1), MaxValueValidator(9999)])
+    quantity_returned = models.IntegerField(null=True, blank=True, validators=[MinValueValidator(0), MaxValueValidator(9999)])
     return_condition = models.CharField(
         max_length=20, choices=ReturnCondition.choices,
         default=ReturnCondition.PENDING,

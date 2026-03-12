@@ -14,3 +14,9 @@ class VenueSerializer(serializers.ModelSerializer):
             'rules', 'notes', 'created_at', 'updated_at',
         ]
         read_only_fields = ['created_at', 'updated_at']
+        extra_kwargs = {
+            'loading_notes': {'max_length': 2000},
+            'power_water_notes': {'max_length': 2000},
+            'rules': {'max_length': 2000},
+            'notes': {'max_length': 5000},
+        }

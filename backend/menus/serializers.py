@@ -36,11 +36,14 @@ class MenuTemplateListSerializer(serializers.ModelSerializer):
         return obj.portions.count()
 
     def get_suggested_price_per_head(self, obj):
-        total = Decimal('0')
-        for portion in obj.portions.select_related('dish').all():
-            if portion.dish.selling_price_per_gram:
-                total += portion.dish.selling_price_per_gram * Decimal(str(portion.portion_grams))
-        return round(float(total), 2) if total else None
+        try:
+            total = Decimal('0')
+            for portion in obj.portions.select_related('dish').all():
+                if portion.dish.selling_price_per_gram:
+                    total += portion.dish.selling_price_per_gram * Decimal(str(portion.portion_grams))
+            return round(float(total), 2) if total else None
+        except Exception:
+            return None
 
     def get_has_unpriced_dishes(self, obj):
         return obj.portions.select_related('dish').filter(
@@ -61,11 +64,14 @@ class MenuTemplateDetailSerializer(serializers.ModelSerializer):
                   'price_tiers', 'created_at']
 
     def get_suggested_price_per_head(self, obj):
-        total = Decimal('0')
-        for portion in obj.portions.select_related('dish').all():
-            if portion.dish.selling_price_per_gram:
-                total += portion.dish.selling_price_per_gram * Decimal(str(portion.portion_grams))
-        return round(float(total), 2) if total else None
+        try:
+            total = Decimal('0')
+            for portion in obj.portions.select_related('dish').all():
+                if portion.dish.selling_price_per_gram:
+                    total += portion.dish.selling_price_per_gram * Decimal(str(portion.portion_grams))
+            return round(float(total), 2) if total else None
+        except Exception:
+            return None
 
     def get_has_unpriced_dishes(self, obj):
         return obj.portions.select_related('dish').filter(

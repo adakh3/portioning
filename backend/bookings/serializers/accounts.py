@@ -11,7 +11,10 @@ class ContactSerializer(serializers.ModelSerializer):
             'is_primary', 'notes', 'created_at', 'updated_at',
         ]
         read_only_fields = ['created_at', 'updated_at']
-        extra_kwargs = {'account': {'required': False}}
+        extra_kwargs = {
+            'account': {'required': False},
+            'notes': {'max_length': 5000},
+        }
 
 
 class AccountSerializer(serializers.ModelSerializer):
@@ -27,3 +30,4 @@ class AccountSerializer(serializers.ModelSerializer):
             'contacts', 'created_at', 'updated_at',
         ]
         read_only_fields = ['created_at', 'updated_at']
+        extra_kwargs = {'notes': {'max_length': 5000}}

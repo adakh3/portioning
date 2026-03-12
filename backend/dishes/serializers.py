@@ -23,9 +23,15 @@ class DishSerializer(serializers.ModelSerializer):
             'addition_surcharge', 'removal_discount', 'surcharge_override',
             'margin_percent', 'is_vegetarian', 'notes',
         ]
+        extra_kwargs = {'notes': {'max_length': 5000}}
 
     def get_margin_percent(self, obj):
-        if not obj.selling_price_per_gram or not obj.cost_per_gram:
+        try:
+            if not obj.selling_price_per_gram or not obj.cost_per_gram:
+                return None
+            if obj.selling_price_per_gram == 0:
+                return None
+            margin = (1 - obj.cost_per_gram / obj.selling_price_per_gram) * 100
+            return round(float(margin), 2)
+        except Exception:
             return None
-        margin = (1 - obj.cost_per_gram / obj.selling_price_per_gram) * 100
-        return round(float(margin), 2)

@@ -5,9 +5,11 @@ import { api, EquipmentItem } from "@/lib/api";
 import { useEquipment } from "@/lib/hooks";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ValidatedInput } from "@/components/ui/validated-input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { formatCurrency } from "@/lib/utils";
 
 const CATEGORIES = [
   { value: "chafer", label: "Chafer / Warmer" },
@@ -118,6 +120,7 @@ export default function EquipmentPage() {
               <Input
                 type="text"
                 required
+                maxLength={100}
                 value={formData.name || ""}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               />
@@ -138,7 +141,7 @@ export default function EquipmentPage() {
             </div>
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">Stock Quantity</label>
-              <Input
+              <ValidatedInput
                 type="number"
                 min="0"
                 value={formData.stock_quantity ?? 0}
@@ -147,9 +150,11 @@ export default function EquipmentPage() {
             </div>
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">Rental Price</label>
-              <Input
+              <ValidatedInput
                 type="number"
                 step="0.01"
+                min={0}
+                max={99999.99}
                 value={formData.rental_price || ""}
                 onChange={(e) => setFormData({ ...formData, rental_price: e.target.value })}
                 placeholder="0.00"
@@ -161,6 +166,7 @@ export default function EquipmentPage() {
                 value={formData.description || ""}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 rows={2}
+                maxLength={500}
               />
             </div>
           </div>
@@ -240,7 +246,7 @@ export default function EquipmentPage() {
                     </span>
                     {item.rental_price && (
                       <span className="text-sm font-medium text-foreground">
-                        {"\u00A3"}{parseFloat(item.rental_price).toFixed(2)}/event
+                        {formatCurrency(item.rental_price)}/event
                       </span>
                     )}
                   </div>
@@ -257,6 +263,7 @@ export default function EquipmentPage() {
                         <Input
                           type="text"
                           required
+                          maxLength={100}
                           value={editFormData.name || ""}
                           onChange={(e) =>
                             setEditFormData({ ...editFormData, name: e.target.value })
@@ -282,7 +289,7 @@ export default function EquipmentPage() {
                       <div className="grid grid-cols-2 gap-3">
                         <div>
                           <label className="block text-sm font-medium text-foreground mb-1">Stock Qty</label>
-                          <Input
+                          <ValidatedInput
                             type="number"
                             min="0"
                             value={editFormData.stock_quantity ?? 0}
@@ -296,9 +303,11 @@ export default function EquipmentPage() {
                         </div>
                         <div>
                           <label className="block text-sm font-medium text-foreground mb-1">Rental Price</label>
-                          <Input
+                          <ValidatedInput
                             type="number"
                             step="0.01"
+                            min={0}
+                            max={99999.99}
                             value={editFormData.rental_price || ""}
                             onChange={(e) =>
                               setEditFormData({ ...editFormData, rental_price: e.target.value })
@@ -311,9 +320,11 @@ export default function EquipmentPage() {
                         <label className="block text-sm font-medium text-foreground mb-1">
                           Replacement Cost
                         </label>
-                        <Input
+                        <ValidatedInput
                           type="number"
                           step="0.01"
+                          min={0}
+                          max={999999.99}
                           value={editFormData.replacement_cost || ""}
                           onChange={(e) =>
                             setEditFormData({ ...editFormData, replacement_cost: e.target.value })
@@ -329,6 +340,7 @@ export default function EquipmentPage() {
                             setEditFormData({ ...editFormData, description: e.target.value })
                           }
                           rows={2}
+                          maxLength={500}
                         />
                       </div>
                     </div>

@@ -5,6 +5,7 @@ import { api, Venue } from "@/lib/api";
 import { useVenues } from "@/lib/hooks";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ValidatedInput } from "@/components/ui/validated-input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -67,19 +68,19 @@ export default function VenuesPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">Name *</label>
-              <Input type="text" required value={formData.name || ""} onChange={(e) => setFormData({ ...formData, name: e.target.value })} />
+              <ValidatedInput type="text" required maxLength={100} value={formData.name || ""} onChange={(e) => setFormData({ ...formData, name: e.target.value })} />
             </div>
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">City</label>
-              <Input type="text" value={formData.city || ""} onChange={(e) => setFormData({ ...formData, city: e.target.value })} />
+              <ValidatedInput type="text" maxLength={100} value={formData.city || ""} onChange={(e) => setFormData({ ...formData, city: e.target.value })} />
             </div>
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">Contact Name</label>
-              <Input type="text" value={formData.contact_name || ""} onChange={(e) => setFormData({ ...formData, contact_name: e.target.value })} />
+              <ValidatedInput type="text" maxLength={60} value={formData.contact_name || ""} onChange={(e) => setFormData({ ...formData, contact_name: e.target.value })} />
             </div>
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">Contact Phone</label>
-              <Input type="text" value={formData.contact_phone || ""} onChange={(e) => setFormData({ ...formData, contact_phone: e.target.value })} />
+              <ValidatedInput type="tel" maxLength={20} value={formData.contact_phone || ""} onChange={(e) => setFormData({ ...formData, contact_phone: e.target.value })} />
             </div>
             <div className="flex items-center gap-2 mt-6">
               <input type="checkbox" checked={formData.kitchen_access || false} onChange={(e) => setFormData({ ...formData, kitchen_access: e.target.checked })} className="rounded border-input" />
@@ -87,11 +88,11 @@ export default function VenuesPage() {
             </div>
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">Loading Notes</label>
-              <Input type="text" value={formData.loading_notes || ""} onChange={(e) => setFormData({ ...formData, loading_notes: e.target.value })} placeholder="Dock, access, parking..." />
+              <ValidatedInput type="text" maxLength={500} value={formData.loading_notes || ""} onChange={(e) => setFormData({ ...formData, loading_notes: e.target.value })} placeholder="Dock, access, parking..." />
             </div>
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-foreground mb-1">Rules / Restrictions</label>
-              <Textarea value={formData.rules || ""} onChange={(e) => setFormData({ ...formData, rules: e.target.value })} rows={2} placeholder="Curfews, noise limits..." />
+              <Textarea value={formData.rules || ""} onChange={(e) => setFormData({ ...formData, rules: e.target.value })} rows={2} maxLength={1000} placeholder="Curfews, noise limits..." />
             </div>
           </div>
           <Button type="submit" disabled={saving} variant="success" className="mt-4">
@@ -100,7 +101,7 @@ export default function VenuesPage() {
         </form>
       )}
 
-      <Input type="text" placeholder="Search venues..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full md:w-80 mb-4" />
+      <ValidatedInput type="text" placeholder="Search venues..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full md:w-80 mb-4" />
 
       {filtered.length === 0 ? (
         <p className="text-muted-foreground">No venues found.</p>

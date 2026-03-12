@@ -20,6 +20,7 @@ class EventDishCommentSerializer(serializers.ModelSerializer):
     class Meta:
         model = EventDishComment
         fields = ['dish_id', 'dish_name', 'comment', 'portion_grams']
+        extra_kwargs = {'comment': {'max_length': 2000}}
 
 
 class EventSerializer(serializers.ModelSerializer):
@@ -71,6 +72,10 @@ class EventSerializer(serializers.ModelSerializer):
                   # Nested
                   'source_quote_id', 'shifts', 'equipment_reservations', 'invoices']
         read_only_fields = ['created_at']
+        extra_kwargs = {
+            'notes': {'max_length': 5000},
+            'venue_address': {'max_length': 1000},
+        }
 
     def get_source_quote_id(self, obj):
         quote = getattr(obj, 'source_quote', None)

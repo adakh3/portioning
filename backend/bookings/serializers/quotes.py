@@ -17,7 +17,10 @@ class QuoteLineItemSerializer(serializers.ModelSerializer):
             'created_at',
         ]
         read_only_fields = ['line_total', 'created_at']
-        extra_kwargs = {'quote': {'required': False}}
+        extra_kwargs = {
+            'quote': {'required': False},
+            'description': {'max_length': 500},
+        }
 
 
 class QuoteSerializer(serializers.ModelSerializer):
@@ -32,7 +35,7 @@ class QuoteSerializer(serializers.ModelSerializer):
     lead_name = serializers.SerializerMethodField()
     event_id = serializers.SerializerMethodField()
 
-    food_total = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
+    food_total = serializers.SerializerMethodField()
 
     # Menu fields
     dish_ids = serializers.PrimaryKeyRelatedField(
@@ -72,6 +75,18 @@ class QuoteSerializer(serializers.ModelSerializer):
             'sent_at', 'accepted_at', 'event',
             'created_at', 'updated_at',
         ]
+        extra_kwargs = {
+            'notes': {'max_length': 5000},
+            'internal_notes': {'max_length': 5000},
+            'venue_address': {'max_length': 1000},
+        }
+
+    def get_food_total(self, obj):
+        try:
+            val = obj.food_total
+            return str(val) if val is not None else '0.00'
+        except Exception:
+            return None
 
     def get_contact_name(self, obj):
         return obj.primary_contact.name if obj.primary_contact else None
@@ -89,15 +104,18 @@ class QuoteSerializer(serializers.ModelSerializer):
         return obj.event_id
 
     def get_lead_name(self, obj):
-        if obj.lead:
-            lead = obj.lead
-            et_label = (
-                EventTypeOption.objects.filter(
-                    value=lead.event_type, organisation=obj.organisation,
-                ).values_list('label', flat=True).first()
-                or lead.event_type
-            )
-            return f"{lead.contact_name} — {et_label}"
+        try:
+            if obj.lead:
+                lead = obj.lead
+                et_label = (
+                    EventTypeOption.objects.filter(
+                        value=lead.event_type, organisation=obj.organisation,
+                    ).values_list('label', flat=True).first()
+                    or lead.event_type
+                )
+                return f"{lead.contact_name} — {et_label}"
+        except Exception:
+            return None
         return None
 
     def get_dish_names(self, obj):
