@@ -14,7 +14,8 @@
       "payment_terms": "immediate",
       "notes": "",
       "created_at": "2026-02-12T20:30:28.916Z",
-      "updated_at": "2026-02-12T20:30:28.916Z"
+      "updated_at": "2026-02-12T20:30:28.916Z",
+      "organisation": 1
     }
   },
   {
@@ -32,7 +33,8 @@
       "payment_terms": "immediate",
       "notes": "",
       "created_at": "2026-02-14T09:08:01.147Z",
-      "updated_at": "2026-02-14T09:08:01.147Z"
+      "updated_at": "2026-02-14T09:08:01.147Z",
+      "organisation": 1
     }
   },
   {
@@ -46,21 +48,18 @@
       "source": "website",
       "event_date": null,
       "guest_estimate": 100,
-      "budget_range": null,
       "event_type": "other",
       "service_style": "",
       "notes": "lets see what happens",
       "status": "converted",
       "product": null,
       "assigned_to": null,
-      "converted_to_quote": 1,
-      "lost_reason": "",
       "contacted_at": "2026-02-14T09:07:43.153Z",
       "qualified_at": "2026-02-14T09:07:53.362Z",
-      "converted_at": "2026-02-14T09:08:01.681Z",
       "lost_at": null,
       "created_at": "2026-02-14T09:07:22.209Z",
-      "updated_at": "2026-02-14T09:08:01.682Z"
+      "updated_at": "2026-02-14T09:08:01.682Z",
+      "organisation": 1
     }
   },
   {
@@ -74,21 +73,18 @@
       "source": "website",
       "event_date": null,
       "guest_estimate": 100,
-      "budget_range": 4,
       "event_type": "other",
       "service_style": "",
       "notes": "",
       "status": "qualified",
       "product": null,
       "assigned_to": null,
-      "converted_to_quote": null,
-      "lost_reason": "",
       "contacted_at": "2026-02-17T14:35:49.278Z",
       "qualified_at": "2026-02-27T15:56:10.426Z",
-      "converted_at": null,
       "lost_at": null,
       "created_at": "2026-02-17T14:35:36.058Z",
-      "updated_at": "2026-02-27T15:56:10.426Z"
+      "updated_at": "2026-02-27T15:56:10.426Z",
+      "organisation": 1
     }
   },
   {
@@ -102,21 +98,18 @@
       "source": "social",
       "event_date": "2026-03-31",
       "guest_estimate": 300,
-      "budget_range": 2,
       "event_type": "social",
       "service_style": "buffet",
       "notes": "Test",
       "status": "new",
       "product": null,
       "assigned_to": null,
-      "converted_to_quote": null,
-      "lost_reason": "",
       "contacted_at": null,
       "qualified_at": null,
-      "converted_at": null,
       "lost_at": null,
       "created_at": "2026-03-04T00:34:06.814Z",
-      "updated_at": "2026-03-04T00:34:06.814Z"
+      "updated_at": "2026-03-04T00:34:06.814Z",
+      "organisation": 1
     }
   },
   {
@@ -148,7 +141,8 @@
       "accepted_at": "2026-02-14T09:10:01.141Z",
       "created_at": "2026-02-14T09:08:01.453Z",
       "updated_at": "2026-02-14T09:10:02.040Z",
-      "dishes": []
+      "dishes": [],
+      "organisation": 1
     }
   },
   {
@@ -189,7 +183,8 @@
         990,
         996,
         997
-      ]
+      ],
+      "organisation": 1
     }
   },
   {
@@ -230,7 +225,8 @@
         997,
         998,
         999
-      ]
+      ],
+      "organisation": 1
     }
   },
   {
@@ -290,7 +286,8 @@
         996,
         997,
         999
-      ]
+      ],
+      "organisation": 1
     }
   },
   {
@@ -321,7 +318,8 @@
       "guaranteed_count": null,
       "final_count": null,
       "final_count_due": null,
-      "dishes": []
+      "dishes": [],
+      "organisation": 1
     }
   },
   {
