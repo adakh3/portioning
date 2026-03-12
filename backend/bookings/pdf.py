@@ -1,5 +1,6 @@
 """Generate professional quotation PDFs matching industry-standard catering format."""
 import io
+import math
 from decimal import Decimal
 
 from reportlab.lib.pagesizes import A4
@@ -17,12 +18,16 @@ from bookings.models.choices import EventTypeOption, ServiceStyleOption
 
 
 # ── Colour palette ──
-BLUE = colors.HexColor('#1B2A4A')
-BLUE_LIGHT = colors.HexColor('#E8ECF1')
-WHITE = colors.white
+DARK = colors.HexColor('#1B2A4A')
+BG_SUBTLE = colors.HexColor('#F9FAFB')
+BG_ALT_ROW = colors.HexColor('#F3F4F6')
+ACCENT = colors.HexColor('#374151')
 TEXT_DARK = colors.HexColor('#111111')
+TEXT_MUTED = colors.HexColor('#9CA3AF')
 TEXT_GREY = colors.HexColor('#6B7280')
 BORDER = colors.HexColor('#D1D5DB')
+BORDER_LIGHT = colors.HexColor('#D1D5DB')
+WHITE = colors.white
 
 PAGE_W, PAGE_H = A4
 MARGIN = 20 * mm
@@ -58,67 +63,20 @@ def _styles():
         'org_name': ParagraphStyle(
             'OrgName', parent=base['Normal'],
             fontName='Helvetica-Bold', fontSize=18,
-            textColor=BLUE, spaceAfter=0,
+            textColor=TEXT_DARK, spaceAfter=0,
         ),
-        # Blue header bar text (white on blue)
-        'bar_header': ParagraphStyle(
-            'BarHeader', parent=base['Normal'],
-            fontName='Helvetica-Bold', fontSize=9,
-            textColor=WHITE, leading=12,
+        # Section header text (dark gray on light bg)
+        'section_title': ParagraphStyle(
+            'SectionTitle', parent=base['Normal'],
+            fontName='Helvetica-Bold', fontSize=8,
+            textColor=ACCENT, leading=11,
         ),
-        'bar_header_right': ParagraphStyle(
-            'BarHeaderRight', parent=base['Normal'],
-            fontName='Helvetica-Bold', fontSize=9,
-            textColor=WHITE, leading=12, alignment=TA_RIGHT,
+        'section_title_right': ParagraphStyle(
+            'SectionTitleRight', parent=base['Normal'],
+            fontName='Helvetica-Bold', fontSize=8,
+            textColor=ACCENT, leading=11, alignment=TA_RIGHT,
         ),
-        # Info block labels and values
-        'info_label': ParagraphStyle(
-            'InfoLabel', parent=base['Normal'],
-            fontName='Helvetica-Bold', fontSize=8.5,
-            textColor=TEXT_DARK, leading=11,
-        ),
-        'info_value': ParagraphStyle(
-            'InfoValue', parent=base['Normal'],
-            fontName='Helvetica', fontSize=8.5,
-            textColor=TEXT_DARK, leading=11,
-        ),
-        'info_header': ParagraphStyle(
-            'InfoHeader', parent=base['Normal'],
-            fontName='Helvetica-Bold', fontSize=10,
-            textColor=BLUE, leading=13,
-        ),
-        # Table body
-        'body': ParagraphStyle(
-            'Body', parent=base['Normal'],
-            fontName='Helvetica', fontSize=9,
-            textColor=TEXT_DARK, leading=12,
-        ),
-        'body_right': ParagraphStyle(
-            'BodyRight', parent=base['Normal'],
-            fontName='Helvetica', fontSize=9,
-            textColor=TEXT_DARK, leading=12, alignment=TA_RIGHT,
-        ),
-        'body_bold': ParagraphStyle(
-            'BodyBold', parent=base['Normal'],
-            fontName='Helvetica-Bold', fontSize=9,
-            textColor=TEXT_DARK, leading=12,
-        ),
-        'body_bold_right': ParagraphStyle(
-            'BodyBoldRight', parent=base['Normal'],
-            fontName='Helvetica-Bold', fontSize=9,
-            textColor=TEXT_DARK, leading=12, alignment=TA_RIGHT,
-        ),
-        # Totals
-        'totals_label': ParagraphStyle(
-            'TotalsLabel', parent=base['Normal'],
-            fontName='Helvetica', fontSize=9,
-            textColor=TEXT_DARK, leading=12, alignment=TA_RIGHT,
-        ),
-        'totals_value': ParagraphStyle(
-            'TotalsValue', parent=base['Normal'],
-            fontName='Helvetica', fontSize=9,
-            textColor=TEXT_DARK, leading=12, alignment=TA_RIGHT,
-        ),
+        # Grand total bar text (white on dark — only use)
         'grand_label': ParagraphStyle(
             'GrandLabel', parent=base['Normal'],
             fontName='Helvetica-Bold', fontSize=11,
@@ -129,11 +87,59 @@ def _styles():
             fontName='Helvetica-Bold', fontSize=12,
             textColor=WHITE, leading=14, alignment=TA_RIGHT,
         ),
+        # Info block labels and values
+        'info_label': ParagraphStyle(
+            'InfoLabel', parent=base['Normal'],
+            fontName='Helvetica', fontSize=8.5,
+            textColor=TEXT_GREY, leading=11,
+        ),
+        'info_value': ParagraphStyle(
+            'InfoValue', parent=base['Normal'],
+            fontName='Helvetica', fontSize=8.5,
+            textColor=TEXT_DARK, leading=11,
+        ),
+        'info_header': ParagraphStyle(
+            'InfoHeader', parent=base['Normal'],
+            fontName='Helvetica-Bold', fontSize=10,
+            textColor=TEXT_DARK, leading=13,
+        ),
+        # Table body
+        'body': ParagraphStyle(
+            'Body', parent=base['Normal'],
+            fontName='Helvetica', fontSize=8.5,
+            textColor=TEXT_DARK, leading=11,
+        ),
+        'body_right': ParagraphStyle(
+            'BodyRight', parent=base['Normal'],
+            fontName='Helvetica', fontSize=8.5,
+            textColor=TEXT_DARK, leading=11, alignment=TA_RIGHT,
+        ),
+        'body_bold': ParagraphStyle(
+            'BodyBold', parent=base['Normal'],
+            fontName='Helvetica-Bold', fontSize=8.5,
+            textColor=TEXT_DARK, leading=11,
+        ),
+        'body_bold_right': ParagraphStyle(
+            'BodyBoldRight', parent=base['Normal'],
+            fontName='Helvetica-Bold', fontSize=8.5,
+            textColor=TEXT_DARK, leading=11, alignment=TA_RIGHT,
+        ),
+        # Totals
+        'totals_label': ParagraphStyle(
+            'TotalsLabel', parent=base['Normal'],
+            fontName='Helvetica', fontSize=8.5,
+            textColor=TEXT_DARK, leading=11, alignment=TA_RIGHT,
+        ),
+        'totals_value': ParagraphStyle(
+            'TotalsValue', parent=base['Normal'],
+            fontName='Helvetica', fontSize=8.5,
+            textColor=TEXT_DARK, leading=11, alignment=TA_RIGHT,
+        ),
         # Notes / T&C
         'section_heading': ParagraphStyle(
             'SectionHeading', parent=base['Normal'],
             fontName='Helvetica-Bold', fontSize=10,
-            textColor=BLUE, spaceBefore=6, spaceAfter=4,
+            textColor=ACCENT, spaceBefore=6, spaceAfter=4,
         ),
         'note': ParagraphStyle(
             'Note', parent=base['Normal'],
@@ -154,15 +160,31 @@ def _styles():
     }
 
 
-def _blue_bar(cells, col_widths):
-    """Create a single-row table with blue background (header bar)."""
+def _section_header(cells, col_widths):
+    """Create a single-row table with subtle gray background (section header)."""
     t = Table([cells], colWidths=col_widths)
     t.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), BLUE),
+        ('BACKGROUND', (0, 0), (-1, 0), BG_SUBTLE),
         ('TOPPADDING', (0, 0), (-1, 0), 5),
         ('BOTTOMPADDING', (0, 0), (-1, 0), 5),
         ('LEFTPADDING', (0, 0), (-1, 0), 6),
         ('RIGHTPADDING', (0, 0), (-1, 0), 6),
+        ('LINEBELOW', (0, 0), (-1, 0), 0.25, BORDER_LIGHT),
+        ('ROUNDEDCORNERS', [3, 3, 0, 0]),
+    ]))
+    return t
+
+
+def _grand_total_bar(cells, col_widths):
+    """Create the grand total row with dark background (only dark bar in PDF)."""
+    t = Table([cells], colWidths=col_widths)
+    t.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), DARK),
+        ('TOPPADDING', (0, 0), (-1, 0), 7),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 7),
+        ('LEFTPADDING', (0, 0), (-1, 0), 8),
+        ('RIGHTPADDING', (0, 0), (-1, 0), 8),
+        ('ROUNDEDCORNERS', [0, 0, 3, 3]),
     ]))
     return t
 
@@ -212,8 +234,17 @@ def generate_quote_pdf(quote):
             parts.append(salesperson.email)
         org_contact_line = ' | '.join(parts)
 
-    # ── 1. Header: Org name (large, bold, blue) ──
+    # ── 1. Header: Org name (large, bold) + thin divider ──
     elements.append(Paragraph(org_name, s['org_name']))
+    elements.append(Spacer(1, 3 * mm))
+    # Thin divider line under org name
+    divider = Table([['']], colWidths=[CONTENT_W])
+    divider.setStyle(TableStyle([
+        ('LINEBELOW', (0, 0), (-1, 0), 0.5, BORDER_LIGHT),
+        ('TOPPADDING', (0, 0), (-1, 0), 0),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 0),
+    ]))
+    elements.append(divider)
     elements.append(Spacer(1, 8 * mm))
 
     # ── 2. Two-column info block ──
@@ -265,7 +296,7 @@ def generate_quote_pdf(quote):
         ('RIGHTPADDING', (0, 0), (-1, -1), 2),
     ]))
 
-    # Right column: Structured info table with blue header
+    # Right column: Structured info table with section header
     ss_label = ''
     if quote.service_style:
         ss_label = (
@@ -275,8 +306,8 @@ def generate_quote_pdf(quote):
         )
 
     RIGHT_COL_W = CONTENT_W * 0.48
-    right_header = _blue_bar(
-        [Paragraph('QUOTATION DETAILS', s['bar_header'])],
+    right_header = _section_header(
+        [Paragraph('QUOTATION DETAILS', s['section_title'])],
         [RIGHT_COL_W],
     )
 
@@ -302,8 +333,9 @@ def generate_quote_pdf(quote):
         ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
         ('LEFTPADDING', (0, 0), (-1, -1), 6),
         ('RIGHTPADDING', (0, 0), (-1, -1), 4),
-        ('LINEBELOW', (0, 0), (-1, -2), 0.25, BORDER),
-        ('BOX', (0, 0), (-1, -1), 0.5, BORDER),
+        ('LINEBELOW', (0, 0), (-1, -2), 0.25, BORDER_LIGHT),
+        ('BOX', (0, 0), (-1, -1), 0.25, BORDER_LIGHT),
+        ('ROUNDEDCORNERS', [0, 0, 3, 3]),
     ]))
 
     # Combine right header + right info into a single flowable list via nested table
@@ -326,65 +358,60 @@ def generate_quote_pdf(quote):
         ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
     ]))
     elements.append(info_outer)
-    elements.append(Spacer(1, 6 * mm))
+    elements.append(Spacer(1, 10 * mm))
 
-    # ── 3. Menu Items Table ──
+    # ── 3. Menu Items Table (2-column layout with summary row) ──
     dish_names = list(quote.dishes.values_list('name', flat=True))
     has_food_total = quote.food_total and quote.food_total > 0
 
     ITEM_COL_WIDTHS = [CONTENT_W * 0.60, CONTENT_W * 0.20, CONTENT_W * 0.20]
+    MENU_COL_W = CONTENT_W * 0.50
 
     if dish_names and has_food_total:
-        menu_header = _blue_bar([
-            Paragraph('MENU ITEMS', s['bar_header']),
-            Paragraph('RATE', s['bar_header_right']),
-            Paragraph('AMOUNT', s['bar_header_right']),
-        ], ITEM_COL_WIDTHS)
+        menu_header = _section_header([
+            Paragraph('MENU ITEMS', s['section_title']),
+        ], [CONTENT_W])
         elements.append(menu_header)
 
-        # List dishes — rate and amount on the last row
+        # Build 2-column dish list
+        half = math.ceil(len(dish_names) / 2)
+        col1 = dish_names[:half]
+        col2 = dish_names[half:]
         menu_rows = []
-        for i, name in enumerate(dish_names):
-            is_last = (i == len(dish_names) - 1)
-            rate_cell = Paragraph(_fmt(quote.price_per_head, cs), s['body_right']) if is_last else Paragraph('', s['body'])
-            amount_cell = Paragraph(_fmt(quote.food_total, cs), s['body_right']) if is_last else Paragraph('', s['body'])
-            menu_rows.append([
-                Paragraph(name, s['body']),
-                rate_cell,
-                amount_cell,
-            ])
+        for i in range(half):
+            left = Paragraph(col1[i], s['body'])
+            right = Paragraph(col2[i], s['body']) if i < len(col2) else Paragraph('', s['body'])
+            menu_rows.append([left, right])
 
-        menu_table = Table(menu_rows, colWidths=ITEM_COL_WIDTHS)
+        menu_table = Table(menu_rows, colWidths=[MENU_COL_W, MENU_COL_W])
         menu_style = [
             ('VALIGN', (0, 0), (-1, -1), 'TOP'),
             ('TOPPADDING', (0, 0), (-1, -1), 3),
             ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
             ('LEFTPADDING', (0, 0), (-1, -1), 6),
             ('RIGHTPADDING', (0, 0), (-1, -1), 6),
-            ('LINEBELOW', (0, -1), (-1, -1), 0.5, BORDER),
         ]
-        # Alternate row background
+        # Thin row separators (Stripe-style)
         for i in range(len(menu_rows)):
-            if i % 2 == 1:
-                menu_style.append(('BACKGROUND', (0, i), (-1, i), BLUE_LIGHT))
+            menu_style.append(('LINEBELOW', (0, i), (-1, i), 0.25, BORDER_LIGHT))
         menu_table.setStyle(TableStyle(menu_style))
         elements.append(menu_table)
 
-        # Per-head note below menu
-        elements.append(Spacer(1, 1 * mm))
-        elements.append(Paragraph(
-            f'({_fmt(quote.price_per_head, cs)} per head × {quote.guest_count} guests)',
-            s['note_grey'],
-        ))
+        # Bold summary line below the menu
         elements.append(Spacer(1, 3 * mm))
+        elements.append(Paragraph(
+            f'<b>{_fmt(quote.price_per_head, cs)} per head × {quote.guest_count} guests = {_fmt(quote.food_total, cs)}</b>',
+            s['body'],
+        ))
+        elements.append(Spacer(1, 6 * mm))
 
     # ── 4. Add-ons / Line Items ──
     line_items = list(quote.line_items.all())
     if line_items:
-        addons_header = _blue_bar([
-            Paragraph('ADD-ONS / ADDITIONAL ITEMS', s['bar_header']),
-            Paragraph('RATE', s['bar_header_right']),
-            Paragraph('AMOUNT', s['bar_header_right']),
+        addons_header = _section_header([
+            Paragraph('ADD-ONS / ADDITIONAL ITEMS', s['section_title']),
+            Paragraph('RATE', s['section_title_right']),
+            Paragraph('AMOUNT', s['section_title_right']),
         ], ITEM_COL_WIDTHS)
         elements.append(addons_header)
 
@@ -416,21 +443,20 @@ def generate_quote_pdf(quote):
             ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
             ('LEFTPADDING', (0, 0), (-1, -1), 6),
             ('RIGHTPADDING', (0, 0), (-1, -1), 6),
-            ('LINEBELOW', (0, -1), (-1, -1), 0.5, BORDER),
         ]
+        # Thin row separators
         for i in range(len(addon_rows)):
-            if i % 2 == 1:
-                addon_style.append(('BACKGROUND', (0, i), (-1, i), BLUE_LIGHT))
+            addon_style.append(('LINEBELOW', (0, i), (-1, i), 0.25, BORDER_LIGHT))
         addon_table.setStyle(TableStyle(addon_style))
         elements.append(addon_table)
-        elements.append(Spacer(1, 3 * mm))
+        elements.append(Spacer(1, 6 * mm))
 
     # ── 5. Notes ──
     if quote.notes:
         elements.append(Spacer(1, 2 * mm))
         elements.append(Paragraph('<b>Notes:</b>', s['body_bold']))
         elements.append(Paragraph(quote.notes, s['note']))
-        elements.append(Spacer(1, 3 * mm))
+        elements.append(Spacer(1, 6 * mm))
 
     # ── 6. Totals block (right-aligned) ──
     tax_pct = (quote.tax_rate * 100).quantize(Decimal('1'))
@@ -450,19 +476,21 @@ def generate_quote_pdf(quote):
         ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
         ('LEFTPADDING', (0, 0), (-1, -1), 6),
         ('RIGHTPADDING', (0, 0), (-1, -1), 6),
-        ('LINEBELOW', (0, 0), (-1, -2), 0.25, BORDER),
-        ('BOX', (0, 0), (-1, -1), 0.5, BORDER),
+        ('LINEBELOW', (0, 0), (-1, -2), 0.25, BORDER_LIGHT),
+        ('BOX', (0, 0), (-1, -1), 0.25, BORDER_LIGHT),
+        ('ROUNDEDCORNERS', [3, 3, 0, 0]),
     ]))
 
-    # Grand total row (blue background)
+    # Grand total row (dark background — only dark bar in PDF)
     grand_row = [[Paragraph('GRAND TOTAL', s['grand_label']), Paragraph(_fmt(quote.total, cs), s['grand_value'])]]
     grand_table = Table(grand_row, colWidths=[TOTALS_LABEL_W, TOTALS_VALUE_W])
     grand_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, -1), BLUE),
+        ('BACKGROUND', (0, 0), (-1, -1), DARK),
         ('TOPPADDING', (0, 0), (-1, -1), 7),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 7),
         ('LEFTPADDING', (0, 0), (-1, -1), 8),
         ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+        ('ROUNDEDCORNERS', [0, 0, 3, 3]),
     ]))
 
     spacer_w = CONTENT_W - TOTALS_W
@@ -483,12 +511,12 @@ def generate_quote_pdf(quote):
     if terms_text:
         elements.append(PageBreak())
 
-        # T&C header bar
-        elements.append(_blue_bar(
-            [Paragraph('TERMS & CONDITIONS', s['bar_header'])],
+        # T&C header
+        elements.append(_section_header(
+            [Paragraph('TERMS & CONDITIONS', s['section_title'])],
             [CONTENT_W],
         ))
-        elements.append(Spacer(1, 4 * mm))
+        elements.append(Spacer(1, 6 * mm))
 
         # Render each paragraph of the terms
         for para in terms_text.split('\n'):
@@ -498,7 +526,7 @@ def generate_quote_pdf(quote):
             else:
                 elements.append(Spacer(1, 2 * mm))
 
-        elements.append(Spacer(1, 6 * mm))
+        elements.append(Spacer(1, 8 * mm))
 
         # Contact line
         if org_contact_line:
@@ -506,7 +534,7 @@ def generate_quote_pdf(quote):
                 f'If you have any questions about this quotation, please contact: {org_contact_line}',
                 s['note_grey'],
             ))
-            elements.append(Spacer(1, 8 * mm))
+            elements.append(Spacer(1, 10 * mm))
 
         # ── 8. Signature block ──
         sig_line = '_' * 35
