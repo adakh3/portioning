@@ -169,6 +169,7 @@ function StaffRosterTab() {
               <Input
                 type="text"
                 required
+                maxLength={200}
                 value={formData.name || ""}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               />
@@ -177,6 +178,7 @@ function StaffRosterTab() {
               <label className="block text-sm font-medium text-foreground mb-1">Email</label>
               <Input
                 type="email"
+                maxLength={254}
                 value={formData.email || ""}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
               />
@@ -185,6 +187,7 @@ function StaffRosterTab() {
               <label className="block text-sm font-medium text-foreground mb-1">Phone</label>
               <Input
                 type="text"
+                maxLength={50}
                 value={formData.phone || ""}
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
               />
@@ -294,6 +297,7 @@ function StaffRosterTab() {
                         <Input
                           type="text"
                           required
+                          maxLength={200}
                           value={editFormData.name || ""}
                           onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
                         />
@@ -302,6 +306,7 @@ function StaffRosterTab() {
                         <label className="block text-sm font-medium text-foreground mb-1">Email</label>
                         <Input
                           type="email"
+                          maxLength={254}
                           value={editFormData.email || ""}
                           onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
                         />
@@ -310,6 +315,7 @@ function StaffRosterTab() {
                         <label className="block text-sm font-medium text-foreground mb-1">Phone</label>
                         <Input
                           type="text"
+                          maxLength={50}
                           value={editFormData.phone || ""}
                           onChange={(e) => setEditFormData({ ...editFormData, phone: e.target.value })}
                         />
@@ -459,6 +465,7 @@ function LabourRolesTab() {
               <Input
                 type="text"
                 required
+                maxLength={100}
                 value={formData.name || ""}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               />
@@ -551,6 +558,7 @@ function LabourRolesTab() {
                         <Input
                           type="text"
                           required
+                          maxLength={100}
                           value={editFormData.name || ""}
                           onChange={(e) =>
                             setEditFormData({ ...editFormData, name: e.target.value })

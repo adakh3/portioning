@@ -59,6 +59,7 @@ export default function AccountsPage() {
                   <Input
                     type="text"
                     required
+                    maxLength={200}
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   />

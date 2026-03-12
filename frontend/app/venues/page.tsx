@@ -67,19 +67,19 @@ export default function VenuesPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">Name *</label>
-              <Input type="text" required value={formData.name || ""} onChange={(e) => setFormData({ ...formData, name: e.target.value })} />
+              <Input type="text" required maxLength={200} value={formData.name || ""} onChange={(e) => setFormData({ ...formData, name: e.target.value })} />
             </div>
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">City</label>
-              <Input type="text" value={formData.city || ""} onChange={(e) => setFormData({ ...formData, city: e.target.value })} />
+              <Input type="text" maxLength={100} value={formData.city || ""} onChange={(e) => setFormData({ ...formData, city: e.target.value })} />
             </div>
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">Contact Name</label>
-              <Input type="text" value={formData.contact_name || ""} onChange={(e) => setFormData({ ...formData, contact_name: e.target.value })} />
+              <Input type="text" maxLength={200} value={formData.contact_name || ""} onChange={(e) => setFormData({ ...formData, contact_name: e.target.value })} />
             </div>
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">Contact Phone</label>
-              <Input type="text" value={formData.contact_phone || ""} onChange={(e) => setFormData({ ...formData, contact_phone: e.target.value })} />
+              <Input type="text" maxLength={50} value={formData.contact_phone || ""} onChange={(e) => setFormData({ ...formData, contact_phone: e.target.value })} />
             </div>
             <div className="flex items-center gap-2 mt-6">
               <input type="checkbox" checked={formData.kitchen_access || false} onChange={(e) => setFormData({ ...formData, kitchen_access: e.target.checked })} className="rounded border-input" />
@@ -87,11 +87,11 @@ export default function VenuesPage() {
             </div>
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">Loading Notes</label>
-              <Input type="text" value={formData.loading_notes || ""} onChange={(e) => setFormData({ ...formData, loading_notes: e.target.value })} placeholder="Dock, access, parking..." />
+              <Input type="text" maxLength={2000} value={formData.loading_notes || ""} onChange={(e) => setFormData({ ...formData, loading_notes: e.target.value })} placeholder="Dock, access, parking..." />
             </div>
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-foreground mb-1">Rules / Restrictions</label>
-              <Textarea value={formData.rules || ""} onChange={(e) => setFormData({ ...formData, rules: e.target.value })} rows={2} placeholder="Curfews, noise limits..." />
+              <Textarea value={formData.rules || ""} onChange={(e) => setFormData({ ...formData, rules: e.target.value })} rows={2} maxLength={2000} placeholder="Curfews, noise limits..." />
             </div>
           </div>
           <Button type="submit" disabled={saving} variant="success" className="mt-4">

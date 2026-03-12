@@ -368,7 +368,7 @@ export default function LeadDetailPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Contact Name *</label>
-                  <Input type="text" required value={formData.contact_name} onChange={setField("contact_name")} />
+                  <Input type="text" required maxLength={200} value={formData.contact_name} onChange={setField("contact_name")} />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Account (optional)</label>
@@ -379,11 +379,11 @@ export default function LeadDetailPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Email</label>
-                  <Input type="email" value={formData.contact_email} onChange={setField("contact_email")} />
+                  <Input type="email" maxLength={254} value={formData.contact_email} onChange={setField("contact_email")} />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Phone</label>
-                  <Input type="text" value={formData.contact_phone} onChange={setField("contact_phone")} />
+                  <Input type="text" maxLength={50} value={formData.contact_phone} onChange={setField("contact_phone")} />
                 </div>
               </div>
 
@@ -409,8 +409,9 @@ export default function LeadDetailPage() {
                     type="text"
                     inputMode="numeric"
                     value={formData.budget ? parseInt(formData.budget, 10).toLocaleString() : ""}
+                    maxLength={15}
                     onChange={(e) => {
-                      const raw = e.target.value.replace(/[^0-9]/g, "");
+                      const raw = e.target.value.replace(/[^0-9]/g, "").slice(0, 10);
                       setFormData({ ...formData, budget: raw });
                     }}
                     placeholder="e.g. 5,000"
@@ -451,7 +452,7 @@ export default function LeadDetailPage() {
 
               <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Notes</h2>
               <div className="mb-6">
-                <Textarea value={formData.notes} onChange={setField("notes")} rows={3} />
+                <Textarea maxLength={5000} value={formData.notes} onChange={setField("notes")} rows={3} />
               </div>
 
               <div className="flex gap-3">

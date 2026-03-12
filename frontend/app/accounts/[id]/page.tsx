@@ -101,6 +101,7 @@ export default function AccountDetailPage() {
                 <Input
                   type="text"
                   required
+                  maxLength={200}
                   value={formData.name || ""}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   className="text-2xl font-bold h-auto py-1"
@@ -164,15 +165,15 @@ export default function AccountDetailPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">Billing City</label>
-                <Input type="text" value={formData.billing_city || ""} onChange={(e) => setFormData({ ...formData, billing_city: e.target.value })} />
+                <Input type="text" maxLength={100} value={formData.billing_city || ""} onChange={(e) => setFormData({ ...formData, billing_city: e.target.value })} />
               </div>
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">VAT Number</label>
-                <Input type="text" value={formData.vat_number || ""} onChange={(e) => setFormData({ ...formData, vat_number: e.target.value })} />
+                <Input type="text" maxLength={50} value={formData.vat_number || ""} onChange={(e) => setFormData({ ...formData, vat_number: e.target.value })} />
               </div>
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-foreground mb-1">Notes</label>
-                <Textarea value={formData.notes || ""} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} rows={3} />
+                <Textarea maxLength={5000} value={formData.notes || ""} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} rows={3} />
               </div>
             </div>
           ) : (
@@ -200,15 +201,15 @@ export default function AccountDetailPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Name</label>
-                  <Input type="text" required value={contactData.name || ""} onChange={(e) => setContactData({ ...contactData, name: e.target.value })} />
+                  <Input type="text" required maxLength={200} value={contactData.name || ""} onChange={(e) => setContactData({ ...contactData, name: e.target.value })} />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Email</label>
-                  <Input type="email" value={contactData.email || ""} onChange={(e) => setContactData({ ...contactData, email: e.target.value })} />
+                  <Input type="email" maxLength={254} value={contactData.email || ""} onChange={(e) => setContactData({ ...contactData, email: e.target.value })} />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Phone</label>
-                  <Input type="text" value={contactData.phone || ""} onChange={(e) => setContactData({ ...contactData, phone: e.target.value })} />
+                  <Input type="text" maxLength={50} value={contactData.phone || ""} onChange={(e) => setContactData({ ...contactData, phone: e.target.value })} />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Role</label>

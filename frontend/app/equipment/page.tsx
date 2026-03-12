@@ -119,6 +119,7 @@ export default function EquipmentPage() {
               <Input
                 type="text"
                 required
+                maxLength={200}
                 value={formData.name || ""}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               />
@@ -164,6 +165,7 @@ export default function EquipmentPage() {
                 value={formData.description || ""}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 rows={2}
+                maxLength={2000}
               />
             </div>
           </div>
@@ -260,6 +262,7 @@ export default function EquipmentPage() {
                         <Input
                           type="text"
                           required
+                          maxLength={200}
                           value={editFormData.name || ""}
                           onChange={(e) =>
                             setEditFormData({ ...editFormData, name: e.target.value })
@@ -336,6 +339,7 @@ export default function EquipmentPage() {
                             setEditFormData({ ...editFormData, description: e.target.value })
                           }
                           rows={2}
+                          maxLength={2000}
                         />
                       </div>
                     </div>

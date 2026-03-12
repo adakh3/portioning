@@ -77,6 +77,7 @@ export default function SettingsPage() {
                 <Input
                   type="text"
                   required
+                  maxLength={10}
                   value={formData.currency_symbol}
                   onChange={(e) => setFormData({ ...formData, currency_symbol: e.target.value })}
                 />
@@ -86,6 +87,7 @@ export default function SettingsPage() {
                 <Input
                   type="text"
                   required
+                  maxLength={10}
                   value={formData.currency_code}
                   onChange={(e) => setFormData({ ...formData, currency_code: e.target.value })}
                 />

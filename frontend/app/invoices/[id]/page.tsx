@@ -248,6 +248,7 @@ export default function InvoiceDetailPage() {
                   <label className="block text-sm font-medium text-foreground mb-1">Reference</label>
                   <Input
                     type="text"
+                    maxLength={200}
                     value={paymentData.reference}
                     onChange={(e) => setPaymentData({ ...paymentData, reference: e.target.value })}
                     placeholder="Transaction ref, check #, etc."

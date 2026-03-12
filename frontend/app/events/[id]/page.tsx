@@ -668,6 +668,7 @@ export default function EventDetailPage() {
                       value={formVenueAddress}
                       onChange={(e) => setFormVenueAddress(e.target.value)}
                       rows={3}
+                      maxLength={1000}
                       placeholder="Enter venue address..."
                     />
                   )}
@@ -730,6 +731,7 @@ export default function EventDetailPage() {
                     value={formNotes}
                     onChange={(e) => setFormNotes(e.target.value)}
                     rows={2}
+                    maxLength={5000}
                   />
                 </div>
               </div>

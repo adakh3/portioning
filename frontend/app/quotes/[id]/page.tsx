@@ -400,6 +400,7 @@ export default function QuoteDetailPage() {
                     value={createData.venue_address}
                     onChange={setCreate("venue_address")}
                     rows={2}
+                    maxLength={1000}
                     placeholder={venueSelected ? "e.g. Use the garden entrance" : "e.g. 42 Oak Lane, Manchester, M1 2AB"}
                   />
                 </div>
@@ -489,11 +490,11 @@ export default function QuoteDetailPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Notes (customer-visible)</label>
-                  <Textarea value={createData.notes} onChange={setCreate("notes")} rows={3} />
+                  <Textarea value={createData.notes} onChange={setCreate("notes")} rows={3} maxLength={5000} />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Internal Notes</label>
-                  <Textarea value={createData.internal_notes} onChange={setCreate("internal_notes")} rows={3} />
+                  <Textarea value={createData.internal_notes} onChange={setCreate("internal_notes")} rows={3} maxLength={5000} />
                 </div>
               </div>
             </CardContent>
@@ -680,7 +681,7 @@ export default function QuoteDetailPage() {
             </div>
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-foreground mb-1">Venue Address / Notes</label>
-              <Textarea value={editData.venue_address} onChange={setEdit("venue_address")} rows={2} placeholder="Freeform address or additional venue notes" />
+              <Textarea value={editData.venue_address} onChange={setEdit("venue_address")} rows={2} maxLength={1000} placeholder="Freeform address or additional venue notes" />
             </div>
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">Tax Rate (%)</label>
@@ -692,11 +693,11 @@ export default function QuoteDetailPage() {
             </div>
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">Notes (customer-visible)</label>
-              <Textarea value={editData.notes} onChange={setEdit("notes")} rows={2} />
+              <Textarea value={editData.notes} onChange={setEdit("notes")} rows={2} maxLength={5000} />
             </div>
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">Internal Notes</label>
-              <Textarea value={editData.internal_notes} onChange={setEdit("internal_notes")} rows={2} />
+              <Textarea value={editData.internal_notes} onChange={setEdit("internal_notes")} rows={2} maxLength={5000} />
             </div>
           </div>
           <div className="flex gap-3 mt-4">
@@ -887,7 +888,7 @@ export default function QuoteDetailPage() {
                 </div>
                 <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-foreground mb-1">Description *</label>
-                  <Input type="text" required value={itemData.description} onChange={(e) => setItemData({ ...itemData, description: e.target.value })} />
+                  <Input type="text" required maxLength={500} value={itemData.description} onChange={(e) => setItemData({ ...itemData, description: e.target.value })} />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Quantity *</label>
