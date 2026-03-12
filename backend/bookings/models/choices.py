@@ -1,66 +1,56 @@
 from django.db import models
+from users.managers import TenantManager
 
 
-class EventTypeOption(models.Model):
-    value = models.CharField(max_length=50, unique=True)
+class ChoiceOptionBase(models.Model):
+    """Abstract base for org-scoped choice option models."""
+    organisation = models.ForeignKey(
+        'users.Organisation',
+        on_delete=models.CASCADE,
+    )
+    value = models.CharField(max_length=50)
     label = models.CharField(max_length=100)
     sort_order = models.IntegerField(default=0)
     is_active = models.BooleanField(default=True)
 
     class Meta:
+        abstract = True
         ordering = ['sort_order', 'pk']
 
     def __str__(self):
         return self.label
 
 
-class SourceOption(models.Model):
-    value = models.CharField(max_length=50, unique=True)
-    label = models.CharField(max_length=100)
-    sort_order = models.IntegerField(default=0)
-    is_active = models.BooleanField(default=True)
+class EventTypeOption(ChoiceOptionBase):
+    objects = TenantManager()
 
-    class Meta:
-        ordering = ['sort_order', 'pk']
-
-    def __str__(self):
-        return self.label
+    class Meta(ChoiceOptionBase.Meta):
+        unique_together = [('organisation', 'value')]
 
 
-class ServiceStyleOption(models.Model):
-    value = models.CharField(max_length=50, unique=True)
-    label = models.CharField(max_length=100)
-    sort_order = models.IntegerField(default=0)
-    is_active = models.BooleanField(default=True)
+class SourceOption(ChoiceOptionBase):
+    objects = TenantManager()
 
-    class Meta:
-        ordering = ['sort_order', 'pk']
-
-    def __str__(self):
-        return self.label
+    class Meta(ChoiceOptionBase.Meta):
+        unique_together = [('organisation', 'value')]
 
 
-class LeadStatusOption(models.Model):
-    value = models.CharField(max_length=50, unique=True)
-    label = models.CharField(max_length=100)
-    sort_order = models.IntegerField(default=0)
-    is_active = models.BooleanField(default=True)
+class ServiceStyleOption(ChoiceOptionBase):
+    objects = TenantManager()
 
-    class Meta:
-        ordering = ['sort_order', 'pk']
-
-    def __str__(self):
-        return self.label
+    class Meta(ChoiceOptionBase.Meta):
+        unique_together = [('organisation', 'value')]
 
 
-class LostReasonOption(models.Model):
-    value = models.CharField(max_length=50, unique=True)
-    label = models.CharField(max_length=100)
-    sort_order = models.IntegerField(default=0)
-    is_active = models.BooleanField(default=True)
+class LeadStatusOption(ChoiceOptionBase):
+    objects = TenantManager()
 
-    class Meta:
-        ordering = ['sort_order', 'pk']
+    class Meta(ChoiceOptionBase.Meta):
+        unique_together = [('organisation', 'value')]
 
-    def __str__(self):
-        return self.label
+
+class LostReasonOption(ChoiceOptionBase):
+    objects = TenantManager()
+
+    class Meta(ChoiceOptionBase.Meta):
+        unique_together = [('organisation', 'value')]

@@ -21,23 +21,25 @@ class ProductLineSerializer(serializers.ModelSerializer):
         read_only_fields = ['id']
 
 
-# Cache for choice lookups (populated once per process)
-_event_type_cache = None
-_lead_status_cache = None
+# Org-aware caches for choice lookups: {org_id: {value: label}}
+_event_type_cache = {}
+_lead_status_cache = {}
 
 
-def _get_event_type_labels():
-    global _event_type_cache
-    if _event_type_cache is None:
-        _event_type_cache = dict(EventTypeOption.objects.values_list('value', 'label'))
-    return _event_type_cache
+def _get_event_type_labels(org_id):
+    if org_id not in _event_type_cache:
+        _event_type_cache[org_id] = dict(
+            EventTypeOption.objects.filter(organisation_id=org_id).values_list('value', 'label')
+        )
+    return _event_type_cache[org_id]
 
 
-def _get_lead_status_labels():
-    global _lead_status_cache
-    if _lead_status_cache is None:
-        _lead_status_cache = dict(LeadStatusOption.objects.values_list('value', 'label'))
-    return _lead_status_cache
+def _get_lead_status_labels(org_id):
+    if org_id not in _lead_status_cache:
+        _lead_status_cache[org_id] = dict(
+            LeadStatusOption.objects.filter(organisation_id=org_id).values_list('value', 'label')
+        )
+    return _lead_status_cache[org_id]
 
 
 class LeadSerializer(serializers.ModelSerializer):
@@ -88,10 +90,10 @@ class LeadSerializer(serializers.ModelSerializer):
         return None
 
     def get_status_display(self, obj):
-        return _get_lead_status_labels().get(obj.status, obj.status)
+        return _get_lead_status_labels(obj.organisation_id).get(obj.status, obj.status)
 
     def get_event_type_display(self, obj):
-        return _get_event_type_labels().get(obj.event_type, obj.event_type)
+        return _get_event_type_labels(obj.organisation_id).get(obj.event_type, obj.event_type)
 
     def get_won_event_name(self, obj):
         if obj.won_event:

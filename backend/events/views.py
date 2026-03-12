@@ -6,20 +6,24 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from bookings.permissions import is_salesperson
 from .models import Event, EventStatus
+from users.mixins import get_request_org, apply_org_filter, get_org_object_or_404
 from .serializers import EventSerializer
 
 
-def _auto_advance_event_statuses():
-    """Move confirmed events to in_progress on event day, and to completed the day after."""
+def _auto_advance_event_statuses(org=None):
+    """Move confirmed events to in_progress on event day, and to completed the day after.
+
+    When org is provided, only advance that org's events.
+    When called without org (e.g. from a cron command), advances all.
+    """
     today = date.today()
-    Event.objects.filter(
-        status=EventStatus.CONFIRMED,
-        date__lte=today,
-    ).update(status=EventStatus.IN_PROGRESS)
-    Event.objects.filter(
-        status=EventStatus.IN_PROGRESS,
-        date__lt=today,
-    ).update(status=EventStatus.COMPLETED)
+    confirmed_qs = Event.objects.filter(status=EventStatus.CONFIRMED, date__lte=today)
+    in_progress_qs = Event.objects.filter(status=EventStatus.IN_PROGRESS, date__lt=today)
+    if org:
+        confirmed_qs = confirmed_qs.filter(organisation=org)
+        in_progress_qs = in_progress_qs.filter(organisation=org)
+    confirmed_qs.update(status=EventStatus.IN_PROGRESS)
+    in_progress_qs.update(status=EventStatus.COMPLETED)
 
 
 class EventListCreateView(generics.ListCreateAPIView):
@@ -27,10 +31,10 @@ class EventListCreateView(generics.ListCreateAPIView):
 
     def perform_create(self, serializer):
         user = self.request.user if self.request.user.is_authenticated else None
-        serializer.save(created_by=user)
+        serializer.save(created_by=user, organisation=get_request_org(self.request))
 
     def get_queryset(self):
-        _auto_advance_event_statuses()
+        _auto_advance_event_statuses(org=get_request_org(self.request))
         qs = Event.objects.select_related(
             'account', 'primary_contact', 'venue', 'based_on_template',
         ).prefetch_related(
@@ -38,7 +42,8 @@ class EventListCreateView(generics.ListCreateAPIView):
             'shifts', 'shifts__staff_member', 'shifts__role',
             'equipment_reservations', 'equipment_reservations__equipment',
             'invoices', 'invoices__payments',
-        ).all()
+        )
+        qs = apply_org_filter(qs, self.request)
 
         # Salesperson sees only events they created
         user = self.request.user
@@ -61,20 +66,21 @@ class EventDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = EventSerializer
 
     def get_queryset(self):
-        _auto_advance_event_statuses()
-        return Event.objects.select_related(
+        _auto_advance_event_statuses(org=get_request_org(self.request))
+        qs = Event.objects.select_related(
             'account', 'primary_contact', 'venue', 'based_on_template',
         ).prefetch_related(
             'dishes', 'dish_comments', 'dish_comments__dish',
             'shifts', 'shifts__staff_member', 'shifts__role',
             'equipment_reservations', 'equipment_reservations__equipment',
             'invoices', 'invoices__payments',
-        ).all()
+        )
+        return apply_org_filter(qs, self.request)
 
 
 class EventCalculateView(APIView):
     def post(self, request, pk):
-        event = Event.objects.prefetch_related('dishes').get(pk=pk)
+        event = get_org_object_or_404(Event.objects.prefetch_related('dishes'), request, pk=pk)
         from calculator.engine.calculator import calculate_portions
 
         override = getattr(event, 'constraint_override', None)
@@ -91,5 +97,6 @@ class EventCalculateView(APIView):
             constraint_overrides=constraint_overrides,
             big_eaters=event.big_eaters,
             big_eaters_percentage=event.big_eaters_percentage,
+            org=event.organisation,
         )
         return Response(result)

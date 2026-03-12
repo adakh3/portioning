@@ -2,6 +2,7 @@ from decimal import Decimal
 
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
+from users.managers import TenantManager
 
 
 MENU_TYPE_CHOICES = [
@@ -12,6 +13,12 @@ MENU_TYPE_CHOICES = [
 
 
 class MenuTemplate(models.Model):
+    objects = TenantManager()
+
+    organisation = models.ForeignKey(
+        'users.Organisation',
+        on_delete=models.CASCADE, related_name='menu_templates',
+    )
     name = models.CharField(max_length=200)
     description = models.TextField(blank=True)
     menu_type = models.CharField(max_length=20, choices=MENU_TYPE_CHOICES, default='custom')

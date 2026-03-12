@@ -2,9 +2,16 @@ from decimal import Decimal
 
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
+from users.managers import TenantManager
 
 
 class LaborRole(models.Model):
+    objects = TenantManager()
+
+    organisation = models.ForeignKey(
+        'users.Organisation',
+        on_delete=models.CASCADE, related_name='labor_roles',
+    )
     name = models.CharField(max_length=100, unique=True)
     default_hourly_rate = models.DecimalField(max_digits=8, decimal_places=2, validators=[MinValueValidator(Decimal('0')), MaxValueValidator(Decimal('9999.99'))])
     description = models.TextField(blank=True)
@@ -22,6 +29,12 @@ class LaborRole(models.Model):
 
 
 class StaffMember(models.Model):
+    objects = TenantManager()
+
+    organisation = models.ForeignKey(
+        'users.Organisation',
+        on_delete=models.CASCADE, related_name='staff_members',
+    )
     name = models.CharField(max_length=200)
     email = models.EmailField(blank=True)
     phone = models.CharField(max_length=50, blank=True)

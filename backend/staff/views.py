@@ -7,6 +7,7 @@ from rest_framework import generics
 from rest_framework.views import APIView
 from rest_framework.response import Response
 
+from users.mixins import OrgQuerySetMixin, OrgCreateMixin, get_request_org, is_superuser_without_org
 from .models import LaborRole, StaffMember, Shift, AllocationRule
 from .serializers import (
     LaborRoleSerializer, StaffMemberSerializer,
@@ -14,24 +15,34 @@ from .serializers import (
 )
 
 
-class LaborRoleListCreateView(generics.ListCreateAPIView):
+class LaborRoleListCreateView(OrgQuerySetMixin, OrgCreateMixin, generics.ListCreateAPIView):
     queryset = LaborRole.objects.all()
     serializer_class = LaborRoleSerializer
 
 
-class LaborRoleDetailView(generics.RetrieveUpdateDestroyAPIView):
+class LaborRoleDetailView(OrgQuerySetMixin, generics.RetrieveUpdateDestroyAPIView):
     queryset = LaborRole.objects.all()
     serializer_class = LaborRoleSerializer
 
 
-class StaffMemberListCreateView(generics.ListCreateAPIView):
+class StaffMemberListCreateView(OrgQuerySetMixin, OrgCreateMixin, generics.ListCreateAPIView):
     queryset = StaffMember.objects.prefetch_related('roles').all()
     serializer_class = StaffMemberSerializer
 
 
-class StaffMemberDetailView(generics.RetrieveUpdateDestroyAPIView):
+class StaffMemberDetailView(OrgQuerySetMixin, generics.RetrieveUpdateDestroyAPIView):
     queryset = StaffMember.objects.prefetch_related('roles').all()
     serializer_class = StaffMemberSerializer
+
+
+def _apply_event_org_filter(qs, request):
+    """Filter queryset that reaches org through event__organisation."""
+    if is_superuser_without_org(request):
+        return qs
+    org = get_request_org(request)
+    if org is not None:
+        return qs.filter(event__organisation=org)
+    return qs
 
 
 class ShiftListCreateView(generics.ListCreateAPIView):
@@ -39,6 +50,7 @@ class ShiftListCreateView(generics.ListCreateAPIView):
 
     def get_queryset(self):
         qs = Shift.objects.select_related('staff_member', 'role', 'event').all()
+        qs = _apply_event_org_filter(qs, self.request)
         event_id = self.request.query_params.get('event')
         if event_id:
             qs = qs.filter(event_id=event_id)
@@ -46,18 +58,37 @@ class ShiftListCreateView(generics.ListCreateAPIView):
 
 
 class ShiftDetailView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = Shift.objects.select_related('staff_member', 'role', 'event').all()
     serializer_class = ShiftSerializer
+
+    def get_queryset(self):
+        return _apply_event_org_filter(
+            Shift.objects.select_related('staff_member', 'role', 'event').all(),
+            self.request,
+        )
 
 
 class AllocationRuleListCreateView(generics.ListCreateAPIView):
-    queryset = AllocationRule.objects.select_related('role').all()
     serializer_class = AllocationRuleSerializer
+
+    def get_queryset(self):
+        qs = AllocationRule.objects.select_related('role').all()
+        if not is_superuser_without_org(self.request):
+            org = get_request_org(self.request)
+            if org is not None:
+                qs = qs.filter(role__organisation=org)
+        return qs
 
 
 class AllocationRuleDetailView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = AllocationRule.objects.select_related('role').all()
     serializer_class = AllocationRuleSerializer
+
+    def get_queryset(self):
+        qs = AllocationRule.objects.select_related('role').all()
+        if not is_superuser_without_org(self.request):
+            org = get_request_org(self.request)
+            if org is not None:
+                qs = qs.filter(role__organisation=org)
+        return qs
 
 
 class StaffReportView(APIView):
@@ -69,12 +100,17 @@ class StaffReportView(APIView):
         date_to = request.query_params.get('date_to')
 
         shifts = Shift.objects.select_related('staff_member', 'role')
+        shifts = _apply_event_org_filter(shifts, request)
         if date_from:
             shifts = shifts.filter(start_time__date__gte=date_from)
         if date_to:
             shifts = shifts.filter(start_time__date__lte=date_to)
 
         members = StaffMember.objects.filter(is_active=True).prefetch_related('roles')
+        if not is_superuser_without_org(request):
+            org = get_request_org(request)
+            if org is not None:
+                members = members.filter(organisation=org)
         report = []
         for member in members:
             member_shifts = [s for s in shifts if s.staff_member_id == member.id]

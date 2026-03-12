@@ -6,12 +6,20 @@ from rest_framework.test import APIClient
 from bookings.models import (
     Account, Contact, Venue, Lead, Quote, QuoteLineItem,
     Invoice, Payment,
-    SiteSettings,
+    OrgSettings,
 )
 from staff.models import LaborRole, StaffMember
 from equipment.models import EquipmentItem
 from bookings.models.quotes import QuoteStatus
 from tests.base import get_test_user
+from users.models import Organisation
+
+
+def _make_org(**kwargs):
+    defaults = {"name": "Default Organisation", "slug": "default", "country": "PK"}
+    defaults.update(kwargs)
+    org, _ = Organisation.objects.get_or_create(slug=defaults.pop("slug"), defaults=defaults)
+    return org
 
 
 def _authenticated_client():
@@ -22,8 +30,10 @@ def _authenticated_client():
 
 # --- Helper factories ---
 
-def make_account(**kwargs):
-    defaults = {"name": "Test Corp", "account_type": "company"}
+def make_account(org=None, **kwargs):
+    if org is None:
+        org = _make_org()
+    defaults = {"name": "Test Corp", "account_type": "company", "organisation": org}
     defaults.update(kwargs)
     return Account.objects.create(**defaults)
 
@@ -36,14 +46,19 @@ def make_contact(account=None, **kwargs):
     return Contact.objects.create(**defaults)
 
 
-def make_venue(**kwargs):
-    defaults = {"name": "Grand Hall", "city": "London", "kitchen_access": True}
+def make_venue(org=None, **kwargs):
+    if org is None:
+        org = _make_org(slug="venue-org")
+    defaults = {"name": "Grand Hall", "city": "London", "kitchen_access": True, "organisation": org}
     defaults.update(kwargs)
     return Venue.objects.create(**defaults)
 
 
-def make_lead(account=None, **kwargs):
+def make_lead(org=None, account=None, **kwargs):
+    if org is None:
+        org = _make_org(slug="lead-org")
     defaults = {
+        "organisation": org,
         "contact_name": "John Smith",
         "contact_email": "john@test.com",
         "source": "website",
@@ -57,10 +72,13 @@ def make_lead(account=None, **kwargs):
     return Lead.objects.create(**defaults)
 
 
-def make_quote(account=None, **kwargs):
+def make_quote(org=None, account=None, **kwargs):
+    if org is None:
+        org = _make_org(slug="quote-org")
     if account is None:
-        account = make_account()
+        account = make_account(org=org)
     defaults = {
+        "organisation": org,
         "account": account,
         "event_date": "2026-06-15",
         "guest_count": 100,
@@ -76,7 +94,8 @@ def make_quote(account=None, **kwargs):
 
 class TestLeadTransitions(TestCase):
     def setUp(self):
-        self.lead = make_lead()
+        self.org = _make_org()
+        self.lead = make_lead(org=self.org)
 
     def test_new_to_contacted(self):
         self.lead.transition_to("contacted")
@@ -121,7 +140,8 @@ class TestLeadTransitions(TestCase):
 
 class TestQuoteTransitions(TestCase):
     def setUp(self):
-        self.quote = make_quote()
+        self.org = _make_org()
+        self.quote = make_quote(org=self.org)
 
     def test_draft_to_sent(self):
         self.quote.transition_to(QuoteStatus.SENT)
@@ -160,7 +180,8 @@ class TestQuoteTransitions(TestCase):
 
 class TestQuoteLineItemCalculation(TestCase):
     def setUp(self):
-        self.quote = make_quote(guest_count=50)
+        self.org = _make_org()
+        self.quote = make_quote(org=self.org, guest_count=50)
 
     def test_each_unit_calculation(self):
         item = QuoteLineItem.objects.create(
@@ -216,10 +237,12 @@ class TestQuoteLineItemCalculation(TestCase):
 
 class TestInvoicePayments(TestCase):
     def setUp(self):
+        self.org = _make_org()
         # Need an Event for Invoice FK - use events app
         from events.models import Event
         self.event = Event.objects.create(
             name="Test Event", date="2026-06-15", gents=50, ladies=50,
+            organisation=self.org,
         )
         self.invoice = Invoice.objects.create(
             event=self.event, invoice_number="INV-2026-001",
@@ -268,9 +291,10 @@ class TestInvoicePayments(TestCase):
 
 class TestEquipmentAvailability(TestCase):
     def setUp(self):
+        self.org = _make_org()
         self.item = EquipmentItem.objects.create(
             name="Round Table", category="table", stock_quantity=20,
-            rental_price=Decimal("50.00"),
+            rental_price=Decimal("50.00"), organisation=self.org,
         )
 
     def test_full_stock_available(self):
@@ -281,6 +305,7 @@ class TestEquipmentAvailability(TestCase):
         from events.models import Event
         event = Event.objects.create(
             name="Wedding", date="2026-06-15", gents=50, ladies=50,
+            organisation=self.org,
         )
         from equipment.models import EquipmentReservation
         EquipmentReservation.objects.create(
@@ -296,6 +321,7 @@ class TestEquipmentAvailability(TestCase):
 
 class TestAccountAPI(TestCase):
     def setUp(self):
+        self.org = _make_org()
         self.client = _authenticated_client()
 
     def test_create_account(self):
@@ -306,14 +332,14 @@ class TestAccountAPI(TestCase):
         self.assertEqual(res.json()["name"], "Acme Corp")
 
     def test_list_accounts(self):
-        make_account(name="Alpha")
-        make_account(name="Beta")
+        make_account(org=self.org, name="Alpha")
+        make_account(org=self.org, name="Beta")
         res = self.client.get("/api/bookings/accounts/")
         self.assertEqual(res.status_code, 200)
         self.assertEqual(len(res.json()), 2)
 
     def test_update_account(self):
-        account = make_account()
+        account = make_account(org=self.org)
         res = self.client.patch(f"/api/bookings/accounts/{account.id}/", {
             "billing_city": "Manchester",
         }, format="json")
@@ -321,13 +347,13 @@ class TestAccountAPI(TestCase):
         self.assertEqual(res.json()["billing_city"], "Manchester")
 
     def test_delete_account(self):
-        account = make_account()
+        account = make_account(org=self.org)
         res = self.client.delete(f"/api/bookings/accounts/{account.id}/")
         self.assertEqual(res.status_code, 204)
         self.assertFalse(Account.objects.filter(id=account.id).exists())
 
     def test_create_contact_nested(self):
-        account = make_account()
+        account = make_account(org=self.org)
         res = self.client.post(f"/api/bookings/accounts/{account.id}/contacts/", {
             "name": "Bob", "email": "bob@test.com", "role": "billing",
         }, format="json")
@@ -336,7 +362,7 @@ class TestAccountAPI(TestCase):
         self.assertEqual(account.contacts.count(), 1)
 
     def test_account_detail_includes_contacts(self):
-        account = make_account()
+        account = make_account(org=self.org)
         make_contact(account=account, name="Alice")
         res = self.client.get(f"/api/bookings/accounts/{account.id}/")
         self.assertEqual(len(res.json()["contacts"]), 1)
@@ -345,6 +371,7 @@ class TestAccountAPI(TestCase):
 
 class TestVenueAPI(TestCase):
     def setUp(self):
+        self.org = _make_org()
         self.client = _authenticated_client()
 
     def test_create_venue(self):
@@ -355,8 +382,8 @@ class TestVenueAPI(TestCase):
         self.assertEqual(res.json()["name"], "The Barn")
 
     def test_list_venues(self):
-        make_venue(name="Hall A")
-        make_venue(name="Hall B")
+        make_venue(org=self.org, name="Hall A")
+        make_venue(org=self.org, name="Hall B")
         res = self.client.get("/api/bookings/venues/")
         self.assertEqual(res.status_code, 200)
         self.assertEqual(len(res.json()), 2)
@@ -364,6 +391,7 @@ class TestVenueAPI(TestCase):
 
 class TestLeadAPI(TestCase):
     def setUp(self):
+        self.org = _make_org()
         self.client = _authenticated_client()
 
     def test_create_lead(self):
@@ -375,8 +403,8 @@ class TestLeadAPI(TestCase):
         self.assertEqual(res.json()["status"], "new")
 
     def test_list_leads_filter_by_status(self):
-        make_lead(contact_name="A")
-        lead_b = make_lead(contact_name="B")
+        make_lead(org=self.org, contact_name="A")
+        lead_b = make_lead(org=self.org, contact_name="B")
         lead_b.transition_to("contacted")
 
         res = self.client.get("/api/bookings/leads/?status=new")
@@ -384,7 +412,7 @@ class TestLeadAPI(TestCase):
         self.assertEqual(res.json()[0]["contact_name"], "A")
 
     def test_transition_lead(self):
-        lead = make_lead()
+        lead = make_lead(org=self.org)
         res = self.client.post(f"/api/bookings/leads/{lead.id}/transition/", {
             "status": "contacted",
         }, format="json")
@@ -392,7 +420,7 @@ class TestLeadAPI(TestCase):
         self.assertEqual(res.json()["status"], "contacted")
 
     def test_transition_same_status_returns_400(self):
-        lead = make_lead()
+        lead = make_lead(org=self.org)
         res = self.client.post(f"/api/bookings/leads/{lead.id}/transition/", {
             "status": "new",  # same status is invalid
         }, format="json")
@@ -400,8 +428,8 @@ class TestLeadAPI(TestCase):
 
     def test_create_quote_from_lead(self):
         """Creating a quote does NOT change lead status."""
-        account = make_account()
-        lead = make_lead(account=account)
+        account = make_account(org=self.org)
+        lead = make_lead(org=self.org, account=account)
         lead.transition_to("contacted")
         lead.transition_to("qualified")
 
@@ -417,7 +445,7 @@ class TestLeadAPI(TestCase):
 
     def test_create_multiple_quotes(self):
         """A lead can have multiple quotes."""
-        lead = make_lead()
+        lead = make_lead(org=self.org)
         res1 = self.client.post(f"/api/bookings/leads/{lead.id}/convert/")
         self.assertEqual(res1.status_code, 201)
         res2 = self.client.post(f"/api/bookings/leads/{lead.id}/convert/")
@@ -425,7 +453,7 @@ class TestLeadAPI(TestCase):
         self.assertNotEqual(res1.json()["id"], res2.json()["id"])
 
     def test_create_quote_creates_account_if_none(self):
-        lead = make_lead(account=None)
+        lead = make_lead(org=self.org, account=None)
         res = self.client.post(f"/api/bookings/leads/{lead.id}/convert/")
         self.assertEqual(res.status_code, 201)
         lead.refresh_from_db()
@@ -433,7 +461,7 @@ class TestLeadAPI(TestCase):
         self.assertEqual(lead.account.name, "John Smith")
 
     def test_mark_won_creates_event(self):
-        lead = make_lead()
+        lead = make_lead(org=self.org)
         lead.transition_to("contacted")
         lead.transition_to("qualified")
 
@@ -447,7 +475,7 @@ class TestLeadAPI(TestCase):
         self.assertIsNotNone(data["won_event"])
 
     def test_mark_won_without_event(self):
-        lead = make_lead()
+        lead = make_lead(org=self.org)
         res = self.client.post(f"/api/bookings/leads/{lead.id}/won/", {
             "create_event": False,
         }, format="json")
@@ -459,11 +487,11 @@ class TestLeadAPI(TestCase):
     def test_quote_acceptance_auto_wins_lead(self):
         """When a quote linked to a lead is accepted, the lead auto-transitions to won."""
         from bookings.models.quotes import QuoteStatus
-        account = make_account()
-        lead = make_lead(account=account)
+        account = make_account(org=self.org)
+        lead = make_lead(org=self.org, account=account)
         lead.transition_to("contacted")
         lead.transition_to("qualified")
-        quote = make_quote(account=account, lead=lead)
+        quote = make_quote(org=self.org, account=account, lead=lead)
 
         # Accept the quote
         res = self.client.post(f"/api/bookings/quotes/{quote.id}/transition/", {
@@ -479,8 +507,9 @@ class TestLeadAPI(TestCase):
 
 class TestQuoteAPI(TestCase):
     def setUp(self):
+        self.org = _make_org()
         self.client = _authenticated_client()
-        self.account = make_account()
+        self.account = make_account(org=self.org)
 
     def test_create_quote(self):
         res = self.client.post("/api/bookings/quotes/", {
@@ -494,7 +523,7 @@ class TestQuoteAPI(TestCase):
         self.assertTrue(res.json()["is_editable"])
 
     def test_add_line_item(self):
-        quote = make_quote(account=self.account)
+        quote = make_quote(org=self.org, account=self.account)
         res = self.client.post(f"/api/bookings/quotes/{quote.id}/items/", {
             "category": "food",
             "description": "Chicken Biryani",
@@ -506,7 +535,7 @@ class TestQuoteAPI(TestCase):
         self.assertEqual(res.json()["line_total"], "1200.00")
 
     def test_quote_totals_update_after_add_item(self):
-        quote = make_quote(account=self.account, guest_count=50)
+        quote = make_quote(org=self.org, account=self.account, guest_count=50)
         self.client.post(f"/api/bookings/quotes/{quote.id}/items/", {
             "category": "food", "description": "Main",
             "quantity": "1", "unit": "flat", "unit_price": "1000.00",
@@ -520,7 +549,7 @@ class TestQuoteAPI(TestCase):
 
     def test_can_add_item_to_sent_quote(self):
         """Quotes are always editable regardless of status."""
-        quote = make_quote(account=self.account)
+        quote = make_quote(org=self.org, account=self.account)
         quote.transition_to(QuoteStatus.SENT)
 
         res = self.client.post(f"/api/bookings/quotes/{quote.id}/items/", {
@@ -531,7 +560,7 @@ class TestQuoteAPI(TestCase):
 
     def test_can_edit_sent_quote(self):
         """Quotes are always editable regardless of status."""
-        quote = make_quote(account=self.account)
+        quote = make_quote(org=self.org, account=self.account)
         quote.transition_to(QuoteStatus.SENT)
 
         res = self.client.patch(f"/api/bookings/quotes/{quote.id}/", {
@@ -540,7 +569,7 @@ class TestQuoteAPI(TestCase):
         self.assertEqual(res.status_code, 200)
 
     def test_transition_quote(self):
-        quote = make_quote(account=self.account)
+        quote = make_quote(org=self.org, account=self.account)
         res = self.client.post(f"/api/bookings/quotes/{quote.id}/transition/", {
             "status": "sent",
         }, format="json")
@@ -548,7 +577,7 @@ class TestQuoteAPI(TestCase):
         self.assertEqual(res.json()["status"], "sent")
 
     def test_delete_line_item(self):
-        quote = make_quote(account=self.account)
+        quote = make_quote(org=self.org, account=self.account)
         item = QuoteLineItem.objects.create(
             quote=quote, category="food", description="Starter",
             quantity=Decimal("1"), unit="flat", unit_price=Decimal("500.00"),
@@ -560,8 +589,8 @@ class TestQuoteAPI(TestCase):
         self.assertEqual(quote.total, Decimal("0.00"))
 
     def test_list_quotes_filter_by_status(self):
-        q1 = make_quote(account=self.account)
-        q2 = make_quote(account=self.account)
+        q1 = make_quote(org=self.org, account=self.account)
+        q2 = make_quote(org=self.org, account=self.account)
         q2.transition_to(QuoteStatus.SENT)
 
         res = self.client.get("/api/bookings/quotes/?status=draft")
@@ -571,6 +600,7 @@ class TestQuoteAPI(TestCase):
 
 class TestStaffingAPI(TestCase):
     def setUp(self):
+        self.org = _make_org()
         self.client = _authenticated_client()
 
     def test_create_labor_role(self):
@@ -580,7 +610,10 @@ class TestStaffingAPI(TestCase):
         self.assertEqual(res.status_code, 201)
 
     def test_create_staff_member(self):
-        role = LaborRole.objects.create(name="Server", default_hourly_rate=Decimal("15.00"))
+        role = LaborRole.objects.create(
+            name="Server", default_hourly_rate=Decimal("15.00"),
+            organisation=self.org,
+        )
         res = self.client.post("/api/staff/members/", {
             "name": "Tom", "email": "tom@test.com", "roles": [role.id],
         }, format="json")
@@ -590,6 +623,7 @@ class TestStaffingAPI(TestCase):
 
 class TestEquipmentAPI(TestCase):
     def setUp(self):
+        self.org = _make_org()
         self.client = _authenticated_client()
 
     def test_create_equipment(self):
@@ -601,7 +635,10 @@ class TestEquipmentAPI(TestCase):
         self.assertEqual(res.json()["stock_quantity"], 30)
 
     def test_list_equipment(self):
-        EquipmentItem.objects.create(name="Table", category="table", stock_quantity=10, rental_price=Decimal("50.00"))
+        EquipmentItem.objects.create(
+            name="Table", category="table", stock_quantity=10,
+            rental_price=Decimal("50.00"), organisation=self.org,
+        )
         res = self.client.get("/api/equipment/items/")
         self.assertEqual(res.status_code, 200)
         self.assertEqual(len(res.json()), 1)
@@ -609,10 +646,12 @@ class TestEquipmentAPI(TestCase):
 
 class TestInvoiceAPI(TestCase):
     def setUp(self):
+        self.org = _make_org()
         self.client = _authenticated_client()
         from events.models import Event
         self.event = Event.objects.create(
             name="Gala Dinner", date="2026-08-01", gents=60, ladies=60,
+            organisation=self.org,
         )
 
     def test_create_invoice(self):
@@ -664,13 +703,14 @@ class TestSiteSettingsAPI(TestCase):
     """Tests for GET and PATCH /api/bookings/settings/."""
 
     def setUp(self):
+        self.org = _make_org()
         # PATCH requires admin (is_staff=True)
         admin_user = get_test_user()
         admin_user.is_staff = True
         admin_user.save()
         self.client = APIClient()
         self.client.force_authenticate(user=admin_user)
-        self.settings = SiteSettings.load()
+        self.settings = OrgSettings.for_org(self.org)
 
     def test_patch_requires_admin(self):
         """Non-admin user should get 403 on PATCH."""

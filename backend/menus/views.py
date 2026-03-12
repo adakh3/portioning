@@ -2,16 +2,17 @@ from rest_framework import generics, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from users.mixins import OrgQuerySetMixin, apply_org_filter
 from .models import MenuTemplate, MenuTemplatePriceTier
 from .serializers import MenuTemplateListSerializer, MenuTemplateDetailSerializer
 
 
-class MenuTemplateListView(generics.ListAPIView):
+class MenuTemplateListView(OrgQuerySetMixin, generics.ListAPIView):
     queryset = MenuTemplate.objects.filter(is_active=True)
     serializer_class = MenuTemplateListSerializer
 
 
-class MenuTemplateDetailView(generics.RetrieveAPIView):
+class MenuTemplateDetailView(OrgQuerySetMixin, generics.RetrieveAPIView):
     queryset = MenuTemplate.objects.filter(is_active=True).prefetch_related('portions__dish')
     serializer_class = MenuTemplateDetailSerializer
 
@@ -22,9 +23,10 @@ class MenuTemplatePreviewView(APIView):
     def get(self, request, pk):
         from rules.models import GuestProfile
 
-        menu = MenuTemplate.objects.filter(
-            is_active=True, pk=pk
-        ).prefetch_related('portions__dish__category').first()
+        qs = apply_org_filter(
+            MenuTemplate.objects.filter(is_active=True), request,
+        )
+        menu = qs.filter(pk=pk).prefetch_related('portions__dish__category').first()
 
         if menu is None:
             return Response({'detail': 'Not found.'}, status=404)
@@ -32,7 +34,7 @@ class MenuTemplatePreviewView(APIView):
         # Get ladies multiplier from GuestProfile
         ladies_multiplier = 1.0  # fallback default
         try:
-            ladies_profile = GuestProfile.objects.get(name='Ladies')
+            ladies_profile = GuestProfile.objects.get(name='Ladies', organisation=menu.organisation)
             ladies_multiplier = ladies_profile.portion_multiplier
         except GuestProfile.DoesNotExist:
             pass
@@ -107,7 +109,9 @@ class MenuPriceCheckView(APIView):
     def post(self, request, pk):
         from dishes.models import Dish
 
-        menu = MenuTemplate.objects.filter(is_active=True, pk=pk).first()
+        menu = apply_org_filter(
+            MenuTemplate.objects.filter(is_active=True), request,
+        ).filter(pk=pk).first()
         if menu is None:
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
 
@@ -154,11 +158,11 @@ class MenuPriceCheckView(APIView):
 
         # 3. Load added and removed dishes with their categories
         added_dishes = (
-            Dish.objects.filter(id__in=added_ids).select_related('category')
+            Dish.objects.filter(id__in=added_ids, organisation=menu.organisation).select_related('category')
             if added_ids else []
         )
         removed_dishes = (
-            Dish.objects.filter(id__in=removed_ids).select_related('category')
+            Dish.objects.filter(id__in=removed_ids, organisation=menu.organisation).select_related('category')
             if removed_ids else []
         )
 
@@ -189,8 +193,9 @@ class MenuPriceCheckView(APIView):
         adjusted_price = tier_price + total_adjustment
 
         # Apply rounding step from settings
-        from bookings.models import SiteSettings
-        step = SiteSettings.load().price_rounding_step
+        from bookings.models import OrgSettings
+        from users.mixins import get_request_org
+        step = OrgSettings.for_org(get_request_org(request)).price_rounding_step
         if step > 1:
             adjusted_price = round(adjusted_price / step) * step
 

@@ -6,10 +6,12 @@ from .baseline import establish_category_budgets, apply_protein_redistribution, 
 from .constraints import enforce_category_constraints, enforce_global_constraints
 
 
-def _load_dishes(dish_ids):
+def _load_dishes(dish_ids, org=None):
     """Load DishInput objects from DB."""
     from dishes.models import Dish
     qs = Dish.objects.filter(id__in=dish_ids, is_active=True).select_related('category')
+    if org:
+        qs = qs.filter(organisation=org)
     return [
         DishInput(
             id=d.id,
@@ -32,7 +34,7 @@ def _load_dishes(dish_ids):
     ]
 
 
-def _select_budget_profile(present_category_ids):
+def _select_budget_profile(present_category_ids, org=None):
     """Find the best matching BudgetProfile for the given categories."""
     from rules.models import BudgetProfile
 
@@ -40,7 +42,11 @@ def _select_budget_profile(present_category_ids):
     best_profile = None
     best_score = -1
 
-    for profile in BudgetProfile.objects.prefetch_related('categories'):
+    qs = BudgetProfile.objects.prefetch_related('categories')
+    if org:
+        qs = qs.filter(organisation=org)
+
+    for profile in qs:
         profile_cats = set(profile.categories.values_list('id', flat=True))
 
         if profile_cats == present:
@@ -55,32 +61,35 @@ def _select_budget_profile(present_category_ids):
             best_profile = profile
 
     if best_score < 0.5:
-        default = BudgetProfile.objects.filter(is_default=True).first()
+        default_qs = BudgetProfile.objects.filter(is_default=True)
+        if org:
+            default_qs = default_qs.filter(organisation=org)
+        default = default_qs.first()
         if default:
             return default
 
     return best_profile
 
 
-def _load_pool_baselines(pool):
+def _load_pool_baselines(pool, org=None):
     """Load baseline_budget_grams for all categories in a given pool.
 
     Returns:
         dict[category_id -> baseline_budget_grams]
     """
     from dishes.models import DishCategory
-    return dict(
-        DishCategory.objects.filter(pool=pool)
-        .values_list('id', 'baseline_budget_grams')
-    )
+    qs = DishCategory.objects.filter(pool=pool)
+    if org:
+        qs = qs.filter(organisation=org)
+    return dict(qs.values_list('id', 'baseline_budget_grams'))
 
 
-def _load_config_and_ceilings(dish_category_ids):
+def _load_config_and_ceilings(dish_category_ids, org=None):
     """Load GlobalConfig, select profile, compute effective pool ceilings."""
     from rules.models import GlobalConfig, GuestProfile, CombinationRule
 
-    config = GlobalConfig.load()
-    profile = _select_budget_profile(dish_category_ids)
+    config = GlobalConfig.for_org(org) if org else GlobalConfig.objects.first() or GlobalConfig()
+    profile = _select_budget_profile(dish_category_ids, org=org)
 
     protein_ceiling = config.protein_pool_ceiling_grams
     accompaniment_ceiling = config.accompaniment_pool_ceiling_grams
@@ -93,9 +102,11 @@ def _load_config_and_ceilings(dish_category_ids):
             protein_ceiling = profile.protein_pool_ceiling_grams
             if protein_ceiling != default_ceil:
                 from dishes.models import DishCategory
+                cat_qs = DishCategory.objects.filter(pool='protein')
+                if org:
+                    cat_qs = cat_qs.filter(organisation=org)
                 pool_cats = list(
-                    DishCategory.objects.filter(pool='protein')
-                    .order_by('display_order')
+                    cat_qs.order_by('display_order')
                     .values_list('display_name', flat=True)
                 )
                 cat_label = ' + '.join(pool_cats)
@@ -114,26 +125,37 @@ def _load_config_and_ceilings(dish_category_ids):
         if profile.dessert_pool_ceiling_grams is not None:
             dessert_ceiling = profile.dessert_pool_ceiling_grams
 
-    guest_profiles = {gp.name: gp.portion_multiplier for gp in GuestProfile.objects.all()}
+    gp_qs = GuestProfile.objects.all()
+    if org:
+        gp_qs = gp_qs.filter(organisation=org)
+    guest_profiles = {gp.name: gp.portion_multiplier for gp in gp_qs}
+
+    combo_qs = CombinationRule.objects.filter(is_active=True).prefetch_related('categories')
+    if org:
+        combo_qs = combo_qs.filter(organisation=org)
     combo_rules = []
-    for rule in CombinationRule.objects.filter(is_active=True).prefetch_related('categories'):
+    for rule in combo_qs:
         cat_ids = set(rule.categories.values_list('id', flat=True))
         combo_rules.append((cat_ids, rule.reduction_factor, rule.description))
 
     return config, protein_ceiling, accompaniment_ceiling, dessert_ceiling, profile_adjustments, guest_profiles, combo_rules
 
 
-def _resolve_constraints(overrides=None):
+def _resolve_constraints(overrides=None, org=None):
     """Build ResolvedConstraints from DB + optional event overrides."""
     from rules.models import GlobalConstraint, CategoryConstraint
-    gc = GlobalConstraint.load()
+
+    gc = GlobalConstraint.for_org(org) if org else GlobalConstraint.objects.first() or GlobalConstraint()
 
     resolved = ResolvedConstraints(
         max_total_food_per_person_grams=gc.max_total_food_per_person_grams,
         min_portion_per_dish_grams=gc.min_portion_per_dish_grams,
     )
 
-    for cc in CategoryConstraint.objects.all():
+    cc_qs = CategoryConstraint.objects.all()
+    if org:
+        cc_qs = cc_qs.filter(category__organisation=org)
+    for cc in cc_qs:
         if cc.min_portion_grams is not None:
             resolved.category_min_portions[cc.category_id] = cc.min_portion_grams
         if cc.max_portion_grams is not None:
@@ -151,7 +173,7 @@ def _resolve_constraints(overrides=None):
 
 
 def calculate_portions(dish_ids, guests, constraint_overrides=None,
-                       big_eaters=False, big_eaters_percentage=20.0):
+                       big_eaters=False, big_eaters_percentage=20.0, org=None):
     """
     Main entry point: run the pool-based portioning pipeline.
 
@@ -164,7 +186,7 @@ def calculate_portions(dish_ids, guests, constraint_overrides=None,
       6. Global safety caps (non-service only)
       7. Guest mix expansion
     """
-    dishes = _load_dishes(dish_ids)
+    dishes = _load_dishes(dish_ids, org=org)
     if not dishes:
         return {
             'portions': [],
@@ -177,8 +199,8 @@ def calculate_portions(dish_ids, guests, constraint_overrides=None,
 
     dish_category_ids = list(set(d.category_id for d in dishes))
     config, protein_ceiling, accompaniment_ceiling, dessert_ceiling, profile_adjustments, guest_profiles, combo_rules = \
-        _load_config_and_ceilings(dish_category_ids)
-    constraints = _resolve_constraints(constraint_overrides)
+        _load_config_and_ceilings(dish_category_ids, org=org)
+    constraints = _resolve_constraints(constraint_overrides, org=org)
     guest_mix = GuestMix(**guests)
 
     all_adjustments = list(profile_adjustments)
@@ -202,7 +224,7 @@ def calculate_portions(dish_ids, guests, constraint_overrides=None,
     # ── PROTEIN POOL ──
     protein_scale = 1.0
     if protein_dishes:
-        protein_pool_baselines = _load_pool_baselines('protein')
+        protein_pool_baselines = _load_pool_baselines('protein', org=org)
         cat_budgets, adj = establish_category_budgets(
             protein_dishes,
             growth_rate=config.dish_growth_rate,

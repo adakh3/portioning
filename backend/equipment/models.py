@@ -2,6 +2,7 @@ from decimal import Decimal
 
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
+from users.managers import TenantManager
 
 
 class EquipmentCategory(models.TextChoices):
@@ -17,6 +18,12 @@ class EquipmentCategory(models.TextChoices):
 
 
 class EquipmentItem(models.Model):
+    objects = TenantManager()
+
+    organisation = models.ForeignKey(
+        'users.Organisation',
+        on_delete=models.CASCADE, related_name='equipment_items',
+    )
     name = models.CharField(max_length=200)
     category = models.CharField(max_length=20, choices=EquipmentCategory.choices, default=EquipmentCategory.OTHER)
     description = models.TextField(blank=True)

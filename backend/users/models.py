@@ -4,7 +4,11 @@ from django.db import models
 
 class Organisation(models.Model):
     name = models.CharField(max_length=255)
+    slug = models.SlugField(max_length=100, unique=True, default='default')
+    country = models.CharField(max_length=2, default='PK', help_text='ISO 3166-1 alpha-2')
+    is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return self.name

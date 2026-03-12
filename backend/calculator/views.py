@@ -8,6 +8,7 @@ from .engine.calculator import calculate_portions, _load_dishes, _load_config_an
 from .engine.checker import check_user_portions
 from .engine.models import GuestMix
 from .pdf import generate_portion_pdf
+from users.mixins import get_request_org
 
 
 class CalculateView(APIView):
@@ -25,6 +26,7 @@ class CalculateView(APIView):
                 constraint_overrides=data.get('constraint_overrides', {}),
                 big_eaters=data.get('big_eaters', False),
                 big_eaters_percentage=data.get('big_eaters_percentage', 20.0),
+                org=get_request_org(request),
             )
         except Exception as e:
             return Response(
@@ -56,10 +58,11 @@ class CheckPortionsView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        org = get_request_org(request)
         dish_category_ids = list(set(d.category_id for d in dishes))
         config, protein_ceiling, accompaniment_ceiling, dessert_ceiling, _, guest_profiles, _ = \
-            _load_config_and_ceilings(dish_category_ids)
-        constraints = _resolve_constraints(constraint_overrides)
+            _load_config_and_ceilings(dish_category_ids, org=org)
+        constraints = _resolve_constraints(constraint_overrides, org=org)
         guest_mix = GuestMix(**guests)
 
         # Compute dynamic category budget caps
@@ -147,6 +150,7 @@ class CheckPortionsView(APIView):
                 constraint_overrides=constraint_overrides,
                 big_eaters=big_eaters,
                 big_eaters_percentage=big_eaters_percentage,
+                org=org,
             )
         except Exception as e:
             return Response(
@@ -220,7 +224,7 @@ class PriceEstimateView(APIView):
         guests = {'gents': gents, 'ladies': ladies}
 
         try:
-            result = calculate_portions(dish_ids, guests)
+            result = calculate_portions(dish_ids, guests, org=get_request_org(request))
         except Exception as e:
             return Response(
                 {'detail': f'Calculation error: {e}'},
@@ -230,7 +234,11 @@ class PriceEstimateView(APIView):
         # Load selling prices
         selling_prices = {}
         has_unpriced = False
-        for d in Dish.objects.filter(id__in=dish_ids):
+        org = get_request_org(request)
+        dish_qs = Dish.objects.filter(id__in=dish_ids)
+        if org:
+            dish_qs = dish_qs.filter(organisation=org)
+        for d in dish_qs:
             if d.selling_price_per_gram and d.selling_price_per_gram > 0:
                 selling_prices[d.id] = float(d.selling_price_per_gram)
             else:
@@ -242,8 +250,9 @@ class PriceEstimateView(APIView):
             price_per_head += p['grams_per_person'] * spg
 
         # Apply rounding step from settings
-        from bookings.models import SiteSettings
-        step = SiteSettings.load().price_rounding_step
+        from bookings.models import OrgSettings
+        from users.mixins import get_request_org
+        step = OrgSettings.for_org(get_request_org(request)).price_rounding_step
         if step > 1:
             price_per_head = round(price_per_head / step) * step
 
@@ -268,6 +277,7 @@ class ExportPDFView(APIView):
                 constraint_overrides=data.get('constraint_overrides', {}),
                 big_eaters=data.get('big_eaters', False),
                 big_eaters_percentage=data.get('big_eaters_percentage', 20.0),
+                org=get_request_org(request),
             )
         except Exception as e:
             return Response(

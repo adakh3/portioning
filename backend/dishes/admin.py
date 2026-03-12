@@ -30,9 +30,9 @@ class DishAdmin(admin.ModelAdmin):
 
     @admin.action(description='Recalculate selling prices (non-overridden dishes)')
     def recalculate_selling_prices(self, request, queryset):
-        from bookings.models import SiteSettings
+        from bookings.models import OrgSettings
         from decimal import Decimal
-        settings = SiteSettings.load()
+        settings = OrgSettings.for_org(request.user.organisation)
         if not settings.target_food_cost_percentage:
             self.message_user(request, 'Target food cost percentage is not set.', level='error')
             return

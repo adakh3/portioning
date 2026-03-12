@@ -11,6 +11,7 @@ from bookings.models.activity import ActivityLog
 from bookings.models.choices import LeadStatusOption
 from bookings.models import Reminder
 from bookings.permissions import IsManagerOrOwner
+from users.mixins import get_request_org, apply_org_filter
 
 
 class DashboardStatsView(APIView):
@@ -42,10 +43,13 @@ class DashboardStatsView(APIView):
         else:  # all
             since = None
 
+        org = get_request_org(request)
+        base_leads = apply_org_filter(Lead.objects.all(), request)
         ct = ContentType.objects.get_for_model(Lead)
 
-        # Activity logs in period
-        period_logs = ActivityLog.objects.filter(content_type=ct)
+        # Restrict activity logs to leads in this org
+        org_lead_ids = base_leads.values_list('id', flat=True)
+        period_logs = ActivityLog.objects.filter(content_type=ct, object_id__in=org_lead_ids)
         if since:
             period_logs = period_logs.filter(created_at__gte=since)
         if until:
@@ -56,7 +60,7 @@ class DashboardStatsView(APIView):
         status_transitions = period_logs.filter(action='status_change').count()
         won = period_logs.filter(action='status_change', new_value='won').count()
         lost = period_logs.filter(action='status_change', new_value='lost').count()
-        total_active = Lead.objects.exclude(status__in=['won', 'lost']).count()
+        total_active = base_leads.exclude(status__in=['won', 'lost']).count()
 
         # Team activity — per user (period-scoped from activity logs)
         team_raw = (
@@ -95,14 +99,14 @@ class DashboardStatsView(APIView):
         avg_days = None
         if converted_lead_ids:
             result = (
-                Lead.objects.filter(id__in=converted_lead_ids, won_at__isnull=False)
+                base_leads.filter(id__in=converted_lead_ids, won_at__isnull=False)
                 .annotate(days=F('won_at') - F('created_at'))
                 .aggregate(avg_days=Avg('days'))
             )
             if result['avg_days']:
                 avg_days = round(result['avg_days'].total_seconds() / 86400, 1)
 
-        pipeline = Lead.objects.exclude(status__in=['won', 'lost']).aggregate(
+        pipeline = base_leads.exclude(status__in=['won', 'lost']).aggregate(
             pipeline_value=Sum('budget'),
             pipeline_count=Count('id'),
         )
@@ -110,7 +114,7 @@ class DashboardStatsView(APIView):
         # ── Salesperson performance ──
         # All statuses in DB order
         statuses = list(
-            LeadStatusOption.objects.filter(is_active=True)
+            apply_org_filter(LeadStatusOption.objects.filter(is_active=True), request)
             .order_by('sort_order')
             .values_list('value', 'label')
         )
@@ -123,7 +127,7 @@ class DashboardStatsView(APIView):
         ) if since or until else None
 
         # Pipeline per assigned_to — scoped to leads with activity in period
-        lead_qs = Lead.objects.filter(assigned_to__isnull=False)
+        lead_qs = base_leads.filter(assigned_to__isnull=False)
         if active_lead_ids is not None:
             lead_qs = lead_qs.filter(id__in=active_lead_ids)
         pipeline_qs = (
@@ -140,12 +144,15 @@ class DashboardStatsView(APIView):
         )
 
         # Overdue reminders per assigned user
+        reminder_base = Reminder.objects.filter(
+            status='pending',
+            due_at__lt=now,
+            lead__assigned_to__isnull=False,
+        )
+        if org is not None:
+            reminder_base = reminder_base.filter(lead__organisation=org)
         overdue_by_user = dict(
-            Reminder.objects.filter(
-                status='pending',
-                due_at__lt=now,
-                lead__assigned_to__isnull=False,
-            )
+            reminder_base
             .values_list('lead__assigned_to')
             .annotate(c=Count('id'))
             .values_list('lead__assigned_to', 'c')
@@ -154,7 +161,7 @@ class DashboardStatsView(APIView):
         # Stale leads per assigned user (no activity in 7+ days, still active)
         stale_cutoff = now - timedelta(days=7)
         stale_by_user = dict(
-            Lead.objects.filter(
+            base_leads.filter(
                 assigned_to__isnull=False,
                 updated_at__lt=stale_cutoff,
             )
@@ -190,7 +197,7 @@ class DashboardStatsView(APIView):
             sp['pipeline_value'] += float(row['value'] or 0)
 
         # Unassigned leads row
-        unassigned_lead_qs = Lead.objects.filter(assigned_to__isnull=True)
+        unassigned_lead_qs = base_leads.filter(assigned_to__isnull=True)
         if active_lead_ids is not None:
             unassigned_lead_qs = unassigned_lead_qs.filter(id__in=active_lead_ids)
         unassigned_qs = (
@@ -209,18 +216,21 @@ class DashboardStatsView(APIView):
             unassigned_value += float(row['value'] or 0)
 
         unassigned_stale = (
-            Lead.objects.filter(
+            base_leads.filter(
                 assigned_to__isnull=True,
                 updated_at__lt=stale_cutoff,
             )
             .exclude(status__in=['won', 'lost'])
             .count()
         )
-        unassigned_overdue = Reminder.objects.filter(
+        unassigned_reminder_base = Reminder.objects.filter(
             status='pending',
             due_at__lt=now,
             lead__assigned_to__isnull=True,
-        ).count()
+        )
+        if org is not None:
+            unassigned_reminder_base = unassigned_reminder_base.filter(lead__organisation=org)
+        unassigned_overdue = unassigned_reminder_base.count()
 
         unassigned_row = {
             'user_id': None,
@@ -256,7 +266,7 @@ class DashboardStatsView(APIView):
                 })
 
         # ── Status distribution: leads with activity in period, grouped by status ──
-        status_dist_lead_qs = Lead.objects.all()
+        status_dist_lead_qs = base_leads
         if active_lead_ids is not None:
             status_dist_lead_qs = status_dist_lead_qs.filter(id__in=active_lead_ids)
         status_distribution_qs = (

@@ -13,7 +13,7 @@ from reportlab.platypus import (
 )
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 
-from bookings.models.settings import SiteSettings
+from bookings.models.settings import OrgSettings
 from bookings.models.choices import EventTypeOption, ServiceStyleOption
 
 
@@ -196,7 +196,7 @@ def generate_quote_pdf(quote):
     Returns:
         bytes — PDF file content
     """
-    settings = SiteSettings.load()
+    settings = OrgSettings.for_org(quote.organisation)
     cs = settings.currency_symbol
     s = _styles()
 
@@ -279,7 +279,7 @@ def generate_quote_pdf(quote):
         left_data.append([Paragraph('Venue:', s['info_label']), Paragraph(quote.venue_address, s['info_value'])])
 
     et_label = (
-        EventTypeOption.objects.filter(value=quote.event_type)
+        EventTypeOption.objects.filter(value=quote.event_type, organisation=quote.organisation)
         .values_list('label', flat=True).first()
         or quote.event_type
     )
@@ -300,7 +300,7 @@ def generate_quote_pdf(quote):
     ss_label = ''
     if quote.service_style:
         ss_label = (
-            ServiceStyleOption.objects.filter(value=quote.service_style)
+            ServiceStyleOption.objects.filter(value=quote.service_style, organisation=quote.organisation)
             .values_list('label', flat=True).first()
             or quote.service_style
         )

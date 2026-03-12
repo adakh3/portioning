@@ -5,7 +5,7 @@ from bookings.models import Lead, ProductLine
 from bookings.models.activity import ActivityLog
 
 
-def run_round_robin(triggered_by_user):
+def run_round_robin(triggered_by_user, org=None):
     """
     Auto-assign unassigned, non-terminal leads to salespeople by product line.
     Uses count-based fairness: the salesperson with the fewest active leads
@@ -14,9 +14,12 @@ def run_round_robin(triggered_by_user):
     Returns dict with assigned, skipped_no_product, skipped_no_staff counts.
     """
     terminal_statuses = ['won', 'lost']
+    if org is None:
+        org = triggered_by_user.organisation
 
-    # All unassigned, non-terminal leads
+    # All unassigned, non-terminal leads in this org
     unassigned = Lead.objects.filter(
+        organisation=org,
         assigned_to__isnull=True,
     ).exclude(
         status__in=terminal_statuses,
@@ -39,7 +42,7 @@ def run_round_robin(triggered_by_user):
     for product_id, leads in leads_by_product.items():
         # Get active salespeople for this product line
         salespeople = list(
-            ProductLine.objects.get(pk=product_id)
+            ProductLine.objects.get(pk=product_id, organisation=org)
             .salespeople
             .filter(is_active=True)
             .annotate(
