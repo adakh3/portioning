@@ -11,7 +11,10 @@ class PaymentSerializer(serializers.ModelSerializer):
             'method', 'reference', 'notes', 'created_at',
         ]
         read_only_fields = ['created_at']
-        extra_kwargs = {'invoice': {'required': False}}
+        extra_kwargs = {
+            'invoice': {'required': False},
+            'notes': {'max_length': 5000},
+        }
 
 
 class InvoiceSerializer(serializers.ModelSerializer):
@@ -32,3 +35,4 @@ class InvoiceSerializer(serializers.ModelSerializer):
             'created_at', 'updated_at',
         ]
         read_only_fields = ['sent_at', 'paid_at', 'created_at', 'updated_at']
+        extra_kwargs = {'notes': {'max_length': 5000}}

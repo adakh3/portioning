@@ -1,5 +1,6 @@
 from decimal import Decimal
 
+from django.core.validators import MaxValueValidator
 from django.db import models
 
 
@@ -26,6 +27,7 @@ class SiteSettings(models.Model):
     )
     price_rounding_step = models.PositiveIntegerField(
         default=50,
+        validators=[MaxValueValidator(1000)],
         help_text='Round calculated prices to the nearest N (e.g. 50, 100). Set to 1 to disable rounding.',
     )
     quotation_terms = models.TextField(

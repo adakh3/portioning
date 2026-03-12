@@ -401,7 +401,7 @@ export default function LeadDetailPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Guest Estimate</label>
-                  <Input type="number" min="1" value={formData.guest_estimate} onChange={setField("guest_estimate")} />
+                  <Input type="number" min={1} max={50000} value={formData.guest_estimate} onChange={setField("guest_estimate")} />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Budget</label>

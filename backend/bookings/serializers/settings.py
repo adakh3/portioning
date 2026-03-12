@@ -7,3 +7,4 @@ class SiteSettingsSerializer(serializers.ModelSerializer):
     class Meta:
         model = SiteSettings
         fields = ['currency_symbol', 'currency_code', 'date_format', 'default_price_per_head', 'target_food_cost_percentage', 'price_rounding_step', 'quotation_terms']
+        extra_kwargs = {'quotation_terms': {'max_length': 10000}}

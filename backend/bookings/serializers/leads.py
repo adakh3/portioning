@@ -77,6 +77,10 @@ class LeadSerializer(serializers.ModelSerializer):
             'contacted_at', 'qualified_at', 'proposal_sent_at', 'won_at', 'lost_at',
             'created_at', 'updated_at',
         ]
+        extra_kwargs = {
+            'notes': {'max_length': 5000},
+            'lost_notes': {'max_length': 2000},
+        }
 
     def get_created_by_name(self, obj):
         if obj.created_by:

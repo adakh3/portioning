@@ -361,7 +361,7 @@ export default function QuoteDetailPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Guest Count *</label>
-                  <Input type="number" required min={1} value={createData.guest_count} onChange={setCreate("guest_count")} />
+                  <Input type="number" required min={1} max={50000} value={createData.guest_count} onChange={setCreate("guest_count")} />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Event Type</label>
@@ -630,7 +630,7 @@ export default function QuoteDetailPage() {
             </div>
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">Guest Count *</label>
-              <Input type="number" required min={1} value={editData.guest_count} onChange={setEdit("guest_count")} />
+              <Input type="number" required min={1} max={50000} value={editData.guest_count} onChange={setEdit("guest_count")} />
             </div>
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">Price Per Head ({cs})</label>
@@ -891,7 +891,7 @@ export default function QuoteDetailPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Quantity *</label>
-                  <Input type="number" step="0.01" min={0} required value={itemData.quantity} onChange={(e) => setItemData({ ...itemData, quantity: e.target.value })} />
+                  <Input type="number" step="0.01" min={0} max={99999} required value={itemData.quantity} onChange={(e) => setItemData({ ...itemData, quantity: e.target.value })} />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Unit</label>
@@ -904,7 +904,7 @@ export default function QuoteDetailPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Unit Price ({cs}) *</label>
-                  <Input type="number" step="0.01" min={0} required value={itemData.unit_price} onChange={(e) => setItemData({ ...itemData, unit_price: e.target.value })} />
+                  <Input type="number" step="0.01" min={0} max={9999999.99} required value={itemData.unit_price} onChange={(e) => setItemData({ ...itemData, unit_price: e.target.value })} />
                 </div>
                 <div className="flex items-center gap-2 mt-6">
                   <input type="checkbox" checked={itemData.is_taxable} onChange={(e) => setItemData({ ...itemData, is_taxable: e.target.checked })} className="rounded border-input" />

@@ -1,6 +1,7 @@
 from decimal import Decimal
 
 from django.conf import settings
+from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
 
 class EventStatus(models.TextChoices):
@@ -23,8 +24,8 @@ EVENT_STATUS_TRANSITIONS = {
 class Event(models.Model):
     name = models.CharField(max_length=200)
     date = models.DateField()
-    gents = models.IntegerField(default=0)
-    ladies = models.IntegerField(default=0)
+    gents = models.IntegerField(default=0, validators=[MinValueValidator(0), MaxValueValidator(50000)])
+    ladies = models.IntegerField(default=0, validators=[MinValueValidator(0), MaxValueValidator(50000)])
     big_eaters = models.BooleanField(default=False)
     big_eaters_percentage = models.FloatField(default=20.0, help_text="Percentage to increase all portions when big_eaters is on")
     dishes = models.ManyToManyField('dishes.Dish', blank=True)
@@ -57,6 +58,7 @@ class Event(models.Model):
     service_style = models.CharField(max_length=50, blank=True)
     price_per_head = models.DecimalField(
         max_digits=10, decimal_places=2, null=True, blank=True,
+        validators=[MinValueValidator(Decimal('0')), MaxValueValidator(Decimal('9999999.99'))],
         help_text='Food/menu price per head',
     )
     status = models.CharField(max_length=20, choices=EventStatus.choices, default=EventStatus.TENTATIVE)

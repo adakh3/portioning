@@ -1,3 +1,6 @@
+from decimal import Decimal
+
+from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
 
 
@@ -13,8 +16,8 @@ class MenuTemplate(models.Model):
     description = models.TextField(blank=True)
     menu_type = models.CharField(max_length=20, choices=MENU_TYPE_CHOICES, default='custom')
     is_active = models.BooleanField(default=True)
-    default_gents = models.IntegerField(default=50)
-    default_ladies = models.IntegerField(default=50)
+    default_gents = models.IntegerField(default=50, validators=[MinValueValidator(0), MaxValueValidator(50000)])
+    default_ladies = models.IntegerField(default=50, validators=[MinValueValidator(0), MaxValueValidator(50000)])
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -41,7 +44,7 @@ class MenuTemplatePriceTier(models.Model):
     """Fixed price-per-head at a guest-count threshold."""
     menu = models.ForeignKey(MenuTemplate, on_delete=models.CASCADE, related_name='price_tiers')
     min_guests = models.PositiveIntegerField(help_text="Guest count threshold (e.g. 50, 100, 200)")
-    price_per_head = models.DecimalField(max_digits=10, decimal_places=2)
+    price_per_head = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal('0')), MaxValueValidator(Decimal('9999999.99'))])
 
     class Meta:
         unique_together = ['menu', 'min_guests']

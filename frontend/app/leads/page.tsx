@@ -1358,6 +1358,8 @@ function LeadsTable({
               <TableCell>
                 <Input
                   type="number"
+                  min={1}
+                  max={50000}
                   placeholder="Guests"
                   value={quickAdd.guest_estimate ?? ""}
                   onChange={(e) => setQuickAdd((p) => ({ ...p, guest_estimate: e.target.value ? parseInt(e.target.value, 10) : null }))}

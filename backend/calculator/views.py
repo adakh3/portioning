@@ -18,13 +18,19 @@ class CalculateView(APIView):
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
 
-        result = calculate_portions(
-            dish_ids=data['dish_ids'],
-            guests=data['guests'],
-            constraint_overrides=data.get('constraint_overrides', {}),
-            big_eaters=data.get('big_eaters', False),
-            big_eaters_percentage=data.get('big_eaters_percentage', 20.0),
-        )
+        try:
+            result = calculate_portions(
+                dish_ids=data['dish_ids'],
+                guests=data['guests'],
+                constraint_overrides=data.get('constraint_overrides', {}),
+                big_eaters=data.get('big_eaters', False),
+                big_eaters_percentage=data.get('big_eaters_percentage', 20.0),
+            )
+        except Exception as e:
+            return Response(
+                {'detail': f'Calculation error: {e}'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         return Response(result)
 
 
@@ -134,13 +140,19 @@ class CheckPortionsView(APIView):
         )
 
         # Run engine for comparison
-        engine_result = calculate_portions(
-            dish_ids=dish_ids,
-            guests=guests,
-            constraint_overrides=constraint_overrides,
-            big_eaters=big_eaters,
-            big_eaters_percentage=big_eaters_percentage,
-        )
+        try:
+            engine_result = calculate_portions(
+                dish_ids=dish_ids,
+                guests=guests,
+                constraint_overrides=constraint_overrides,
+                big_eaters=big_eaters,
+                big_eaters_percentage=big_eaters_percentage,
+            )
+        except Exception as e:
+            return Response(
+                {'detail': f'Calculation error: {e}'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         # Build comparison list
         engine_by_dish = {p['dish_id']: p for p in engine_result['portions']}
@@ -207,7 +219,13 @@ class PriceEstimateView(APIView):
         ladies = guest_count - gents
         guests = {'gents': gents, 'ladies': ladies}
 
-        result = calculate_portions(dish_ids, guests)
+        try:
+            result = calculate_portions(dish_ids, guests)
+        except Exception as e:
+            return Response(
+                {'detail': f'Calculation error: {e}'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         # Load selling prices
         selling_prices = {}
@@ -243,13 +261,19 @@ class ExportPDFView(APIView):
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
 
-        result = calculate_portions(
-            dish_ids=data['dish_ids'],
-            guests=data['guests'],
-            constraint_overrides=data.get('constraint_overrides', {}),
-            big_eaters=data.get('big_eaters', False),
-            big_eaters_percentage=data.get('big_eaters_percentage', 20.0),
-        )
+        try:
+            result = calculate_portions(
+                dish_ids=data['dish_ids'],
+                guests=data['guests'],
+                constraint_overrides=data.get('constraint_overrides', {}),
+                big_eaters=data.get('big_eaters', False),
+                big_eaters_percentage=data.get('big_eaters_percentage', 20.0),
+            )
+        except Exception as e:
+            return Response(
+                {'detail': f'Calculation error: {e}'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         pdf_bytes = generate_portion_pdf(
             result=result,

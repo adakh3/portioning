@@ -222,7 +222,8 @@ export default function PricingPage() {
               <label className="block text-sm font-medium text-foreground mb-1">Guest Count</label>
               <Input
                 type="number"
-                min="1"
+                min={1}
+                max={50000}
                 value={customGuestCount}
                 onChange={(e) => setCustomGuestCount(e.target.value)}
                 placeholder="e.g. 150"

@@ -1,12 +1,12 @@
 from decimal import Decimal
 
-from django.core.validators import MinValueValidator
+from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
 
 
 class LaborRole(models.Model):
     name = models.CharField(max_length=100, unique=True)
-    default_hourly_rate = models.DecimalField(max_digits=8, decimal_places=2)
+    default_hourly_rate = models.DecimalField(max_digits=8, decimal_places=2, validators=[MinValueValidator(Decimal('0')), MaxValueValidator(Decimal('9999.99'))])
     description = models.TextField(blank=True)
     color = models.CharField(max_length=7, blank=True)
     sort_order = models.IntegerField(default=0)
@@ -28,6 +28,7 @@ class StaffMember(models.Model):
     roles = models.ManyToManyField(LaborRole, blank=True, related_name='staff_members')
     hourly_rate = models.DecimalField(
         max_digits=8, decimal_places=2, null=True, blank=True,
+        validators=[MinValueValidator(Decimal('0')), MaxValueValidator(Decimal('9999.99'))],
         help_text='Override default role rate',
     )
     certifications = models.TextField(blank=True)
@@ -63,8 +64,8 @@ class Shift(models.Model):
     role = models.ForeignKey(LaborRole, on_delete=models.PROTECT, related_name='shifts')
     start_time = models.DateTimeField()
     end_time = models.DateTimeField()
-    break_minutes = models.IntegerField(default=0, validators=[MinValueValidator(0)])
-    hourly_rate = models.DecimalField(max_digits=8, decimal_places=2)
+    break_minutes = models.IntegerField(default=0, validators=[MinValueValidator(0), MaxValueValidator(480)])
+    hourly_rate = models.DecimalField(max_digits=8, decimal_places=2, validators=[MinValueValidator(Decimal('0')), MaxValueValidator(Decimal('9999.99'))])
     status = models.CharField(max_length=20, choices=ShiftStatus.choices, default=ShiftStatus.SCHEDULED)
     notes = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -98,8 +99,8 @@ class Shift(models.Model):
 class AllocationRule(models.Model):
     role = models.ForeignKey(LaborRole, on_delete=models.CASCADE, related_name='allocation_rules')
     event_type = models.CharField(max_length=50, blank=True, help_text='Blank = applies to all event types')
-    guests_per_staff = models.IntegerField(help_text='e.g. 30 means 1 staff per 30 guests')
-    minimum_staff = models.IntegerField(default=1)
+    guests_per_staff = models.IntegerField(validators=[MinValueValidator(1), MaxValueValidator(1000)], help_text='e.g. 30 means 1 staff per 30 guests')
+    minimum_staff = models.IntegerField(default=1, validators=[MinValueValidator(1), MaxValueValidator(500)])
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 

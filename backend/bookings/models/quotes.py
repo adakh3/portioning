@@ -42,7 +42,7 @@ class Quote(models.Model):
         on_delete=models.SET_NULL, related_name='quotes',
     )
     venue_address = models.TextField(blank=True, help_text='Freeform address for ad-hoc venues')
-    guest_count = models.IntegerField(validators=[MinValueValidator(1)])
+    guest_count = models.IntegerField(validators=[MinValueValidator(1), MaxValueValidator(50000)])
     price_per_head = models.DecimalField(
         max_digits=10, decimal_places=2, null=True, blank=True,
         validators=[MaxValueValidator(Decimal('9999999.99'))],
@@ -142,9 +142,9 @@ class QuoteLineItem(models.Model):
     quote = models.ForeignKey(Quote, on_delete=models.CASCADE, related_name='line_items')
     category = models.CharField(max_length=20, choices=LineItemCategory.choices)
     description = models.CharField(max_length=500)
-    quantity = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('1.00'))
+    quantity = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('1.00'), validators=[MinValueValidator(Decimal('0')), MaxValueValidator(Decimal('99999'))])
     unit = models.CharField(max_length=20, choices=LineItemUnit.choices, default=LineItemUnit.EACH)
-    unit_price = models.DecimalField(max_digits=10, decimal_places=2)
+    unit_price = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal('0')), MaxValueValidator(Decimal('9999999.99'))])
     is_taxable = models.BooleanField(default=True)
     line_total = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
     sort_order = models.IntegerField(default=0)

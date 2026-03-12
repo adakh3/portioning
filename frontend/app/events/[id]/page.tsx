@@ -706,7 +706,8 @@ export default function EventDetailPage() {
                     <Input
                       type="number"
                       step="0.01"
-                      min="0"
+                      min={0}
+                      max={9999999.99}
                       value={formPricePerHead}
                       onChange={(e) => setFormPricePerHead(e.target.value)}
                       placeholder="0.00"
@@ -758,6 +759,7 @@ export default function EventDetailPage() {
                     <Input
                       type="number"
                       min={1}
+                      max={100000}
                       value={formTotalGuests || ""}
                       onChange={(e) => {
                         const total = Math.max(0, Number(e.target.value) || 0);

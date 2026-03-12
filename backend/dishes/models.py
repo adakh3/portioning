@@ -1,5 +1,6 @@
 from decimal import Decimal
 
+from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
 
 
@@ -38,10 +39,12 @@ class DishCategory(models.Model):
     )
     baseline_budget_grams = models.FloatField(
         default=0,
+        validators=[MinValueValidator(0)],
         help_text="Standard budget for this category with 1 dish (per person)",
     )
     min_per_dish_grams = models.FloatField(
         default=0,
+        validators=[MinValueValidator(0)],
         help_text="Minimum viable portion for any single dish in this category",
     )
     fixed_portion_grams = models.FloatField(
@@ -50,10 +53,12 @@ class DishCategory(models.Model):
     )
     addition_surcharge = models.DecimalField(
         max_digits=10, decimal_places=2, default=0,
+        validators=[MinValueValidator(Decimal('0'))],
         help_text="Per-head surcharge when adding a dish in this category",
     )
     removal_discount = models.DecimalField(
         max_digits=10, decimal_places=2, default=0,
+        validators=[MinValueValidator(Decimal('0'))],
         help_text="Per-head discount when removing a dish from this category",
     )
 
@@ -81,9 +86,10 @@ class Dish(models.Model):
     protein_type = models.CharField(max_length=20, choices=ProteinType.choices, default=ProteinType.NONE)
     default_portion_grams = models.FloatField(help_text="Baseline portion in grams")
     popularity = models.FloatField(default=1.0, help_text="Relative popularity weight")
-    cost_per_gram = models.DecimalField(max_digits=10, decimal_places=4, default=0)
+    cost_per_gram = models.DecimalField(max_digits=10, decimal_places=4, default=0, validators=[MinValueValidator(Decimal('0'))])
     selling_price_per_gram = models.DecimalField(
         max_digits=10, decimal_places=4, null=True, blank=True,
+        validators=[MinValueValidator(Decimal('0'))],
         help_text='Selling price per gram; auto-calculated unless overridden',
     )
     selling_price_override = models.BooleanField(
@@ -92,10 +98,12 @@ class Dish(models.Model):
     )
     addition_surcharge = models.DecimalField(
         max_digits=10, decimal_places=2, default=0,
+        validators=[MinValueValidator(Decimal('0'))],
         help_text="Per-head surcharge when adding this dish; auto-calculated unless overridden",
     )
     removal_discount = models.DecimalField(
         max_digits=10, decimal_places=2, default=0,
+        validators=[MinValueValidator(Decimal('0'))],
         help_text="Per-head discount when removing this dish; auto-calculated unless overridden",
     )
     surcharge_override = models.BooleanField(
@@ -121,7 +129,7 @@ class Dish(models.Model):
         if not self.cost_per_gram:
             return None
         settings = SiteSettings.load()
-        if not settings.target_food_cost_percentage:
+        if not settings.target_food_cost_percentage or settings.target_food_cost_percentage == 0:
             return None
         cost = Decimal(str(self.cost_per_gram))
         return cost / (settings.target_food_cost_percentage / Decimal('100'))
@@ -130,7 +138,7 @@ class Dish(models.Model):
         if not self.selling_price_override and self.cost_per_gram:
             from bookings.models import SiteSettings
             settings = SiteSettings.load()
-            if settings.target_food_cost_percentage:
+            if settings.target_food_cost_percentage and settings.target_food_cost_percentage != 0:
                 cost = Decimal(str(self.cost_per_gram))
                 self.selling_price_per_gram = cost / (
                     settings.target_food_cost_percentage / Decimal('100')

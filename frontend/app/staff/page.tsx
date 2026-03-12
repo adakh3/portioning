@@ -194,6 +194,8 @@ function StaffRosterTab() {
               <Input
                 type="number"
                 step="0.01"
+                min={0}
+                max={9999.99}
                 value={formData.hourly_rate || ""}
                 onChange={(e) => setFormData({ ...formData, hourly_rate: e.target.value })}
                 placeholder="0.00"
@@ -317,6 +319,8 @@ function StaffRosterTab() {
                         <Input
                           type="number"
                           step="0.01"
+                          min={0}
+                          max={9999.99}
                           value={editFormData.hourly_rate || ""}
                           onChange={(e) =>
                             setEditFormData({ ...editFormData, hourly_rate: e.target.value })
@@ -464,6 +468,8 @@ function LabourRolesTab() {
               <Input
                 type="number"
                 step="0.01"
+                min={0}
+                max={9999.99}
                 required
                 value={formData.default_hourly_rate || ""}
                 onChange={(e) =>
@@ -558,6 +564,8 @@ function LabourRolesTab() {
                         <Input
                           type="number"
                           step="0.01"
+                          min={0}
+                          max={9999.99}
                           required
                           value={editFormData.default_hourly_rate || ""}
                           onChange={(e) =>

@@ -151,6 +151,8 @@ export default function EquipmentPage() {
               <Input
                 type="number"
                 step="0.01"
+                min={0}
+                max={99999.99}
                 value={formData.rental_price || ""}
                 onChange={(e) => setFormData({ ...formData, rental_price: e.target.value })}
                 placeholder="0.00"
@@ -300,6 +302,8 @@ export default function EquipmentPage() {
                           <Input
                             type="number"
                             step="0.01"
+                            min={0}
+                            max={99999.99}
                             value={editFormData.rental_price || ""}
                             onChange={(e) =>
                               setEditFormData({ ...editFormData, rental_price: e.target.value })
@@ -315,6 +319,8 @@ export default function EquipmentPage() {
                         <Input
                           type="number"
                           step="0.01"
+                          min={0}
+                          max={999999.99}
                           value={editFormData.replacement_cost || ""}
                           onChange={(e) =>
                             setEditFormData({ ...editFormData, replacement_cost: e.target.value })

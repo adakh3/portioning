@@ -131,6 +131,7 @@ export default function SettingsPage() {
                   type="number"
                   step="0.01"
                   min="0"
+                  max="9999999.99"
                   value={formData.default_price_per_head}
                   onChange={(e) => setFormData({ ...formData, default_price_per_head: e.target.value })}
                 />
@@ -159,6 +160,7 @@ export default function SettingsPage() {
                   type="number"
                   step="1"
                   min="1"
+                  max="1000"
                   value={formData.price_rounding_step}
                   onChange={(e) => setFormData({ ...formData, price_rounding_step: e.target.value })}
                 />
