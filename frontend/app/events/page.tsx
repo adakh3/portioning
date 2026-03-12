@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
 import { EventData } from "@/lib/api";
 import { useEvents } from "@/lib/hooks";
@@ -8,6 +8,7 @@ import { useQueryState } from "@/lib/useQueryState";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 
 const statusBadgeVariant: Record<string, "warning" | "info" | "secondary" | "success" | "destructive"> = {
   tentative: "warning",
@@ -27,6 +28,7 @@ export default function EventsPage() {
 
 function EventsContent() {
   const [statusFilter, setStatusFilter] = useQueryState("status", "");
+  const [search, setSearch] = useState("");
   const { data: events = [], error, isLoading: loading } = useEvents(statusFilter ? { status: statusFilter } : undefined);
 
   const statuses = ["", "tentative", "confirmed", "in_progress", "completed", "cancelled"];
@@ -46,6 +48,16 @@ function EventsContent() {
         <Button asChild>
           <Link href="/events/new">New Event</Link>
         </Button>
+      </div>
+
+      <div className="flex flex-wrap items-end gap-2">
+        <Input
+          type="text"
+          placeholder="Search..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="w-48"
+        />
       </div>
 
       {/* Status filter tabs */}
@@ -72,14 +84,28 @@ function EventsContent() {
         </div>
       )}
 
-      {!loading && events.length === 0 && (
+      {(() => {
+        const s = search.toLowerCase();
+        const filtered = search
+          ? events.filter((e) =>
+              e.name?.toLowerCase().includes(s) ||
+              e.account_name?.toLowerCase().includes(s) ||
+              e.contact_name?.toLowerCase().includes(s) ||
+              e.venue_name?.toLowerCase().includes(s) ||
+              e.venue_address?.toLowerCase().includes(s) ||
+              e.date?.includes(s)
+            )
+          : events;
+
+      return <>
+      {!loading && filtered.length === 0 && (
         <p className="text-muted-foreground">
           No events yet. Click &quot;New Event&quot; to create one, or accept a quote.
         </p>
       )}
 
       <div className="space-y-4">
-        {events.map((event) => (
+        {filtered.map((event) => (
           <Card
             key={event.id}
             className="hover:border-border/80 transition-colors"
@@ -136,6 +162,8 @@ function EventsContent() {
           </Card>
         ))}
       </div>
+      </>;
+      })()}
     </div>
   );
 }
