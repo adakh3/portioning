@@ -6,7 +6,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from bookings.permissions import is_salesperson
 from .models import Event, EventStatus
-from users.mixins import get_request_org
+from users.mixins import get_request_org, apply_org_filter
 from .serializers import EventSerializer
 
 
@@ -39,7 +39,8 @@ class EventListCreateView(generics.ListCreateAPIView):
             'shifts', 'shifts__staff_member', 'shifts__role',
             'equipment_reservations', 'equipment_reservations__equipment',
             'invoices', 'invoices__payments',
-        ).filter(organisation=get_request_org(self.request))
+        )
+        qs = apply_org_filter(qs, self.request)
 
         # Salesperson sees only events they created
         user = self.request.user
@@ -70,7 +71,8 @@ class EventDetailView(generics.RetrieveUpdateDestroyAPIView):
             'shifts', 'shifts__staff_member', 'shifts__role',
             'equipment_reservations', 'equipment_reservations__equipment',
             'invoices', 'invoices__payments',
-        ).filter(organisation=get_request_org(self.request))
+        )
+        return apply_org_filter(qs, self.request)
 
 
 class EventCalculateView(APIView):

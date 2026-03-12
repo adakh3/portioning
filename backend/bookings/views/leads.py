@@ -5,7 +5,7 @@ from rest_framework.views import APIView
 
 from users.models import User
 from users.serializers import UserSerializer
-from users.mixins import get_request_org
+from users.mixins import get_request_org, apply_org_filter
 from bookings.models import Lead, ProductLine, Quote
 from bookings.models.choices import LeadStatusOption
 from bookings.serializers import LeadSerializer, QuoteSerializer
@@ -58,7 +58,8 @@ class LeadListCreateView(generics.ListCreateAPIView):
         qs = Lead.objects.select_related(
             'account', 'won_quote', 'won_event', 'product', 'assigned_to',
             'lost_reason_option',
-        ).prefetch_related('quotes').filter(organisation=get_request_org(self.request))
+        ).prefetch_related('quotes')
+        qs = apply_org_filter(qs, self.request)
 
         # Salesperson sees only their own leads
         user = self.request.user
@@ -124,7 +125,7 @@ class LeadBulkUpdateView(APIView):
         if action not in ('assign', 'status', 'product', 'delete'):
             return Response({'error': 'action must be one of: assign, status, product, delete'}, status=status.HTTP_400_BAD_REQUEST)
 
-        leads = Lead.objects.filter(id__in=ids, organisation=get_request_org(request))
+        leads = apply_org_filter(Lead.objects.filter(id__in=ids), request)
         count = leads.count()
 
         if count == 0:
@@ -205,7 +206,8 @@ class LeadDetailView(generics.RetrieveUpdateDestroyAPIView):
         return Lead.objects.select_related(
             'account', 'won_quote', 'won_event', 'product', 'assigned_to',
             'lost_reason_option',
-        ).prefetch_related('quotes').filter(organisation=get_request_org(self.request))
+        ).prefetch_related('quotes')
+        return apply_org_filter(qs, self.request)
 
     def perform_update(self, serializer):
         lead = self.get_object()

@@ -9,7 +9,7 @@ from bookings.models.quotes import QuoteStatus
 from bookings.serializers import QuoteSerializer, QuoteLineItemSerializer
 from bookings.pdf import generate_quote_pdf
 from bookings.permissions import is_salesperson
-from users.mixins import get_request_org
+from users.mixins import get_request_org, apply_org_filter
 
 
 class QuoteListCreateView(generics.ListCreateAPIView):
@@ -20,7 +20,8 @@ class QuoteListCreateView(generics.ListCreateAPIView):
         serializer.save(created_by=user, organisation=get_request_org(self.request))
 
     def get_queryset(self):
-        qs = Quote.objects.select_related('account', 'venue', 'lead', 'event', 'based_on_template', 'primary_contact').prefetch_related('line_items', 'dishes').filter(organisation=get_request_org(self.request))
+        qs = Quote.objects.select_related('account', 'venue', 'lead', 'event', 'based_on_template', 'primary_contact').prefetch_related('line_items', 'dishes')
+        qs = apply_org_filter(qs, self.request)
 
         # Salesperson sees only quotes they created or linked to their leads
         user = self.request.user
@@ -37,7 +38,8 @@ class QuoteDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = QuoteSerializer
 
     def get_queryset(self):
-        return Quote.objects.select_related('account', 'venue', 'lead', 'event', 'based_on_template', 'primary_contact').prefetch_related('line_items', 'dishes').filter(organisation=get_request_org(self.request))
+        qs = Quote.objects.select_related('account', 'venue', 'lead', 'event', 'based_on_template', 'primary_contact').prefetch_related('line_items', 'dishes')
+        return apply_org_filter(qs, self.request)
 
     def perform_update(self, serializer):
         serializer.save()
