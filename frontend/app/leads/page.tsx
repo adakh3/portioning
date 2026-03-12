@@ -296,6 +296,7 @@ function LeadsContent() {
         l.contact_name.toLowerCase().includes(search.toLowerCase()) ||
         l.event_type_display.toLowerCase().includes(search.toLowerCase()) ||
         l.contact_email.toLowerCase().includes(search.toLowerCase()) ||
+        l.contact_phone?.toLowerCase().includes(search.toLowerCase()) ||
         l.account_name?.toLowerCase().includes(search.toLowerCase())
       )
     : leads;

@@ -15,7 +15,7 @@ class ReminderSerializer(serializers.ModelSerializer):
             'due_at', 'note', 'status', 'snoozed_until',
             'completed_at', 'created_by', 'created_by_name', 'created_at',
         ]
-        read_only_fields = ['id', 'completed_at', 'created_by', 'created_at']
+        read_only_fields = ['id', 'lead', 'user', 'completed_at', 'created_by', 'created_at']
 
     def get_lead_name(self, obj):
         return obj.lead.contact_name if obj.lead_id else None
