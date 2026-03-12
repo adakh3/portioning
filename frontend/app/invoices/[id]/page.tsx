@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { ValidatedInput } from "@/components/ui/validated-input";
 
 const STATUS_BADGE_VARIANT: Record<string, "secondary" | "info" | "warning" | "success" | "destructive" | "outline"> = {
   draft: "secondary",
@@ -210,7 +211,7 @@ export default function InvoiceDetailPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Amount *</label>
-                  <Input
+                  <ValidatedInput
                     type="number"
                     step="0.01"
                     min="0.01"
@@ -248,7 +249,7 @@ export default function InvoiceDetailPage() {
                   <label className="block text-sm font-medium text-foreground mb-1">Reference</label>
                   <Input
                     type="text"
-                    maxLength={200}
+                    maxLength={50}
                     value={paymentData.reference}
                     onChange={(e) => setPaymentData({ ...paymentData, reference: e.target.value })}
                     placeholder="Transaction ref, check #, etc."

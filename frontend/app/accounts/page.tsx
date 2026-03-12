@@ -6,6 +6,7 @@ import { api } from "@/lib/api";
 import { useAccounts } from "@/lib/hooks";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ValidatedInput } from "@/components/ui/validated-input";
 import { Card, CardContent } from "@/components/ui/card";
 
 export default function AccountsPage() {
@@ -59,7 +60,7 @@ export default function AccountsPage() {
                   <Input
                     type="text"
                     required
-                    maxLength={200}
+                    maxLength={100}
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   />

@@ -10,6 +10,7 @@ import { useMenus, useDishes, useSiteSettings } from "@/lib/hooks";
 import { formatCurrency } from "@/lib/utils";
 import MenuBuilder from "@/components/MenuBuilder";
 import { Input } from "@/components/ui/input";
+import { ValidatedInput } from "@/components/ui/validated-input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 
 const MENU_TYPE_LABELS: Record<string, string> = {
@@ -220,7 +221,7 @@ export default function PricingPage() {
           <CardContent className="pt-5 space-y-4">
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">Guest Count</label>
-              <Input
+              <ValidatedInput
                 type="number"
                 min={1}
                 max={50000}

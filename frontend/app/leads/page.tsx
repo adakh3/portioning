@@ -21,7 +21,7 @@ import { useAuth } from "@/lib/auth";
 import { useLeads, useUsers, useProductLines, useEventTypes, useLeadStatuses, useLostReasons, useDateFormat, revalidate } from "@/lib/hooks";
 import { formatDate } from "@/lib/dateFormat";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { ValidatedInput } from "@/components/ui/validated-input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -551,7 +551,7 @@ function LeadsContent() {
         ) : null
       ) : (
         <div className="flex flex-wrap items-end gap-2 mb-4">
-          <Input
+          <ValidatedInput
             type="text"
             placeholder="Search..."
             value={search}
@@ -601,9 +601,9 @@ function LeadsContent() {
           </Select>
           <div className="flex items-center gap-1">
             <label className="text-xs text-muted-foreground whitespace-nowrap">Event:</label>
-            <Input type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)} className={`w-36 ${!filterDateFrom ? "text-muted-foreground/50" : ""}`} />
+            <ValidatedInput type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)} className={`w-36 ${!filterDateFrom ? "text-muted-foreground/50" : ""}`} />
             <span className="text-muted-foreground text-xs">-</span>
-            <Input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)} className={`w-36 ${!filterDateTo ? "text-muted-foreground/50" : ""}`} />
+            <ValidatedInput type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)} className={`w-36 ${!filterDateTo ? "text-muted-foreground/50" : ""}`} />
             {(filterDateFrom || filterDateTo) && (
               <button type="button" onClick={() => { setFilterDateFrom(""); setFilterDateTo(""); }}
                 className="text-muted-foreground hover:text-foreground text-xs px-1" title="Clear event dates">&times;</button>
@@ -611,9 +611,9 @@ function LeadsContent() {
           </div>
           <div className="flex items-center gap-1">
             <label className="text-xs text-muted-foreground whitespace-nowrap">Lead:</label>
-            <Input type="date" value={filterLeadDateFrom} onChange={(e) => setFilterLeadDateFrom(e.target.value)} className={`w-36 ${!filterLeadDateFrom ? "text-muted-foreground/50" : ""}`} />
+            <ValidatedInput type="date" value={filterLeadDateFrom} onChange={(e) => setFilterLeadDateFrom(e.target.value)} className={`w-36 ${!filterLeadDateFrom ? "text-muted-foreground/50" : ""}`} />
             <span className="text-muted-foreground text-xs">-</span>
-            <Input type="date" value={filterLeadDateTo} onChange={(e) => setFilterLeadDateTo(e.target.value)} className={`w-36 ${!filterLeadDateTo ? "text-muted-foreground/50" : ""}`} />
+            <ValidatedInput type="date" value={filterLeadDateTo} onChange={(e) => setFilterLeadDateTo(e.target.value)} className={`w-36 ${!filterLeadDateTo ? "text-muted-foreground/50" : ""}`} />
             {(filterLeadDateFrom || filterLeadDateTo) && (
               <button type="button" onClick={() => { setFilterLeadDateFrom(""); setFilterLeadDateTo(""); }}
                 className="text-muted-foreground hover:text-foreground text-xs px-1" title="Clear lead dates">&times;</button>
@@ -1105,7 +1105,7 @@ function LeadsTable({
     if (isEditing(field, lead.id)) {
       return (
         <TableCell className={className} onClick={(e) => e.stopPropagation()}>
-          <Input
+          <ValidatedInput
             type={type}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
@@ -1294,7 +1294,7 @@ function LeadsTable({
               </TableCell>
               {/* Name */}
               <TableCell>
-                <Input
+                <ValidatedInput
                   placeholder="Name *"
                   value={quickAdd.contact_name || ""}
                   onChange={(e) => setQuickAdd((p) => ({ ...p, contact_name: e.target.value }))}
@@ -1309,7 +1309,7 @@ function LeadsTable({
               </TableCell>
               {/* Email */}
               <TableCell className="hidden lg:table-cell">
-                <Input
+                <ValidatedInput
                   type="email"
                   placeholder="Email"
                   value={quickAdd.contact_email || ""}
@@ -1340,7 +1340,7 @@ function LeadsTable({
               </TableCell>
               {/* Event Date */}
               <TableCell>
-                <Input
+                <ValidatedInput
                   type="date"
                   value={quickAdd.event_date || ""}
                   onChange={(e) => setQuickAdd((p) => ({ ...p, event_date: e.target.value || null }))}
@@ -1356,7 +1356,7 @@ function LeadsTable({
               <TableCell className="hidden lg:table-cell text-muted-foreground text-xs">—</TableCell>
               {/* Guests */}
               <TableCell>
-                <Input
+                <ValidatedInput
                   type="number"
                   min={1}
                   max={50000}

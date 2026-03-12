@@ -6,6 +6,7 @@ import { api } from "@/lib/api";
 import { useSiteSettings } from "@/lib/hooks";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ValidatedInput } from "@/components/ui/validated-input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function SettingsPage() {
@@ -77,7 +78,7 @@ export default function SettingsPage() {
                 <Input
                   type="text"
                   required
-                  maxLength={10}
+                  maxLength={5}
                   value={formData.currency_symbol}
                   onChange={(e) => setFormData({ ...formData, currency_symbol: e.target.value })}
                 />
@@ -87,7 +88,7 @@ export default function SettingsPage() {
                 <Input
                   type="text"
                   required
-                  maxLength={10}
+                  maxLength={5}
                   value={formData.currency_code}
                   onChange={(e) => setFormData({ ...formData, currency_code: e.target.value })}
                 />
@@ -129,7 +130,7 @@ export default function SettingsPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">Default Price Per Head ({formData.currency_symbol})</label>
-                <Input
+                <ValidatedInput
                   type="number"
                   step="0.01"
                   min="0"
@@ -143,7 +144,7 @@ export default function SettingsPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">Target Food Cost %</label>
-                <Input
+                <ValidatedInput
                   type="number"
                   step="0.01"
                   min="0"
@@ -158,7 +159,7 @@ export default function SettingsPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">Price Rounding Step</label>
-                <Input
+                <ValidatedInput
                   type="number"
                   step="1"
                   min="1"

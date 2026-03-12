@@ -11,7 +11,7 @@ import MenuBuilder from "@/components/MenuBuilder";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { ValidatedInput } from "@/components/ui/validated-input";
 import { Textarea } from "@/components/ui/textarea";
 
 const STATUS_BADGE_VARIANT: Record<string, "secondary" | "info" | "success" | "warning" | "destructive"> = {
@@ -357,11 +357,11 @@ export default function QuoteDetailPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Event Date *</label>
-                  <Input type="date" required value={createData.event_date} onChange={setCreate("event_date")} />
+                  <ValidatedInput type="date" required value={createData.event_date} onChange={setCreate("event_date")} />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Guest Count *</label>
-                  <Input type="number" required min={1} max={50000} value={createData.guest_count} onChange={setCreate("guest_count")} />
+                  <ValidatedInput type="number" required min={1} max={50000} value={createData.guest_count} onChange={setCreate("guest_count")} />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Event Type</label>
@@ -400,7 +400,7 @@ export default function QuoteDetailPage() {
                     value={createData.venue_address}
                     onChange={setCreate("venue_address")}
                     rows={2}
-                    maxLength={1000}
+                    maxLength={300}
                     placeholder={venueSelected ? "e.g. Use the garden entrance" : "e.g. 42 Oak Lane, Manchester, M1 2AB"}
                   />
                 </div>
@@ -433,7 +433,7 @@ export default function QuoteDetailPage() {
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Price Per Head ({cs})</label>
                   <div className="flex gap-2">
-                    <Input
+                    <ValidatedInput
                       type="number"
                       step="0.01"
                       min={0}
@@ -466,7 +466,7 @@ export default function QuoteDetailPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Tax Rate (%)</label>
-                  <Input
+                  <ValidatedInput
                     type="number"
                     step="0.01"
                     min={0}
@@ -477,7 +477,7 @@ export default function QuoteDetailPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Valid Until</label>
-                  <Input type="date" value={createData.valid_until} onChange={setCreate("valid_until")} />
+                  <ValidatedInput type="date" value={createData.valid_until} onChange={setCreate("valid_until")} />
                 </div>
               </div>
             </CardContent>
@@ -490,11 +490,11 @@ export default function QuoteDetailPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Notes (customer-visible)</label>
-                  <Textarea value={createData.notes} onChange={setCreate("notes")} rows={3} maxLength={5000} />
+                  <Textarea value={createData.notes} onChange={setCreate("notes")} rows={3} maxLength={2000} />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Internal Notes</label>
-                  <Textarea value={createData.internal_notes} onChange={setCreate("internal_notes")} rows={3} maxLength={5000} />
+                  <Textarea value={createData.internal_notes} onChange={setCreate("internal_notes")} rows={3} maxLength={2000} />
                 </div>
               </div>
             </CardContent>
@@ -627,16 +627,16 @@ export default function QuoteDetailPage() {
             </div>
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">Event Date *</label>
-              <Input type="date" required value={editData.event_date} onChange={setEdit("event_date")} />
+              <ValidatedInput type="date" required value={editData.event_date} onChange={setEdit("event_date")} />
             </div>
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">Guest Count *</label>
-              <Input type="number" required min={1} max={50000} value={editData.guest_count} onChange={setEdit("guest_count")} />
+              <ValidatedInput type="number" required min={1} max={50000} value={editData.guest_count} onChange={setEdit("guest_count")} />
             </div>
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">Price Per Head ({cs})</label>
               <div className="flex gap-2">
-                <Input type="number" step="0.01" min={0} max={9999999.99} value={editData.price_per_head} onChange={setEdit("price_per_head")} placeholder="0.00" />
+                <ValidatedInput type="number" step="0.01" min={0} max={9999999.99} value={editData.price_per_head} onChange={setEdit("price_per_head")} placeholder="0.00" />
                 {suggestedPrice !== null && (
                   <Button
                     type="button"
@@ -681,23 +681,23 @@ export default function QuoteDetailPage() {
             </div>
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-foreground mb-1">Venue Address / Notes</label>
-              <Textarea value={editData.venue_address} onChange={setEdit("venue_address")} rows={2} maxLength={1000} placeholder="Freeform address or additional venue notes" />
+              <Textarea value={editData.venue_address} onChange={setEdit("venue_address")} rows={2} maxLength={300} placeholder="Freeform address or additional venue notes" />
             </div>
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">Tax Rate (%)</label>
-              <Input type="number" step="0.01" min={0} max={100} value={editData.tax_rate} onChange={setEdit("tax_rate")} />
+              <ValidatedInput type="number" step="0.01" min={0} max={100} value={editData.tax_rate} onChange={setEdit("tax_rate")} />
             </div>
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">Valid Until</label>
-              <Input type="date" value={editData.valid_until} onChange={setEdit("valid_until")} />
+              <ValidatedInput type="date" value={editData.valid_until} onChange={setEdit("valid_until")} />
             </div>
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">Notes (customer-visible)</label>
-              <Textarea value={editData.notes} onChange={setEdit("notes")} rows={2} maxLength={5000} />
+              <Textarea value={editData.notes} onChange={setEdit("notes")} rows={2} maxLength={2000} />
             </div>
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">Internal Notes</label>
-              <Textarea value={editData.internal_notes} onChange={setEdit("internal_notes")} rows={2} maxLength={5000} />
+              <Textarea value={editData.internal_notes} onChange={setEdit("internal_notes")} rows={2} maxLength={2000} />
             </div>
           </div>
           <div className="flex gap-3 mt-4">
@@ -888,11 +888,11 @@ export default function QuoteDetailPage() {
                 </div>
                 <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-foreground mb-1">Description *</label>
-                  <Input type="text" required maxLength={500} value={itemData.description} onChange={(e) => setItemData({ ...itemData, description: e.target.value })} />
+                  <ValidatedInput type="text" required maxLength={100} value={itemData.description} onChange={(e) => setItemData({ ...itemData, description: e.target.value })} />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Quantity *</label>
-                  <Input type="number" step="0.01" min={0} max={99999} required value={itemData.quantity} onChange={(e) => setItemData({ ...itemData, quantity: e.target.value })} />
+                  <ValidatedInput type="number" step="0.01" min={0} max={99999} required value={itemData.quantity} onChange={(e) => setItemData({ ...itemData, quantity: e.target.value })} />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Unit</label>
@@ -905,7 +905,7 @@ export default function QuoteDetailPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Unit Price ({cs}) *</label>
-                  <Input type="number" step="0.01" min={0} max={9999999.99} required value={itemData.unit_price} onChange={(e) => setItemData({ ...itemData, unit_price: e.target.value })} />
+                  <ValidatedInput type="number" step="0.01" min={0} max={9999999.99} required value={itemData.unit_price} onChange={(e) => setItemData({ ...itemData, unit_price: e.target.value })} />
                 </div>
                 <div className="flex items-center gap-2 mt-6">
                   <input type="checkbox" checked={itemData.is_taxable} onChange={(e) => setItemData({ ...itemData, is_taxable: e.target.checked })} className="rounded border-input" />

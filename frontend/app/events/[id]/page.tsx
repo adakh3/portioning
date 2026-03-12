@@ -25,7 +25,7 @@ import MenuBuilder from "@/components/MenuBuilder";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { ValidatedInput } from "@/components/ui/validated-input";
 import { Textarea } from "@/components/ui/textarea";
 import { formatCurrency } from "@/lib/utils";
 
@@ -439,7 +439,7 @@ export default function EventDetailPage() {
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-center gap-3 flex-1 min-w-0">
               {editing ? (
-                <Input
+                <ValidatedInput
                   type="text"
                   value={formName}
                   onChange={(e) => setFormName(e.target.value)}
@@ -452,7 +452,7 @@ export default function EventDetailPage() {
                 </h1>
               )}
               {editing ? (
-                <Input
+                <ValidatedInput
                   type="date"
                   value={formDate}
                   onChange={(e) => setFormDate(e.target.value)}
@@ -668,7 +668,7 @@ export default function EventDetailPage() {
                       value={formVenueAddress}
                       onChange={(e) => setFormVenueAddress(e.target.value)}
                       rows={3}
-                      maxLength={1000}
+                      maxLength={300}
                       placeholder="Enter venue address..."
                     />
                   )}
@@ -704,7 +704,7 @@ export default function EventDetailPage() {
                     Price Per Head ({settings.currency_symbol})
                   </label>
                   <div className="flex gap-2">
-                    <Input
+                    <ValidatedInput
                       type="number"
                       step="0.01"
                       min={0}
@@ -731,7 +731,7 @@ export default function EventDetailPage() {
                     value={formNotes}
                     onChange={(e) => setFormNotes(e.target.value)}
                     rows={2}
-                    maxLength={5000}
+                    maxLength={2000}
                   />
                 </div>
               </div>
@@ -758,7 +758,7 @@ export default function EventDetailPage() {
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-foreground mb-1">Total Guests</label>
-                    <Input
+                    <ValidatedInput
                       type="number"
                       min={1}
                       max={100000}
@@ -802,7 +802,7 @@ export default function EventDetailPage() {
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-foreground mb-1">Gents</label>
-                      <Input
+                      <ValidatedInput
                         type="number"
                         min={0}
                         max={formTotalGuests}
@@ -816,7 +816,7 @@ export default function EventDetailPage() {
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-foreground mb-1">Ladies</label>
-                      <Input
+                      <ValidatedInput
                         type="number"
                         min={0}
                         max={formTotalGuests}
@@ -838,15 +838,15 @@ export default function EventDetailPage() {
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-foreground mb-1">Guaranteed Count</label>
-                    <Input type="number" min={0} value={formGuaranteed ?? ""} onChange={(e) => setFormGuaranteed(e.target.value ? Number(e.target.value) : null)} />
+                    <ValidatedInput type="number" min={0} value={formGuaranteed ?? ""} onChange={(e) => setFormGuaranteed(e.target.value ? Number(e.target.value) : null)} />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-foreground mb-1">Final Count</label>
-                    <Input type="number" min={0} value={formFinalCount ?? ""} onChange={(e) => setFormFinalCount(e.target.value ? Number(e.target.value) : null)} />
+                    <ValidatedInput type="number" min={0} value={formFinalCount ?? ""} onChange={(e) => setFormFinalCount(e.target.value ? Number(e.target.value) : null)} />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-foreground mb-1">Final Count Due</label>
-                    <Input type="date" value={formFinalCountDue} onChange={(e) => setFormFinalCountDue(e.target.value)} />
+                    <ValidatedInput type="date" value={formFinalCountDue} onChange={(e) => setFormFinalCountDue(e.target.value)} />
                   </div>
                   <div className="flex flex-col justify-end">
                     <label className="flex items-center gap-2 text-sm">
@@ -856,7 +856,7 @@ export default function EventDetailPage() {
                     {formBigEaters && (
                       <div className="mt-2">
                         <label className="block text-xs text-muted-foreground mb-0.5">Percentage (%)</label>
-                        <Input type="number" min={0} max={100} value={formBigEatersPercent} onChange={(e) => setFormBigEatersPercent(Number(e.target.value))} className="h-8" />
+                        <ValidatedInput type="number" min={0} max={100} value={formBigEatersPercent} onChange={(e) => setFormBigEatersPercent(Number(e.target.value))} className="h-8" />
                       </div>
                     )}
                   </div>
@@ -912,19 +912,19 @@ export default function EventDetailPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Setup Time</label>
-                  <Input type="datetime-local" value={formSetupTime} onChange={(e) => setFormSetupTime(e.target.value)} />
+                  <ValidatedInput type="datetime-local" value={formSetupTime} onChange={(e) => setFormSetupTime(e.target.value)} />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Guest Arrival Time</label>
-                  <Input type="datetime-local" value={formArrivalTime} onChange={(e) => setFormArrivalTime(e.target.value)} />
+                  <ValidatedInput type="datetime-local" value={formArrivalTime} onChange={(e) => setFormArrivalTime(e.target.value)} />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Meal Time</label>
-                  <Input type="datetime-local" value={formMealTime} onChange={(e) => setFormMealTime(e.target.value)} />
+                  <ValidatedInput type="datetime-local" value={formMealTime} onChange={(e) => setFormMealTime(e.target.value)} />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">End Time</label>
-                  <Input type="datetime-local" value={formEndTime} onChange={(e) => setFormEndTime(e.target.value)} />
+                  <ValidatedInput type="datetime-local" value={formEndTime} onChange={(e) => setFormEndTime(e.target.value)} />
                 </div>
               </div>
             ) : (
@@ -999,8 +999,8 @@ export default function EventDetailPage() {
                   <option value="">Staff (optional)...</option>
                   {staffList.map((s) => (<option key={s.id} value={s.id}>{s.name}</option>))}
                 </select>
-                <Input type="datetime-local" value={newShiftStart} onChange={(e) => setNewShiftStart(e.target.value)} placeholder="Start" />
-                <Input type="datetime-local" value={newShiftEnd} onChange={(e) => setNewShiftEnd(e.target.value)} placeholder="End" />
+                <ValidatedInput type="datetime-local" value={newShiftStart} onChange={(e) => setNewShiftStart(e.target.value)} placeholder="Start" />
+                <ValidatedInput type="datetime-local" value={newShiftEnd} onChange={(e) => setNewShiftEnd(e.target.value)} placeholder="End" />
                 <Button size="sm" onClick={handleAddShift} disabled={saving || newShiftRole === "" || !newShiftStart || !newShiftEnd}>
                   Add
                 </Button>
@@ -1057,7 +1057,7 @@ export default function EventDetailPage() {
                   <option value="">Equipment...</option>
                   {equipmentItems.map((eq) => (<option key={eq.id} value={eq.id}>{eq.name}</option>))}
                 </select>
-                <Input type="number" min={1} value={newEquipQty} onChange={(e) => setNewEquipQty(Number(e.target.value))} placeholder="Quantity" />
+                <ValidatedInput type="number" min={1} value={newEquipQty} onChange={(e) => setNewEquipQty(Number(e.target.value))} placeholder="Quantity" />
                 <Button size="sm" onClick={handleAddEquipment} disabled={saving || newEquipId === ""}>Add</Button>
               </div>
             </div>
