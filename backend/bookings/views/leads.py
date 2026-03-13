@@ -1,4 +1,5 @@
 from django.db.models import Q
+from django.utils import timezone
 from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -383,12 +384,15 @@ class LeadWonView(APIView):
         price_per_head = None
         event_status = 'tentative'
         based_on_template = None
+        booking_date = timezone.now().date()
 
         if quote:
             guest_count = quote.guest_count
             price_per_head = quote.price_per_head
             event_status = 'confirmed'
             based_on_template = quote.based_on_template
+            if quote.accepted_at:
+                booking_date = quote.accepted_at.date()
 
         # Resolve primary contact from quote or lead strings
         primary_contact = None
@@ -407,6 +411,7 @@ class LeadWonView(APIView):
             event_type=lead.event_type,
             meal_type=lead.meal_type,
             service_style=lead.service_style,
+            booking_date=booking_date,
             price_per_head=price_per_head,
             status=event_status,
             based_on_template=based_on_template,

@@ -61,6 +61,7 @@ export default function QuoteDetailPage() {
     venue_address: "",
     event_type: "",
     meal_type: "",
+    booking_date: "",
     service_style: "",
     tax_rate: "",
     valid_until: "",
@@ -83,6 +84,7 @@ export default function QuoteDetailPage() {
     price_per_head: "",
     event_type: "other",
     meal_type: "",
+    booking_date: "",
     service_style: "",
     tax_rate: "0.2000",
     valid_until: "",
@@ -155,6 +157,7 @@ export default function QuoteDetailPage() {
         price_per_head: createData.price_per_head ? createData.price_per_head : null,
         event_type: createData.event_type,
         meal_type: createData.meal_type || undefined,
+        booking_date: createData.booking_date || null,
         service_style: createData.service_style || undefined,
         tax_rate: createData.tax_rate,
         valid_until: createData.valid_until || null,
@@ -192,6 +195,7 @@ export default function QuoteDetailPage() {
       venue_address: quote.venue_address || "",
       event_type: quote.event_type,
       meal_type: quote.meal_type || "",
+      booking_date: quote.booking_date || "",
       service_style: quote.service_style || "",
       tax_rate: String(Math.round(parseFloat(quote.tax_rate) * 10000) / 100),
       valid_until: quote.valid_until || "",
@@ -219,6 +223,7 @@ export default function QuoteDetailPage() {
         venue_address: editData.venue_address,
         event_type: editData.event_type,
         meal_type: editData.meal_type || undefined,
+        booking_date: editData.booking_date || null,
         service_style: editData.service_style || undefined,
         tax_rate: (parseFloat(editData.tax_rate) / 100).toFixed(4),
         valid_until: editData.valid_until || null,
@@ -372,6 +377,10 @@ export default function QuoteDetailPage() {
                     <option value="">-- Select --</option>
                     {mealTypes.map((mt) => <option key={mt.id} value={mt.value}>{mt.label}</option>)}
                   </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Booking Date</label>
+                  <ValidatedInput type="date" value={createData.booking_date} onChange={setCreate("booking_date")} />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Service Style</label>
@@ -687,6 +696,10 @@ export default function QuoteDetailPage() {
               </select>
             </div>
             <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Booking Date</label>
+              <ValidatedInput type="date" value={editData.booking_date} onChange={setEdit("booking_date")} />
+            </div>
+            <div>
               <label className="block text-sm font-medium text-foreground mb-1">Service Style</label>
               <select value={editData.service_style} onChange={setEdit("service_style")} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
                 <option value="">-- None --</option>
@@ -799,6 +812,10 @@ export default function QuoteDetailPage() {
               <div>
                 <span className="text-muted-foreground block">Meal Type</span>
                 <span className="font-medium text-foreground capitalize">{q.meal_type ? q.meal_type.replace(/_/g, " ") : "—"}</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground block">Booking Date</span>
+                <span className="font-medium text-foreground">{q.booking_date ? formatDate(q.booking_date, dateFormat) : "—"}</span>
               </div>
               <div>
                 <span className="text-muted-foreground block">Service Style</span>

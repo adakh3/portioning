@@ -63,7 +63,7 @@ class EventSerializer(serializers.ModelSerializer):
                   'account', 'account_name',
                   'primary_contact', 'contact_name',
                   'venue', 'venue_name', 'venue_address',
-                  'event_type', 'meal_type', 'service_style', 'price_per_head',
+                  'event_type', 'meal_type', 'service_style', 'booking_date', 'price_per_head',
                   'status', 'status_display',
                   # Timeline
                   'setup_time', 'guest_arrival_time', 'meal_time', 'end_time',

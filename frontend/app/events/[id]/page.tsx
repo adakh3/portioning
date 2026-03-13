@@ -21,7 +21,7 @@ import {
   useServiceStyles,
   useMealTypes,
 } from "@/lib/hooks";
-import { formatDateTime as sharedFormatDateTime } from "@/lib/dateFormat";
+import { formatDate, formatDateTime as sharedFormatDateTime } from "@/lib/dateFormat";
 import MenuBuilder from "@/components/MenuBuilder";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -99,6 +99,7 @@ export default function EventDetailPage() {
   const [formVenueAddress, setFormVenueAddress] = useState("");
   const [formEventType, setFormEventType] = useState("");
   const [formMealType, setFormMealType] = useState("");
+  const [formBookingDate, setFormBookingDate] = useState("");
   const [formServiceStyle, setFormServiceStyle] = useState("");
   const [formPricePerHead, setFormPricePerHead] = useState("");
   const [suggestedPrice, setSuggestedPrice] = useState<number | null>(null);
@@ -141,6 +142,7 @@ export default function EventDetailPage() {
     setFormVenueAddress(data.venue_address || "");
     setFormEventType(data.event_type || "");
     setFormMealType(data.meal_type || "");
+    setFormBookingDate(data.booking_date || "");
     setFormServiceStyle(data.service_style || "");
     setFormPricePerHead(data.price_per_head || "");
     setFormNotes(data.notes || "");
@@ -206,6 +208,7 @@ export default function EventDetailPage() {
       venue_address: venueMode === "custom" ? formVenueAddress : "",
       event_type: formEventType,
       meal_type: formMealType,
+      booking_date: formBookingDate || null,
       service_style: formServiceStyle,
       price_per_head: formPricePerHead || null,
       notes: formNotes,
@@ -702,6 +705,14 @@ export default function EventDetailPage() {
                   </select>
                 </div>
                 <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Booking Date</label>
+                  <ValidatedInput
+                    type="date"
+                    value={formBookingDate}
+                    onChange={(e) => setFormBookingDate(e.target.value)}
+                  />
+                </div>
+                <div>
                   <label className="block text-sm font-medium text-foreground mb-1">
                     Price Per Head ({settings.currency_symbol})
                   </label>
@@ -745,6 +756,7 @@ export default function EventDetailPage() {
                 <InfoRow label="Event Type" value={eventTypeLabels[event!.event_type] || event!.event_type} />
                 <InfoRow label="Meal Type" value={mealTypeLabels[event!.meal_type] || event!.meal_type || null} />
                 <InfoRow label="Service Style" value={serviceStyleLabels[event!.service_style] || event!.service_style} />
+                <InfoRow label="Booking Date" value={event!.booking_date ? formatDate(event!.booking_date, dateFormat) : null} />
                 <InfoRow label="Price Per Head" value={event!.price_per_head ? formatCurrency(event!.price_per_head, settings.currency_symbol) : null} />
                 {event!.notes && <div className="col-span-full"><InfoRow label="Notes" value={event!.notes} /></div>}
               </dl>

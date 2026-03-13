@@ -79,6 +79,7 @@ class QuoteTransitionView(APIView):
                 event_type=quote.event_type,
                 meal_type=quote.meal_type,
                 service_style=quote.service_style,
+                booking_date=quote.accepted_at.date() if quote.accepted_at else None,
                 price_per_head=quote.price_per_head,
                 status='confirmed',
                 based_on_template=quote.based_on_template,

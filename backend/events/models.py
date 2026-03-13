@@ -69,6 +69,7 @@ class Event(models.Model):
         validators=[MinValueValidator(Decimal('0')), MaxValueValidator(Decimal('9999999.99'))],
         help_text='Food/menu price per head',
     )
+    booking_date = models.DateField(null=True, blank=True, help_text='Date the client confirmed/booked')
     status = models.CharField(max_length=20, choices=EventStatus.choices, default=EventStatus.TENTATIVE)
 
     # Timeline

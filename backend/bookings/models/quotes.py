@@ -57,6 +57,7 @@ class Quote(models.Model):
     )
     event_type = models.CharField(max_length=50, default='other')
     meal_type = models.CharField(max_length=50, blank=True)
+    booking_date = models.DateField(null=True, blank=True, help_text='Date the client confirmed/booked')
     service_style = models.CharField(max_length=50, blank=True)
     valid_until = models.DateField(null=True, blank=True)
     subtotal = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))

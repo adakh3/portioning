@@ -327,6 +327,7 @@ export interface Quote {
   food_total: string;
   event_type: string;
   meal_type: string;
+  booking_date: string | null;
   service_style: string;
   valid_until: string | null;
   subtotal: string;
@@ -525,6 +526,7 @@ export interface EventData {
   event_type: string;
   meal_type: string;
   service_style: string;
+  booking_date: string | null;
   price_per_head: string | null;
   status: string;
   status_display: string;
