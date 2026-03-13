@@ -116,6 +116,13 @@ export function useArrangementTypes() {
   });
 }
 
+export function useBeverageTypes() {
+  return useSWR<ChoiceOption[]>("beverage-types", () => api.getBeverageTypes(), {
+    dedupingInterval: 300000,
+    revalidateOnFocus: false,
+  });
+}
+
 export function useUsers() {
   return useSWR<AuthUser[]>("users", () => api.getUsers(), {
     dedupingInterval: 60000,

@@ -3,13 +3,13 @@ from rest_framework import generics
 from users.mixins import OrgQuerySetMixin
 from bookings.models.choices import (
     EventTypeOption, SourceOption, ServiceStyleOption, LeadStatusOption,
-    LostReasonOption, MealTypeOption, ArrangementTypeOption,
+    LostReasonOption, MealTypeOption, ArrangementTypeOption, BeverageTypeOption,
 )
 from bookings.serializers.choices import (
     EventTypeOptionSerializer, SourceOptionSerializer,
     ServiceStyleOptionSerializer, LeadStatusOptionSerializer,
     LostReasonOptionSerializer, MealTypeOptionSerializer,
-    ArrangementTypeOptionSerializer,
+    ArrangementTypeOptionSerializer, BeverageTypeOptionSerializer,
 )
 
 
@@ -46,3 +46,8 @@ class MealTypeOptionListView(OrgQuerySetMixin, generics.ListAPIView):
 class ArrangementTypeOptionListView(OrgQuerySetMixin, generics.ListAPIView):
     queryset = ArrangementTypeOption.objects.filter(is_active=True)
     serializer_class = ArrangementTypeOptionSerializer
+
+
+class BeverageTypeOptionListView(OrgQuerySetMixin, generics.ListAPIView):
+    queryset = BeverageTypeOption.objects.filter(is_active=True)
+    serializer_class = BeverageTypeOptionSerializer

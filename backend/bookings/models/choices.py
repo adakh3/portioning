@@ -68,3 +68,10 @@ class ArrangementTypeOption(ChoiceOptionBase):
 
     class Meta(ChoiceOptionBase.Meta):
         unique_together = [('organisation', 'value')]
+
+
+class BeverageTypeOption(ChoiceOptionBase):
+    objects = TenantManager()
+
+    class Meta(ChoiceOptionBase.Meta):
+        unique_together = [('organisation', 'value')]

@@ -7,6 +7,7 @@ import {
   api,
   EventData,
   EventArrangement,
+  EventBeverage,
   Contact,
 } from "@/lib/api";
 import {
@@ -21,6 +22,7 @@ import {
   useServiceStyles,
   useMealTypes,
   useArrangementTypes,
+  useBeverageTypes,
 } from "@/lib/hooks";
 import { formatDate, formatDateTime as sharedFormatDateTime } from "@/lib/dateFormat";
 import MenuBuilder from "@/components/MenuBuilder";
@@ -65,8 +67,10 @@ export default function EventDetailPage() {
   const { data: staffList = [] } = useStaff();
   const { data: arrangementTypesData = [] } = useArrangementTypes();
   const arrangementTypeLabels: Record<string, string> = Object.fromEntries(arrangementTypesData.map((at) => [at.value, at.label]));
+  const { data: beverageTypesData = [] } = useBeverageTypes();
+  const beverageTypeLabels: Record<string, string> = Object.fromEntries(beverageTypesData.map((bt) => [bt.value, bt.label]));
   const { data: rawSettings } = useSiteSettings();
-  const settings = rawSettings || { currency_symbol: "\u00A3", currency_code: "GBP", date_format: "DD/MM/YYYY", default_price_per_head: "0.00", target_food_cost_percentage: "30.00", price_rounding_step: "50" };
+  const settings = rawSettings || { currency_symbol: "\u00A3", currency_code: "GBP", date_format: "DD/MM/YYYY", default_price_per_head: "0.00", target_food_cost_percentage: "30.00", price_rounding_step: "50", tax_label: "VAT", default_tax_rate: "0.2000" };
   const dateFormat = useDateFormat();
   const { data: eventTypesData = [] } = useEventTypes();
   const { data: serviceStylesData = [] } = useServiceStyles();
@@ -93,7 +97,6 @@ export default function EventDetailPage() {
   const [venueMode, setVenueMode] = useState<"saved" | "custom">("saved");
 
   // Form fields (used in edit mode)
-  const [formName, setFormName] = useState("");
   const [formDate, setFormDate] = useState("");
   const [formAccount, setFormAccount] = useState<number | null>(null);
   const [formContact, setFormContact] = useState<number | null>(null);
@@ -104,8 +107,6 @@ export default function EventDetailPage() {
   const [formBookingDate, setFormBookingDate] = useState("");
   const [formServiceStyle, setFormServiceStyle] = useState("");
   const [formPricePerHead, setFormPricePerHead] = useState("");
-  const [suggestedPrice, setSuggestedPrice] = useState<number | null>(null);
-  const handleSuggestedPriceChange = useCallback((price: number | null) => setSuggestedPrice(price), []);
   const [formNotes, setFormNotes] = useState("");
   const [formKitchenInstructions, setFormKitchenInstructions] = useState("");
   const [formBanquetInstructions, setFormBanquetInstructions] = useState("");
@@ -136,9 +137,12 @@ export default function EventDetailPage() {
 
   // Arrangements state
   const [formArrangements, setFormArrangements] = useState<EventArrangement[]>([]);
+  // Beverages state
+  const [formBeverages, setFormBeverages] = useState<EventBeverage[]>([]);
+  // Tax
+  const [formIsTaxable, setFormIsTaxable] = useState(false);
 
   const syncFormToEvent = useCallback((data: EventData) => {
-    setFormName(data.name);
     setFormDate(data.date);
     setFormAccount(data.account);
     setFormContact(data.primary_contact);
@@ -170,6 +174,8 @@ export default function EventDetailPage() {
     setFormMealTime(data.meal_time ? data.meal_time.slice(0, 16) : "");
     setFormEndTime(data.end_time ? data.end_time.slice(0, 16) : "");
     setFormArrangements(data.arrangements || []);
+    setFormBeverages(data.beverages || []);
+    setFormIsTaxable(data.is_taxable || false);
   }, []);
 
   useEffect(() => {
@@ -194,10 +200,6 @@ export default function EventDetailPage() {
 
   const handleSaveAll = async () => {
     if (!isNew && !event) return;
-    if (!formName.trim()) {
-      setError("Event name is required");
-      return;
-    }
     if (!formDate) {
       setError("Event date is required");
       return;
@@ -207,8 +209,9 @@ export default function EventDetailPage() {
       return;
     }
     setSaving(true);
+    const accountName = accounts.find((a) => a.id === formAccount)?.name || "Event";
     const payload = {
-      name: formName,
+      name: `${accountName} — ${formDate}`,
       date: formDate,
       account: formAccount,
       primary_contact: formContact,
@@ -234,7 +237,9 @@ export default function EventDetailPage() {
       guest_arrival_time: formArrivalTime || null,
       meal_time: formMealTime || null,
       end_time: formEndTime || null,
-      arrangements: formArrangements.map(({ arrangement_type, quantity, notes }) => ({ arrangement_type, quantity, notes })),
+      is_taxable: formIsTaxable,
+      arrangements: formArrangements.map(({ arrangement_type, quantity, unit_price, notes }) => ({ arrangement_type, quantity, unit_price, notes })),
+      beverages: formBeverages.map(({ beverage_type, quantity, unit_price, notes }) => ({ beverage_type, quantity, unit_price, notes })),
     };
     try {
       if (isNew) {
@@ -346,12 +351,24 @@ export default function EventDetailPage() {
     setFormArrangements((prev) => {
       const exists = prev.find((a) => a.arrangement_type === value);
       if (exists) return prev.filter((a) => a.arrangement_type !== value);
-      return [...prev, { arrangement_type: value, quantity: 1, notes: "" }];
+      return [...prev, { arrangement_type: value, quantity: 1, unit_price: "0", notes: "" }];
     });
   };
 
-  const handleArrangementField = (value: string, field: "quantity" | "notes", fieldValue: number | string) => {
+  const handleArrangementField = (value: string, field: "quantity" | "unit_price" | "notes", fieldValue: number | string) => {
     setFormArrangements((prev) => prev.map((a) => a.arrangement_type === value ? { ...a, [field]: fieldValue } : a));
+  };
+
+  const handleToggleBeverage = (value: string) => {
+    setFormBeverages((prev) => {
+      const exists = prev.find((b) => b.beverage_type === value);
+      if (exists) return prev.filter((b) => b.beverage_type !== value);
+      return [...prev, { beverage_type: value, quantity: 1, unit_price: "0", notes: "" }];
+    });
+  };
+
+  const handleBeverageField = (value: string, field: "quantity" | "unit_price" | "notes", fieldValue: number | string) => {
+    setFormBeverages((prev) => prev.map((b) => b.beverage_type === value ? { ...b, [field]: fieldValue } : b));
   };
 
   const handleCreateInvoice = async () => {
@@ -436,19 +453,11 @@ export default function EventDetailPage() {
         <CardContent className="p-6">
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-center gap-3 flex-1 min-w-0">
-              {editing ? (
-                <ValidatedInput
-                  type="text"
-                  value={formName}
-                  onChange={(e) => setFormName(e.target.value)}
-                  className="text-2xl font-bold h-auto py-1 max-w-md"
-                  placeholder="Event name"
-                />
-              ) : (
-                <h1 className="text-2xl font-bold text-foreground truncate">
-                  {event!.name}
-                </h1>
-              )}
+              <h1 className="text-2xl font-bold text-foreground truncate">
+                {isNew
+                  ? (formAccount ? `${accounts.find((a) => a.id === formAccount)?.name || "New Event"}` : "New Event")
+                  : event!.name}
+              </h1>
               {editing ? (
                 <ValidatedInput
                   type="date"
@@ -702,32 +711,6 @@ export default function EventDetailPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">
-                    Price Per Head ({settings.currency_symbol})
-                  </label>
-                  <div className="flex gap-2">
-                    <ValidatedInput
-                      type="number"
-                      step="0.01"
-                      min={0}
-                      max={9999999.99}
-                      value={formPricePerHead}
-                      onChange={(e) => setFormPricePerHead(e.target.value)}
-                      placeholder="0.00"
-                    />
-                    {suggestedPrice !== null && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => setFormPricePerHead(suggestedPrice.toFixed(2))}
-                        className="whitespace-nowrap border-success/30 text-success bg-success/10 hover:bg-success/15"
-                      >
-                        Use {formatCurrency(suggestedPrice, settings.currency_symbol)}
-                      </Button>
-                    )}
-                  </div>
-                </div>
-                <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Notes</label>
                   <Textarea
                     value={formNotes}
@@ -746,7 +729,6 @@ export default function EventDetailPage() {
                 <InfoRow label="Meal Type" value={mealTypeLabels[event!.meal_type] || event!.meal_type || null} />
                 <InfoRow label="Service Style" value={serviceStyleLabels[event!.service_style] || event!.service_style} />
                 <InfoRow label="Booking Date" value={event!.booking_date ? formatDate(event!.booking_date, dateFormat) : null} />
-                <InfoRow label="Price Per Head" value={event!.price_per_head ? formatCurrency(event!.price_per_head, settings.currency_symbol) : null} />
                 {event!.notes && <div className="col-span-full"><InfoRow label="Notes" value={event!.notes} /></div>}
               </dl>
             )}
@@ -839,42 +821,25 @@ export default function EventDetailPage() {
                     Split: {Math.ceil(formTotalGuests / 2)} gents / {Math.floor(formTotalGuests / 2)} ladies
                   </p>
                 )}
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-1">Guaranteed Count</label>
-                    <ValidatedInput type="number" min={0} value={formGuaranteed ?? ""} onChange={(e) => setFormGuaranteed(e.target.value ? Number(e.target.value) : null)} />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-1">Final Count</label>
-                    <ValidatedInput type="number" min={0} value={formFinalCount ?? ""} onChange={(e) => setFormFinalCount(e.target.value ? Number(e.target.value) : null)} />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-1">Final Count Due</label>
-                    <ValidatedInput type="date" value={formFinalCountDue} onChange={(e) => setFormFinalCountDue(e.target.value)} />
-                  </div>
-                  <div className="flex flex-col justify-end">
-                    <label className="flex items-center gap-2 text-sm">
-                      <input type="checkbox" checked={formBigEaters} onChange={(e) => setFormBigEaters(e.target.checked)} className="rounded border-input text-primary focus:ring-ring" />
-                      <span className="font-medium text-foreground">Big Eaters</span>
-                    </label>
-                    {formBigEaters && (
-                      <div className="mt-2">
-                        <label className="block text-xs text-muted-foreground mb-0.5">Percentage (%)</label>
-                        <ValidatedInput type="number" min={0} max={100} value={formBigEatersPercent} onChange={(e) => setFormBigEatersPercent(Number(e.target.value))} className="h-8" />
-                      </div>
-                    )}
-                  </div>
+                <div className="flex items-end pb-1">
+                  <label className="flex items-center gap-2 text-sm">
+                    <input type="checkbox" checked={formBigEaters} onChange={(e) => setFormBigEaters(e.target.checked)} className="rounded border-input text-primary focus:ring-ring" />
+                    <span className="font-medium text-foreground">Big Eaters</span>
+                  </label>
+                  {formBigEaters && (
+                    <div className="ml-4 flex items-center gap-1.5">
+                      <ValidatedInput type="number" min={0} max={100} value={formBigEatersPercent} onChange={(e) => setFormBigEatersPercent(Number(e.target.value))} className="w-20 h-8" />
+                      <span className="text-xs text-muted-foreground">%</span>
+                    </div>
+                  )}
                 </div>
               </div>
             ) : (
               <dl className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <InfoRow label="Total Guests" value={event!.gents + event!.ladies} />
                 <InfoRow label="Gents" value={event!.gents} />
                 <InfoRow label="Ladies" value={event!.ladies} />
-                <InfoRow label="Total" value={event!.gents + event!.ladies} />
-                <InfoRow label="Guaranteed Count" value={event!.guaranteed_count} />
-                <InfoRow label="Final Count" value={event!.final_count} />
-                <InfoRow label="Final Count Due" value={event!.final_count_due} />
-                <InfoRow label="Big Eaters" value={event!.big_eaters ? `Yes (+${event!.big_eaters_percentage}%)` : "No"} />
+                {event!.big_eaters && <InfoRow label="Big Eaters" value={`+${event!.big_eaters_percentage}%`} />}
               </dl>
             )}
         </CardContent>
@@ -923,36 +888,41 @@ export default function EventDetailPage() {
               selectedDishIds={menuData.dish_ids}
               basedOnTemplate={menuData.based_on_template}
               onChange={setMenuData}
-              onSuggestedPriceChange={handleSuggestedPriceChange}
+
               onUseSuggestedPrice={(price) => setFormPricePerHead(price.toFixed(2))}
               guestCount={formTotalGuests}
               currencySymbol={settings.currency_symbol}
             />
+          ) : !editing && event!.dishes.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No menu selected.</p>
           ) : (
             <MenuBuilder
               selectedDishIds={event!.dishes}
               basedOnTemplate={event!.based_on_template}
               onSave={handleMenuSave}
-              onSuggestedPriceChange={handleSuggestedPriceChange}
+
               onUseSuggestedPrice={(price) => setFormPricePerHead(price.toFixed(2))}
               guestCount={editing ? formTotalGuests : (event!.gents + event!.ladies)}
               currencySymbol={settings.currency_symbol}
+              disabled={!editing}
             />
           )}
         </CardContent>
       </Card>
 
-      {/* Arrangements Section */}
-      <Card>
-        <CardContent className="p-6">
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Arrangements</h2>
+      {/* Arrangements & Beverages — 2-column layout */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Arrangements */}
+        <Card>
+          <CardContent className="p-6">
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Arrangements</h2>
             {editing ? (
               <div className="space-y-3">
                 {arrangementTypesData.map((at) => {
                   const selected = formArrangements.find((a) => a.arrangement_type === at.value);
                   return (
-                    <div key={at.value} className="flex items-start gap-3">
-                      <label className="flex items-center gap-2 min-w-[200px] cursor-pointer pt-1">
+                    <div key={at.value}>
+                      <label className="flex items-center gap-2 cursor-pointer">
                         <input
                           type="checkbox"
                           checked={!!selected}
@@ -962,22 +932,25 @@ export default function EventDetailPage() {
                         <span className="text-sm text-foreground">{at.label}</span>
                       </label>
                       {selected && (
-                        <div className="flex items-center gap-2 flex-1">
+                        <div className="flex items-center gap-2 mt-1.5 ml-6">
                           <ValidatedInput
                             type="number"
                             min={1}
                             value={selected.quantity}
                             onChange={(e) => handleArrangementField(at.value, "quantity", Number(e.target.value) || 1)}
-                            className="w-20"
+                            className="w-16 h-8"
                           />
                           <span className="text-xs text-muted-foreground">qty</span>
                           <ValidatedInput
-                            type="text"
-                            value={selected.notes}
-                            onChange={(e) => handleArrangementField(at.value, "notes", e.target.value)}
-                            placeholder="Notes (optional)"
-                            className="flex-1"
+                            type="number"
+                            step="0.01"
+                            min={0}
+                            value={selected.unit_price}
+                            onChange={(e) => handleArrangementField(at.value, "unit_price", e.target.value)}
+                            placeholder="0.00"
+                            className="w-24 h-8"
                           />
+                          <span className="text-xs text-muted-foreground">{settings.currency_symbol}/ea</span>
                         </div>
                       )}
                     </div>
@@ -986,20 +959,175 @@ export default function EventDetailPage() {
               </div>
             ) : !isNew && (
               (event!.arrangements?.length > 0) ? (
-                <dl className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
+                <div className="space-y-1.5">
                   {event!.arrangements.map((arr) => (
                     <div key={arr.arrangement_type} className="flex items-baseline gap-2">
-                      <dt className="text-sm text-foreground font-medium">{arrangementTypeLabels[arr.arrangement_type] || arr.arrangement_type}</dt>
-                      <dd className="text-sm text-muted-foreground">
-                        x{arr.quantity}{arr.notes ? ` — ${arr.notes}` : ""}
-                      </dd>
+                      <span className="text-sm text-foreground font-medium">{arrangementTypeLabels[arr.arrangement_type] || arr.arrangement_type}</span>
+                      <span className="text-sm text-muted-foreground">
+                        x{arr.quantity}
+                        {parseFloat(arr.unit_price) > 0 && ` @ ${formatCurrency(arr.unit_price, settings.currency_symbol)}`}
+                      </span>
                     </div>
                   ))}
-                </dl>
+                </div>
               ) : (
                 <p className="text-sm text-muted-foreground">No arrangements added.</p>
               )
             )}
+          </CardContent>
+        </Card>
+
+        {/* Beverages */}
+        <Card>
+          <CardContent className="p-6">
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Beverages</h2>
+            {editing ? (
+              <div className="space-y-3">
+                {beverageTypesData.map((bt) => {
+                  const selected = formBeverages.find((b) => b.beverage_type === bt.value);
+                  return (
+                    <div key={bt.value}>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={!!selected}
+                          onChange={() => handleToggleBeverage(bt.value)}
+                          className="rounded border-input"
+                        />
+                        <span className="text-sm text-foreground">{bt.label}</span>
+                      </label>
+                      {selected && (
+                        <div className="flex items-center gap-2 mt-1.5 ml-6">
+                          <ValidatedInput
+                            type="number"
+                            min={1}
+                            value={selected.quantity}
+                            onChange={(e) => handleBeverageField(bt.value, "quantity", Number(e.target.value) || 1)}
+                            className="w-16 h-8"
+                          />
+                          <span className="text-xs text-muted-foreground">qty</span>
+                          <ValidatedInput
+                            type="number"
+                            step="0.01"
+                            min={0}
+                            value={selected.unit_price}
+                            onChange={(e) => handleBeverageField(bt.value, "unit_price", e.target.value)}
+                            placeholder="0.00"
+                            className="w-24 h-8"
+                          />
+                          <span className="text-xs text-muted-foreground">{settings.currency_symbol}/ea</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : !isNew && (
+              (event!.beverages?.length > 0) ? (
+                <div className="space-y-1.5">
+                  {event!.beverages.map((bev) => (
+                    <div key={bev.beverage_type} className="flex items-baseline gap-2">
+                      <span className="text-sm text-foreground font-medium">{beverageTypeLabels[bev.beverage_type] || bev.beverage_type}</span>
+                      <span className="text-sm text-muted-foreground">
+                        x{bev.quantity}
+                        {parseFloat(bev.unit_price) > 0 && ` @ ${formatCurrency(bev.unit_price, settings.currency_symbol)}`}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">No beverages added.</p>
+              )
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Pricing Section */}
+      <Card>
+        <CardContent className="p-6">
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Pricing</h2>
+          {(() => {
+            const pph = editing ? parseFloat(formPricePerHead) || 0 : parseFloat(event?.price_per_head || "0");
+            const guests = editing ? formTotalGuests : ((event?.gents || 0) + (event?.ladies || 0));
+            const foodTotal = pph * guests;
+            const arrItems = editing ? formArrangements : (event?.arrangements || []);
+            const bevItems = editing ? formBeverages : (event?.beverages || []);
+            const arrTotal = arrItems.reduce((sum, a) => sum + a.quantity * (parseFloat(a.unit_price) || 0), 0);
+            const bevTotal = bevItems.reduce((sum, b) => sum + b.quantity * (parseFloat(b.unit_price) || 0), 0);
+            const subtotal = foodTotal + arrTotal + bevTotal;
+            const taxable = editing ? formIsTaxable : (event?.is_taxable || false);
+            const taxRate = parseFloat(settings.default_tax_rate) || 0;
+            const taxAmount = taxable ? subtotal * taxRate : 0;
+            const grandTotal = subtotal + taxAmount;
+
+            return (
+              <div className="space-y-4">
+                {editing && (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-1">
+                        Price Per Head ({settings.currency_symbol})
+                      </label>
+                      <ValidatedInput
+                        type="number"
+                        step="0.01"
+                        min={0}
+                        max={9999999.99}
+                        value={formPricePerHead}
+                        onChange={(e) => setFormPricePerHead(e.target.value)}
+                        placeholder="0.00"
+                      />
+                    </div>
+                  </div>
+                )}
+                <div className="border border-border rounded-lg divide-y divide-border">
+                  <div className="flex justify-between px-4 py-2 text-sm">
+                    <span className="text-muted-foreground">Food ({formatCurrency(pph, settings.currency_symbol)}/head × {guests} guests)</span>
+                    <span className="font-medium text-foreground">{formatCurrency(foodTotal, settings.currency_symbol)}</span>
+                  </div>
+                  {arrTotal > 0 && (
+                    <div className="flex justify-between px-4 py-2 text-sm">
+                      <span className="text-muted-foreground">Arrangements</span>
+                      <span className="font-medium text-foreground">{formatCurrency(arrTotal, settings.currency_symbol)}</span>
+                    </div>
+                  )}
+                  {bevTotal > 0 && (
+                    <div className="flex justify-between px-4 py-2 text-sm">
+                      <span className="text-muted-foreground">Beverages</span>
+                      <span className="font-medium text-foreground">{formatCurrency(bevTotal, settings.currency_symbol)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between px-4 py-2 text-sm font-medium">
+                    <span className="text-foreground">Subtotal</span>
+                    <span className="text-foreground">{formatCurrency(subtotal, settings.currency_symbol)}</span>
+                  </div>
+                  <div className="flex justify-between items-center px-4 py-2 text-sm">
+                    <span className="text-muted-foreground flex items-center gap-2">
+                      {editing ? (
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={formIsTaxable}
+                            onChange={(e) => setFormIsTaxable(e.target.checked)}
+                            className="rounded border-input"
+                          />
+                          {settings.tax_label} ({(taxRate * 100).toFixed(0)}%)
+                        </label>
+                      ) : (
+                        <span>{settings.tax_label} ({(taxRate * 100).toFixed(0)}%){!taxable && " — not applied"}</span>
+                      )}
+                    </span>
+                    <span className="font-medium text-foreground">{taxable ? formatCurrency(taxAmount, settings.currency_symbol) : "—"}</span>
+                  </div>
+                  <div className="flex justify-between px-4 py-3 text-base font-bold bg-muted/30">
+                    <span className="text-foreground">Total</span>
+                    <span className="text-foreground">{formatCurrency(grandTotal, settings.currency_symbol)}</span>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
         </CardContent>
       </Card>
 

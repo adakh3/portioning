@@ -495,6 +495,8 @@ export interface SiteSettingsData {
   default_price_per_head: string;
   target_food_cost_percentage: string;
   price_rounding_step: string;
+  tax_label: string;
+  default_tax_rate: string;
 }
 
 // Event type (updated with booking fields)
@@ -533,6 +535,7 @@ export interface EventData {
   price_per_head: string | null;
   status: string;
   status_display: string;
+  is_taxable: boolean;
   // Timeline
   setup_time: string | null;
   guest_arrival_time: string | null;
@@ -545,6 +548,7 @@ export interface EventData {
   // Nested
   source_quote_id: number | null;
   arrangements: EventArrangement[];
+  beverages: EventBeverage[];
   shifts: Shift[];
   equipment_reservations: EquipmentReservation[];
   invoices: Invoice[];
@@ -554,6 +558,15 @@ export interface EventArrangement {
   id?: number;
   arrangement_type: string;
   quantity: number;
+  unit_price: string;
+  notes: string;
+}
+
+export interface EventBeverage {
+  id?: number;
+  beverage_type: string;
+  quantity: number;
+  unit_price: string;
   notes: string;
 }
 
@@ -998,6 +1011,7 @@ export const api = {
   getLostReasons: () => fetchApi<ChoiceOption[]>("/bookings/lost-reasons/"),
   getMealTypes: () => fetchApi<ChoiceOption[]>("/bookings/meal-types/"),
   getArrangementTypes: () => fetchApi<ChoiceOption[]>("/bookings/arrangement-types/"),
+  getBeverageTypes: () => fetchApi<ChoiceOption[]>("/bookings/beverage-types/"),
 
   // Settings
   getSiteSettings: () => fetchApi<SiteSettingsData>("/bookings/settings/"),

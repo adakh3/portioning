@@ -17,6 +17,7 @@ from .choices import (
     ServiceStyleOptionListView, LeadStatusOptionListView,
     LostReasonOptionListView, MealTypeOptionListView,
     ArrangementTypeOptionListView,
+    BeverageTypeOptionListView,
 )
 from .reminders import (
     ReminderListCreateView, ReminderDetailView,

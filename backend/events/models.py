@@ -74,6 +74,7 @@ class Event(models.Model):
     )
     booking_date = models.DateField(null=True, blank=True, help_text='Date the client confirmed/booked')
     status = models.CharField(max_length=20, choices=EventStatus.choices, default=EventStatus.TENTATIVE)
+    is_taxable = models.BooleanField(default=False, help_text='Whether tax applies to this event')
 
     # Timeline
     setup_time = models.DateTimeField(null=True, blank=True)
@@ -106,6 +107,7 @@ class EventArrangement(models.Model):
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='arrangements')
     arrangement_type = models.CharField(max_length=50)
     quantity = models.IntegerField(default=1, validators=[MinValueValidator(1), MaxValueValidator(9999)])
+    unit_price = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0'), validators=[MinValueValidator(Decimal('0'))])
     notes = models.TextField(blank=True)
 
     class Meta:
@@ -114,6 +116,21 @@ class EventArrangement(models.Model):
 
     def __str__(self):
         return f"{self.quantity}x {self.arrangement_type} for {self.event.name}"
+
+
+class EventBeverage(models.Model):
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='beverages')
+    beverage_type = models.CharField(max_length=50)
+    quantity = models.IntegerField(default=1, validators=[MinValueValidator(1), MaxValueValidator(9999)])
+    unit_price = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0'), validators=[MinValueValidator(Decimal('0'))])
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        unique_together = ('event', 'beverage_type')
+        ordering = ['beverage_type']
+
+    def __str__(self):
+        return f"{self.quantity}x {self.beverage_type} for {self.event.name}"
 
 
 class EventDishComment(models.Model):

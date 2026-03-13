@@ -9695,6 +9695,94 @@
   }
 },
 {
+  "model": "bookings.beveragetypeoption",
+  "pk": 1,
+  "fields": {
+    "organisation": 1,
+    "value": "water",
+    "label": "Water",
+    "sort_order": 0,
+    "is_active": true
+  }
+},
+{
+  "model": "bookings.beveragetypeoption",
+  "pk": 2,
+  "fields": {
+    "organisation": 1,
+    "value": "soft_drinks",
+    "label": "Soft Drinks",
+    "sort_order": 1,
+    "is_active": true
+  }
+},
+{
+  "model": "bookings.beveragetypeoption",
+  "pk": 3,
+  "fields": {
+    "organisation": 1,
+    "value": "juices",
+    "label": "Juices",
+    "sort_order": 2,
+    "is_active": true
+  }
+},
+{
+  "model": "bookings.beveragetypeoption",
+  "pk": 4,
+  "fields": {
+    "organisation": 1,
+    "value": "tea_coffee",
+    "label": "Tea & Coffee",
+    "sort_order": 3,
+    "is_active": true
+  }
+},
+{
+  "model": "bookings.beveragetypeoption",
+  "pk": 5,
+  "fields": {
+    "organisation": 1,
+    "value": "mocktails",
+    "label": "Mocktails",
+    "sort_order": 4,
+    "is_active": true
+  }
+},
+{
+  "model": "bookings.beveragetypeoption",
+  "pk": 6,
+  "fields": {
+    "organisation": 1,
+    "value": "lassi",
+    "label": "Lassi",
+    "sort_order": 5,
+    "is_active": true
+  }
+},
+{
+  "model": "bookings.beveragetypeoption",
+  "pk": 7,
+  "fields": {
+    "organisation": 1,
+    "value": "sherbet",
+    "label": "Sherbet",
+    "sort_order": 6,
+    "is_active": true
+  }
+},
+{
+  "model": "bookings.beveragetypeoption",
+  "pk": 8,
+  "fields": {
+    "organisation": 1,
+    "value": "milkshake",
+    "label": "Milkshake",
+    "sort_order": 7,
+    "is_active": true
+  }
+},
+{
   "model": "staff.laborrole",
   "pk": 1,
   "fields": {

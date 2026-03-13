@@ -12,7 +12,7 @@ from .models import (
     Invoice, Payment,
     SiteSettings,
     EventTypeOption, SourceOption, ServiceStyleOption, LeadStatusOption,
-    LostReasonOption, MealTypeOption, ArrangementTypeOption,
+    LostReasonOption, MealTypeOption, ArrangementTypeOption, BeverageTypeOption,
     ActivityLog,
     Reminder,
 )
@@ -320,6 +320,13 @@ class MealTypeOptionAdmin(admin.ModelAdmin):
 
 @admin.register(ArrangementTypeOption)
 class ArrangementTypeOptionAdmin(admin.ModelAdmin):
+    list_display = ['value', 'label', 'sort_order', 'is_active']
+    list_editable = ['label', 'sort_order', 'is_active']
+    ordering = ['sort_order']
+
+
+@admin.register(BeverageTypeOption)
+class BeverageTypeOptionAdmin(admin.ModelAdmin):
     list_display = ['value', 'label', 'sort_order', 'is_active']
     list_editable = ['label', 'sort_order', 'is_active']
     ordering = ['sort_order']

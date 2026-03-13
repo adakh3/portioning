@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Event, EventConstraintOverride, EventDishComment, EventArrangement
+from .models import Event, EventConstraintOverride, EventDishComment, EventArrangement, EventBeverage
 from dishes.models import Dish
 from staff.serializers import ShiftSerializer
 from equipment.serializers import EquipmentReservationSerializer
@@ -26,7 +26,14 @@ class EventDishCommentSerializer(serializers.ModelSerializer):
 class EventArrangementSerializer(serializers.ModelSerializer):
     class Meta:
         model = EventArrangement
-        fields = ['id', 'arrangement_type', 'quantity', 'notes']
+        fields = ['id', 'arrangement_type', 'quantity', 'unit_price', 'notes']
+        extra_kwargs = {'notes': {'max_length': 2000}}
+
+
+class EventBeverageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = EventBeverage
+        fields = ['id', 'beverage_type', 'quantity', 'unit_price', 'notes']
         extra_kwargs = {'notes': {'max_length': 2000}}
 
 
@@ -37,6 +44,7 @@ class EventSerializer(serializers.ModelSerializer):
     )
     dish_comments = EventDishCommentSerializer(many=True, required=False)
     arrangements = EventArrangementSerializer(many=True, required=False)
+    beverages = EventBeverageSerializer(many=True, required=False)
 
     # Read-only computed fields
     account_name = serializers.CharField(source='account.name', read_only=True, default=None)
@@ -67,13 +75,13 @@ class EventSerializer(serializers.ModelSerializer):
                   'big_eaters', 'big_eaters_percentage',
                   'dishes', 'dish_ids', 'based_on_template', 'notes',
                   'kitchen_instructions', 'banquet_instructions', 'setup_instructions',
-                  'constraint_override', 'dish_comments', 'arrangements', 'created_at',
+                  'constraint_override', 'dish_comments', 'arrangements', 'beverages', 'created_at',
                   # Booking fields
                   'account', 'account_name',
                   'primary_contact', 'contact_name',
                   'venue', 'venue_name', 'venue_address',
                   'event_type', 'meal_type', 'service_style', 'booking_date', 'price_per_head',
-                  'status', 'status_display',
+                  'status', 'status_display', 'is_taxable',
                   # Timeline
                   'setup_time', 'guest_arrival_time', 'meal_time', 'end_time',
                   # Guest counts
@@ -98,6 +106,7 @@ class EventSerializer(serializers.ModelSerializer):
         dishes = validated_data.pop('dishes', [])
         dish_comments_data = validated_data.pop('dish_comments', [])
         arrangements_data = validated_data.pop('arrangements', [])
+        beverages_data = validated_data.pop('beverages', [])
         event = Event.objects.create(**validated_data)
         if dishes:
             event.dishes.set(dishes)
@@ -107,6 +116,8 @@ class EventSerializer(serializers.ModelSerializer):
             EventDishComment.objects.create(event=event, **dc)
         for arr in arrangements_data:
             EventArrangement.objects.create(event=event, **arr)
+        for bev in beverages_data:
+            EventBeverage.objects.create(event=event, **bev)
         return event
 
     def update(self, instance, validated_data):
@@ -114,6 +125,7 @@ class EventSerializer(serializers.ModelSerializer):
         dishes = validated_data.pop('dishes', None)
         dish_comments_data = validated_data.pop('dish_comments', None)
         arrangements_data = validated_data.pop('arrangements', None)
+        beverages_data = validated_data.pop('beverages', None)
 
         old_status = instance.status
         for attr, value in validated_data.items():
@@ -135,6 +147,11 @@ class EventSerializer(serializers.ModelSerializer):
             instance.arrangements.all().delete()
             for arr in arrangements_data:
                 EventArrangement.objects.create(event=instance, **arr)
+        if beverages_data is not None:
+            # Replace all beverages
+            instance.beverages.all().delete()
+            for bev in beverages_data:
+                EventBeverage.objects.create(event=instance, **bev)
 
         # Auto-calculate portions when status changes to confirmed
         # and event has dishes but no existing dish_comments
