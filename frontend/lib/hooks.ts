@@ -24,6 +24,7 @@ import {
   StaffReportEntry,
   Reminder,
   ReminderCounts,
+  WhatsAppMessage,
 } from "./api";
 
 // ── Revalidation helper ──
@@ -261,6 +262,14 @@ export function useReminderCounts() {
   return useSWR<ReminderCounts>("reminder-counts", () => api.getReminderCounts(), {
     dedupingInterval: 30000,
   });
+}
+
+export function useLeadWhatsAppMessages(leadId: number | null) {
+  return useSWR<WhatsAppMessage[]>(
+    leadId ? `lead-whatsapp-${leadId}` : null,
+    () => api.getLeadWhatsAppMessages(leadId!),
+    { dedupingInterval: 15000 }
+  );
 }
 
 export function useInvoices(params?: { event?: number; status?: string }) {

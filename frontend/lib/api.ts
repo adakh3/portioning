@@ -492,6 +492,11 @@ export interface SiteSettingsData {
   default_price_per_head: string;
   target_food_cost_percentage: string;
   price_rounding_step: string;
+  // WhatsApp / Twilio
+  twilio_account_sid?: string;
+  twilio_whatsapp_number?: string;
+  whatsapp_enabled?: boolean;
+  twilio_configured?: boolean;
 }
 
 // Event type (updated with booking fields)
@@ -642,6 +647,25 @@ export interface Reminder {
 export interface ReminderCounts {
   overdue: number;
   due_today: number;
+}
+
+// WhatsApp
+export interface WhatsAppMessage {
+  id: number;
+  lead: number;
+  reminder: number | null;
+  to_phone: string;
+  from_phone: string;
+  body: string;
+  direction: string;
+  status: string;
+  twilio_sid: string;
+  error_code: string;
+  error_message: string;
+  sent_by: number | null;
+  sent_by_name: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface AutoAssignResult {
@@ -1005,4 +1029,10 @@ export const api = {
     fetchApi<Reminder>(`/bookings/reminders/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
   deleteReminder: (id: number) =>
     fetchApi<void>(`/bookings/reminders/${id}/`, { method: "DELETE" }),
+
+  // WhatsApp
+  getLeadWhatsAppMessages: (leadId: number) =>
+    fetchApi<WhatsAppMessage[]>(`/bookings/leads/${leadId}/whatsapp/`),
+  sendWhatsAppMessage: (leadId: number, data: { body?: string; template?: string; template_context?: Record<string, string> }) =>
+    fetchApi<WhatsAppMessage>(`/bookings/leads/${leadId}/whatsapp/send/`, { method: "POST", body: JSON.stringify(data) }),
 };

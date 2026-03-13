@@ -17,6 +17,7 @@ from bookings.views import (
     LostReasonOptionListView,
     ReminderListCreateView, ReminderDetailView,
     LeadReminderListCreateView, ReminderCountsView,
+    WhatsAppMessageListView, WhatsAppSendView, TwilioWebhookView,
 )
 
 urlpatterns = [
@@ -75,6 +76,11 @@ urlpatterns = [
     path('bookings/service-styles/', ServiceStyleOptionListView.as_view(), name='service-style-list'),
     path('bookings/lead-statuses/', LeadStatusOptionListView.as_view(), name='lead-status-list'),
     path('bookings/lost-reasons/', LostReasonOptionListView.as_view(), name='lost-reason-list'),
+
+    # WhatsApp
+    path('bookings/leads/<int:lead_pk>/whatsapp/', WhatsAppMessageListView.as_view(), name='whatsapp-message-list'),
+    path('bookings/leads/<int:lead_pk>/whatsapp/send/', WhatsAppSendView.as_view(), name='whatsapp-send'),
+    path('bookings/whatsapp/webhook/', TwilioWebhookView.as_view(), name='twilio-webhook'),
 
     # Settings
     path('bookings/settings/', SiteSettingsView.as_view(), name='site-settings'),

@@ -15,6 +15,7 @@ from .models import (
     LostReasonOption,
     ActivityLog,
     Reminder,
+    WhatsAppMessage,
 )
 from .services.lead_import import (
     load_xlsx, load_csv, parse_rows, flag_duplicates, commit_rows, ImportRow,
@@ -349,3 +350,13 @@ class SiteSettingsAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+
+# --- WhatsApp Messages ---
+
+@admin.register(WhatsAppMessage)
+class WhatsAppMessageAdmin(admin.ModelAdmin):
+    list_display = ['to_phone', 'lead', 'direction', 'status', 'sent_by', 'created_at']
+    list_filter = ['status', 'direction']
+    search_fields = ['to_phone', 'body', 'twilio_sid', 'lead__contact_name']
+    readonly_fields = ['twilio_sid', 'created_at', 'updated_at']

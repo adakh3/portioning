@@ -10,3 +10,4 @@ from .choices import (
     LostReasonOptionSerializer,
 )
 from .reminders import ReminderSerializer
+from .whatsapp import WhatsAppMessageSerializer, WhatsAppSendSerializer
