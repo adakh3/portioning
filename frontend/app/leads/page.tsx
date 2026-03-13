@@ -167,7 +167,7 @@ function KanbanColumn({
   const { setNodeRef, isOver } = useDroppable({ id: status });
 
   return (
-    <div className="flex flex-col min-w-[260px] w-[260px] flex-shrink-0">
+    <div className="flex flex-col min-w-[200px] flex-1">
       <div className={cn(color, "rounded-t-lg px-3 py-2 flex items-center justify-between")}>
         <span className={cn("text-sm font-semibold", color === "bg-muted" ? "text-muted-foreground" : "text-white")}>{label}</span>
         <span className={cn("text-xs font-medium px-1.5 py-0.5 rounded-full", badge)}>
