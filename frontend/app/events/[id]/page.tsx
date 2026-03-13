@@ -105,6 +105,9 @@ export default function EventDetailPage() {
   const [suggestedPrice, setSuggestedPrice] = useState<number | null>(null);
   const handleSuggestedPriceChange = useCallback((price: number | null) => setSuggestedPrice(price), []);
   const [formNotes, setFormNotes] = useState("");
+  const [formKitchenInstructions, setFormKitchenInstructions] = useState("");
+  const [formBanquetInstructions, setFormBanquetInstructions] = useState("");
+  const [formSetupInstructions, setFormSetupInstructions] = useState("");
 
   // Guest form fields
   const [formTotalGuests, setFormTotalGuests] = useState(0);
@@ -146,6 +149,9 @@ export default function EventDetailPage() {
     setFormServiceStyle(data.service_style || "");
     setFormPricePerHead(data.price_per_head || "");
     setFormNotes(data.notes || "");
+    setFormKitchenInstructions(data.kitchen_instructions || "");
+    setFormBanquetInstructions(data.banquet_instructions || "");
+    setFormSetupInstructions(data.setup_instructions || "");
     setVenueMode(data.venue ? "saved" : data.venue_address ? "custom" : "saved");
     const total = data.gents + data.ladies;
     setFormTotalGuests(total);
@@ -212,6 +218,9 @@ export default function EventDetailPage() {
       service_style: formServiceStyle,
       price_per_head: formPricePerHead || null,
       notes: formNotes,
+      kitchen_instructions: formKitchenInstructions,
+      banquet_instructions: formBanquetInstructions,
+      setup_instructions: formSetupInstructions,
       gents: formGents,
       ladies: formLadies,
       guaranteed_count: formGuaranteed,
@@ -761,6 +770,62 @@ export default function EventDetailPage() {
                 {event!.notes && <div className="col-span-full"><InfoRow label="Notes" value={event!.notes} /></div>}
               </dl>
             )}
+        </CardContent>
+      </Card>
+
+      {/* Instructions Section */}
+      <Card>
+        <CardContent className="p-6">
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Instructions</h2>
+          {editing ? (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Kitchen Instructions</label>
+                <Textarea
+                  value={formKitchenInstructions}
+                  onChange={(e) => setFormKitchenInstructions(e.target.value)}
+                  rows={3}
+                  maxLength={5000}
+                  placeholder="Cooking-specific notes for the kitchen team..."
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Banquet Instructions</label>
+                <Textarea
+                  value={formBanquetInstructions}
+                  onChange={(e) => setFormBanquetInstructions(e.target.value)}
+                  rows={3}
+                  maxLength={5000}
+                  placeholder="Front-of-house / service team notes..."
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Setup / Arrangements Instructions</label>
+                <Textarea
+                  value={formSetupInstructions}
+                  onChange={(e) => setFormSetupInstructions(e.target.value)}
+                  rows={3}
+                  maxLength={5000}
+                  placeholder="Logistics, table layout, client-provided items..."
+                />
+              </div>
+            </div>
+          ) : (
+            <dl className="space-y-3">
+              <div>
+                <dt className="text-sm font-medium text-muted-foreground">Kitchen</dt>
+                <dd className="text-sm text-foreground mt-0.5 whitespace-pre-wrap">{event!.kitchen_instructions || "\u2014"}</dd>
+              </div>
+              <div>
+                <dt className="text-sm font-medium text-muted-foreground">Banquet</dt>
+                <dd className="text-sm text-foreground mt-0.5 whitespace-pre-wrap">{event!.banquet_instructions || "\u2014"}</dd>
+              </div>
+              <div>
+                <dt className="text-sm font-medium text-muted-foreground">Setup / Arrangements</dt>
+                <dd className="text-sm text-foreground mt-0.5 whitespace-pre-wrap">{event!.setup_instructions || "\u2014"}</dd>
+              </div>
+            </dl>
+          )}
         </CardContent>
       </Card>
 

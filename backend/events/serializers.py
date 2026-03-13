@@ -58,6 +58,7 @@ class EventSerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'date', 'gents', 'ladies',
                   'big_eaters', 'big_eaters_percentage',
                   'dishes', 'dish_ids', 'based_on_template', 'notes',
+                  'kitchen_instructions', 'banquet_instructions', 'setup_instructions',
                   'constraint_override', 'dish_comments', 'created_at',
                   # Booking fields
                   'account', 'account_name',
@@ -74,6 +75,9 @@ class EventSerializer(serializers.ModelSerializer):
         read_only_fields = ['created_at']
         extra_kwargs = {
             'notes': {'max_length': 5000},
+            'kitchen_instructions': {'max_length': 5000},
+            'banquet_instructions': {'max_length': 5000},
+            'setup_instructions': {'max_length': 5000},
             'venue_address': {'max_length': 1000},
         }
 

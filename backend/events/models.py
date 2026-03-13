@@ -40,6 +40,9 @@ class Event(models.Model):
         'menus.MenuTemplate', null=True, blank=True, on_delete=models.SET_NULL
     )
     notes = models.TextField(blank=True)
+    kitchen_instructions = models.TextField(blank=True, help_text='Cooking-specific notes for the kitchen team')
+    banquet_instructions = models.TextField(blank=True, help_text='Front-of-house/service team notes')
+    setup_instructions = models.TextField(blank=True, help_text='Logistics, table layout, client-provided items')
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, null=True, blank=True,
         on_delete=models.SET_NULL, related_name='created_events',

@@ -509,6 +509,9 @@ export interface EventData {
   dishes: number[];
   based_on_template: number | null;
   notes: string;
+  kitchen_instructions: string;
+  banquet_instructions: string;
+  setup_instructions: string;
   dish_comments?: EventDishComment[];
   constraint_override?: {
     max_total_food_per_person_grams?: number;
