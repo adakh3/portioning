@@ -25,7 +25,8 @@ class LaborRole(models.Model):
         ordering = ['sort_order', 'name']
 
     def __str__(self):
-        return f"{self.name} ({'\u00A3'}{self.default_hourly_rate}/hr)"
+        pound = "\u00A3"
+        return f"{self.name} ({pound}{self.default_hourly_rate}/hr)"
 
 
 class StaffMember(models.Model):
