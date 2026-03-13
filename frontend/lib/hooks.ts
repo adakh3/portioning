@@ -102,6 +102,13 @@ export function useLostReasons() {
   });
 }
 
+export function useMealTypes() {
+  return useSWR<ChoiceOption[]>("meal-types", () => api.getMealTypes(), {
+    dedupingInterval: 300000,
+    revalidateOnFocus: false,
+  });
+}
+
 export function useUsers() {
   return useSWR<AuthUser[]>("users", () => api.getUsers(), {
     dedupingInterval: 60000,

@@ -54,3 +54,10 @@ class LostReasonOption(ChoiceOptionBase):
 
     class Meta(ChoiceOptionBase.Meta):
         unique_together = [('organisation', 'value')]
+
+
+class MealTypeOption(ChoiceOptionBase):
+    objects = TenantManager()
+
+    class Meta(ChoiceOptionBase.Meta):
+        unique_together = [('organisation', 'value')]

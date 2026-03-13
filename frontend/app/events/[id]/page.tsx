@@ -19,6 +19,7 @@ import {
   useDateFormat,
   useEventTypes,
   useServiceStyles,
+  useMealTypes,
 } from "@/lib/hooks";
 import { formatDateTime as sharedFormatDateTime } from "@/lib/dateFormat";
 import MenuBuilder from "@/components/MenuBuilder";
@@ -67,8 +68,10 @@ export default function EventDetailPage() {
   const dateFormat = useDateFormat();
   const { data: eventTypesData = [] } = useEventTypes();
   const { data: serviceStylesData = [] } = useServiceStyles();
+  const { data: mealTypesData = [] } = useMealTypes();
   const eventTypeLabels: Record<string, string> = Object.fromEntries(eventTypesData.map((et) => [et.value, et.label]));
   const serviceStyleLabels: Record<string, string> = Object.fromEntries(serviceStylesData.map((ss) => [ss.value, ss.label]));
+  const mealTypeLabels: Record<string, string> = Object.fromEntries(mealTypesData.map((mt) => [mt.value, mt.label]));
 
   // Core state
   const loading = isNew ? false : eventLoading;
@@ -95,6 +98,7 @@ export default function EventDetailPage() {
   const [formVenue, setFormVenue] = useState<number | null>(null);
   const [formVenueAddress, setFormVenueAddress] = useState("");
   const [formEventType, setFormEventType] = useState("");
+  const [formMealType, setFormMealType] = useState("");
   const [formServiceStyle, setFormServiceStyle] = useState("");
   const [formPricePerHead, setFormPricePerHead] = useState("");
   const [suggestedPrice, setSuggestedPrice] = useState<number | null>(null);
@@ -136,6 +140,7 @@ export default function EventDetailPage() {
     setFormVenue(data.venue);
     setFormVenueAddress(data.venue_address || "");
     setFormEventType(data.event_type || "");
+    setFormMealType(data.meal_type || "");
     setFormServiceStyle(data.service_style || "");
     setFormPricePerHead(data.price_per_head || "");
     setFormNotes(data.notes || "");
@@ -200,6 +205,7 @@ export default function EventDetailPage() {
       venue: venueMode === "saved" ? formVenue : null,
       venue_address: venueMode === "custom" ? formVenueAddress : "",
       event_type: formEventType,
+      meal_type: formMealType,
       service_style: formServiceStyle,
       price_per_head: formPricePerHead || null,
       notes: formNotes,
@@ -477,24 +483,7 @@ export default function EventDetailPage() {
               )}
             </div>
             <div className="flex gap-2 flex-shrink-0">
-              {editing ? (
-                <>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleCancelEdit}
-                  >
-                    Discard
-                  </Button>
-                  <Button
-                    size="sm"
-                    onClick={handleSaveAll}
-                    disabled={saving}
-                  >
-                    {saving ? (isNew ? "Creating..." : "Saving...") : (isNew ? "Create Event" : "Save")}
-                  </Button>
-                </>
-              ) : (
+              {editing ? null : (
                 <>
                   <Button
                     size="sm"
@@ -687,6 +676,19 @@ export default function EventDetailPage() {
                   </select>
                 </div>
                 <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Meal Type</label>
+                  <select
+                    value={formMealType}
+                    onChange={(e) => setFormMealType(e.target.value)}
+                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  >
+                    <option value="">-- Select --</option>
+                    {Object.entries(mealTypeLabels).map(([key, label]) => (
+                      <option key={key} value={key}>{label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Service Style</label>
                   <select
                     value={formServiceStyle}
@@ -741,6 +743,7 @@ export default function EventDetailPage() {
                 <InfoRow label="Primary Contact" value={event!.contact_name} />
                 <InfoRow label="Venue" value={event!.venue_name || event!.venue_address || null} />
                 <InfoRow label="Event Type" value={eventTypeLabels[event!.event_type] || event!.event_type} />
+                <InfoRow label="Meal Type" value={mealTypeLabels[event!.meal_type] || event!.meal_type || null} />
                 <InfoRow label="Service Style" value={serviceStyleLabels[event!.service_style] || event!.service_style} />
                 <InfoRow label="Price Per Head" value={event!.price_per_head ? formatCurrency(event!.price_per_head, settings.currency_symbol) : null} />
                 {event!.notes && <div className="col-span-full"><InfoRow label="Notes" value={event!.notes} /></div>}
@@ -1117,6 +1120,18 @@ export default function EventDetailPage() {
         </CardContent>
       </Card>
       </>}
+
+      {/* Bottom action bar for create/edit mode */}
+      {editing && (
+        <div className="sticky bottom-4 flex justify-end gap-3 z-10">
+          <Button variant="outline" onClick={handleCancelEdit}>
+            Discard
+          </Button>
+          <Button onClick={handleSaveAll} disabled={saving}>
+            {saving ? (isNew ? "Creating..." : "Saving...") : (isNew ? "Create Event" : "Save")}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

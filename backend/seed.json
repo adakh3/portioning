@@ -9821,5 +9821,71 @@
       "updated_at": "2026-03-09T12:00:00.000Z",
       "organisation": 1
     }
+  },
+  {
+    "model": "bookings.mealtypeoption",
+    "pk": 1,
+    "fields": {
+      "value": "breakfast",
+      "label": "Breakfast",
+      "sort_order": 0,
+      "is_active": true,
+      "organisation": 1
+    }
+  },
+  {
+    "model": "bookings.mealtypeoption",
+    "pk": 2,
+    "fields": {
+      "value": "brunch",
+      "label": "Brunch",
+      "sort_order": 1,
+      "is_active": true,
+      "organisation": 1
+    }
+  },
+  {
+    "model": "bookings.mealtypeoption",
+    "pk": 3,
+    "fields": {
+      "value": "lunch",
+      "label": "Lunch",
+      "sort_order": 2,
+      "is_active": true,
+      "organisation": 1
+    }
+  },
+  {
+    "model": "bookings.mealtypeoption",
+    "pk": 4,
+    "fields": {
+      "value": "dinner",
+      "label": "Dinner",
+      "sort_order": 3,
+      "is_active": true,
+      "organisation": 1
+    }
+  },
+  {
+    "model": "bookings.mealtypeoption",
+    "pk": 5,
+    "fields": {
+      "value": "supper",
+      "label": "Supper",
+      "sort_order": 4,
+      "is_active": true,
+      "organisation": 1
+    }
+  },
+  {
+    "model": "bookings.mealtypeoption",
+    "pk": 6,
+    "fields": {
+      "value": "high_tea",
+      "label": "High Tea",
+      "sort_order": 5,
+      "is_active": true,
+      "organisation": 1
+    }
   }
 ]

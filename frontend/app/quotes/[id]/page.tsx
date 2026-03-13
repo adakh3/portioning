@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { api, Contact } from "@/lib/api";
-import { useQuote, useAccounts, useVenues, useSiteSettings, useDateFormat, useEventTypes, useServiceStyles, useLeads, revalidate } from "@/lib/hooks";
+import { useQuote, useAccounts, useVenues, useSiteSettings, useDateFormat, useEventTypes, useServiceStyles, useMealTypes, useLeads, revalidate } from "@/lib/hooks";
 import { formatDate } from "@/lib/dateFormat";
 import { formatCurrency } from "@/lib/utils";
 import MenuBuilder from "@/components/MenuBuilder";
@@ -44,6 +44,7 @@ export default function QuoteDetailPage() {
   const dateFormat = useDateFormat();
   const { data: eventTypes = [] } = useEventTypes();
   const { data: serviceStyles = [] } = useServiceStyles();
+  const { data: mealTypes = [] } = useMealTypes();
   const { data: allLeads = [] } = useLeads();
   const leads = allLeads.filter((l) => !["won", "lost"].includes(l.status));
   const [showItemForm, setShowItemForm] = useState(false);
@@ -59,6 +60,7 @@ export default function QuoteDetailPage() {
     venue: "",
     venue_address: "",
     event_type: "",
+    meal_type: "",
     service_style: "",
     tax_rate: "",
     valid_until: "",
@@ -80,6 +82,7 @@ export default function QuoteDetailPage() {
     guest_count: "",
     price_per_head: "",
     event_type: "other",
+    meal_type: "",
     service_style: "",
     tax_rate: "0.2000",
     valid_until: "",
@@ -131,6 +134,7 @@ export default function QuoteDetailPage() {
       event_date: selectedLead.event_date || prev.event_date,
       guest_count: selectedLead.guest_estimate ? String(selectedLead.guest_estimate) : prev.guest_count,
       event_type: selectedLead.event_type || prev.event_type,
+      meal_type: selectedLead.meal_type || prev.meal_type,
       service_style: selectedLead.service_style || prev.service_style,
     }));
   }
@@ -150,6 +154,7 @@ export default function QuoteDetailPage() {
         guest_count: Number(createData.guest_count),
         price_per_head: createData.price_per_head ? createData.price_per_head : null,
         event_type: createData.event_type,
+        meal_type: createData.meal_type || undefined,
         service_style: createData.service_style || undefined,
         tax_rate: createData.tax_rate,
         valid_until: createData.valid_until || null,
@@ -186,6 +191,7 @@ export default function QuoteDetailPage() {
       venue: quote.venue ? String(quote.venue) : "",
       venue_address: quote.venue_address || "",
       event_type: quote.event_type,
+      meal_type: quote.meal_type || "",
       service_style: quote.service_style || "",
       tax_rate: String(Math.round(parseFloat(quote.tax_rate) * 10000) / 100),
       valid_until: quote.valid_until || "",
@@ -212,6 +218,7 @@ export default function QuoteDetailPage() {
         venue: editData.venue ? Number(editData.venue) : null,
         venue_address: editData.venue_address,
         event_type: editData.event_type,
+        meal_type: editData.meal_type || undefined,
         service_style: editData.service_style || undefined,
         tax_rate: (parseFloat(editData.tax_rate) / 100).toFixed(4),
         valid_until: editData.valid_until || null,
@@ -299,17 +306,7 @@ export default function QuoteDetailPage() {
           {/* Header */}
           <Card>
             <CardContent className="p-6">
-              <div className="flex items-start justify-between">
-                <h1 className="text-2xl font-bold text-foreground">New Quote</h1>
-                <div className="flex gap-3">
-                  <Button type="button" variant="outline" onClick={() => router.push("/quotes")}>
-                    Discard
-                  </Button>
-                  <Button type="submit" disabled={saving}>
-                    {saving ? "Creating..." : "Create Quote"}
-                  </Button>
-                </div>
-              </div>
+              <h1 className="text-2xl font-bold text-foreground">New Quote</h1>
             </CardContent>
           </Card>
 
@@ -367,6 +364,13 @@ export default function QuoteDetailPage() {
                   <label className="block text-sm font-medium text-foreground mb-1">Event Type</label>
                   <select value={createData.event_type} onChange={setCreate("event_type")} className={selectClass}>
                     {eventTypes.map((et) => <option key={et.id} value={et.value}>{et.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Meal Type</label>
+                  <select value={createData.meal_type} onChange={setCreate("meal_type")} className={selectClass}>
+                    <option value="">-- Select --</option>
+                    {mealTypes.map((mt) => <option key={mt.id} value={mt.value}>{mt.label}</option>)}
                   </select>
                 </div>
                 <div>
@@ -499,6 +503,16 @@ export default function QuoteDetailPage() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Bottom action bar */}
+          <div className="sticky bottom-4 flex justify-end gap-3 z-10">
+            <Button type="button" variant="outline" onClick={() => router.push("/quotes")}>
+              Discard
+            </Button>
+            <Button type="submit" disabled={saving}>
+              {saving ? "Creating..." : "Create Quote"}
+            </Button>
+          </div>
         </form>
       </div>
     );
@@ -666,6 +680,13 @@ export default function QuoteDetailPage() {
               </select>
             </div>
             <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Meal Type</label>
+              <select value={editData.meal_type} onChange={setEdit("meal_type")} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
+                <option value="">-- None --</option>
+                {mealTypes.map((mt) => <option key={mt.id} value={mt.value}>{mt.label}</option>)}
+              </select>
+            </div>
+            <div>
               <label className="block text-sm font-medium text-foreground mb-1">Service Style</label>
               <select value={editData.service_style} onChange={setEdit("service_style")} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
                 <option value="">-- None --</option>
@@ -774,6 +795,10 @@ export default function QuoteDetailPage() {
               <div>
                 <span className="text-muted-foreground block">Event Type</span>
                 <span className="font-medium text-foreground capitalize">{q.event_type.replace(/_/g, " ")}</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground block">Meal Type</span>
+                <span className="font-medium text-foreground capitalize">{q.meal_type ? q.meal_type.replace(/_/g, " ") : "—"}</span>
               </div>
               <div>
                 <span className="text-muted-foreground block">Service Style</span>

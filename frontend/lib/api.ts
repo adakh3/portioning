@@ -261,6 +261,7 @@ export interface Lead {
   budget: string | null;
   event_type: string;
   event_type_display: string;
+  meal_type: string;
   service_style: string;
   notes: string;
   product: number | null;
@@ -325,6 +326,7 @@ export interface Quote {
   price_per_head: string | null;
   food_total: string;
   event_type: string;
+  meal_type: string;
   service_style: string;
   valid_until: string | null;
   subtotal: string;
@@ -521,6 +523,7 @@ export interface EventData {
   venue_name: string | null;
   venue_address: string;
   event_type: string;
+  meal_type: string;
   service_style: string;
   price_per_head: string | null;
   status: string;
@@ -980,6 +983,7 @@ export const api = {
   getSources: () => fetchApi<ChoiceOption[]>("/bookings/sources/"),
   getLeadStatuses: () => fetchApi<ChoiceOption[]>("/bookings/lead-statuses/"),
   getLostReasons: () => fetchApi<ChoiceOption[]>("/bookings/lost-reasons/"),
+  getMealTypes: () => fetchApi<ChoiceOption[]>("/bookings/meal-types/"),
 
   // Settings
   getSiteSettings: () => fetchApi<SiteSettingsData>("/bookings/settings/"),

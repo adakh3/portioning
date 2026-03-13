@@ -7,6 +7,6 @@ from .settings import OrgSettingsSerializer
 from .choices import (
     EventTypeOptionSerializer, SourceOptionSerializer,
     ServiceStyleOptionSerializer, LeadStatusOptionSerializer,
-    LostReasonOptionSerializer,
+    LostReasonOptionSerializer, MealTypeOptionSerializer,
 )
 from .reminders import ReminderSerializer

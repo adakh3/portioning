@@ -77,6 +77,7 @@ class QuoteTransitionView(APIView):
                 venue=quote.venue,
                 venue_address=quote.venue_address,
                 event_type=quote.event_type,
+                meal_type=quote.meal_type,
                 service_style=quote.service_style,
                 price_per_head=quote.price_per_head,
                 status='confirmed',

@@ -62,7 +62,7 @@ class QuoteSerializer(serializers.ModelSerializer):
             'version', 'status', 'status_display', 'is_editable',
             'event_date', 'venue', 'venue_name', 'venue_address', 'guest_count',
             'price_per_head', 'food_total',
-            'event_type', 'service_style', 'valid_until',
+            'event_type', 'meal_type', 'service_style', 'valid_until',
             'subtotal', 'tax_rate', 'tax_amount', 'total',
             'dishes', 'dish_ids', 'dish_names', 'based_on_template',
             'notes', 'internal_notes',

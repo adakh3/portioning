@@ -62,6 +62,7 @@ class Event(models.Model):
     )
     venue_address = models.TextField(blank=True, help_text='Freeform address for ad-hoc locations')
     event_type = models.CharField(max_length=50, blank=True)
+    meal_type = models.CharField(max_length=50, blank=True)
     service_style = models.CharField(max_length=50, blank=True)
     price_per_head = models.DecimalField(
         max_digits=10, decimal_places=2, null=True, blank=True,

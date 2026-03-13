@@ -63,7 +63,7 @@ class LeadSerializer(serializers.ModelSerializer):
             'source', 'event_date', 'lead_date', 'guest_estimate',
             'budget',
             'event_type', 'event_type_display',
-            'service_style', 'notes',
+            'meal_type', 'service_style', 'notes',
             'product', 'product_name',
             'assigned_to', 'assigned_to_name',
             'created_by', 'created_by_name',

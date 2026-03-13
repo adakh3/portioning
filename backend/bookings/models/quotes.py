@@ -56,6 +56,7 @@ class Quote(models.Model):
         help_text='Food/menu price per head',
     )
     event_type = models.CharField(max_length=50, default='other')
+    meal_type = models.CharField(max_length=50, blank=True)
     service_style = models.CharField(max_length=50, blank=True)
     valid_until = models.DateField(null=True, blank=True)
     subtotal = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
