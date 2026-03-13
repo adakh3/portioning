@@ -549,6 +549,7 @@ export interface EventData {
   source_quote_id: number | null;
   arrangements: EventArrangement[];
   beverages: EventBeverage[];
+  additional_meals: EventMealData[];
   shifts: Shift[];
   equipment_reservations: EquipmentReservation[];
   invoices: Invoice[];
@@ -568,6 +569,19 @@ export interface EventBeverage {
   quantity: number;
   unit_price: string;
   notes: string;
+}
+
+export interface EventMealData {
+  id?: number;
+  label: string;
+  guest_count: number;
+  price_per_head: string | null;
+  dishes: number[];
+  dish_ids?: number[];
+  based_on_template: number | null;
+  meal_time: string | null;
+  notes: string;
+  dish_comments?: EventDishComment[];
 }
 
 // Check Portions types

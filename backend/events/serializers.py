@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Event, EventConstraintOverride, EventDishComment, EventArrangement, EventBeverage
+from .models import Event, EventConstraintOverride, EventDishComment, EventArrangement, EventBeverage, EventMeal, EventMealDishComment
 from dishes.models import Dish
 from staff.serializers import ShiftSerializer
 from equipment.serializers import EquipmentReservationSerializer
@@ -37,6 +37,29 @@ class EventBeverageSerializer(serializers.ModelSerializer):
         extra_kwargs = {'notes': {'max_length': 2000}}
 
 
+class EventMealDishCommentSerializer(serializers.ModelSerializer):
+    dish_id = serializers.PrimaryKeyRelatedField(source='dish', queryset=Dish.objects.none())
+    dish_name = serializers.CharField(source='dish.name', read_only=True)
+
+    class Meta:
+        model = EventMealDishComment
+        fields = ['dish_id', 'dish_name', 'comment', 'portion_grams']
+        extra_kwargs = {'comment': {'max_length': 2000}}
+
+
+class EventMealSerializer(serializers.ModelSerializer):
+    dish_ids = serializers.PrimaryKeyRelatedField(
+        many=True, source='dishes', queryset=Dish.objects.none(), write_only=True, required=False
+    )
+    dish_comments = EventMealDishCommentSerializer(many=True, required=False)
+
+    class Meta:
+        model = EventMeal
+        fields = ['id', 'label', 'guest_count', 'price_per_head', 'dishes', 'dish_ids',
+                  'based_on_template', 'meal_time', 'notes', 'dish_comments']
+        extra_kwargs = {'notes': {'max_length': 5000}}
+
+
 class EventSerializer(serializers.ModelSerializer):
     constraint_override = EventConstraintOverrideSerializer(required=False)
     dish_ids = serializers.PrimaryKeyRelatedField(
@@ -45,6 +68,7 @@ class EventSerializer(serializers.ModelSerializer):
     dish_comments = EventDishCommentSerializer(many=True, required=False)
     arrangements = EventArrangementSerializer(many=True, required=False)
     beverages = EventBeverageSerializer(many=True, required=False)
+    additional_meals = EventMealSerializer(many=True, required=False)
 
     # Read-only computed fields
     account_name = serializers.CharField(source='account.name', read_only=True, default=None)
@@ -68,6 +92,7 @@ class EventSerializer(serializers.ModelSerializer):
             else:
                 dish_qs = Dish.objects.all()
             self.fields['dish_ids'].child_relation.queryset = dish_qs
+            self.fields['additional_meals'].child.fields['dish_ids'].child_relation.queryset = dish_qs
 
     class Meta:
         model = Event
@@ -87,6 +112,7 @@ class EventSerializer(serializers.ModelSerializer):
                   # Guest counts
                   'guaranteed_count', 'final_count', 'final_count_due',
                   # Nested
+                  'additional_meals',
                   'source_quote_id', 'shifts', 'equipment_reservations', 'invoices']
         read_only_fields = ['created_at']
         extra_kwargs = {
@@ -107,6 +133,7 @@ class EventSerializer(serializers.ModelSerializer):
         dish_comments_data = validated_data.pop('dish_comments', [])
         arrangements_data = validated_data.pop('arrangements', [])
         beverages_data = validated_data.pop('beverages', [])
+        meals_data = validated_data.pop('additional_meals', [])
         event = Event.objects.create(**validated_data)
         if dishes:
             event.dishes.set(dishes)
@@ -118,6 +145,8 @@ class EventSerializer(serializers.ModelSerializer):
             EventArrangement.objects.create(event=event, **arr)
         for bev in beverages_data:
             EventBeverage.objects.create(event=event, **bev)
+        for meal in meals_data:
+            self._create_meal(event, meal)
         return event
 
     def update(self, instance, validated_data):
@@ -126,6 +155,7 @@ class EventSerializer(serializers.ModelSerializer):
         dish_comments_data = validated_data.pop('dish_comments', None)
         arrangements_data = validated_data.pop('arrangements', None)
         beverages_data = validated_data.pop('beverages', None)
+        meals_data = validated_data.pop('additional_meals', None)
 
         old_status = instance.status
         for attr, value in validated_data.items():
@@ -153,6 +183,11 @@ class EventSerializer(serializers.ModelSerializer):
             for bev in beverages_data:
                 EventBeverage.objects.create(event=instance, **bev)
 
+        if meals_data is not None:
+            instance.additional_meals.all().delete()
+            for meal in meals_data:
+                self._create_meal(instance, meal)
+
         # Auto-calculate portions when status changes to confirmed
         # and event has dishes but no existing dish_comments
         new_status = instance.status
@@ -174,3 +209,14 @@ class EventSerializer(serializers.ModelSerializer):
                 )
 
         return instance
+
+    @staticmethod
+    def _create_meal(event, meal_data):
+        dishes = meal_data.pop('dishes', [])
+        dish_comments = meal_data.pop('dish_comments', [])
+        meal = EventMeal.objects.create(event=event, **meal_data)
+        if dishes:
+            meal.dishes.set(dishes)
+        for dc in dish_comments:
+            EventMealDishComment.objects.create(meal=meal, **dc)
+        return meal

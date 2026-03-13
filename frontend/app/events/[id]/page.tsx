@@ -8,6 +8,7 @@ import {
   EventData,
   EventArrangement,
   EventBeverage,
+  EventMealData,
   Contact,
 } from "@/lib/api";
 import {
@@ -141,6 +142,8 @@ export default function EventDetailPage() {
   const [formBeverages, setFormBeverages] = useState<EventBeverage[]>([]);
   // Tax
   const [formIsTaxable, setFormIsTaxable] = useState(false);
+  // Additional meals
+  const [formAdditionalMeals, setFormAdditionalMeals] = useState<EventMealData[]>([]);
 
   const syncFormToEvent = useCallback((data: EventData) => {
     setFormDate(data.date);
@@ -176,6 +179,7 @@ export default function EventDetailPage() {
     setFormArrangements(data.arrangements || []);
     setFormBeverages(data.beverages || []);
     setFormIsTaxable(data.is_taxable || false);
+    setFormAdditionalMeals(data.additional_meals || []);
   }, []);
 
   useEffect(() => {
@@ -240,6 +244,9 @@ export default function EventDetailPage() {
       is_taxable: formIsTaxable,
       arrangements: formArrangements.map(({ arrangement_type, quantity, unit_price, notes }) => ({ arrangement_type, quantity, unit_price, notes })),
       beverages: formBeverages.map(({ beverage_type, quantity, unit_price, notes }) => ({ beverage_type, quantity, unit_price, notes })),
+      additional_meals: formAdditionalMeals.map(({ label, guest_count, price_per_head, dishes, based_on_template, meal_time, notes }) => ({
+        label, guest_count, price_per_head: price_per_head || null, dishes, dish_ids: dishes, based_on_template, meal_time: meal_time || null, notes,
+      })),
     };
     try {
       if (isNew) {
@@ -910,6 +917,160 @@ export default function EventDetailPage() {
         </CardContent>
       </Card>
 
+      {/* Additional Meals Section */}
+      <Card>
+        <CardContent className="p-6">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Additional Meals</h2>
+            {editing && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setFormAdditionalMeals([...formAdditionalMeals, {
+                  label: "",
+                  guest_count: 0,
+                  price_per_head: null,
+                  dishes: [],
+                  based_on_template: null,
+                  meal_time: null,
+                  notes: "",
+                }])}
+              >
+                + Add Meal
+              </Button>
+            )}
+          </div>
+          {formAdditionalMeals.length === 0 && !editing && (
+            <p className="text-sm text-muted-foreground">No additional meals.</p>
+          )}
+          {formAdditionalMeals.length === 0 && editing && (
+            <p className="text-sm text-muted-foreground">No additional meals added.</p>
+          )}
+          <div className="space-y-4">
+            {formAdditionalMeals.map((meal, idx) => (
+              <div key={idx} className="border border-border rounded-lg p-4 space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  {editing ? (
+                    <input
+                      type="text"
+                      placeholder="Meal label"
+                      value={meal.label}
+                      onChange={(e) => {
+                        const updated = [...formAdditionalMeals];
+                        updated[idx] = { ...updated[idx], label: e.target.value };
+                        setFormAdditionalMeals(updated);
+                      }}
+                      className="flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring flex-1"
+                    />
+                  ) : (
+                    <span className="font-medium text-foreground">{meal.label || "Untitled Meal"}</span>
+                  )}
+                  {editing && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="text-destructive"
+                      onClick={() => setFormAdditionalMeals(formAdditionalMeals.filter((_, i) => i !== idx))}
+                    >
+                      Remove
+                    </Button>
+                  )}
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1">Guest Count</label>
+                    {editing ? (
+                      <ValidatedInput
+                        type="number"
+                        min={0}
+                        value={meal.guest_count}
+                        onChange={(e) => {
+                          const updated = [...formAdditionalMeals];
+                          updated[idx] = { ...updated[idx], guest_count: parseInt(e.target.value) || 0 };
+                          setFormAdditionalMeals(updated);
+                        }}
+                      />
+                    ) : (
+                      <span className="text-sm">{meal.guest_count}</span>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1">Price/Head ({settings.currency_symbol})</label>
+                    {editing ? (
+                      <ValidatedInput
+                        type="number"
+                        step="0.01"
+                        min={0}
+                        value={meal.price_per_head || ""}
+                        onChange={(e) => {
+                          const updated = [...formAdditionalMeals];
+                          updated[idx] = { ...updated[idx], price_per_head: e.target.value || null };
+                          setFormAdditionalMeals(updated);
+                        }}
+                        placeholder="0.00"
+                      />
+                    ) : (
+                      <span className="text-sm">{meal.price_per_head ? formatCurrency(meal.price_per_head, settings.currency_symbol) : "\u2014"}</span>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1">Meal Time</label>
+                    {editing ? (
+                      <ValidatedInput
+                        type="datetime-local"
+                        value={meal.meal_time ? meal.meal_time.slice(0, 16) : ""}
+                        onChange={(e) => {
+                          const updated = [...formAdditionalMeals];
+                          updated[idx] = { ...updated[idx], meal_time: e.target.value || null };
+                          setFormAdditionalMeals(updated);
+                        }}
+                      />
+                    ) : (
+                      <span className="text-sm">{meal.meal_time ? sharedFormatDateTime(meal.meal_time, dateFormat) : "\u2014"}</span>
+                    )}
+                  </div>
+                </div>
+                {editing && (
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1">Notes</label>
+                    <Textarea
+                      value={meal.notes}
+                      onChange={(e) => {
+                        const updated = [...formAdditionalMeals];
+                        updated[idx] = { ...updated[idx], notes: e.target.value };
+                        setFormAdditionalMeals(updated);
+                      }}
+                      rows={2}
+                      placeholder="Special instructions for this meal..."
+                    />
+                  </div>
+                )}
+                {!editing && meal.notes && (
+                  <div>
+                    <label className="block text-sm font-medium text-muted-foreground mb-1">Notes</label>
+                    <p className="text-sm">{meal.notes}</p>
+                  </div>
+                )}
+                <MenuBuilder
+                  selectedDishIds={meal.dishes}
+                  basedOnTemplate={meal.based_on_template}
+                  onChange={(data) => {
+                    const updated = [...formAdditionalMeals];
+                    updated[idx] = { ...updated[idx], dishes: data.dish_ids, based_on_template: data.based_on_template };
+                    setFormAdditionalMeals(updated);
+                  }}
+                  guestCount={meal.guest_count}
+                  currencySymbol={settings.currency_symbol}
+                  disabled={!editing}
+                />
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Arrangements & Beverages — 2-column layout */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Arrangements */}
@@ -1051,11 +1212,13 @@ export default function EventDetailPage() {
             const pph = editing ? parseFloat(formPricePerHead) || 0 : parseFloat(event?.price_per_head || "0");
             const guests = editing ? formTotalGuests : ((event?.gents || 0) + (event?.ladies || 0));
             const foodTotal = pph * guests;
+            const meals = editing ? formAdditionalMeals : (event?.additional_meals || []);
+            const mealsTotal = meals.reduce((sum, m) => sum + m.guest_count * (parseFloat(m.price_per_head || "0") || 0), 0);
             const arrItems = editing ? formArrangements : (event?.arrangements || []);
             const bevItems = editing ? formBeverages : (event?.beverages || []);
             const arrTotal = arrItems.reduce((sum, a) => sum + a.quantity * (parseFloat(a.unit_price) || 0), 0);
             const bevTotal = bevItems.reduce((sum, b) => sum + b.quantity * (parseFloat(b.unit_price) || 0), 0);
-            const subtotal = foodTotal + arrTotal + bevTotal;
+            const subtotal = foodTotal + mealsTotal + arrTotal + bevTotal;
             const taxable = editing ? formIsTaxable : (event?.is_taxable || false);
             const taxRate = parseFloat(settings.default_tax_rate) || 0;
             const taxAmount = taxable ? subtotal * taxRate : 0;
@@ -1086,6 +1249,15 @@ export default function EventDetailPage() {
                     <span className="text-muted-foreground">Food ({formatCurrency(pph, settings.currency_symbol)}/head × {guests} guests)</span>
                     <span className="font-medium text-foreground">{formatCurrency(foodTotal, settings.currency_symbol)}</span>
                   </div>
+                  {meals.map((m, i) => {
+                    const mTotal = m.guest_count * (parseFloat(m.price_per_head || "0") || 0);
+                    return mTotal > 0 ? (
+                      <div key={i} className="flex justify-between px-4 py-2 text-sm">
+                        <span className="text-muted-foreground">{m.label || "Additional Meal"} ({formatCurrency(m.price_per_head || "0", settings.currency_symbol)}/head × {m.guest_count})</span>
+                        <span className="font-medium text-foreground">{formatCurrency(mTotal, settings.currency_symbol)}</span>
+                      </div>
+                    ) : null;
+                  })}
                   {arrTotal > 0 && (
                     <div className="flex justify-between px-4 py-2 text-sm">
                       <span className="text-muted-foreground">Arrangements</span>
