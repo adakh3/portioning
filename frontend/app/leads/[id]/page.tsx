@@ -518,9 +518,9 @@ export default function LeadDetailPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-2 text-sm">
-        <Link href="/leads" className="text-primary hover:underline">&larr; Leads</Link>
-      </div>
+      <Button variant="outline" size="sm" asChild>
+        <Link href="/leads">&larr; Back to Leads</Link>
+      </Button>
 
       {error && <p className="text-destructive">{error}</p>}
 
