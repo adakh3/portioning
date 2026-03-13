@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Event, EventConstraintOverride, EventDishComment
+from .models import Event, EventConstraintOverride, EventDishComment, EventArrangement
 from dishes.models import Dish
 from staff.serializers import ShiftSerializer
 from equipment.serializers import EquipmentReservationSerializer
@@ -23,12 +23,20 @@ class EventDishCommentSerializer(serializers.ModelSerializer):
         extra_kwargs = {'comment': {'max_length': 2000}}
 
 
+class EventArrangementSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = EventArrangement
+        fields = ['id', 'arrangement_type', 'quantity', 'notes']
+        extra_kwargs = {'notes': {'max_length': 2000}}
+
+
 class EventSerializer(serializers.ModelSerializer):
     constraint_override = EventConstraintOverrideSerializer(required=False)
     dish_ids = serializers.PrimaryKeyRelatedField(
         many=True, source='dishes', queryset=Dish.objects.none(), write_only=True, required=False
     )
     dish_comments = EventDishCommentSerializer(many=True, required=False)
+    arrangements = EventArrangementSerializer(many=True, required=False)
 
     # Read-only computed fields
     account_name = serializers.CharField(source='account.name', read_only=True, default=None)
@@ -59,7 +67,7 @@ class EventSerializer(serializers.ModelSerializer):
                   'big_eaters', 'big_eaters_percentage',
                   'dishes', 'dish_ids', 'based_on_template', 'notes',
                   'kitchen_instructions', 'banquet_instructions', 'setup_instructions',
-                  'constraint_override', 'dish_comments', 'created_at',
+                  'constraint_override', 'dish_comments', 'arrangements', 'created_at',
                   # Booking fields
                   'account', 'account_name',
                   'primary_contact', 'contact_name',
@@ -89,6 +97,7 @@ class EventSerializer(serializers.ModelSerializer):
         override_data = validated_data.pop('constraint_override', None)
         dishes = validated_data.pop('dishes', [])
         dish_comments_data = validated_data.pop('dish_comments', [])
+        arrangements_data = validated_data.pop('arrangements', [])
         event = Event.objects.create(**validated_data)
         if dishes:
             event.dishes.set(dishes)
@@ -96,12 +105,15 @@ class EventSerializer(serializers.ModelSerializer):
             EventConstraintOverride.objects.create(event=event, **override_data)
         for dc in dish_comments_data:
             EventDishComment.objects.create(event=event, **dc)
+        for arr in arrangements_data:
+            EventArrangement.objects.create(event=event, **arr)
         return event
 
     def update(self, instance, validated_data):
         override_data = validated_data.pop('constraint_override', None)
         dishes = validated_data.pop('dishes', None)
         dish_comments_data = validated_data.pop('dish_comments', None)
+        arrangements_data = validated_data.pop('arrangements', None)
 
         old_status = instance.status
         for attr, value in validated_data.items():
@@ -118,6 +130,11 @@ class EventSerializer(serializers.ModelSerializer):
             instance.dish_comments.all().delete()
             for dc in dish_comments_data:
                 EventDishComment.objects.create(event=instance, **dc)
+        if arrangements_data is not None:
+            # Replace all arrangements
+            instance.arrangements.all().delete()
+            for arr in arrangements_data:
+                EventArrangement.objects.create(event=instance, **arr)
 
         # Auto-calculate portions when status changes to confirmed
         # and event has dishes but no existing dish_comments

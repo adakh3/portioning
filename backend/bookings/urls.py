@@ -15,6 +15,7 @@ from bookings.views import (
     EventTypeOptionListView, SourceOptionListView,
     ServiceStyleOptionListView, LeadStatusOptionListView,
     LostReasonOptionListView, MealTypeOptionListView,
+    ArrangementTypeOptionListView,
     ReminderListCreateView, ReminderDetailView,
     LeadReminderListCreateView, ReminderCountsView,
 )
@@ -76,6 +77,7 @@ urlpatterns = [
     path('bookings/lead-statuses/', LeadStatusOptionListView.as_view(), name='lead-status-list'),
     path('bookings/lost-reasons/', LostReasonOptionListView.as_view(), name='lost-reason-list'),
     path('bookings/meal-types/', MealTypeOptionListView.as_view(), name='meal-type-list'),
+    path('bookings/arrangement-types/', ArrangementTypeOptionListView.as_view(), name='arrangement-type-list'),
 
     # Settings
     path('bookings/settings/', SiteSettingsView.as_view(), name='site-settings'),

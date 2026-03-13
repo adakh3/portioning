@@ -2,7 +2,7 @@ from rest_framework import serializers
 
 from bookings.models.choices import (
     EventTypeOption, SourceOption, ServiceStyleOption, LeadStatusOption,
-    LostReasonOption, MealTypeOption,
+    LostReasonOption, MealTypeOption, ArrangementTypeOption,
 )
 
 
@@ -39,3 +39,8 @@ class LostReasonOptionSerializer(ChoiceOptionSerializer):
 class MealTypeOptionSerializer(ChoiceOptionSerializer):
     class Meta(ChoiceOptionSerializer.Meta):
         model = MealTypeOption
+
+
+class ArrangementTypeOptionSerializer(ChoiceOptionSerializer):
+    class Meta(ChoiceOptionSerializer.Meta):
+        model = ArrangementTypeOption

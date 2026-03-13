@@ -354,9 +354,9 @@ export default function LeadDetailPage() {
     const selectClass = "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring";
     return (
       <div className="space-y-6">
-        <div className="flex items-center gap-2 text-sm">
-          <Link href="/leads" className="text-primary hover:underline">&larr; Leads</Link>
-        </div>
+        <Button variant="outline" size="sm" asChild>
+          <Link href="/leads">&larr; Back to Leads</Link>
+        </Button>
 
         {error && <p className="text-destructive">{error}</p>}
 

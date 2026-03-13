@@ -87,11 +87,9 @@ export default function AccountDetailPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-2 text-sm">
-        <Link href="/accounts" className="text-primary hover:underline">&larr; Accounts</Link>
-        <span className="text-muted-foreground">&middot;</span>
-        <span className="text-muted-foreground">{account.name}</span>
-      </div>
+      <Button variant="outline" size="sm" asChild>
+        <Link href="/accounts">&larr; Back to Accounts</Link>
+      </Button>
 
       <Card>
         <CardContent className="p-6">

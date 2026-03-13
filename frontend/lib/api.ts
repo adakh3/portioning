@@ -544,9 +544,17 @@ export interface EventData {
   final_count_due: string | null;
   // Nested
   source_quote_id: number | null;
+  arrangements: EventArrangement[];
   shifts: Shift[];
   equipment_reservations: EquipmentReservation[];
   invoices: Invoice[];
+}
+
+export interface EventArrangement {
+  id?: number;
+  arrangement_type: string;
+  quantity: number;
+  notes: string;
 }
 
 // Check Portions types
@@ -989,6 +997,7 @@ export const api = {
   getLeadStatuses: () => fetchApi<ChoiceOption[]>("/bookings/lead-statuses/"),
   getLostReasons: () => fetchApi<ChoiceOption[]>("/bookings/lost-reasons/"),
   getMealTypes: () => fetchApi<ChoiceOption[]>("/bookings/meal-types/"),
+  getArrangementTypes: () => fetchApi<ChoiceOption[]>("/bookings/arrangement-types/"),
 
   // Settings
   getSiteSettings: () => fetchApi<SiteSettingsData>("/bookings/settings/"),

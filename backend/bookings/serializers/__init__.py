@@ -8,5 +8,6 @@ from .choices import (
     EventTypeOptionSerializer, SourceOptionSerializer,
     ServiceStyleOptionSerializer, LeadStatusOptionSerializer,
     LostReasonOptionSerializer, MealTypeOptionSerializer,
+    ArrangementTypeOptionSerializer,
 )
 from .reminders import ReminderSerializer

@@ -6,6 +6,7 @@ import Link from "next/link";
 import {
   api,
   EventData,
+  EventArrangement,
   Contact,
 } from "@/lib/api";
 import {
@@ -14,12 +15,12 @@ import {
   useVenues,
   useLaborRoles,
   useStaff,
-  useEquipment,
   useSiteSettings,
   useDateFormat,
   useEventTypes,
   useServiceStyles,
   useMealTypes,
+  useArrangementTypes,
 } from "@/lib/hooks";
 import { formatDate, formatDateTime as sharedFormatDateTime } from "@/lib/dateFormat";
 import MenuBuilder from "@/components/MenuBuilder";
@@ -62,7 +63,8 @@ export default function EventDetailPage() {
   const { data: venues = [] } = useVenues();
   const { data: laborRoles = [] } = useLaborRoles();
   const { data: staffList = [] } = useStaff();
-  const { data: equipmentItems = [] } = useEquipment();
+  const { data: arrangementTypesData = [] } = useArrangementTypes();
+  const arrangementTypeLabels: Record<string, string> = Object.fromEntries(arrangementTypesData.map((at) => [at.value, at.label]));
   const { data: rawSettings } = useSiteSettings();
   const settings = rawSettings || { currency_symbol: "\u00A3", currency_code: "GBP", date_format: "DD/MM/YYYY", default_price_per_head: "0.00", target_food_cost_percentage: "30.00", price_rounding_step: "50" };
   const dateFormat = useDateFormat();
@@ -132,9 +134,8 @@ export default function EventDetailPage() {
   const [newShiftStart, setNewShiftStart] = useState("");
   const [newShiftEnd, setNewShiftEnd] = useState("");
 
-  // Equipment add form
-  const [newEquipId, setNewEquipId] = useState<number | "">("");
-  const [newEquipQty, setNewEquipQty] = useState(1);
+  // Arrangements state
+  const [formArrangements, setFormArrangements] = useState<EventArrangement[]>([]);
 
   const syncFormToEvent = useCallback((data: EventData) => {
     setFormName(data.name);
@@ -168,6 +169,7 @@ export default function EventDetailPage() {
     setFormArrivalTime(data.guest_arrival_time ? data.guest_arrival_time.slice(0, 16) : "");
     setFormMealTime(data.meal_time ? data.meal_time.slice(0, 16) : "");
     setFormEndTime(data.end_time ? data.end_time.slice(0, 16) : "");
+    setFormArrangements(data.arrangements || []);
   }, []);
 
   useEffect(() => {
@@ -232,6 +234,7 @@ export default function EventDetailPage() {
       guest_arrival_time: formArrivalTime || null,
       meal_time: formMealTime || null,
       end_time: formEndTime || null,
+      arrangements: formArrangements.map(({ arrangement_type, quantity, notes }) => ({ arrangement_type, quantity, notes })),
     };
     try {
       if (isNew) {
@@ -339,35 +342,16 @@ export default function EventDetailPage() {
     }
   };
 
-  const handleAddEquipment = async () => {
-    if (!event || newEquipId === "") return;
-    setSaving(true);
-    try {
-      await api.createReservation({
-        event: event.id,
-        equipment: newEquipId as number,
-        quantity_out: newEquipQty,
-      });
-      setNewEquipId("");
-      setNewEquipQty(1);
-      await mutateEvent();
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Failed to add equipment");
-    } finally {
-      setSaving(false);
-    }
+  const handleToggleArrangement = (value: string) => {
+    setFormArrangements((prev) => {
+      const exists = prev.find((a) => a.arrangement_type === value);
+      if (exists) return prev.filter((a) => a.arrangement_type !== value);
+      return [...prev, { arrangement_type: value, quantity: 1, notes: "" }];
+    });
   };
 
-  const handleDeleteReservation = async (id: number) => {
-    setSaving(true);
-    try {
-      await api.deleteReservation(id);
-      await mutateEvent();
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Failed to delete reservation");
-    } finally {
-      setSaving(false);
-    }
+  const handleArrangementField = (value: string, field: "quantity" | "notes", fieldValue: number | string) => {
+    setFormArrangements((prev) => prev.map((a) => a.arrangement_type === value ? { ...a, [field]: fieldValue } : a));
   };
 
   const handleCreateInvoice = async () => {
@@ -421,10 +405,6 @@ export default function EventDetailPage() {
     0
   ) ?? 0;
 
-  const totalEquipmentCost = event?.equipment_reservations.reduce(
-    (sum, r) => sum + parseFloat(r.line_cost || "0"),
-    0
-  ) ?? 0;
 
   const formatDateTime = (dt: string | null) => {
     if (!dt) return "\u2014";
@@ -433,9 +413,9 @@ export default function EventDetailPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-2 text-sm">
-        <Link href="/events" className="text-primary hover:underline">&larr; Events</Link>
-      </div>
+      <Button variant="outline" size="sm" asChild>
+        <Link href="/events">&larr; Back to Events</Link>
+      </Button>
       {/* Error banner */}
       {error && (
         <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 flex items-center justify-between">
@@ -773,62 +753,6 @@ export default function EventDetailPage() {
         </CardContent>
       </Card>
 
-      {/* Instructions Section */}
-      <Card>
-        <CardContent className="p-6">
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Instructions</h2>
-          {editing ? (
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Kitchen Instructions</label>
-                <Textarea
-                  value={formKitchenInstructions}
-                  onChange={(e) => setFormKitchenInstructions(e.target.value)}
-                  rows={3}
-                  maxLength={5000}
-                  placeholder="Cooking-specific notes for the kitchen team..."
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Banquet Instructions</label>
-                <Textarea
-                  value={formBanquetInstructions}
-                  onChange={(e) => setFormBanquetInstructions(e.target.value)}
-                  rows={3}
-                  maxLength={5000}
-                  placeholder="Front-of-house / service team notes..."
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Setup / Arrangements Instructions</label>
-                <Textarea
-                  value={formSetupInstructions}
-                  onChange={(e) => setFormSetupInstructions(e.target.value)}
-                  rows={3}
-                  maxLength={5000}
-                  placeholder="Logistics, table layout, client-provided items..."
-                />
-              </div>
-            </div>
-          ) : (
-            <dl className="space-y-3">
-              <div>
-                <dt className="text-sm font-medium text-muted-foreground">Kitchen</dt>
-                <dd className="text-sm text-foreground mt-0.5 whitespace-pre-wrap">{event!.kitchen_instructions || "\u2014"}</dd>
-              </div>
-              <div>
-                <dt className="text-sm font-medium text-muted-foreground">Banquet</dt>
-                <dd className="text-sm text-foreground mt-0.5 whitespace-pre-wrap">{event!.banquet_instructions || "\u2014"}</dd>
-              </div>
-              <div>
-                <dt className="text-sm font-medium text-muted-foreground">Setup / Arrangements</dt>
-                <dd className="text-sm text-foreground mt-0.5 whitespace-pre-wrap">{event!.setup_instructions || "\u2014"}</dd>
-              </div>
-            </dl>
-          )}
-        </CardContent>
-      </Card>
-
       {/* Guest Counts Section */}
       <Card>
         <CardContent className="p-6">
@@ -956,34 +880,6 @@ export default function EventDetailPage() {
         </CardContent>
       </Card>
 
-      {/* Menu Section */}
-      <Card>
-        <CardContent className="p-6">
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Menu</h2>
-          {isNew ? (
-            <MenuBuilder
-              selectedDishIds={menuData.dish_ids}
-              basedOnTemplate={menuData.based_on_template}
-              onChange={setMenuData}
-              onSuggestedPriceChange={handleSuggestedPriceChange}
-              onUseSuggestedPrice={(price) => setFormPricePerHead(price.toFixed(2))}
-              guestCount={formTotalGuests}
-              currencySymbol={settings.currency_symbol}
-            />
-          ) : (
-            <MenuBuilder
-              selectedDishIds={event!.dishes}
-              basedOnTemplate={event!.based_on_template}
-              onSave={handleMenuSave}
-              onSuggestedPriceChange={handleSuggestedPriceChange}
-              onUseSuggestedPrice={(price) => setFormPricePerHead(price.toFixed(2))}
-              guestCount={editing ? formTotalGuests : (event!.gents + event!.ladies)}
-              currencySymbol={settings.currency_symbol}
-            />
-          )}
-        </CardContent>
-      </Card>
-
       {/* Timeline Section */}
       <Card>
         <CardContent className="p-6">
@@ -1018,185 +914,153 @@ export default function EventDetailPage() {
         </CardContent>
       </Card>
 
-      {!isNew && <>
-      {/* Staffing Section */}
+      {/* Menu Section */}
       <Card>
         <CardContent className="p-6">
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Staffing</h2>
-            {event!.shifts.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-muted border-b border-border">
-                    <tr>
-                      <th className="text-left px-3 py-2 font-medium text-muted-foreground">Role</th>
-                      <th className="text-left px-3 py-2 font-medium text-muted-foreground">Staff</th>
-                      <th className="text-left px-3 py-2 font-medium text-muted-foreground">Start</th>
-                      <th className="text-left px-3 py-2 font-medium text-muted-foreground">End</th>
-                      <th className="text-right px-3 py-2 font-medium text-muted-foreground">Cost</th>
-                      <th className="text-center px-3 py-2 font-medium text-muted-foreground">Status</th>
-                      <th className="px-3 py-2"></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {event!.shifts.map((shift) => (
-                      <tr key={shift.id} className="border-b border-border hover:bg-muted">
-                        <td className="px-3 py-2 text-foreground">{shift.role_name}</td>
-                        <td className="px-3 py-2 text-foreground">{shift.staff_member_name || "Unassigned"}</td>
-                        <td className="px-3 py-2 text-muted-foreground text-xs">{formatDateTime(shift.start_time)}</td>
-                        <td className="px-3 py-2 text-muted-foreground text-xs">{formatDateTime(shift.end_time)}</td>
-                        <td className="px-3 py-2 text-right text-foreground">{formatCurrency(shift.shift_cost, settings.currency_symbol)}</td>
-                        <td className="px-3 py-2 text-center">
-                          <Badge variant="secondary">{shift.status}</Badge>
-                        </td>
-                        <td className="px-3 py-2 text-center">
-                          <Button variant="ghost" size="sm" onClick={() => handleDeleteShift(shift.id)} disabled={saving} className="text-destructive hover:text-destructive" title="Delete shift">X</Button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot className="bg-muted border-t border-border">
-                    <tr className="font-semibold">
-                      <td colSpan={4} className="px-3 py-2 text-foreground">Total Labor Cost</td>
-                      <td className="px-3 py-2 text-right text-foreground">{formatCurrency(totalLaborCost, settings.currency_symbol)}</td>
-                      <td colSpan={2}></td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground mb-4">No shifts scheduled yet.</p>
-            )}
-
-            {/* Add Shift Form */}
-            <div className="mt-4 p-3 bg-muted rounded-lg border border-border">
-              <p className="text-sm font-medium text-foreground mb-2">Add Shift</p>
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-                <select value={newShiftRole} onChange={(e) => setNewShiftRole(e.target.value ? Number(e.target.value) : "")} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
-                  <option value="">Role...</option>
-                  {laborRoles.map((r) => (<option key={r.id} value={r.id}>{r.name}</option>))}
-                </select>
-                <select value={newShiftStaff} onChange={(e) => setNewShiftStaff(e.target.value ? Number(e.target.value) : "")} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
-                  <option value="">Staff (optional)...</option>
-                  {staffList.map((s) => (<option key={s.id} value={s.id}>{s.name}</option>))}
-                </select>
-                <ValidatedInput type="datetime-local" value={newShiftStart} onChange={(e) => setNewShiftStart(e.target.value)} placeholder="Start" />
-                <ValidatedInput type="datetime-local" value={newShiftEnd} onChange={(e) => setNewShiftEnd(e.target.value)} placeholder="End" />
-                <Button size="sm" onClick={handleAddShift} disabled={saving || newShiftRole === "" || !newShiftStart || !newShiftEnd}>
-                  Add
-                </Button>
-              </div>
-            </div>
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Menu</h2>
+          {isNew ? (
+            <MenuBuilder
+              selectedDishIds={menuData.dish_ids}
+              basedOnTemplate={menuData.based_on_template}
+              onChange={setMenuData}
+              onSuggestedPriceChange={handleSuggestedPriceChange}
+              onUseSuggestedPrice={(price) => setFormPricePerHead(price.toFixed(2))}
+              guestCount={formTotalGuests}
+              currencySymbol={settings.currency_symbol}
+            />
+          ) : (
+            <MenuBuilder
+              selectedDishIds={event!.dishes}
+              basedOnTemplate={event!.based_on_template}
+              onSave={handleMenuSave}
+              onSuggestedPriceChange={handleSuggestedPriceChange}
+              onUseSuggestedPrice={(price) => setFormPricePerHead(price.toFixed(2))}
+              guestCount={editing ? formTotalGuests : (event!.gents + event!.ladies)}
+              currencySymbol={settings.currency_symbol}
+            />
+          )}
         </CardContent>
       </Card>
 
-      {/* Equipment Section */}
+      {/* Arrangements Section */}
       <Card>
         <CardContent className="p-6">
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Equipment</h2>
-            {event!.equipment_reservations.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-muted border-b border-border">
-                    <tr>
-                      <th className="text-left px-3 py-2 font-medium text-muted-foreground">Equipment</th>
-                      <th className="text-right px-3 py-2 font-medium text-muted-foreground">Qty</th>
-                      <th className="text-right px-3 py-2 font-medium text-muted-foreground">Cost</th>
-                      <th className="px-3 py-2"></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {event!.equipment_reservations.map((res) => (
-                      <tr key={res.id} className="border-b border-border hover:bg-muted">
-                        <td className="px-3 py-2 text-foreground">{res.equipment_name}</td>
-                        <td className="px-3 py-2 text-right text-foreground">{res.quantity_out}</td>
-                        <td className="px-3 py-2 text-right text-foreground">{formatCurrency(res.line_cost, settings.currency_symbol)}</td>
-                        <td className="px-3 py-2 text-center">
-                          <Button variant="ghost" size="sm" onClick={() => handleDeleteReservation(res.id)} disabled={saving} className="text-destructive hover:text-destructive" title="Delete reservation">X</Button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot className="bg-muted border-t border-border">
-                    <tr className="font-semibold">
-                      <td colSpan={2} className="px-3 py-2 text-foreground">Total Equipment Cost</td>
-                      <td className="px-3 py-2 text-right text-foreground">{formatCurrency(totalEquipmentCost, settings.currency_symbol)}</td>
-                      <td></td>
-                    </tr>
-                  </tfoot>
-                </table>
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Arrangements</h2>
+            {editing ? (
+              <div className="space-y-3">
+                {arrangementTypesData.map((at) => {
+                  const selected = formArrangements.find((a) => a.arrangement_type === at.value);
+                  return (
+                    <div key={at.value} className="flex items-start gap-3">
+                      <label className="flex items-center gap-2 min-w-[200px] cursor-pointer pt-1">
+                        <input
+                          type="checkbox"
+                          checked={!!selected}
+                          onChange={() => handleToggleArrangement(at.value)}
+                          className="rounded border-input"
+                        />
+                        <span className="text-sm text-foreground">{at.label}</span>
+                      </label>
+                      {selected && (
+                        <div className="flex items-center gap-2 flex-1">
+                          <ValidatedInput
+                            type="number"
+                            min={1}
+                            value={selected.quantity}
+                            onChange={(e) => handleArrangementField(at.value, "quantity", Number(e.target.value) || 1)}
+                            className="w-20"
+                          />
+                          <span className="text-xs text-muted-foreground">qty</span>
+                          <ValidatedInput
+                            type="text"
+                            value={selected.notes}
+                            onChange={(e) => handleArrangementField(at.value, "notes", e.target.value)}
+                            placeholder="Notes (optional)"
+                            className="flex-1"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
-            ) : (
-              <p className="text-sm text-muted-foreground mb-4">No equipment reserved yet.</p>
+            ) : !isNew && (
+              (event!.arrangements?.length > 0) ? (
+                <dl className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
+                  {event!.arrangements.map((arr) => (
+                    <div key={arr.arrangement_type} className="flex items-baseline gap-2">
+                      <dt className="text-sm text-foreground font-medium">{arrangementTypeLabels[arr.arrangement_type] || arr.arrangement_type}</dt>
+                      <dd className="text-sm text-muted-foreground">
+                        x{arr.quantity}{arr.notes ? ` — ${arr.notes}` : ""}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              ) : (
+                <p className="text-sm text-muted-foreground">No arrangements added.</p>
+              )
             )}
-
-            {/* Add Equipment Form */}
-            <div className="mt-4 p-3 bg-muted rounded-lg border border-border">
-              <p className="text-sm font-medium text-foreground mb-2">Add Equipment</p>
-              <div className="grid grid-cols-3 gap-2">
-                <select value={newEquipId} onChange={(e) => setNewEquipId(e.target.value ? Number(e.target.value) : "")} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
-                  <option value="">Equipment...</option>
-                  {equipmentItems.map((eq) => (<option key={eq.id} value={eq.id}>{eq.name}</option>))}
-                </select>
-                <ValidatedInput type="number" min={1} value={newEquipQty} onChange={(e) => setNewEquipQty(Number(e.target.value))} placeholder="Quantity" />
-                <Button size="sm" onClick={handleAddEquipment} disabled={saving || newEquipId === ""}>Add</Button>
-              </div>
-            </div>
         </CardContent>
       </Card>
 
-      {/* Invoices Section */}
+      {/* Staffing and Invoices sections hidden from salesperson view (REL-289) */}
+      {/* These remain accessible via /staff and /invoices pages */}
+
+      {/* Instructions Section */}
       <Card>
         <CardContent className="p-6">
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Invoices</h2>
-            {event!.invoices.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-muted border-b border-border">
-                    <tr>
-                      <th className="text-left px-3 py-2 font-medium text-muted-foreground">Invoice #</th>
-                      <th className="text-left px-3 py-2 font-medium text-muted-foreground">Type</th>
-                      <th className="text-right px-3 py-2 font-medium text-muted-foreground">Total</th>
-                      <th className="text-center px-3 py-2 font-medium text-muted-foreground">Status</th>
-                      <th className="text-right px-3 py-2 font-medium text-muted-foreground">Balance Due</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {event!.invoices.map((inv) => (
-                      <tr key={inv.id} className="border-b border-border hover:bg-muted">
-                        <td className="px-3 py-2">
-                          <Link href={`/invoices/${inv.id}`} className="text-primary hover:text-primary/80 font-medium">{inv.invoice_number}</Link>
-                        </td>
-                        <td className="px-3 py-2 text-muted-foreground capitalize">{inv.invoice_type}</td>
-                        <td className="px-3 py-2 text-right text-foreground">{formatCurrency(inv.total, settings.currency_symbol)}</td>
-                        <td className="px-3 py-2 text-center">
-                          <Badge variant={
-                            inv.status === "paid" ? "success" :
-                            inv.status === "overdue" ? "destructive" :
-                            inv.status === "sent" ? "info" :
-                            "secondary"
-                          }>{inv.status}</Badge>
-                        </td>
-                        <td className="px-3 py-2 text-right text-foreground">{formatCurrency(inv.balance_due, settings.currency_symbol)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Instructions</h2>
+          {editing ? (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Kitchen Instructions</label>
+                <Textarea
+                  value={formKitchenInstructions}
+                  onChange={(e) => setFormKitchenInstructions(e.target.value)}
+                  rows={3}
+                  maxLength={5000}
+                  placeholder="Cooking-specific notes for the kitchen team..."
+                />
               </div>
-            ) : (
-              <p className="text-sm text-muted-foreground mb-4">No invoices yet.</p>
-            )}
-
-            <div className="mt-4">
-              <Button
-                onClick={handleCreateInvoice}
-                disabled={saving}
-              >
-                {saving ? "Creating..." : "Create Invoice"}
-              </Button>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Banquet Instructions</label>
+                <Textarea
+                  value={formBanquetInstructions}
+                  onChange={(e) => setFormBanquetInstructions(e.target.value)}
+                  rows={3}
+                  maxLength={5000}
+                  placeholder="Front-of-house / service team notes..."
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Setup / Arrangements Instructions</label>
+                <Textarea
+                  value={formSetupInstructions}
+                  onChange={(e) => setFormSetupInstructions(e.target.value)}
+                  rows={3}
+                  maxLength={5000}
+                  placeholder="Logistics, table layout, client-provided items..."
+                />
+              </div>
             </div>
+          ) : !isNew && (
+            <dl className="space-y-3">
+              <div>
+                <dt className="text-sm font-medium text-muted-foreground">Kitchen</dt>
+                <dd className="text-sm text-foreground mt-0.5 whitespace-pre-wrap">{event!.kitchen_instructions || "\u2014"}</dd>
+              </div>
+              <div>
+                <dt className="text-sm font-medium text-muted-foreground">Banquet</dt>
+                <dd className="text-sm text-foreground mt-0.5 whitespace-pre-wrap">{event!.banquet_instructions || "\u2014"}</dd>
+              </div>
+              <div>
+                <dt className="text-sm font-medium text-muted-foreground">Setup / Arrangements</dt>
+                <dd className="text-sm text-foreground mt-0.5 whitespace-pre-wrap">{event!.setup_instructions || "\u2014"}</dd>
+              </div>
+            </dl>
+          )}
         </CardContent>
       </Card>
-      </>}
 
       {/* Bottom action bar for create/edit mode */}
       {editing && (

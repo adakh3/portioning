@@ -532,17 +532,9 @@ export default function QuoteDetailPage() {
 
   return (
     <div className="space-y-6">
-      {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-sm">
-        <Link href="/quotes" className="text-primary hover:underline">&larr; Quotes</Link>
-        {q.lead && q.lead_name && (
-          <>
-            <span className="text-muted-foreground">&middot;</span>
-            <span className="text-muted-foreground">From Lead:</span>
-            <Link href={`/leads/${q.lead}`} className="text-primary hover:underline">{q.lead_name}</Link>
-          </>
-        )}
-      </div>
+      <Button variant="outline" size="sm" asChild>
+        <Link href="/quotes">&larr; Back to Quotes</Link>
+      </Button>
 
       {error && <p className="text-destructive">{error}</p>}
 

@@ -102,6 +102,20 @@ class EventConstraintOverride(models.Model):
         return f"Overrides for {self.event.name}"
 
 
+class EventArrangement(models.Model):
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='arrangements')
+    arrangement_type = models.CharField(max_length=50)
+    quantity = models.IntegerField(default=1, validators=[MinValueValidator(1), MaxValueValidator(9999)])
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        unique_together = ('event', 'arrangement_type')
+        ordering = ['arrangement_type']
+
+    def __str__(self):
+        return f"{self.quantity}x {self.arrangement_type} for {self.event.name}"
+
+
 class EventDishComment(models.Model):
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='dish_comments')
     dish = models.ForeignKey('dishes.Dish', on_delete=models.CASCADE)
