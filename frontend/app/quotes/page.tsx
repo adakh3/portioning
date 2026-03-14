@@ -108,7 +108,7 @@ function QuotesContent() {
                         </Badge>
                       </div>
                       <p className="text-sm text-muted-foreground mt-1">
-                        {quote.account_name} &middot; {quote.event_date} &middot; {quote.guest_count} guests
+                        {quote.account_name} &middot; {formatDate(quote.event_date, dateFormat)} &middot; {quote.guest_count} guests
                       </p>
                     </div>
                     <div className="text-right">

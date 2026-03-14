@@ -9,6 +9,9 @@ DATE_FORMAT_CHOICES = [
     ('DD/MM/YYYY', 'DD/MM/YYYY (UK / Europe)'),
     ('MM/DD/YYYY', 'MM/DD/YYYY (US)'),
     ('YYYY-MM-DD', 'YYYY-MM-DD (ISO)'),
+    ('DD MMM YYYY', 'DD MMM YYYY (e.g. 14 Mar 2026)'),
+    ('DD MMM YY', 'DD MMM YY (e.g. 14 Mar 26)'),
+    ('MMM DD, YYYY', 'MMM DD, YYYY (e.g. Mar 14, 2026)'),
 ]
 
 
@@ -17,12 +20,15 @@ class SiteSettings(models.Model):
         ('DD/MM/YYYY', 'DD/MM/YYYY (UK / Europe)'),
         ('MM/DD/YYYY', 'MM/DD/YYYY (US)'),
         ('YYYY-MM-DD', 'YYYY-MM-DD (ISO)'),
+        ('DD MMM YYYY', 'DD MMM YYYY (e.g. 14 Mar 2026)'),
+        ('DD MMM YY', 'DD MMM YY (e.g. 14 Mar 26)'),
+        ('MMM DD, YYYY', 'MMM DD, YYYY (e.g. Mar 14, 2026)'),
     ]
 
     currency_symbol = models.CharField(max_length=10, default='£', help_text='e.g. £, $, €')
     currency_code = models.CharField(max_length=10, default='GBP', help_text='e.g. GBP, USD, EUR')
     date_format = models.CharField(
-        max_length=10, choices=DATE_FORMAT_CHOICES, default='DD/MM/YYYY',
+        max_length=20, choices=DATE_FORMAT_CHOICES, default='DD/MM/YYYY',
         help_text='Date display format across the application',
     )
     default_price_per_head = models.DecimalField(
@@ -70,7 +76,7 @@ class OrgSettings(models.Model):
     currency_symbol = models.CharField(max_length=10, default='£', help_text='e.g. £, $, €')
     currency_code = models.CharField(max_length=10, default='GBP', help_text='e.g. GBP, USD, EUR')
     date_format = models.CharField(
-        max_length=10, choices=DATE_FORMAT_CHOICES, default='DD/MM/YYYY',
+        max_length=20, choices=DATE_FORMAT_CHOICES, default='DD/MM/YYYY',
         help_text='Date display format across the application',
     )
     timezone = models.CharField(max_length=50, default='Europe/London')

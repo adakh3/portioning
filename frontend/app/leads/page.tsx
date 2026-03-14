@@ -99,6 +99,7 @@ const columnFirstCollision: CollisionDetection = (args) => {
 
 function LeadCard({ lead, isDragging }: { lead: Lead; isDragging?: boolean }) {
   const router = useRouter();
+  const dateFormat = useDateFormat();
 
   return (
     <div
@@ -111,7 +112,7 @@ function LeadCard({ lead, isDragging }: { lead: Lead; isDragging?: boolean }) {
       <p className="font-medium text-sm text-foreground truncate">{lead.contact_name}</p>
       <p className="text-xs text-muted-foreground mt-1">
         {lead.event_type_display}
-        {lead.event_date && ` · ${lead.event_date}`}
+        {lead.event_date && ` · ${formatDate(lead.event_date, dateFormat)}`}
       </p>
       {lead.guest_estimate && (
         <p className="text-xs text-muted-foreground mt-0.5">{lead.guest_estimate} guests</p>
@@ -1480,7 +1481,7 @@ function LeadsTable({
                 <EditableTextCell
                   lead={lead}
                   field="event_date"
-                  display={lead.event_date || "-"}
+                  display={lead.event_date ? formatDate(lead.event_date, dateFormat) : "-"}
                   type="date"
                 />
 
@@ -1489,7 +1490,7 @@ function LeadsTable({
                   className="hidden lg:table-cell"
                   onClick={() => router.push(`/leads/${lead.id}`)}
                 >
-                  {lead.lead_date || "-"}
+                  {lead.lead_date ? formatDate(lead.lead_date, dateFormat) : "-"}
                 </TableCell>
 
                 {/* Guests - editable number */}

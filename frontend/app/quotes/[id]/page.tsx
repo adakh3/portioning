@@ -323,7 +323,7 @@ export default function QuoteDetailPage() {
                   <option value="">-- No lead (standalone quote) --</option>
                   {leads.map((l) => (
                     <option key={l.id} value={l.id}>
-                      {l.contact_name}{l.event_type_display ? ` — ${l.event_type_display}` : ""}{l.event_date ? ` (${l.event_date})` : ""}
+                      {l.contact_name}{l.event_type_display ? ` — ${l.event_type_display}` : ""}{l.event_date ? ` (${formatDate(l.event_date, dateFormat)})` : ""}
                     </option>
                   ))}
                 </select>
@@ -729,7 +729,7 @@ export default function QuoteDetailPage() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
               <div>
                 <span className="text-muted-foreground block">Date</span>
-                <span className="font-medium text-foreground">{q.event_date}</span>
+                <span className="font-medium text-foreground">{formatDate(q.event_date, dateFormat)}</span>
               </div>
               <div>
                 <span className="text-muted-foreground block">Guests</span>

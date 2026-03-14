@@ -536,7 +536,7 @@ export default function LeadDetailPage() {
               </div>
               <p className="text-sm text-muted-foreground mt-1">
                 {l.event_type_display}
-                {l.event_date && ` \u00b7 ${l.event_date}`}
+                {l.event_date && ` \u00b7 ${formatDate(l.event_date, dateFormat)}`}
                 {l.guest_estimate && ` \u00b7 ${l.guest_estimate} guests`}
               </p>
             </div>

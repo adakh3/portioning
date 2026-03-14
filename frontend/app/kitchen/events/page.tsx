@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEvents, useServiceStyles } from "@/lib/hooks";
+import { useEvents, useServiceStyles, useDateFormat } from "@/lib/hooks";
+import { formatDate } from "@/lib/dateFormat";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,6 +21,7 @@ export default function KitchenEventsPage() {
   const { data: events = [], error, isLoading } = useEvents(
     statusFilter ? { status: statusFilter } : undefined
   );
+  const dateFormat = useDateFormat();
 
   const statuses = ["", "confirmed", "in_progress", "completed"];
   const statusLabels: Record<string, string> = {
@@ -84,7 +86,7 @@ export default function KitchenEventsPage() {
                     )}
                   </div>
                   <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground">
-                    <span>{event.date}</span>
+                    <span>{formatDate(event.date, dateFormat)}</span>
                     <span>
                       {event.gents + event.ladies} guests ({event.gents}G / {event.ladies}L)
                     </span>

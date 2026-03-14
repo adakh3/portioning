@@ -3,7 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth";
-import { useEvents, useQuotes, useLeads, useDashboardStats, useSiteSettings, useReminderCounts } from "@/lib/hooks";
+import { useEvents, useQuotes, useLeads, useDashboardStats, useSiteSettings, useReminderCounts, useDateFormat } from "@/lib/hooks";
+import { formatDate } from "@/lib/dateFormat";
 import { api, AutoAssignResult } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -45,6 +46,7 @@ export default function Dashboard() {
   );
   const { data: rawSettings } = useSiteSettings();
   const cs = rawSettings?.currency_symbol || "\u00a3";
+  const dateFormat = useDateFormat();
 
   const { data: reminderCounts } = useReminderCounts();
   const { data: allEvents } = useEvents({ date_from: new Date().toISOString().split("T")[0] });
@@ -346,7 +348,7 @@ export default function Dashboard() {
                   <Link href={`/events/${ev.id}`} className="block hover:bg-muted -mx-1 px-1 py-1 rounded transition-colors">
                     <p className="text-sm font-medium text-foreground truncate">{ev.name}</p>
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <span>{ev.date}</span>
+                      <span>{formatDate(ev.date, dateFormat)}</span>
                       <span className="text-border">|</span>
                       <span>{ev.gents + ev.ladies} guests</span>
                       <Badge variant="secondary" className="text-[10px] px-1.5 py-0.5">{ev.status_display}</Badge>
@@ -371,7 +373,7 @@ export default function Dashboard() {
                       {q.account_name || "No account"}
                     </p>
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <span>{q.event_date}</span>
+                      <span>{formatDate(q.event_date, dateFormat)}</span>
                       <span className="text-border">|</span>
                       <span>{q.guest_count} guests</span>
                       <Badge variant="secondary" className="text-[10px] px-1.5 py-0.5">{q.status_display}</Badge>
@@ -398,7 +400,7 @@ export default function Dashboard() {
                       {l.event_date && (
                         <>
                           <span className="text-border">|</span>
-                          <span>{l.event_date}</span>
+                          <span>{formatDate(l.event_date, dateFormat)}</span>
                         </>
                       )}
                       <Badge variant="secondary" className="text-[10px] px-1.5 py-0.5">{l.status_display}</Badge>
