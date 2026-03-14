@@ -40,6 +40,9 @@ class Event(models.Model):
         'menus.MenuTemplate', null=True, blank=True, on_delete=models.SET_NULL
     )
     notes = models.TextField(blank=True)
+    kitchen_instructions = models.TextField(blank=True, help_text='Cooking-specific notes for the kitchen team')
+    banquet_instructions = models.TextField(blank=True, help_text='Front-of-house/service team notes')
+    setup_instructions = models.TextField(blank=True, help_text='Logistics, table layout, client-provided items')
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, null=True, blank=True,
         on_delete=models.SET_NULL, related_name='created_events',
@@ -62,13 +65,16 @@ class Event(models.Model):
     )
     venue_address = models.TextField(blank=True, help_text='Freeform address for ad-hoc locations')
     event_type = models.CharField(max_length=50, blank=True)
+    meal_type = models.CharField(max_length=50, blank=True)
     service_style = models.CharField(max_length=50, blank=True)
     price_per_head = models.DecimalField(
         max_digits=10, decimal_places=2, null=True, blank=True,
         validators=[MinValueValidator(Decimal('0')), MaxValueValidator(Decimal('9999999.99'))],
         help_text='Food/menu price per head',
     )
+    booking_date = models.DateField(null=True, blank=True, help_text='Date the client confirmed/booked')
     status = models.CharField(max_length=20, choices=EventStatus.choices, default=EventStatus.TENTATIVE)
+    is_taxable = models.BooleanField(default=False, help_text='Whether tax applies to this event')
 
     # Timeline
     setup_time = models.DateTimeField(null=True, blank=True)
@@ -97,6 +103,36 @@ class EventConstraintOverride(models.Model):
         return f"Overrides for {self.event.name}"
 
 
+class EventArrangement(models.Model):
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='arrangements')
+    arrangement_type = models.CharField(max_length=50)
+    quantity = models.IntegerField(default=1, validators=[MinValueValidator(1), MaxValueValidator(9999)])
+    unit_price = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0'), validators=[MinValueValidator(Decimal('0'))])
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        unique_together = ('event', 'arrangement_type')
+        ordering = ['arrangement_type']
+
+    def __str__(self):
+        return f"{self.quantity}x {self.arrangement_type} for {self.event.name}"
+
+
+class EventBeverage(models.Model):
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='beverages')
+    beverage_type = models.CharField(max_length=50)
+    quantity = models.IntegerField(default=1, validators=[MinValueValidator(1), MaxValueValidator(9999)])
+    unit_price = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0'), validators=[MinValueValidator(Decimal('0'))])
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        unique_together = ('event', 'beverage_type')
+        ordering = ['beverage_type']
+
+    def __str__(self):
+        return f"{self.quantity}x {self.beverage_type} for {self.event.name}"
+
+
 class EventDishComment(models.Model):
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='dish_comments')
     dish = models.ForeignKey('dishes.Dish', on_delete=models.CASCADE)
@@ -108,3 +144,38 @@ class EventDishComment(models.Model):
 
     def __str__(self):
         return f"{self.event.name} - {self.dish.name}"
+
+
+class EventMeal(models.Model):
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='additional_meals')
+    label = models.CharField(max_length=100)
+    guest_count = models.IntegerField(default=0, validators=[MinValueValidator(0), MaxValueValidator(50000)])
+    price_per_head = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True,
+        validators=[MinValueValidator(Decimal('0')), MaxValueValidator(Decimal('9999999.99'))],
+    )
+    dishes = models.ManyToManyField('dishes.Dish', blank=True)
+    based_on_template = models.ForeignKey(
+        'menus.MenuTemplate', null=True, blank=True, on_delete=models.SET_NULL
+    )
+    meal_time = models.DateTimeField(null=True, blank=True)
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ['id']
+
+    def __str__(self):
+        return f"{self.label} for {self.event.name}"
+
+
+class EventMealDishComment(models.Model):
+    meal = models.ForeignKey(EventMeal, on_delete=models.CASCADE, related_name='dish_comments')
+    dish = models.ForeignKey('dishes.Dish', on_delete=models.CASCADE)
+    comment = models.TextField(blank=True)
+    portion_grams = models.FloatField(null=True, blank=True)
+
+    class Meta:
+        unique_together = ('meal', 'dish')
+
+    def __str__(self):
+        return f"{self.meal.label} - {self.dish.name}"

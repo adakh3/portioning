@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { api, Lead, Account, AuthUser, ProductLine, Reminder } from "@/lib/api";
-import { useAccounts, useLead, useSiteSettings, useDateFormat, useProductLines, useUsers, useSources, useEventTypes, useServiceStyles, useLeadStatuses, useLostReasons, useLeadReminders, revalidate } from "@/lib/hooks";
+import { useAccounts, useLead, useSiteSettings, useDateFormat, useProductLines, useUsers, useSources, useEventTypes, useServiceStyles, useMealTypes, useLeadStatuses, useLostReasons, useLeadReminders, revalidate } from "@/lib/hooks";
 import { formatDate, formatDateTime } from "@/lib/dateFormat";
 import { formatCurrency } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -189,6 +189,7 @@ export default function LeadDetailPage() {
   const { data: sources = [] } = useSources();
   const { data: eventTypes = [] } = useEventTypes();
   const { data: serviceStyles = [] } = useServiceStyles();
+  const { data: mealTypes = [] } = useMealTypes();
   const { data: leadStatuses = [] } = useLeadStatuses();
   const { data: lostReasons = [] } = useLostReasons();
   const { data: accountsList = [] } = useAccounts();
@@ -215,6 +216,7 @@ export default function LeadDetailPage() {
     guest_estimate: "",
     budget: "",
     event_type: "other",
+    meal_type: "",
     service_style: "",
     product: "" as string | number,
     assigned_to: "" as string | number,
@@ -352,9 +354,9 @@ export default function LeadDetailPage() {
     const selectClass = "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring";
     return (
       <div className="space-y-6">
-        <div className="flex items-center gap-2 text-sm">
-          <Link href="/leads" className="text-primary hover:underline">&larr; Leads</Link>
-        </div>
+        <Button variant="outline" size="sm" asChild>
+          <Link href="/leads">&larr; Back to Leads</Link>
+        </Button>
 
         {error && <p className="text-destructive">{error}</p>}
 
@@ -416,6 +418,13 @@ export default function LeadDetailPage() {
                     }}
                     placeholder="e.g. 5,000"
                   />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Meal Type</label>
+                  <select value={formData.meal_type} onChange={setField("meal_type")} className={selectClass}>
+                    <option value="">-- Select --</option>
+                    {mealTypes.map((mt) => <option key={mt.id} value={mt.value}>{mt.label}</option>)}
+                  </select>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Service Style</label>
@@ -509,9 +518,9 @@ export default function LeadDetailPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-2 text-sm">
-        <Link href="/leads" className="text-primary hover:underline">&larr; Leads</Link>
-      </div>
+      <Button variant="outline" size="sm" asChild>
+        <Link href="/leads">&larr; Back to Leads</Link>
+      </Button>
 
       {error && <p className="text-destructive">{error}</p>}
 
@@ -632,6 +641,13 @@ export default function LeadDetailPage() {
               <AutoSaveField {...fieldProps("event_date")} label="Event Date" type="date" value={l.event_date || ""} transform={nullableString} />
               <AutoSaveField {...fieldProps("guest_estimate")} label="Guest Estimate" type="number" value={l.guest_estimate ?? ""} transform={fkTransform} />
               <AutoSaveField {...fieldProps("budget")} label="Budget" type="text" inputMode="numeric" value={l.budget ? String(Math.round(Number(l.budget))) : ""} transform={nullableString} formatDisplay={formatWholeNumber} placeholder="e.g. 5,000" />
+              <AutoSaveField
+                {...fieldProps("meal_type")}
+                label="Meal Type"
+                type="select"
+                value={l.meal_type || ""}
+                options={[{ value: "", label: "-- Select --" }, ...mealTypes.map((mt) => ({ value: mt.value, label: mt.label }))]}
+              />
               <AutoSaveField
                 {...fieldProps("service_style")}
                 label="Service Style"

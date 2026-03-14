@@ -6,6 +6,9 @@ import Link from "next/link";
 import {
   api,
   EventData,
+  EventArrangement,
+  EventBeverage,
+  EventMealData,
   Contact,
 } from "@/lib/api";
 import {
@@ -14,13 +17,15 @@ import {
   useVenues,
   useLaborRoles,
   useStaff,
-  useEquipment,
   useSiteSettings,
   useDateFormat,
   useEventTypes,
   useServiceStyles,
+  useMealTypes,
+  useArrangementTypes,
+  useBeverageTypes,
 } from "@/lib/hooks";
-import { formatDateTime as sharedFormatDateTime } from "@/lib/dateFormat";
+import { formatDate, formatDateTime as sharedFormatDateTime } from "@/lib/dateFormat";
 import MenuBuilder from "@/components/MenuBuilder";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -61,14 +66,19 @@ export default function EventDetailPage() {
   const { data: venues = [] } = useVenues();
   const { data: laborRoles = [] } = useLaborRoles();
   const { data: staffList = [] } = useStaff();
-  const { data: equipmentItems = [] } = useEquipment();
+  const { data: arrangementTypesData = [] } = useArrangementTypes();
+  const arrangementTypeLabels: Record<string, string> = Object.fromEntries(arrangementTypesData.map((at) => [at.value, at.label]));
+  const { data: beverageTypesData = [] } = useBeverageTypes();
+  const beverageTypeLabels: Record<string, string> = Object.fromEntries(beverageTypesData.map((bt) => [bt.value, bt.label]));
   const { data: rawSettings } = useSiteSettings();
-  const settings = rawSettings || { currency_symbol: "\u00A3", currency_code: "GBP", date_format: "DD/MM/YYYY", default_price_per_head: "0.00", target_food_cost_percentage: "30.00", price_rounding_step: "50" };
+  const settings = rawSettings || { currency_symbol: "\u00A3", currency_code: "GBP", date_format: "DD/MM/YYYY", default_price_per_head: "0.00", target_food_cost_percentage: "30.00", price_rounding_step: "50", tax_label: "VAT", default_tax_rate: "0.2000" };
   const dateFormat = useDateFormat();
   const { data: eventTypesData = [] } = useEventTypes();
   const { data: serviceStylesData = [] } = useServiceStyles();
+  const { data: mealTypesData = [] } = useMealTypes();
   const eventTypeLabels: Record<string, string> = Object.fromEntries(eventTypesData.map((et) => [et.value, et.label]));
   const serviceStyleLabels: Record<string, string> = Object.fromEntries(serviceStylesData.map((ss) => [ss.value, ss.label]));
+  const mealTypeLabels: Record<string, string> = Object.fromEntries(mealTypesData.map((mt) => [mt.value, mt.label]));
 
   // Core state
   const loading = isNew ? false : eventLoading;
@@ -88,18 +98,20 @@ export default function EventDetailPage() {
   const [venueMode, setVenueMode] = useState<"saved" | "custom">("saved");
 
   // Form fields (used in edit mode)
-  const [formName, setFormName] = useState("");
   const [formDate, setFormDate] = useState("");
   const [formAccount, setFormAccount] = useState<number | null>(null);
   const [formContact, setFormContact] = useState<number | null>(null);
   const [formVenue, setFormVenue] = useState<number | null>(null);
   const [formVenueAddress, setFormVenueAddress] = useState("");
   const [formEventType, setFormEventType] = useState("");
+  const [formMealType, setFormMealType] = useState("");
+  const [formBookingDate, setFormBookingDate] = useState("");
   const [formServiceStyle, setFormServiceStyle] = useState("");
   const [formPricePerHead, setFormPricePerHead] = useState("");
-  const [suggestedPrice, setSuggestedPrice] = useState<number | null>(null);
-  const handleSuggestedPriceChange = useCallback((price: number | null) => setSuggestedPrice(price), []);
   const [formNotes, setFormNotes] = useState("");
+  const [formKitchenInstructions, setFormKitchenInstructions] = useState("");
+  const [formBanquetInstructions, setFormBanquetInstructions] = useState("");
+  const [formSetupInstructions, setFormSetupInstructions] = useState("");
 
   // Guest form fields
   const [formTotalGuests, setFormTotalGuests] = useState(0);
@@ -124,21 +136,30 @@ export default function EventDetailPage() {
   const [newShiftStart, setNewShiftStart] = useState("");
   const [newShiftEnd, setNewShiftEnd] = useState("");
 
-  // Equipment add form
-  const [newEquipId, setNewEquipId] = useState<number | "">("");
-  const [newEquipQty, setNewEquipQty] = useState(1);
+  // Arrangements state
+  const [formArrangements, setFormArrangements] = useState<EventArrangement[]>([]);
+  // Beverages state
+  const [formBeverages, setFormBeverages] = useState<EventBeverage[]>([]);
+  // Tax
+  const [formIsTaxable, setFormIsTaxable] = useState(false);
+  // Additional meals
+  const [formAdditionalMeals, setFormAdditionalMeals] = useState<EventMealData[]>([]);
 
   const syncFormToEvent = useCallback((data: EventData) => {
-    setFormName(data.name);
     setFormDate(data.date);
     setFormAccount(data.account);
     setFormContact(data.primary_contact);
     setFormVenue(data.venue);
     setFormVenueAddress(data.venue_address || "");
     setFormEventType(data.event_type || "");
+    setFormMealType(data.meal_type || "");
+    setFormBookingDate(data.booking_date || "");
     setFormServiceStyle(data.service_style || "");
     setFormPricePerHead(data.price_per_head || "");
     setFormNotes(data.notes || "");
+    setFormKitchenInstructions(data.kitchen_instructions || "");
+    setFormBanquetInstructions(data.banquet_instructions || "");
+    setFormSetupInstructions(data.setup_instructions || "");
     setVenueMode(data.venue ? "saved" : data.venue_address ? "custom" : "saved");
     const total = data.gents + data.ladies;
     setFormTotalGuests(total);
@@ -155,6 +176,10 @@ export default function EventDetailPage() {
     setFormArrivalTime(data.guest_arrival_time ? data.guest_arrival_time.slice(0, 16) : "");
     setFormMealTime(data.meal_time ? data.meal_time.slice(0, 16) : "");
     setFormEndTime(data.end_time ? data.end_time.slice(0, 16) : "");
+    setFormArrangements(data.arrangements || []);
+    setFormBeverages(data.beverages || []);
+    setFormIsTaxable(data.is_taxable || false);
+    setFormAdditionalMeals(data.additional_meals || []);
   }, []);
 
   useEffect(() => {
@@ -179,10 +204,6 @@ export default function EventDetailPage() {
 
   const handleSaveAll = async () => {
     if (!isNew && !event) return;
-    if (!formName.trim()) {
-      setError("Event name is required");
-      return;
-    }
     if (!formDate) {
       setError("Event date is required");
       return;
@@ -192,17 +213,23 @@ export default function EventDetailPage() {
       return;
     }
     setSaving(true);
+    const accountName = accounts.find((a) => a.id === formAccount)?.name || "Event";
     const payload = {
-      name: formName,
+      name: `${accountName} — ${formDate}`,
       date: formDate,
       account: formAccount,
       primary_contact: formContact,
       venue: venueMode === "saved" ? formVenue : null,
       venue_address: venueMode === "custom" ? formVenueAddress : "",
       event_type: formEventType,
+      meal_type: formMealType,
+      booking_date: formBookingDate || null,
       service_style: formServiceStyle,
       price_per_head: formPricePerHead || null,
       notes: formNotes,
+      kitchen_instructions: formKitchenInstructions,
+      banquet_instructions: formBanquetInstructions,
+      setup_instructions: formSetupInstructions,
       gents: formGents,
       ladies: formLadies,
       guaranteed_count: formGuaranteed,
@@ -214,6 +241,12 @@ export default function EventDetailPage() {
       guest_arrival_time: formArrivalTime || null,
       meal_time: formMealTime || null,
       end_time: formEndTime || null,
+      is_taxable: formIsTaxable,
+      arrangements: formArrangements.map(({ arrangement_type, quantity, unit_price, notes }) => ({ arrangement_type, quantity, unit_price, notes })),
+      beverages: formBeverages.map(({ beverage_type, quantity, unit_price, notes }) => ({ beverage_type, quantity, unit_price, notes })),
+      additional_meals: formAdditionalMeals.map(({ label, guest_count, price_per_head, dishes, based_on_template, meal_time, notes }) => ({
+        label, guest_count, price_per_head: price_per_head || null, dishes, dish_ids: dishes, based_on_template, meal_time: meal_time || null, notes,
+      })),
     };
     try {
       if (isNew) {
@@ -321,35 +354,28 @@ export default function EventDetailPage() {
     }
   };
 
-  const handleAddEquipment = async () => {
-    if (!event || newEquipId === "") return;
-    setSaving(true);
-    try {
-      await api.createReservation({
-        event: event.id,
-        equipment: newEquipId as number,
-        quantity_out: newEquipQty,
-      });
-      setNewEquipId("");
-      setNewEquipQty(1);
-      await mutateEvent();
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Failed to add equipment");
-    } finally {
-      setSaving(false);
-    }
+  const handleToggleArrangement = (value: string) => {
+    setFormArrangements((prev) => {
+      const exists = prev.find((a) => a.arrangement_type === value);
+      if (exists) return prev.filter((a) => a.arrangement_type !== value);
+      return [...prev, { arrangement_type: value, quantity: 1, unit_price: "0", notes: "" }];
+    });
   };
 
-  const handleDeleteReservation = async (id: number) => {
-    setSaving(true);
-    try {
-      await api.deleteReservation(id);
-      await mutateEvent();
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Failed to delete reservation");
-    } finally {
-      setSaving(false);
-    }
+  const handleArrangementField = (value: string, field: "quantity" | "unit_price" | "notes", fieldValue: number | string) => {
+    setFormArrangements((prev) => prev.map((a) => a.arrangement_type === value ? { ...a, [field]: fieldValue } : a));
+  };
+
+  const handleToggleBeverage = (value: string) => {
+    setFormBeverages((prev) => {
+      const exists = prev.find((b) => b.beverage_type === value);
+      if (exists) return prev.filter((b) => b.beverage_type !== value);
+      return [...prev, { beverage_type: value, quantity: 1, unit_price: "0", notes: "" }];
+    });
+  };
+
+  const handleBeverageField = (value: string, field: "quantity" | "unit_price" | "notes", fieldValue: number | string) => {
+    setFormBeverages((prev) => prev.map((b) => b.beverage_type === value ? { ...b, [field]: fieldValue } : b));
   };
 
   const handleCreateInvoice = async () => {
@@ -403,10 +429,6 @@ export default function EventDetailPage() {
     0
   ) ?? 0;
 
-  const totalEquipmentCost = event?.equipment_reservations.reduce(
-    (sum, r) => sum + parseFloat(r.line_cost || "0"),
-    0
-  ) ?? 0;
 
   const formatDateTime = (dt: string | null) => {
     if (!dt) return "\u2014";
@@ -415,9 +437,9 @@ export default function EventDetailPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-2 text-sm">
-        <Link href="/events" className="text-primary hover:underline">&larr; Events</Link>
-      </div>
+      <Button variant="outline" size="sm" asChild>
+        <Link href="/events">&larr; Back to Events</Link>
+      </Button>
       {/* Error banner */}
       {error && (
         <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 flex items-center justify-between">
@@ -438,19 +460,11 @@ export default function EventDetailPage() {
         <CardContent className="p-6">
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-center gap-3 flex-1 min-w-0">
-              {editing ? (
-                <ValidatedInput
-                  type="text"
-                  value={formName}
-                  onChange={(e) => setFormName(e.target.value)}
-                  className="text-2xl font-bold h-auto py-1 max-w-md"
-                  placeholder="Event name"
-                />
-              ) : (
-                <h1 className="text-2xl font-bold text-foreground truncate">
-                  {event!.name}
-                </h1>
-              )}
+              <h1 className="text-2xl font-bold text-foreground truncate">
+                {isNew
+                  ? (formAccount ? `${accounts.find((a) => a.id === formAccount)?.name || "New Event"}` : "New Event")
+                  : event!.name}
+              </h1>
               {editing ? (
                 <ValidatedInput
                   type="date"
@@ -477,24 +491,7 @@ export default function EventDetailPage() {
               )}
             </div>
             <div className="flex gap-2 flex-shrink-0">
-              {editing ? (
-                <>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleCancelEdit}
-                  >
-                    Discard
-                  </Button>
-                  <Button
-                    size="sm"
-                    onClick={handleSaveAll}
-                    disabled={saving}
-                  >
-                    {saving ? (isNew ? "Creating..." : "Saving...") : (isNew ? "Create Event" : "Save")}
-                  </Button>
-                </>
-              ) : (
+              {editing ? null : (
                 <>
                   <Button
                     size="sm"
@@ -687,6 +684,19 @@ export default function EventDetailPage() {
                   </select>
                 </div>
                 <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Meal Type</label>
+                  <select
+                    value={formMealType}
+                    onChange={(e) => setFormMealType(e.target.value)}
+                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  >
+                    <option value="">-- Select --</option>
+                    {Object.entries(mealTypeLabels).map(([key, label]) => (
+                      <option key={key} value={key}>{label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Service Style</label>
                   <select
                     value={formServiceStyle}
@@ -700,30 +710,12 @@ export default function EventDetailPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">
-                    Price Per Head ({settings.currency_symbol})
-                  </label>
-                  <div className="flex gap-2">
-                    <ValidatedInput
-                      type="number"
-                      step="0.01"
-                      min={0}
-                      max={9999999.99}
-                      value={formPricePerHead}
-                      onChange={(e) => setFormPricePerHead(e.target.value)}
-                      placeholder="0.00"
-                    />
-                    {suggestedPrice !== null && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => setFormPricePerHead(suggestedPrice.toFixed(2))}
-                        className="whitespace-nowrap border-success/30 text-success bg-success/10 hover:bg-success/15"
-                      >
-                        Use {formatCurrency(suggestedPrice, settings.currency_symbol)}
-                      </Button>
-                    )}
-                  </div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Booking Date</label>
+                  <ValidatedInput
+                    type="date"
+                    value={formBookingDate}
+                    onChange={(e) => setFormBookingDate(e.target.value)}
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Notes</label>
@@ -741,18 +733,53 @@ export default function EventDetailPage() {
                 <InfoRow label="Primary Contact" value={event!.contact_name} />
                 <InfoRow label="Venue" value={event!.venue_name || event!.venue_address || null} />
                 <InfoRow label="Event Type" value={eventTypeLabels[event!.event_type] || event!.event_type} />
+                <InfoRow label="Meal Type" value={mealTypeLabels[event!.meal_type] || event!.meal_type || null} />
                 <InfoRow label="Service Style" value={serviceStyleLabels[event!.service_style] || event!.service_style} />
-                <InfoRow label="Price Per Head" value={event!.price_per_head ? formatCurrency(event!.price_per_head, settings.currency_symbol) : null} />
+                <InfoRow label="Booking Date" value={event!.booking_date ? formatDate(event!.booking_date, dateFormat) : null} />
                 {event!.notes && <div className="col-span-full"><InfoRow label="Notes" value={event!.notes} /></div>}
               </dl>
             )}
         </CardContent>
       </Card>
 
-      {/* Guest Counts Section */}
+      {/* Timeline Section */}
       <Card>
         <CardContent className="p-6">
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Guest Counts</h2>
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Timeline</h2>
+            {editing ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Setup Time</label>
+                  <ValidatedInput type="datetime-local" value={formSetupTime} onChange={(e) => setFormSetupTime(e.target.value)} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Guest Arrival Time</label>
+                  <ValidatedInput type="datetime-local" value={formArrivalTime} onChange={(e) => setFormArrivalTime(e.target.value)} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Meal Time</label>
+                  <ValidatedInput type="datetime-local" value={formMealTime} onChange={(e) => setFormMealTime(e.target.value)} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">End Time</label>
+                  <ValidatedInput type="datetime-local" value={formEndTime} onChange={(e) => setFormEndTime(e.target.value)} />
+                </div>
+              </div>
+            ) : (
+              <dl className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <InfoRow label="Setup Time" value={formatDateTime(event!.setup_time)} />
+                <InfoRow label="Guest Arrival" value={formatDateTime(event!.guest_arrival_time)} />
+                <InfoRow label="Meal Time" value={formatDateTime(event!.meal_time)} />
+                <InfoRow label="End Time" value={formatDateTime(event!.end_time)} />
+              </dl>
+            )}
+        </CardContent>
+      </Card>
+
+      {/* Main Meal Section */}
+      <Card>
+        <CardContent className="p-6">
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Main Meal</h2>
             {editing ? (
               <div className="space-y-4">
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
@@ -835,288 +862,530 @@ export default function EventDetailPage() {
                     Split: {Math.ceil(formTotalGuests / 2)} gents / {Math.floor(formTotalGuests / 2)} ladies
                   </p>
                 )}
+                <div className="flex items-end pb-1">
+                  <label className="flex items-center gap-2 text-sm">
+                    <input type="checkbox" checked={formBigEaters} onChange={(e) => setFormBigEaters(e.target.checked)} className="rounded border-input text-primary focus:ring-ring" />
+                    <span className="font-medium text-foreground">Big Eaters</span>
+                  </label>
+                  {formBigEaters && (
+                    <div className="ml-4 flex items-center gap-1.5">
+                      <ValidatedInput type="number" min={0} max={100} value={formBigEatersPercent} onChange={(e) => setFormBigEatersPercent(Number(e.target.value))} className="w-20 h-8" />
+                      <span className="text-xs text-muted-foreground">%</span>
+                    </div>
+                  )}
+                </div>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-foreground mb-1">Guaranteed Count</label>
-                    <ValidatedInput type="number" min={0} value={formGuaranteed ?? ""} onChange={(e) => setFormGuaranteed(e.target.value ? Number(e.target.value) : null)} />
+                    <ValidatedInput
+                      type="number"
+                      min={0}
+                      max={100000}
+                      value={formGuaranteed ?? ""}
+                      onChange={(e) => setFormGuaranteed(e.target.value ? Number(e.target.value) : null)}
+                    />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-foreground mb-1">Final Count</label>
-                    <ValidatedInput type="number" min={0} value={formFinalCount ?? ""} onChange={(e) => setFormFinalCount(e.target.value ? Number(e.target.value) : null)} />
+                    <ValidatedInput
+                      type="number"
+                      min={0}
+                      max={100000}
+                      value={formFinalCount ?? ""}
+                      onChange={(e) => setFormFinalCount(e.target.value ? Number(e.target.value) : null)}
+                    />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-foreground mb-1">Final Count Due</label>
-                    <ValidatedInput type="date" value={formFinalCountDue} onChange={(e) => setFormFinalCountDue(e.target.value)} />
+                    <ValidatedInput
+                      type="date"
+                      value={formFinalCountDue}
+                      onChange={(e) => setFormFinalCountDue(e.target.value)}
+                    />
                   </div>
-                  <div className="flex flex-col justify-end">
-                    <label className="flex items-center gap-2 text-sm">
-                      <input type="checkbox" checked={formBigEaters} onChange={(e) => setFormBigEaters(e.target.checked)} className="rounded border-input text-primary focus:ring-ring" />
-                      <span className="font-medium text-foreground">Big Eaters</span>
-                    </label>
-                    {formBigEaters && (
-                      <div className="mt-2">
-                        <label className="block text-xs text-muted-foreground mb-0.5">Percentage (%)</label>
-                        <ValidatedInput type="number" min={0} max={100} value={formBigEatersPercent} onChange={(e) => setFormBigEatersPercent(Number(e.target.value))} className="h-8" />
-                      </div>
-                    )}
-                  </div>
+                </div>
+                <div className="border-t border-border pt-4">
+                  {isNew ? (
+                    <MenuBuilder
+                      selectedDishIds={menuData.dish_ids}
+                      basedOnTemplate={menuData.based_on_template}
+                      onChange={setMenuData}
+                      pricePerHead={formPricePerHead}
+                      onPricePerHeadChange={setFormPricePerHead}
+                      guestCount={formTotalGuests}
+                      currencySymbol={settings.currency_symbol}
+                    />
+                  ) : (
+                    <MenuBuilder
+                      selectedDishIds={event!.dishes}
+                      basedOnTemplate={event!.based_on_template}
+                      onSave={handleMenuSave}
+                      pricePerHead={formPricePerHead}
+                      onPricePerHeadChange={setFormPricePerHead}
+                      guestCount={formTotalGuests}
+                      currencySymbol={settings.currency_symbol}
+                      disabled={false}
+                    />
+                  )}
                 </div>
               </div>
             ) : (
-              <dl className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                <InfoRow label="Gents" value={event!.gents} />
-                <InfoRow label="Ladies" value={event!.ladies} />
-                <InfoRow label="Total" value={event!.gents + event!.ladies} />
-                <InfoRow label="Guaranteed Count" value={event!.guaranteed_count} />
-                <InfoRow label="Final Count" value={event!.final_count} />
-                <InfoRow label="Final Count Due" value={event!.final_count_due} />
-                <InfoRow label="Big Eaters" value={event!.big_eaters ? `Yes (+${event!.big_eaters_percentage}%)` : "No"} />
-              </dl>
+              <div className="space-y-4">
+                <dl className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  <InfoRow label="Total Guests" value={event!.gents + event!.ladies} />
+                  <InfoRow label="Gents" value={event!.gents} />
+                  <InfoRow label="Ladies" value={event!.ladies} />
+                  {event!.big_eaters && <InfoRow label="Big Eaters" value={`+${event!.big_eaters_percentage}%`} />}
+                  {event!.guaranteed_count != null && <InfoRow label="Guaranteed Count" value={event!.guaranteed_count} />}
+                  {event!.final_count != null && <InfoRow label="Final Count" value={event!.final_count} />}
+                  {event!.final_count_due && <InfoRow label="Final Count Due" value={formatDate(event!.final_count_due, dateFormat)} />}
+                </dl>
+                <div className="border-t border-border pt-4">
+                  {event!.dishes.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No menu selected.</p>
+                  ) : (
+                    <MenuBuilder
+                      selectedDishIds={event!.dishes}
+                      basedOnTemplate={event!.based_on_template}
+                      onSave={handleMenuSave}
+                      pricePerHead={formPricePerHead}
+                      onPricePerHeadChange={undefined}
+                      guestCount={event!.gents + event!.ladies}
+                      currencySymbol={settings.currency_symbol}
+                      disabled={true}
+                    />
+                  )}
+                </div>
+              </div>
             )}
         </CardContent>
       </Card>
 
-      {/* Menu Section */}
+      {/* Additional Meals Section */}
       <Card>
         <CardContent className="p-6">
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Menu</h2>
-          {isNew ? (
-            <MenuBuilder
-              selectedDishIds={menuData.dish_ids}
-              basedOnTemplate={menuData.based_on_template}
-              onChange={setMenuData}
-              onSuggestedPriceChange={handleSuggestedPriceChange}
-              onUseSuggestedPrice={(price) => setFormPricePerHead(price.toFixed(2))}
-              guestCount={formTotalGuests}
-              currencySymbol={settings.currency_symbol}
-            />
-          ) : (
-            <MenuBuilder
-              selectedDishIds={event!.dishes}
-              basedOnTemplate={event!.based_on_template}
-              onSave={handleMenuSave}
-              onSuggestedPriceChange={handleSuggestedPriceChange}
-              onUseSuggestedPrice={(price) => setFormPricePerHead(price.toFixed(2))}
-              guestCount={editing ? formTotalGuests : (event!.gents + event!.ladies)}
-              currencySymbol={settings.currency_symbol}
-            />
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Additional Meals</h2>
+            {editing && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setFormAdditionalMeals([...formAdditionalMeals, {
+                  label: "",
+                  guest_count: 0,
+                  price_per_head: null,
+                  dishes: [],
+                  based_on_template: null,
+                  meal_time: null,
+                  notes: "",
+                }])}
+              >
+                + Add Meal
+              </Button>
+            )}
+          </div>
+          {formAdditionalMeals.length === 0 && !editing && (
+            <p className="text-sm text-muted-foreground">No additional meals.</p>
+          )}
+          {formAdditionalMeals.length === 0 && editing && (
+            <p className="text-sm text-muted-foreground">No additional meals added.</p>
+          )}
+          <div className="space-y-4">
+            {formAdditionalMeals.map((meal, idx) => (
+              <div key={idx} className="border border-border rounded-lg p-4 space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  {editing ? (
+                    <input
+                      type="text"
+                      placeholder="Meal label"
+                      value={meal.label}
+                      onChange={(e) => {
+                        const updated = [...formAdditionalMeals];
+                        updated[idx] = { ...updated[idx], label: e.target.value };
+                        setFormAdditionalMeals(updated);
+                      }}
+                      className="flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring flex-1"
+                    />
+                  ) : (
+                    <span className="font-medium text-foreground">{meal.label || "Untitled Meal"}</span>
+                  )}
+                  {editing && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="text-destructive"
+                      onClick={() => setFormAdditionalMeals(formAdditionalMeals.filter((_, i) => i !== idx))}
+                    >
+                      Remove
+                    </Button>
+                  )}
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1">Guest Count</label>
+                    {editing ? (
+                      <ValidatedInput
+                        type="number"
+                        min={0}
+                        value={meal.guest_count}
+                        onChange={(e) => {
+                          const updated = [...formAdditionalMeals];
+                          updated[idx] = { ...updated[idx], guest_count: parseInt(e.target.value) || 0 };
+                          setFormAdditionalMeals(updated);
+                        }}
+                      />
+                    ) : (
+                      <span className="text-sm">{meal.guest_count}</span>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1">Meal Time</label>
+                    {editing ? (
+                      <ValidatedInput
+                        type="datetime-local"
+                        value={meal.meal_time ? meal.meal_time.slice(0, 16) : ""}
+                        onChange={(e) => {
+                          const updated = [...formAdditionalMeals];
+                          updated[idx] = { ...updated[idx], meal_time: e.target.value || null };
+                          setFormAdditionalMeals(updated);
+                        }}
+                      />
+                    ) : (
+                      <span className="text-sm">{meal.meal_time ? sharedFormatDateTime(meal.meal_time, dateFormat) : "\u2014"}</span>
+                    )}
+                  </div>
+                </div>
+                {editing && (
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1">Notes</label>
+                    <Textarea
+                      value={meal.notes}
+                      onChange={(e) => {
+                        const updated = [...formAdditionalMeals];
+                        updated[idx] = { ...updated[idx], notes: e.target.value };
+                        setFormAdditionalMeals(updated);
+                      }}
+                      rows={2}
+                      placeholder="Special instructions for this meal..."
+                    />
+                  </div>
+                )}
+                {!editing && meal.notes && (
+                  <div>
+                    <label className="block text-sm font-medium text-muted-foreground mb-1">Notes</label>
+                    <p className="text-sm">{meal.notes}</p>
+                  </div>
+                )}
+                <MenuBuilder
+                  selectedDishIds={meal.dishes}
+                  basedOnTemplate={meal.based_on_template}
+                  onChange={(data) => {
+                    const updated = [...formAdditionalMeals];
+                    updated[idx] = { ...updated[idx], dishes: data.dish_ids, based_on_template: data.based_on_template };
+                    setFormAdditionalMeals(updated);
+                  }}
+                  pricePerHead={meal.price_per_head || ""}
+                  onPricePerHeadChange={editing ? (val) => {
+                    const updated = [...formAdditionalMeals];
+                    updated[idx] = { ...updated[idx], price_per_head: val || null };
+                    setFormAdditionalMeals(updated);
+                  } : undefined}
+                  guestCount={meal.guest_count}
+                  currencySymbol={settings.currency_symbol}
+                  disabled={!editing}
+                />
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Arrangements & Beverages — 2-column layout */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Arrangements */}
+        <Card>
+          <CardContent className="p-6">
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Arrangements</h2>
+            {editing ? (
+              <div className="space-y-3">
+                {arrangementTypesData.map((at) => {
+                  const selected = formArrangements.find((a) => a.arrangement_type === at.value);
+                  return (
+                    <div key={at.value}>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={!!selected}
+                          onChange={() => handleToggleArrangement(at.value)}
+                          className="rounded border-input"
+                        />
+                        <span className="text-sm text-foreground">{at.label}</span>
+                      </label>
+                      {selected && (
+                        <div className="flex items-center gap-2 mt-1.5 ml-6">
+                          <ValidatedInput
+                            type="number"
+                            min={1}
+                            value={selected.quantity}
+                            onChange={(e) => handleArrangementField(at.value, "quantity", Number(e.target.value) || 1)}
+                            className="w-16 h-8"
+                          />
+                          <span className="text-xs text-muted-foreground">qty</span>
+                          <ValidatedInput
+                            type="number"
+                            step="0.01"
+                            min={0}
+                            value={selected.unit_price}
+                            onChange={(e) => handleArrangementField(at.value, "unit_price", e.target.value)}
+                            placeholder="0.00"
+                            className="w-24 h-8"
+                          />
+                          <span className="text-xs text-muted-foreground">{settings.currency_symbol}/ea</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : !isNew && (
+              (event!.arrangements?.length > 0) ? (
+                <div className="space-y-1.5">
+                  {event!.arrangements.map((arr) => (
+                    <div key={arr.arrangement_type} className="flex items-baseline gap-2">
+                      <span className="text-sm text-foreground font-medium">{arrangementTypeLabels[arr.arrangement_type] || arr.arrangement_type}</span>
+                      <span className="text-sm text-muted-foreground">
+                        x{arr.quantity}
+                        {parseFloat(arr.unit_price) > 0 && ` @ ${formatCurrency(arr.unit_price, settings.currency_symbol)}`}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">No arrangements added.</p>
+              )
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Beverages */}
+        <Card>
+          <CardContent className="p-6">
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Beverages</h2>
+            {editing ? (
+              <div className="space-y-3">
+                {beverageTypesData.map((bt) => {
+                  const selected = formBeverages.find((b) => b.beverage_type === bt.value);
+                  return (
+                    <div key={bt.value}>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={!!selected}
+                          onChange={() => handleToggleBeverage(bt.value)}
+                          className="rounded border-input"
+                        />
+                        <span className="text-sm text-foreground">{bt.label}</span>
+                      </label>
+                      {selected && (
+                        <div className="flex items-center gap-2 mt-1.5 ml-6">
+                          <ValidatedInput
+                            type="number"
+                            min={1}
+                            value={selected.quantity}
+                            onChange={(e) => handleBeverageField(bt.value, "quantity", Number(e.target.value) || 1)}
+                            className="w-16 h-8"
+                          />
+                          <span className="text-xs text-muted-foreground">qty</span>
+                          <ValidatedInput
+                            type="number"
+                            step="0.01"
+                            min={0}
+                            value={selected.unit_price}
+                            onChange={(e) => handleBeverageField(bt.value, "unit_price", e.target.value)}
+                            placeholder="0.00"
+                            className="w-24 h-8"
+                          />
+                          <span className="text-xs text-muted-foreground">{settings.currency_symbol}/ea</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : !isNew && (
+              (event!.beverages?.length > 0) ? (
+                <div className="space-y-1.5">
+                  {event!.beverages.map((bev) => (
+                    <div key={bev.beverage_type} className="flex items-baseline gap-2">
+                      <span className="text-sm text-foreground font-medium">{beverageTypeLabels[bev.beverage_type] || bev.beverage_type}</span>
+                      <span className="text-sm text-muted-foreground">
+                        x{bev.quantity}
+                        {parseFloat(bev.unit_price) > 0 && ` @ ${formatCurrency(bev.unit_price, settings.currency_symbol)}`}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">No beverages added.</p>
+              )
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Pricing Section */}
+      <Card>
+        <CardContent className="p-6">
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Pricing</h2>
+          {(() => {
+            const pph = editing ? parseFloat(formPricePerHead) || 0 : parseFloat(event?.price_per_head || "0");
+            const guests = editing ? formTotalGuests : ((event?.gents || 0) + (event?.ladies || 0));
+            const foodTotal = pph * guests;
+            const meals = editing ? formAdditionalMeals : (event?.additional_meals || []);
+            const mealsTotal = meals.reduce((sum, m) => sum + m.guest_count * (parseFloat(m.price_per_head || "0") || 0), 0);
+            const arrItems = editing ? formArrangements : (event?.arrangements || []);
+            const bevItems = editing ? formBeverages : (event?.beverages || []);
+            const arrTotal = arrItems.reduce((sum, a) => sum + a.quantity * (parseFloat(a.unit_price) || 0), 0);
+            const bevTotal = bevItems.reduce((sum, b) => sum + b.quantity * (parseFloat(b.unit_price) || 0), 0);
+            const subtotal = foodTotal + mealsTotal + arrTotal + bevTotal;
+            const taxable = editing ? formIsTaxable : (event?.is_taxable || false);
+            const taxRate = parseFloat(settings.default_tax_rate) || 0;
+            const taxAmount = taxable ? subtotal * taxRate : 0;
+            const grandTotal = subtotal + taxAmount;
+
+            return (
+              <div className="space-y-4">
+                <div className="border border-border rounded-lg divide-y divide-border">
+                  <div className="flex justify-between px-4 py-2 text-sm">
+                    <span className="text-muted-foreground">Food ({formatCurrency(pph, settings.currency_symbol)}/head × {guests} guests)</span>
+                    <span className="font-medium text-foreground">{formatCurrency(foodTotal, settings.currency_symbol)}</span>
+                  </div>
+                  {meals.map((m, i) => {
+                    const mTotal = m.guest_count * (parseFloat(m.price_per_head || "0") || 0);
+                    return mTotal > 0 ? (
+                      <div key={i} className="flex justify-between px-4 py-2 text-sm">
+                        <span className="text-muted-foreground">{m.label || "Additional Meal"} ({formatCurrency(m.price_per_head || "0", settings.currency_symbol)}/head × {m.guest_count})</span>
+                        <span className="font-medium text-foreground">{formatCurrency(mTotal, settings.currency_symbol)}</span>
+                      </div>
+                    ) : null;
+                  })}
+                  {arrTotal > 0 && (
+                    <div className="flex justify-between px-4 py-2 text-sm">
+                      <span className="text-muted-foreground">Arrangements</span>
+                      <span className="font-medium text-foreground">{formatCurrency(arrTotal, settings.currency_symbol)}</span>
+                    </div>
+                  )}
+                  {bevTotal > 0 && (
+                    <div className="flex justify-between px-4 py-2 text-sm">
+                      <span className="text-muted-foreground">Beverages</span>
+                      <span className="font-medium text-foreground">{formatCurrency(bevTotal, settings.currency_symbol)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between px-4 py-2 text-sm font-medium">
+                    <span className="text-foreground">Subtotal</span>
+                    <span className="text-foreground">{formatCurrency(subtotal, settings.currency_symbol)}</span>
+                  </div>
+                  <div className="flex justify-between items-center px-4 py-2 text-sm">
+                    <span className="text-muted-foreground flex items-center gap-2">
+                      {editing ? (
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={formIsTaxable}
+                            onChange={(e) => setFormIsTaxable(e.target.checked)}
+                            className="rounded border-input"
+                          />
+                          {settings.tax_label} ({(taxRate * 100).toFixed(0)}%)
+                        </label>
+                      ) : (
+                        <span>{settings.tax_label} ({(taxRate * 100).toFixed(0)}%){!taxable && " — not applied"}</span>
+                      )}
+                    </span>
+                    <span className="font-medium text-foreground">{taxable ? formatCurrency(taxAmount, settings.currency_symbol) : "—"}</span>
+                  </div>
+                  <div className="flex justify-between px-4 py-3 text-base font-bold bg-muted/30">
+                    <span className="text-foreground">Total</span>
+                    <span className="text-foreground">{formatCurrency(grandTotal, settings.currency_symbol)}</span>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+        </CardContent>
+      </Card>
+
+      {/* Staffing and Invoices sections hidden from salesperson view (REL-289) */}
+      {/* These remain accessible via /staff and /invoices pages */}
+
+      {/* Instructions Section */}
+      <Card>
+        <CardContent className="p-6">
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Instructions</h2>
+          {editing ? (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Kitchen Instructions</label>
+                <Textarea
+                  value={formKitchenInstructions}
+                  onChange={(e) => setFormKitchenInstructions(e.target.value)}
+                  rows={3}
+                  maxLength={5000}
+                  placeholder="Cooking-specific notes for the kitchen team..."
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Banquet Instructions</label>
+                <Textarea
+                  value={formBanquetInstructions}
+                  onChange={(e) => setFormBanquetInstructions(e.target.value)}
+                  rows={3}
+                  maxLength={5000}
+                  placeholder="Front-of-house / service team notes..."
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Setup / Arrangements Instructions</label>
+                <Textarea
+                  value={formSetupInstructions}
+                  onChange={(e) => setFormSetupInstructions(e.target.value)}
+                  rows={3}
+                  maxLength={5000}
+                  placeholder="Logistics, table layout, client-provided items..."
+                />
+              </div>
+            </div>
+          ) : !isNew && (
+            <dl className="space-y-3">
+              <div>
+                <dt className="text-sm font-medium text-muted-foreground">Kitchen</dt>
+                <dd className="text-sm text-foreground mt-0.5 whitespace-pre-wrap">{event!.kitchen_instructions || "\u2014"}</dd>
+              </div>
+              <div>
+                <dt className="text-sm font-medium text-muted-foreground">Banquet</dt>
+                <dd className="text-sm text-foreground mt-0.5 whitespace-pre-wrap">{event!.banquet_instructions || "\u2014"}</dd>
+              </div>
+              <div>
+                <dt className="text-sm font-medium text-muted-foreground">Setup / Arrangements</dt>
+                <dd className="text-sm text-foreground mt-0.5 whitespace-pre-wrap">{event!.setup_instructions || "\u2014"}</dd>
+              </div>
+            </dl>
           )}
         </CardContent>
       </Card>
 
-      {/* Timeline Section */}
-      <Card>
-        <CardContent className="p-6">
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Timeline</h2>
-            {editing ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Setup Time</label>
-                  <ValidatedInput type="datetime-local" value={formSetupTime} onChange={(e) => setFormSetupTime(e.target.value)} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Guest Arrival Time</label>
-                  <ValidatedInput type="datetime-local" value={formArrivalTime} onChange={(e) => setFormArrivalTime(e.target.value)} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Meal Time</label>
-                  <ValidatedInput type="datetime-local" value={formMealTime} onChange={(e) => setFormMealTime(e.target.value)} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">End Time</label>
-                  <ValidatedInput type="datetime-local" value={formEndTime} onChange={(e) => setFormEndTime(e.target.value)} />
-                </div>
-              </div>
-            ) : (
-              <dl className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <InfoRow label="Setup Time" value={formatDateTime(event!.setup_time)} />
-                <InfoRow label="Guest Arrival" value={formatDateTime(event!.guest_arrival_time)} />
-                <InfoRow label="Meal Time" value={formatDateTime(event!.meal_time)} />
-                <InfoRow label="End Time" value={formatDateTime(event!.end_time)} />
-              </dl>
-            )}
-        </CardContent>
-      </Card>
-
-      {!isNew && <>
-      {/* Staffing Section */}
-      <Card>
-        <CardContent className="p-6">
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Staffing</h2>
-            {event!.shifts.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-muted border-b border-border">
-                    <tr>
-                      <th className="text-left px-3 py-2 font-medium text-muted-foreground">Role</th>
-                      <th className="text-left px-3 py-2 font-medium text-muted-foreground">Staff</th>
-                      <th className="text-left px-3 py-2 font-medium text-muted-foreground">Start</th>
-                      <th className="text-left px-3 py-2 font-medium text-muted-foreground">End</th>
-                      <th className="text-right px-3 py-2 font-medium text-muted-foreground">Cost</th>
-                      <th className="text-center px-3 py-2 font-medium text-muted-foreground">Status</th>
-                      <th className="px-3 py-2"></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {event!.shifts.map((shift) => (
-                      <tr key={shift.id} className="border-b border-border hover:bg-muted">
-                        <td className="px-3 py-2 text-foreground">{shift.role_name}</td>
-                        <td className="px-3 py-2 text-foreground">{shift.staff_member_name || "Unassigned"}</td>
-                        <td className="px-3 py-2 text-muted-foreground text-xs">{formatDateTime(shift.start_time)}</td>
-                        <td className="px-3 py-2 text-muted-foreground text-xs">{formatDateTime(shift.end_time)}</td>
-                        <td className="px-3 py-2 text-right text-foreground">{formatCurrency(shift.shift_cost, settings.currency_symbol)}</td>
-                        <td className="px-3 py-2 text-center">
-                          <Badge variant="secondary">{shift.status}</Badge>
-                        </td>
-                        <td className="px-3 py-2 text-center">
-                          <Button variant="ghost" size="sm" onClick={() => handleDeleteShift(shift.id)} disabled={saving} className="text-destructive hover:text-destructive" title="Delete shift">X</Button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot className="bg-muted border-t border-border">
-                    <tr className="font-semibold">
-                      <td colSpan={4} className="px-3 py-2 text-foreground">Total Labor Cost</td>
-                      <td className="px-3 py-2 text-right text-foreground">{formatCurrency(totalLaborCost, settings.currency_symbol)}</td>
-                      <td colSpan={2}></td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground mb-4">No shifts scheduled yet.</p>
-            )}
-
-            {/* Add Shift Form */}
-            <div className="mt-4 p-3 bg-muted rounded-lg border border-border">
-              <p className="text-sm font-medium text-foreground mb-2">Add Shift</p>
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-                <select value={newShiftRole} onChange={(e) => setNewShiftRole(e.target.value ? Number(e.target.value) : "")} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
-                  <option value="">Role...</option>
-                  {laborRoles.map((r) => (<option key={r.id} value={r.id}>{r.name}</option>))}
-                </select>
-                <select value={newShiftStaff} onChange={(e) => setNewShiftStaff(e.target.value ? Number(e.target.value) : "")} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
-                  <option value="">Staff (optional)...</option>
-                  {staffList.map((s) => (<option key={s.id} value={s.id}>{s.name}</option>))}
-                </select>
-                <ValidatedInput type="datetime-local" value={newShiftStart} onChange={(e) => setNewShiftStart(e.target.value)} placeholder="Start" />
-                <ValidatedInput type="datetime-local" value={newShiftEnd} onChange={(e) => setNewShiftEnd(e.target.value)} placeholder="End" />
-                <Button size="sm" onClick={handleAddShift} disabled={saving || newShiftRole === "" || !newShiftStart || !newShiftEnd}>
-                  Add
-                </Button>
-              </div>
-            </div>
-        </CardContent>
-      </Card>
-
-      {/* Equipment Section */}
-      <Card>
-        <CardContent className="p-6">
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Equipment</h2>
-            {event!.equipment_reservations.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-muted border-b border-border">
-                    <tr>
-                      <th className="text-left px-3 py-2 font-medium text-muted-foreground">Equipment</th>
-                      <th className="text-right px-3 py-2 font-medium text-muted-foreground">Qty</th>
-                      <th className="text-right px-3 py-2 font-medium text-muted-foreground">Cost</th>
-                      <th className="px-3 py-2"></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {event!.equipment_reservations.map((res) => (
-                      <tr key={res.id} className="border-b border-border hover:bg-muted">
-                        <td className="px-3 py-2 text-foreground">{res.equipment_name}</td>
-                        <td className="px-3 py-2 text-right text-foreground">{res.quantity_out}</td>
-                        <td className="px-3 py-2 text-right text-foreground">{formatCurrency(res.line_cost, settings.currency_symbol)}</td>
-                        <td className="px-3 py-2 text-center">
-                          <Button variant="ghost" size="sm" onClick={() => handleDeleteReservation(res.id)} disabled={saving} className="text-destructive hover:text-destructive" title="Delete reservation">X</Button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot className="bg-muted border-t border-border">
-                    <tr className="font-semibold">
-                      <td colSpan={2} className="px-3 py-2 text-foreground">Total Equipment Cost</td>
-                      <td className="px-3 py-2 text-right text-foreground">{formatCurrency(totalEquipmentCost, settings.currency_symbol)}</td>
-                      <td></td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground mb-4">No equipment reserved yet.</p>
-            )}
-
-            {/* Add Equipment Form */}
-            <div className="mt-4 p-3 bg-muted rounded-lg border border-border">
-              <p className="text-sm font-medium text-foreground mb-2">Add Equipment</p>
-              <div className="grid grid-cols-3 gap-2">
-                <select value={newEquipId} onChange={(e) => setNewEquipId(e.target.value ? Number(e.target.value) : "")} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
-                  <option value="">Equipment...</option>
-                  {equipmentItems.map((eq) => (<option key={eq.id} value={eq.id}>{eq.name}</option>))}
-                </select>
-                <ValidatedInput type="number" min={1} value={newEquipQty} onChange={(e) => setNewEquipQty(Number(e.target.value))} placeholder="Quantity" />
-                <Button size="sm" onClick={handleAddEquipment} disabled={saving || newEquipId === ""}>Add</Button>
-              </div>
-            </div>
-        </CardContent>
-      </Card>
-
-      {/* Invoices Section */}
-      <Card>
-        <CardContent className="p-6">
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Invoices</h2>
-            {event!.invoices.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-muted border-b border-border">
-                    <tr>
-                      <th className="text-left px-3 py-2 font-medium text-muted-foreground">Invoice #</th>
-                      <th className="text-left px-3 py-2 font-medium text-muted-foreground">Type</th>
-                      <th className="text-right px-3 py-2 font-medium text-muted-foreground">Total</th>
-                      <th className="text-center px-3 py-2 font-medium text-muted-foreground">Status</th>
-                      <th className="text-right px-3 py-2 font-medium text-muted-foreground">Balance Due</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {event!.invoices.map((inv) => (
-                      <tr key={inv.id} className="border-b border-border hover:bg-muted">
-                        <td className="px-3 py-2">
-                          <Link href={`/invoices/${inv.id}`} className="text-primary hover:text-primary/80 font-medium">{inv.invoice_number}</Link>
-                        </td>
-                        <td className="px-3 py-2 text-muted-foreground capitalize">{inv.invoice_type}</td>
-                        <td className="px-3 py-2 text-right text-foreground">{formatCurrency(inv.total, settings.currency_symbol)}</td>
-                        <td className="px-3 py-2 text-center">
-                          <Badge variant={
-                            inv.status === "paid" ? "success" :
-                            inv.status === "overdue" ? "destructive" :
-                            inv.status === "sent" ? "info" :
-                            "secondary"
-                          }>{inv.status}</Badge>
-                        </td>
-                        <td className="px-3 py-2 text-right text-foreground">{formatCurrency(inv.balance_due, settings.currency_symbol)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground mb-4">No invoices yet.</p>
-            )}
-
-            <div className="mt-4">
-              <Button
-                onClick={handleCreateInvoice}
-                disabled={saving}
-              >
-                {saving ? "Creating..." : "Create Invoice"}
-              </Button>
-            </div>
-        </CardContent>
-      </Card>
-      </>}
+      {/* Bottom action bar for create/edit mode */}
+      {editing && (
+        <div className="sticky bottom-4 flex justify-end gap-3 z-10">
+          <Button variant="outline" onClick={handleCancelEdit}>
+            Discard
+          </Button>
+          <Button onClick={handleSaveAll} disabled={saving}>
+            {saving ? (isNew ? "Creating..." : "Saving...") : (isNew ? "Create Event" : "Save")}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

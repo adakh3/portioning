@@ -1451,13 +1451,12 @@ function LeadsTable({
                   />
                 </TableCell>
 
-                {/* Name - editable text */}
-                <EditableTextCell
-                  lead={lead}
-                  field="contact_name"
-                  display={lead.contact_name}
-                  className="font-medium"
-                />
+                {/* Name - links to lead detail */}
+                <TableCell className="font-medium">
+                  <Link href={`/leads/${lead.id}`} className="text-primary hover:underline" onClick={(e) => e.stopPropagation()}>
+                    {lead.contact_name}
+                  </Link>
+                </TableCell>
 
                 {/* Email - editable text */}
                 <EditableTextCell

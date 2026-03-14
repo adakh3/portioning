@@ -165,6 +165,10 @@ export default function KitchenEventDetailPage() {
 
   return (
     <div className="space-y-6">
+      <Button variant="outline" size="sm" asChild>
+        <Link href="/kitchen/events">&larr; Back to Kitchen Events</Link>
+      </Button>
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -181,9 +185,6 @@ export default function KitchenEventDetailPage() {
             {event.account_name && <span>{event.account_name}</span>}
           </div>
         </div>
-        <Button variant="outline" size="sm" asChild>
-          <Link href="/kitchen/events">Back to List</Link>
-        </Button>
       </div>
 
       {/* Action buttons */}

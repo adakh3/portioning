@@ -95,7 +95,7 @@ export default function InvoiceDetailPage() {
   return (
     <div>
       <div className="mb-6">
-        <Button variant="link" asChild className="px-0">
+        <Button variant="outline" size="sm" asChild>
           <Link href="/invoices">&larr; Back to Invoices</Link>
         </Button>
       </div>

@@ -261,6 +261,7 @@ export interface Lead {
   budget: string | null;
   event_type: string;
   event_type_display: string;
+  meal_type: string;
   service_style: string;
   notes: string;
   product: number | null;
@@ -325,6 +326,8 @@ export interface Quote {
   price_per_head: string | null;
   food_total: string;
   event_type: string;
+  meal_type: string;
+  booking_date: string | null;
   service_style: string;
   valid_until: string | null;
   subtotal: string;
@@ -492,6 +495,8 @@ export interface SiteSettingsData {
   default_price_per_head: string;
   target_food_cost_percentage: string;
   price_rounding_step: string;
+  tax_label: string;
+  default_tax_rate: string;
 }
 
 // Event type (updated with booking fields)
@@ -506,6 +511,9 @@ export interface EventData {
   dishes: number[];
   based_on_template: number | null;
   notes: string;
+  kitchen_instructions: string;
+  banquet_instructions: string;
+  setup_instructions: string;
   dish_comments?: EventDishComment[];
   constraint_override?: {
     max_total_food_per_person_grams?: number;
@@ -521,10 +529,13 @@ export interface EventData {
   venue_name: string | null;
   venue_address: string;
   event_type: string;
+  meal_type: string;
   service_style: string;
+  booking_date: string | null;
   price_per_head: string | null;
   status: string;
   status_display: string;
+  is_taxable: boolean;
   // Timeline
   setup_time: string | null;
   guest_arrival_time: string | null;
@@ -536,9 +547,41 @@ export interface EventData {
   final_count_due: string | null;
   // Nested
   source_quote_id: number | null;
+  arrangements: EventArrangement[];
+  beverages: EventBeverage[];
+  additional_meals: EventMealData[];
   shifts: Shift[];
   equipment_reservations: EquipmentReservation[];
   invoices: Invoice[];
+}
+
+export interface EventArrangement {
+  id?: number;
+  arrangement_type: string;
+  quantity: number;
+  unit_price: string;
+  notes: string;
+}
+
+export interface EventBeverage {
+  id?: number;
+  beverage_type: string;
+  quantity: number;
+  unit_price: string;
+  notes: string;
+}
+
+export interface EventMealData {
+  id?: number;
+  label: string;
+  guest_count: number;
+  price_per_head: string | null;
+  dishes: number[];
+  dish_ids?: number[];
+  based_on_template: number | null;
+  meal_time: string | null;
+  notes: string;
+  dish_comments?: EventDishComment[];
 }
 
 // Check Portions types
@@ -980,6 +1023,9 @@ export const api = {
   getSources: () => fetchApi<ChoiceOption[]>("/bookings/sources/"),
   getLeadStatuses: () => fetchApi<ChoiceOption[]>("/bookings/lead-statuses/"),
   getLostReasons: () => fetchApi<ChoiceOption[]>("/bookings/lost-reasons/"),
+  getMealTypes: () => fetchApi<ChoiceOption[]>("/bookings/meal-types/"),
+  getArrangementTypes: () => fetchApi<ChoiceOption[]>("/bookings/arrangement-types/"),
+  getBeverageTypes: () => fetchApi<ChoiceOption[]>("/bookings/beverage-types/"),
 
   // Settings
   getSiteSettings: () => fetchApi<SiteSettingsData>("/bookings/settings/"),

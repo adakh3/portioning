@@ -15,7 +15,9 @@ from .settings import SiteSettingsView
 from .choices import (
     EventTypeOptionListView, SourceOptionListView,
     ServiceStyleOptionListView, LeadStatusOptionListView,
-    LostReasonOptionListView,
+    LostReasonOptionListView, MealTypeOptionListView,
+    ArrangementTypeOptionListView,
+    BeverageTypeOptionListView,
 )
 from .reminders import (
     ReminderListCreateView, ReminderDetailView,
