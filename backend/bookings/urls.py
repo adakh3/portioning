@@ -1,8 +1,7 @@
 from django.urls import path
 
 from bookings.views import (
-    AccountListCreateView, AccountDetailView,
-    ContactListCreateView, ContactDetailView,
+    CustomerListCreateView, CustomerDetailView,
     VenueListCreateView, VenueDetailView,
     UserListView, ProductLineListView, LeadListCreateView, LeadDetailView, LeadTransitionView, LeadCreateQuoteView, LeadWonView, LeadCreateEventView, LeadBulkUpdateView, LeadActivityView, LeadAutoAssignView,
     DashboardStatsView,
@@ -20,11 +19,9 @@ from bookings.views import (
 )
 
 urlpatterns = [
-    # Accounts & Contacts
-    path('bookings/accounts/', AccountListCreateView.as_view(), name='account-list'),
-    path('bookings/accounts/<int:pk>/', AccountDetailView.as_view(), name='account-detail'),
-    path('bookings/accounts/<int:account_pk>/contacts/', ContactListCreateView.as_view(), name='contact-list'),
-    path('bookings/accounts/<int:account_pk>/contacts/<int:pk>/', ContactDetailView.as_view(), name='contact-detail'),
+    # Customers
+    path('bookings/customers/', CustomerListCreateView.as_view(), name='customer-list'),
+    path('bookings/customers/<int:pk>/', CustomerDetailView.as_view(), name='customer-detail'),
 
     # Venues
     path('bookings/venues/', VenueListCreateView.as_view(), name='venue-list'),

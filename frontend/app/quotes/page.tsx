@@ -77,10 +77,9 @@ function QuotesContent() {
         const s = search.toLowerCase();
         const filtered = search
           ? quotes.filter((q) =>
-              q.account_name?.toLowerCase().includes(s) ||
-              q.contact_name?.toLowerCase().includes(s) ||
-              q.contact_email?.toLowerCase().includes(s) ||
-              q.contact_phone?.toLowerCase().includes(s) ||
+              q.customer_name?.toLowerCase().includes(s) ||
+              q.customer_email?.toLowerCase().includes(s) ||
+              q.customer_phone?.toLowerCase().includes(s) ||
               q.venue_name?.toLowerCase().includes(s) ||
               `${q.id}`.includes(s)
             )
@@ -108,7 +107,7 @@ function QuotesContent() {
                         </Badge>
                       </div>
                       <p className="text-sm text-muted-foreground mt-1">
-                        {quote.account_name} &middot; {quote.event_date} &middot; {quote.guest_count} guests
+                        {quote.customer_name} &middot; {quote.event_date} &middot; {quote.guest_count} guests
                       </p>
                     </div>
                     <div className="text-right">

@@ -178,7 +178,7 @@ export default function KitchenEventDetailPage() {
             <span>{event.date}</span>
             <span>{totalGuests} guests ({event.gents}G / {event.ladies}L)</span>
             {event.venue_name && <span>{event.venue_name}</span>}
-            {event.account_name && <span>{event.account_name}</span>}
+            {event.customer_name && <span>{event.customer_name}</span>}
           </div>
         </div>
         <Button variant="outline" size="sm" asChild>

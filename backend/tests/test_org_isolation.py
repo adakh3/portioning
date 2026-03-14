@@ -9,7 +9,7 @@ from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
 
 from users.models import Organisation, User
-from bookings.models import Account, Contact, Venue, Lead, Quote
+from bookings.models import Customer, Venue, Lead, Quote
 from bookings.models.choices import (
     EventTypeOption, SourceOption, ServiceStyleOption,
     LeadStatusOption, LostReasonOption,
@@ -58,21 +58,19 @@ class OrgIsolationTestBase(TestCase):
         EventTypeOption.objects.create(organisation=cls.org_b, value="wedding", label="Wedding")
 
         # Org A data
-        cls.account_a = Account.objects.create(
-            organisation=cls.org_a, name="Org A Account", account_type="company",
-        )
-        cls.contact_a = Contact.objects.create(
-            account=cls.account_a, name="Contact A", email="contact@orga.com",
+        cls.customer_a = Customer.objects.create(
+            organisation=cls.org_a, name="Jane Doe", customer_type="consumer",
+            email="jane@orga.com",
         )
         cls.venue_a = Venue.objects.create(
             organisation=cls.org_a, name="Org A Venue", city="London",
         )
         cls.lead_a = Lead.objects.create(
-            organisation=cls.org_a, contact_name="Lead A", contact_email="lead@orga.com",
-            event_type="wedding", status="new", account=cls.account_a,
+            organisation=cls.org_a, customer=cls.customer_a,
+            event_type="wedding", status="new",
         )
         cls.quote_a = Quote.objects.create(
-            organisation=cls.org_a, account=cls.account_a, lead=cls.lead_a,
+            organisation=cls.org_a, customer=cls.customer_a, lead=cls.lead_a,
             event_date=date.today() + timedelta(days=30), guest_count=100,
         )
 
@@ -103,7 +101,7 @@ class OrgIsolationTestBase(TestCase):
         # Event for Org A
         cls.event_a = Event.objects.create(
             organisation=cls.org_a, name="Event A", date=date.today() + timedelta(days=30),
-            gents=50, ladies=50, account=cls.account_a, status="tentative",
+            gents=50, ladies=50, customer=cls.customer_a, status="tentative",
         )
 
         # Rules for Org A
@@ -170,22 +168,16 @@ class TestQuoteIsolation(OrgIsolationTestBase):
         self.assertEqual(resp.status_code, 404)
 
 
-class TestAccountIsolation(OrgIsolationTestBase):
+class TestCustomerIsolation(OrgIsolationTestBase):
     def test_list_excludes_other_org(self):
-        resp = self.client.get("/api/bookings/accounts/")
+        resp = self.client.get("/api/bookings/customers/")
         self.assertEqual(resp.status_code, 200)
         ids = [a["id"] for a in resp.data]
-        self.assertNotIn(self.account_a.id, ids)
+        self.assertNotIn(self.customer_a.id, ids)
 
     def test_detail_404(self):
-        resp = self.client.get(f"/api/bookings/accounts/{self.account_a.id}/")
+        resp = self.client.get(f"/api/bookings/customers/{self.customer_a.id}/")
         self.assertEqual(resp.status_code, 404)
-
-    def test_contacts_for_other_org_account_empty(self):
-        resp = self.client.get(f"/api/bookings/accounts/{self.account_a.id}/contacts/")
-        # Either 404 or empty list depending on implementation
-        if resp.status_code == 200:
-            self.assertEqual(len(resp.data), 0)
 
 
 class TestEventIsolation(OrgIsolationTestBase):

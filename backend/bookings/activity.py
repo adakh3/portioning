@@ -19,15 +19,13 @@ def log_activity(instance, action, user=None, field_name='', old_value='', new_v
 
 
 TRACKED_FIELDS = [
-    'contact_name', 'contact_email', 'contact_phone', 'source',
+    'customer', 'source',
     'event_date', 'guest_estimate', 'budget', 'event_type',
     'service_style', 'assigned_to', 'product', 'notes', 'lost_notes',
 ]
 
 FIELD_LABELS = {
-    'contact_name': 'Contact Name',
-    'contact_email': 'Email',
-    'contact_phone': 'Phone',
+    'customer': 'Customer',
     'source': 'Source',
     'event_date': 'Event Date',
     'guest_estimate': 'Guest Estimate',
@@ -57,6 +55,12 @@ def _display_value(field_name, value, instance=None):
         try:
             return ProductLine.objects.get(pk=int(value)).name
         except (ProductLine.DoesNotExist, ValueError, TypeError):
+            return str(value)
+    if field_name == 'customer':
+        from bookings.models.accounts import Customer
+        try:
+            return str(Customer.objects.get(pk=int(value)))
+        except (Customer.DoesNotExist, ValueError, TypeError):
             return str(value)
     return str(value)
 

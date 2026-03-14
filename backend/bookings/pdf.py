@@ -248,22 +248,21 @@ def generate_quote_pdf(quote):
     elements.append(Spacer(1, 8 * mm))
 
     # ── 2. Two-column info block ──
-    # Left column: "To: Account" with contact info
+    # Left column: "To: Customer" with contact info
+    cust = quote.customer
     left_data = []
-    left_data.append([Paragraph(f'<b>To: {quote.account.name}</b>', s['info_header']), ''])
+    left_data.append([Paragraph(f'<b>To: {cust.display_name}</b>', s['info_header']), ''])
 
-    if quote.primary_contact:
-        c = quote.primary_contact
-        left_data.append([Paragraph('Contact:', s['info_label']), Paragraph(c.name, s['info_value'])])
-        if c.phone:
-            left_data.append([Paragraph('Phone:', s['info_label']), Paragraph(c.phone, s['info_value'])])
-        if c.email:
-            left_data.append([Paragraph('Email:', s['info_label']), Paragraph(c.email, s['info_value'])])
+    if cust.name and cust.customer_type == 'business':
+        left_data.append([Paragraph('Contact:', s['info_label']), Paragraph(cust.name, s['info_value'])])
+    if cust.phone:
+        left_data.append([Paragraph('Phone:', s['info_label']), Paragraph(cust.phone, s['info_value'])])
+    if cust.email:
+        left_data.append([Paragraph('Email:', s['info_label']), Paragraph(cust.email, s['info_value'])])
 
-    acct = quote.account
     addr_parts = [p for p in [
-        acct.billing_address_line1, acct.billing_address_line2,
-        acct.billing_city, acct.billing_postcode,
+        cust.billing_address_line1, cust.billing_address_line2,
+        cust.billing_city, cust.billing_postcode,
     ] if p]
     if addr_parts:
         left_data.append([Paragraph('Address:', s['info_label']), Paragraph(', '.join(addr_parts), s['info_value'])])
@@ -314,7 +313,7 @@ def generate_quote_pdf(quote):
     right_rows = [
         ['Booking Date:', quote.created_at.strftime('%d %B %Y')],
         ['Quotation #:', f'Q-{quote.pk}'],
-        ['Customer ID:', str(quote.account.pk)],
+        ['Customer ID:', str(cust.pk)],
         ['No. of Guests:', str(quote.guest_count)],
         ['Event Date:', quote.event_date.strftime('%d %B %Y')],
         ['Event Day:', quote.event_date.strftime('%A')],

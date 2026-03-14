@@ -1,4 +1,4 @@
-from .accounts import AccountSerializer, ContactSerializer
+from .accounts import CustomerSerializer
 from .venues import VenueSerializer
 from .leads import LeadSerializer
 from .quotes import QuoteSerializer, QuoteLineItemSerializer

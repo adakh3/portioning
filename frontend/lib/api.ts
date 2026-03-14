@@ -184,10 +184,14 @@ export interface EventDishComment {
 }
 
 // Bookings types
-export interface Account {
+export interface Customer {
   id: number;
+  customer_type: string;
   name: string;
-  account_type: string;
+  company_name: string;
+  display_name: string;
+  email: string;
+  phone: string;
   billing_address_line1: string;
   billing_address_line2: string;
   billing_city: string;
@@ -195,20 +199,6 @@ export interface Account {
   billing_country: string;
   vat_number: string;
   payment_terms: string;
-  notes: string;
-  contacts: Contact[];
-  created_at: string;
-  updated_at: string;
-}
-
-export interface Contact {
-  id: number;
-  account: number;
-  name: string;
-  email: string;
-  phone: string;
-  role: string;
-  is_primary: boolean;
   notes: string;
   created_at: string;
   updated_at: string;
@@ -250,11 +240,10 @@ export interface ProductLine {
 
 export interface Lead {
   id: number;
-  account: number | null;
-  account_name: string | null;
-  contact_name: string;
-  contact_email: string;
-  contact_phone: string;
+  customer: number | null;
+  customer_name: string | null;
+  customer_email: string | null;
+  customer_phone: string | null;
   source: string;
   event_date: string | null;
   guest_estimate: number | null;
@@ -307,12 +296,10 @@ export interface Quote {
   id: number;
   lead: number | null;
   lead_name: string | null;
-  account: number;
-  account_name: string;
-  primary_contact: number | null;
-  contact_name: string | null;
-  contact_email: string | null;
-  contact_phone: string | null;
+  customer: number | null;
+  customer_name: string | null;
+  customer_email: string | null;
+  customer_phone: string | null;
   version: number;
   status: string;
   status_display: string;
@@ -513,10 +500,8 @@ export interface EventData {
   };
   created_at: string;
   // Booking fields
-  account: number | null;
-  account_name: string | null;
-  primary_contact: number | null;
-  contact_name: string | null;
+  customer: number | null;
+  customer_name: string | null;
   venue: number | null;
   venue_name: string | null;
   venue_address: string;
@@ -793,21 +778,15 @@ export const api = {
     return res.blob();
   },
 
-  // Bookings: Accounts
-  getAccounts: () => fetchApi<Account[]>("/bookings/accounts/"),
-  getAccount: (id: number) => fetchApi<Account>(`/bookings/accounts/${id}/`),
-  createAccount: (data: Partial<Account>) =>
-    fetchApi<Account>("/bookings/accounts/", { method: "POST", body: JSON.stringify(data) }),
-  updateAccount: (id: number, data: Partial<Account>) =>
-    fetchApi<Account>(`/bookings/accounts/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
-  deleteAccount: (id: number) =>
-    fetchApi<void>(`/bookings/accounts/${id}/`, { method: "DELETE" }),
-  createContact: (accountId: number, data: Partial<Contact>) =>
-    fetchApi<Contact>(`/bookings/accounts/${accountId}/contacts/`, { method: "POST", body: JSON.stringify(data) }),
-  updateContact: (accountId: number, contactId: number, data: Partial<Contact>) =>
-    fetchApi<Contact>(`/bookings/accounts/${accountId}/contacts/${contactId}/`, { method: "PATCH", body: JSON.stringify(data) }),
-  deleteContact: (accountId: number, contactId: number) =>
-    fetchApi<void>(`/bookings/accounts/${accountId}/contacts/${contactId}/`, { method: "DELETE" }),
+  // Bookings: Customers
+  getCustomers: () => fetchApi<Customer[]>("/bookings/customers/"),
+  getCustomer: (id: number) => fetchApi<Customer>(`/bookings/customers/${id}/`),
+  createCustomer: (data: Partial<Customer>) =>
+    fetchApi<Customer>("/bookings/customers/", { method: "POST", body: JSON.stringify(data) }),
+  updateCustomer: (id: number, data: Partial<Customer>) =>
+    fetchApi<Customer>(`/bookings/customers/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
+  deleteCustomer: (id: number) =>
+    fetchApi<void>(`/bookings/customers/${id}/`, { method: "DELETE" }),
 
   // Bookings: Venues
   getVenues: () => fetchApi<Venue[]>("/bookings/venues/"),

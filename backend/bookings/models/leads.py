@@ -28,13 +28,10 @@ class Lead(models.Model):
         'users.Organisation',
         on_delete=models.CASCADE, related_name='leads',
     )
-    account = models.ForeignKey(
-        'bookings.Account', null=True, blank=True,
+    customer = models.ForeignKey(
+        'bookings.Customer', null=True, blank=True,
         on_delete=models.SET_NULL, related_name='leads',
     )
-    contact_name = models.CharField(max_length=200)
-    contact_email = models.EmailField(blank=True)
-    contact_phone = models.CharField(max_length=50, blank=True)
     source = models.CharField(max_length=50, default='website')
     event_date = models.DateField(null=True, blank=True)
     guest_estimate = models.IntegerField(null=True, blank=True)
@@ -83,11 +80,15 @@ class Lead(models.Model):
     class Meta:
         ordering = ['-created_at']
 
+    @property
+    def customer_name(self):
+        return str(self.customer) if self.customer else 'Unknown'
+
     def __str__(self):
         from bookings.models.choices import EventTypeOption, LeadStatusOption
         et_label = EventTypeOption.objects.filter(value=self.event_type, organisation=self.organisation).values_list('label', flat=True).first() or self.event_type
         st_label = LeadStatusOption.objects.filter(value=self.status, organisation=self.organisation).values_list('label', flat=True).first() or self.status
-        return f"{self.contact_name} — {et_label} ({st_label})"
+        return f"{self.customer_name} — {et_label} ({st_label})"
 
     def can_transition_to(self, new_status):
         from bookings.models.choices import LeadStatusOption

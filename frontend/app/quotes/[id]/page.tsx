@@ -3,8 +3,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { api, Contact } from "@/lib/api";
-import { useQuote, useAccounts, useVenues, useSiteSettings, useDateFormat, useEventTypes, useServiceStyles, useLeads, revalidate } from "@/lib/hooks";
+import { api } from "@/lib/api";
+import { useQuote, useCustomers, useVenues, useSiteSettings, useDateFormat, useEventTypes, useServiceStyles, useLeads, revalidate } from "@/lib/hooks";
 import { formatDate } from "@/lib/dateFormat";
 import { formatCurrency } from "@/lib/utils";
 import MenuBuilder from "@/components/MenuBuilder";
@@ -37,7 +37,7 @@ export default function QuoteDetailPage() {
   const isNew = id === "new";
   const { data: quote, error: loadError, isLoading: quoteLoading, mutate: mutateQuote } = useQuote(isNew ? null : (Number(id) || null));
   const loading = isNew ? false : quoteLoading;
-  const { data: accounts = [] } = useAccounts();
+  const { data: customers = [] } = useCustomers();
   const { data: venues = [] } = useVenues();
   const { data: rawSettings } = useSiteSettings();
   const settings = rawSettings || { currency_symbol: "£", currency_code: "GBP", date_format: "DD/MM/YYYY", default_price_per_head: "0.00", target_food_cost_percentage: "30.00", price_rounding_step: "50" };
@@ -49,10 +49,9 @@ export default function QuoteDetailPage() {
   const [showItemForm, setShowItemForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
-  const [contacts, setContacts] = useState<Contact[]>([]);
   const [error, setError] = useState("");
   const [editData, setEditData] = useState({
-    primary_contact: "",
+    customer: "",
     event_date: "",
     guest_count: "",
     price_per_head: "",
@@ -72,8 +71,7 @@ export default function QuoteDetailPage() {
   // Create mode state
   const [createData, setCreateData] = useState({
     lead: "",
-    account: "",
-    primary_contact: "",
+    customer: "",
     venue: "",
     venue_address: "",
     event_date: "",
@@ -90,8 +88,6 @@ export default function QuoteDetailPage() {
     dish_ids: number[];
     based_on_template: number | null;
   }>({ dish_ids: [], based_on_template: null });
-  const [createContacts, setCreateContacts] = useState<Contact[]>([]);
-
   // Set default price from settings in create mode
   const defaultPriceApplied = useRef(false);
   useEffect(() => {
@@ -100,18 +96,6 @@ export default function QuoteDetailPage() {
       defaultPriceApplied.current = true;
     }
   }, [isNew, rawSettings]);
-
-  // Load contacts when account changes in create mode
-  useEffect(() => {
-    if (!isNew) return;
-    if (createData.account) {
-      const acct = accounts.find((a) => a.id === Number(createData.account));
-      setCreateContacts(acct?.contacts || []);
-      setCreateData((prev) => ({ ...prev, primary_contact: "" }));
-    } else {
-      setCreateContacts([]);
-    }
-  }, [isNew, createData.account, accounts]);
 
   const setCreate = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setCreateData({ ...createData, [field]: e.target.value });
@@ -127,7 +111,7 @@ export default function QuoteDetailPage() {
     setCreateData((prev) => ({
       ...prev,
       lead: leadId,
-      account: selectedLead.account ? String(selectedLead.account) : prev.account,
+      customer: selectedLead.customer ? String(selectedLead.customer) : prev.customer,
       event_date: selectedLead.event_date || prev.event_date,
       guest_count: selectedLead.guest_estimate ? String(selectedLead.guest_estimate) : prev.guest_count,
       event_type: selectedLead.event_type || prev.event_type,
@@ -142,8 +126,7 @@ export default function QuoteDetailPage() {
     try {
       const data = {
         lead: createData.lead ? Number(createData.lead) : null,
-        account: Number(createData.account),
-        primary_contact: createData.primary_contact ? Number(createData.primary_contact) : null,
+        customer: Number(createData.customer),
         venue: createData.venue ? Number(createData.venue) : null,
         venue_address: createData.venue_address,
         event_date: createData.event_date,
@@ -179,7 +162,7 @@ export default function QuoteDetailPage() {
   function startEditing() {
     if (!quote) return;
     setEditData({
-      primary_contact: quote.primary_contact ? String(quote.primary_contact) : "",
+      customer: quote.customer ? String(quote.customer) : "",
       event_date: quote.event_date,
       guest_count: String(quote.guest_count),
       price_per_head: quote.price_per_head || "",
@@ -192,9 +175,6 @@ export default function QuoteDetailPage() {
       notes: quote.notes,
       internal_notes: quote.internal_notes,
     });
-    if (quote.account) {
-      api.getAccount(quote.account).then((acct) => setContacts(acct.contacts || [])).catch(() => {});
-    }
     setEditing(true);
   }
 
@@ -205,7 +185,7 @@ export default function QuoteDetailPage() {
     setError("");
     try {
       await api.updateQuote(quote.id, {
-        primary_contact: editData.primary_contact ? Number(editData.primary_contact) : null,
+        customer: editData.customer ? Number(editData.customer) : null,
         event_date: editData.event_date,
         guest_count: Number(editData.guest_count),
         price_per_head: editData.price_per_head ? editData.price_per_head : null,
@@ -323,28 +303,18 @@ export default function QuoteDetailPage() {
                   <option value="">-- No lead (standalone quote) --</option>
                   {leads.map((l) => (
                     <option key={l.id} value={l.id}>
-                      {l.contact_name}{l.event_type_display ? ` — ${l.event_type_display}` : ""}{l.event_date ? ` (${l.event_date})` : ""}
+                      {l.customer_name || "Unnamed"}{l.event_type_display ? ` — ${l.event_type_display}` : ""}{l.event_date ? ` (${l.event_date})` : ""}
                     </option>
                   ))}
                 </select>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Account *</label>
-                  <select required value={createData.account} onChange={setCreate("account")} className={selectClass}>
-                    <option value="">-- Select Account --</option>
-                    {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                  <label className="block text-sm font-medium text-foreground mb-1">Customer *</label>
+                  <select required value={createData.customer} onChange={setCreate("customer")} className={selectClass}>
+                    <option value="">-- Select Customer --</option>
+                    {customers.map((c) => <option key={c.id} value={c.id}>{c.display_name}</option>)}
                   </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Contact Person</label>
-                  <select value={createData.primary_contact} onChange={setCreate("primary_contact")} disabled={!createData.account} className={`${selectClass} disabled:cursor-not-allowed disabled:opacity-50`}>
-                    <option value="">-- Select Contact --</option>
-                    {createContacts.map((c) => <option key={c.id} value={c.id}>{c.name} ({c.role})</option>)}
-                  </select>
-                  {createData.account && createContacts.length === 0 && (
-                    <p className="text-xs text-muted-foreground mt-1">No contacts on this account</p>
-                  )}
                 </div>
               </div>
             </CardContent>
@@ -619,10 +589,10 @@ export default function QuoteDetailPage() {
           <h2 className="text-lg font-semibold text-foreground mb-4">Edit Quote Details</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Contact Person</label>
-              <select value={editData.primary_contact} onChange={setEdit("primary_contact")} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
-                <option value="">-- No contact --</option>
-                {contacts.map((c) => <option key={c.id} value={c.id}>{c.name} ({c.role})</option>)}
+              <label className="block text-sm font-medium text-foreground mb-1">Customer</label>
+              <select value={editData.customer} onChange={setEdit("customer")} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
+                <option value="">-- Select Customer --</option>
+                {customers.map((c) => <option key={c.id} value={c.id}>{c.display_name}</option>)}
               </select>
             </div>
             <div>
@@ -719,21 +689,18 @@ export default function QuoteDetailPage() {
               <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Customer</h2>
               <div className="space-y-2 text-sm">
                 <div>
-                  <span className="text-muted-foreground">Account:</span>{" "}
-                  <Link href={`/accounts/${q.account}`} className="text-primary hover:underline font-medium">{q.account_name}</Link>
+                  <span className="text-muted-foreground">Customer:</span>{" "}
+                  {q.customer ? (
+                    <Link href={`/customers/${q.customer}`} className="text-primary hover:underline font-medium">{q.customer_name}</Link>
+                  ) : (
+                    <span className="text-muted-foreground italic">No customer set</span>
+                  )}
                 </div>
-                {q.contact_name ? (
-                  <div>
-                    <span className="text-muted-foreground">Contact:</span> {q.contact_name}
-                    {q.contact_email && (
-                      <span className="text-muted-foreground ml-2">{q.contact_email}</span>
-                    )}
-                    {q.contact_phone && (
-                      <span className="text-muted-foreground ml-2">{q.contact_phone}</span>
-                    )}
-                  </div>
-                ) : (
-                  <div className="text-muted-foreground italic">No contact person set</div>
+                {q.customer_email && (
+                  <div><span className="text-muted-foreground">Email:</span> {q.customer_email}</div>
+                )}
+                {q.customer_phone && (
+                  <div><span className="text-muted-foreground">Phone:</span> {q.customer_phone}</div>
                 )}
               </div>
             </CardContent>

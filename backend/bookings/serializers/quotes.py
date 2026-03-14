@@ -25,10 +25,9 @@ class QuoteLineItemSerializer(serializers.ModelSerializer):
 
 class QuoteSerializer(serializers.ModelSerializer):
     line_items = QuoteLineItemSerializer(many=True, read_only=True)
-    account_name = serializers.CharField(source='account.name', read_only=True)
-    contact_name = serializers.SerializerMethodField()
-    contact_email = serializers.SerializerMethodField()
-    contact_phone = serializers.SerializerMethodField()
+    customer_name = serializers.SerializerMethodField()
+    customer_email = serializers.SerializerMethodField()
+    customer_phone = serializers.SerializerMethodField()
     venue_name = serializers.SerializerMethodField()
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     is_editable = serializers.BooleanField(read_only=True)
@@ -57,8 +56,8 @@ class QuoteSerializer(serializers.ModelSerializer):
     class Meta:
         model = Quote
         fields = [
-            'id', 'lead', 'lead_name', 'account', 'account_name',
-            'primary_contact', 'contact_name', 'contact_email', 'contact_phone',
+            'id', 'lead', 'lead_name', 'customer', 'customer_name',
+            'customer_email', 'customer_phone',
             'version', 'status', 'status_display', 'is_editable',
             'event_date', 'venue', 'venue_name', 'venue_address', 'guest_count',
             'price_per_head', 'food_total',
@@ -88,14 +87,14 @@ class QuoteSerializer(serializers.ModelSerializer):
         except Exception:
             return None
 
-    def get_contact_name(self, obj):
-        return obj.primary_contact.name if obj.primary_contact else None
+    def get_customer_name(self, obj):
+        return str(obj.customer) if obj.customer else None
 
-    def get_contact_email(self, obj):
-        return obj.primary_contact.email if obj.primary_contact else None
+    def get_customer_email(self, obj):
+        return obj.customer.email if obj.customer else None
 
-    def get_contact_phone(self, obj):
-        return obj.primary_contact.phone if obj.primary_contact else None
+    def get_customer_phone(self, obj):
+        return obj.customer.phone if obj.customer else None
 
     def get_venue_name(self, obj):
         return obj.venue.name if obj.venue else None
@@ -113,7 +112,8 @@ class QuoteSerializer(serializers.ModelSerializer):
                     ).values_list('label', flat=True).first()
                     or lead.event_type
                 )
-                return f"{lead.contact_name} — {et_label}"
+                customer_name = str(lead.customer) if lead.customer else 'Unknown'
+                return f"{customer_name} — {et_label}"
         except Exception:
             return None
         return None

@@ -40,7 +40,6 @@ LEAD_ORDERING_FIELDS = {
     'created_at', '-created_at',
     'event_date', '-event_date',
     'lead_date', '-lead_date',
-    'contact_name', '-contact_name',
     'guest_estimate', '-guest_estimate',
     'status', '-status',
 }
@@ -52,11 +51,12 @@ class LeadListCreateView(generics.ListCreateAPIView):
     def perform_create(self, serializer):
         user = self.request.user if self.request.user.is_authenticated else None
         lead = serializer.save(created_by=user, organisation=get_request_org(self.request))
-        log_activity(lead, 'created', user=user, description=f"Created lead \"{lead.contact_name}\"")
+        customer_name = str(lead.customer) if lead.customer else 'Unknown'
+        log_activity(lead, 'created', user=user, description=f"Created lead \"{customer_name}\"")
 
     def get_queryset(self):
         qs = Lead.objects.select_related(
-            'account', 'won_quote', 'won_event', 'product', 'assigned_to',
+            'customer', 'won_quote', 'won_event', 'product', 'assigned_to',
             'lost_reason_option',
         ).prefetch_related('quotes')
         qs = apply_org_filter(qs, self.request)
@@ -197,7 +197,7 @@ def _snapshot_lead(lead):
     for field in TRACKED_FIELDS:
         val = getattr(lead, field, None)
         # FK fields: store the ID
-        if field in ('assigned_to', 'product'):
+        if field in ('assigned_to', 'product', 'customer'):
             val = getattr(lead, f'{field}_id', None)
         data[field] = val
     return data
@@ -208,7 +208,7 @@ class LeadDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def get_queryset(self):
         qs = Lead.objects.select_related(
-            'account', 'won_quote', 'won_event', 'product', 'assigned_to',
+            'customer', 'won_quote', 'won_event', 'product', 'assigned_to',
             'lost_reason_option',
         ).prefetch_related('quotes')
         return apply_org_filter(qs, self.request)
@@ -265,47 +265,29 @@ class LeadTransitionView(APIView):
         return Response(LeadSerializer(lead).data)
 
 
-def _find_or_create_contact(account, name, email, phone):
-    """Find existing Contact by email/phone on account, or create a new one."""
-    from bookings.models.accounts import Contact
-    contact = None
-    if email:
-        contact = Contact.objects.filter(account=account, email=email).first()
-    if not contact and phone:
-        contact = Contact.objects.filter(account=account, phone=phone).first()
-    if not contact and name:
-        contact = Contact.objects.create(
-            account=account,
-            name=name,
-            email=email or "",
-            phone=phone or "",
-            is_primary=True,
-        )
-    return contact
-
-
 class LeadCreateQuoteView(APIView):
     """POST /api/bookings/leads/<pk>/create-quote/ — Create Quote from Lead (does not change lead status)."""
 
     def post(self, request, pk):
-        lead = get_org_object_or_404(Lead.objects.select_related('account'), request, pk=pk)
+        lead = get_org_object_or_404(Lead.objects.select_related('customer'), request, pk=pk)
 
-        # Create account from lead if none exists
-        account = lead.account
-        if not account:
-            from bookings.models import Account
-            account = Account.objects.create(name=lead.contact_name, account_type="individual", organisation=lead.organisation)
-            lead.account = account
-            lead.save(update_fields=['account'])
-
-        contact = _find_or_create_contact(account, lead.contact_name, lead.contact_email, lead.contact_phone)
+        # Create customer from lead if none exists
+        customer = lead.customer
+        if not customer:
+            from bookings.models import Customer
+            customer = Customer.objects.create(
+                name='Unknown',
+                customer_type='consumer',
+                organisation=lead.organisation,
+            )
+            lead.customer = customer
+            lead.save(update_fields=['customer'])
 
         user = request.user if request.user.is_authenticated else None
 
         quote = Quote.objects.create(
             lead=lead,
-            account=account,
-            primary_contact=contact,
+            customer=customer,
             event_date=lead.event_date or lead.created_at.date(),
             guest_count=lead.guest_estimate or 1,
             event_type=lead.event_type,
@@ -330,7 +312,7 @@ class LeadWonView(APIView):
 
     def post(self, request, pk):
         lead = get_org_object_or_404(
-            Lead.objects.select_related('account', 'won_quote', 'won_event'), request, pk=pk,
+            Lead.objects.select_related('customer', 'won_quote', 'won_event'), request, pk=pk,
         )
 
         if lead.status == 'won':
@@ -372,11 +354,9 @@ class LeadWonView(APIView):
 
     def _create_event(self, lead, quote=None, user=None):
         from events.models import Event
-        account = lead.account
+        customer = lead.customer
 
-        event_name = f"{lead.contact_name}"
-        if account:
-            event_name = f"{account.name}"
+        event_name = str(customer) if customer else 'Unknown'
 
         guest_count = lead.guest_estimate or 1
         price_per_head = None
@@ -389,20 +369,12 @@ class LeadWonView(APIView):
             event_status = 'confirmed'
             based_on_template = quote.based_on_template
 
-        # Resolve primary contact from quote or lead strings
-        primary_contact = None
-        if quote and quote.primary_contact:
-            primary_contact = quote.primary_contact
-        elif account:
-            primary_contact = _find_or_create_contact(account, lead.contact_name, lead.contact_email, lead.contact_phone)
-
         event = Event.objects.create(
             name=event_name,
             date=lead.event_date or lead.created_at.date(),
             gents=guest_count // 2,
             ladies=guest_count - (guest_count // 2),
-            account=account,
-            primary_contact=primary_contact,
+            customer=customer,
             event_type=lead.event_type,
             service_style=lead.service_style,
             price_per_head=price_per_head,
@@ -415,19 +387,8 @@ class LeadWonView(APIView):
         # Copy dishes from quote and auto-calculate portions
         if quote and quote.dishes.exists():
             event.dishes.set(quote.dishes.all())
-            from calculator.engine.calculator import calculate_portions
-            from events.models import EventDishComment
-            result = calculate_portions(
-                dish_ids=list(event.dishes.values_list('id', flat=True)),
-                guests={'gents': event.gents, 'ladies': event.ladies},
-                org=lead.organisation,
-            )
-            for p in result['portions']:
-                EventDishComment.objects.create(
-                    event=event,
-                    dish_id=p['dish_id'],
-                    portion_grams=p['grams_per_person'],
-                )
+            from events.utils import auto_calculate_portions
+            auto_calculate_portions(event)
 
         return event
 
@@ -437,7 +398,7 @@ class LeadCreateEventView(APIView):
 
     def post(self, request, pk):
         lead = get_org_object_or_404(
-            Lead.objects.select_related('account', 'won_event'), request, pk=pk,
+            Lead.objects.select_related('customer', 'won_event'), request, pk=pk,
         )
 
         if lead.status != 'won':

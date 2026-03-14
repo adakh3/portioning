@@ -43,7 +43,9 @@ def _get_lead_status_labels(org_id):
 
 
 class LeadSerializer(serializers.ModelSerializer):
-    account_name = serializers.CharField(source='account.name', read_only=True, default=None)
+    customer_name = serializers.SerializerMethodField()
+    customer_email = serializers.SerializerMethodField()
+    customer_phone = serializers.SerializerMethodField()
     status_display = serializers.SerializerMethodField()
     event_type_display = serializers.SerializerMethodField()
     product_name = serializers.CharField(source='product.name', read_only=True, default=None)
@@ -58,8 +60,7 @@ class LeadSerializer(serializers.ModelSerializer):
     class Meta:
         model = Lead
         fields = [
-            'id', 'account', 'account_name',
-            'contact_name', 'contact_email', 'contact_phone',
+            'id', 'customer', 'customer_name', 'customer_email', 'customer_phone',
             'source', 'event_date', 'lead_date', 'guest_estimate',
             'budget',
             'event_type', 'event_type_display',
@@ -83,6 +84,15 @@ class LeadSerializer(serializers.ModelSerializer):
             'notes': {'max_length': 5000},
             'lost_notes': {'max_length': 2000},
         }
+
+    def get_customer_name(self, obj):
+        return str(obj.customer) if obj.customer else None
+
+    def get_customer_email(self, obj):
+        return obj.customer.email if obj.customer else None
+
+    def get_customer_phone(self, obj):
+        return obj.customer.phone if obj.customer else None
 
     def get_created_by_name(self, obj):
         if obj.created_by:

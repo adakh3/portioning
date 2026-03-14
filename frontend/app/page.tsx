@@ -368,7 +368,7 @@ export default function Dashboard() {
                 <li key={q.id}>
                   <Link href={`/quotes/${q.id}`} className="block hover:bg-muted -mx-1 px-1 py-1 rounded transition-colors">
                     <p className="text-sm font-medium text-foreground truncate">
-                      {q.account_name || "No account"}
+                      {q.customer_name || "No customer"}
                     </p>
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                       <span>{q.event_date}</span>
@@ -392,7 +392,7 @@ export default function Dashboard() {
               {leads.map((l) => (
                 <li key={l.id}>
                   <Link href={`/leads/${l.id}`} className="block hover:bg-muted -mx-1 px-1 py-1 rounded transition-colors">
-                    <p className="text-sm font-medium text-foreground truncate">{l.contact_name}</p>
+                    <p className="text-sm font-medium text-foreground truncate">{l.customer_name || "Unnamed Lead"}</p>
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                       <span>{l.event_type_display}</span>
                       {l.event_date && (

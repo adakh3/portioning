@@ -1,4 +1,4 @@
-from .accounts import Account, Contact
+from .accounts import Customer
 from .venues import Venue
 from .leads import Lead, ProductLine
 from .quotes import Quote, QuoteLineItem

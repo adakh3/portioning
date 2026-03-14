@@ -31,8 +31,7 @@ class EventSerializer(serializers.ModelSerializer):
     dish_comments = EventDishCommentSerializer(many=True, required=False)
 
     # Read-only computed fields
-    account_name = serializers.CharField(source='account.name', read_only=True, default=None)
-    contact_name = serializers.CharField(source='primary_contact.name', read_only=True, default=None)
+    customer_name = serializers.SerializerMethodField()
     venue_name = serializers.CharField(source='venue.name', read_only=True, default=None)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     source_quote_id = serializers.SerializerMethodField()
@@ -60,8 +59,7 @@ class EventSerializer(serializers.ModelSerializer):
                   'dishes', 'dish_ids', 'based_on_template', 'notes',
                   'constraint_override', 'dish_comments', 'created_at',
                   # Booking fields
-                  'account', 'account_name',
-                  'primary_contact', 'contact_name',
+                  'customer', 'customer_name',
                   'venue', 'venue_name', 'venue_address',
                   'event_type', 'service_style', 'price_per_head',
                   'status', 'status_display',
@@ -76,6 +74,9 @@ class EventSerializer(serializers.ModelSerializer):
             'notes': {'max_length': 5000},
             'venue_address': {'max_length': 1000},
         }
+
+    def get_customer_name(self, obj):
+        return str(obj.customer) if obj.customer else None
 
     def get_source_quote_id(self, obj):
         quote = getattr(obj, 'source_quote', None)

@@ -31,12 +31,14 @@ class EventListCreateView(generics.ListCreateAPIView):
 
     def perform_create(self, serializer):
         user = self.request.user if self.request.user.is_authenticated else None
-        serializer.save(created_by=user, organisation=get_request_org(self.request))
+        event = serializer.save(created_by=user, organisation=get_request_org(self.request))
+        from events.utils import auto_calculate_portions
+        auto_calculate_portions(event)
 
     def get_queryset(self):
         _auto_advance_event_statuses(org=get_request_org(self.request))
         qs = Event.objects.select_related(
-            'account', 'primary_contact', 'venue', 'based_on_template',
+            'customer', 'venue', 'based_on_template',
         ).prefetch_related(
             'dishes', 'dish_comments', 'dish_comments__dish',
             'shifts', 'shifts__staff_member', 'shifts__role',
@@ -68,7 +70,7 @@ class EventDetailView(generics.RetrieveUpdateDestroyAPIView):
     def get_queryset(self):
         _auto_advance_event_statuses(org=get_request_org(self.request))
         qs = Event.objects.select_related(
-            'account', 'primary_contact', 'venue', 'based_on_template',
+            'customer', 'venue', 'based_on_template',
         ).prefetch_related(
             'dishes', 'dish_comments', 'dish_comments__dish',
             'shifts', 'shifts__staff_member', 'shifts__role',

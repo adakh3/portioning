@@ -1,7 +1,7 @@
 import useSWR, { mutate } from "swr";
 import {
   api,
-  Account,
+  Customer,
   AuthUser,
   Venue,
   Lead,
@@ -41,8 +41,8 @@ export function useDateFormat(): string {
 
 // ── Shared lookups (long dedupe, used by many pages) ──
 
-export function useAccounts() {
-  return useSWR<Account[]>("accounts", () => api.getAccounts(), {
+export function useCustomers() {
+  return useSWR<Customer[]>("customers", () => api.getCustomers(), {
     dedupingInterval: 60000,
   });
 }
@@ -148,10 +148,10 @@ export function useEvents(params?: {
   return useSWR<EventData[]>(key, () => api.getEvents(params));
 }
 
-export function useAccount(id: number | null) {
-  return useSWR<Account>(
-    id ? `account-${id}` : null,
-    () => api.getAccount(id!)
+export function useCustomer(id: number | null) {
+  return useSWR<Customer>(
+    id ? `customer-${id}` : null,
+    () => api.getCustomer(id!)
   );
 }
 

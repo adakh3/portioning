@@ -3,8 +3,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { api, Lead, Account, AuthUser, ProductLine, Reminder } from "@/lib/api";
-import { useAccounts, useLead, useSiteSettings, useDateFormat, useProductLines, useUsers, useSources, useEventTypes, useServiceStyles, useLeadStatuses, useLostReasons, useLeadReminders, revalidate } from "@/lib/hooks";
+import { api, Lead, Customer, AuthUser, ProductLine, Reminder } from "@/lib/api";
+import { useCustomers, useLead, useSiteSettings, useDateFormat, useProductLines, useUsers, useSources, useEventTypes, useServiceStyles, useLeadStatuses, useLostReasons, useLeadReminders, revalidate } from "@/lib/hooks";
 import { formatDate, formatDateTime } from "@/lib/dateFormat";
 import { formatCurrency } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -191,7 +191,7 @@ export default function LeadDetailPage() {
   const { data: serviceStyles = [] } = useServiceStyles();
   const { data: leadStatuses = [] } = useLeadStatuses();
   const { data: lostReasons = [] } = useLostReasons();
-  const { data: accountsList = [] } = useAccounts();
+  const { data: customersList = [] } = useCustomers();
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [transitioning, setTransitioning] = useState(false);
@@ -201,15 +201,12 @@ export default function LeadDetailPage() {
   const [showWonDialog, setShowWonDialog] = useState(false);
   const [creatingQuote, setCreatingQuote] = useState(false);
   const [showOverflow, setShowOverflow] = useState(false);
-  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [fieldStatus, setFieldStatus] = useState<Record<string, FieldStatus>>({});
 
   // Create mode form state
   const [formData, setFormData] = useState({
-    account: "" as string | number,
-    contact_name: "",
-    contact_email: "",
-    contact_phone: "",
+    customer: "" as string | number,
     source: "website",
     event_date: "",
     guest_estimate: "",
@@ -230,7 +227,7 @@ export default function LeadDetailPage() {
     try {
       const data = {
         ...formData,
-        account: formData.account ? Number(formData.account) : null,
+        customer: formData.customer ? Number(formData.customer) : null,
         guest_estimate: formData.guest_estimate ? Number(formData.guest_estimate) : null,
         event_date: formData.event_date || null,
         budget: formData.budget || null,
@@ -247,7 +244,7 @@ export default function LeadDetailPage() {
   }
 
   useEffect(() => {
-    api.getAccounts().then(setAccounts).catch(() => {});
+    api.getCustomers().then(setCustomers).catch(() => {});
   }, []);
 
   const setStatus = useCallback((field: string) => (s: FieldStatus) => {
@@ -364,26 +361,14 @@ export default function LeadDetailPage() {
               <h1 className="text-2xl font-bold text-foreground">New Lead</h1>
             </div>
             <form onSubmit={handleCreate}>
-              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Contact</h2>
+              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Customer</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Contact Name *</label>
-                  <ValidatedInput type="text" required maxLength={60} value={formData.contact_name} onChange={setField("contact_name")} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Account (optional)</label>
-                  <select value={formData.account} onChange={setField("account")} className={selectClass}>
-                    <option value="">-- No account --</option>
-                    {accountsList.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                  <label className="block text-sm font-medium text-foreground mb-1">Customer *</label>
+                  <select required value={formData.customer} onChange={setField("customer")} className={selectClass}>
+                    <option value="">-- Select Customer --</option>
+                    {customersList.map((c) => <option key={c.id} value={c.id}>{c.display_name}</option>)}
                   </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Email</label>
-                  <ValidatedInput type="email" maxLength={100} value={formData.contact_email} onChange={setField("contact_email")} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Phone</label>
-                  <ValidatedInput type="tel" maxLength={20} value={formData.contact_phone} onChange={setField("contact_phone")} />
                 </div>
               </div>
 
@@ -520,7 +505,7 @@ export default function LeadDetailPage() {
           <div className="flex items-start justify-between gap-4">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-3">
-                <h1 className="text-2xl font-bold text-foreground">{l.contact_name}</h1>
+                <h1 className="text-2xl font-bold text-foreground">{l.customer_name || "Unnamed Lead"}</h1>
                 <Badge variant={STATUS_BADGE_VARIANT[l.status] || "secondary"}>
                   {l.status_display}
                 </Badge>
@@ -597,22 +582,27 @@ export default function LeadDetailPage() {
         </CardContent>
       </Card>
 
-      {/* Contact */}
+      {/* Customer */}
       <Card>
         <CardContent className="p-6">
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Contact</h2>
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Customer</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <AutoSaveField {...fieldProps("contact_name")} label="Name" type="text" value={l.contact_name} required />
-            <AutoSaveField {...fieldProps("contact_email")} label="Email" type="email" value={l.contact_email} />
-            <AutoSaveField {...fieldProps("contact_phone")} label="Phone" type="tel" value={l.contact_phone} />
             <AutoSaveField
-              {...fieldProps("account")}
-              label="Account"
+              {...fieldProps("customer")}
+              label="Customer"
               type="select"
-              value={l.account ?? ""}
+              value={l.customer ?? ""}
               transform={fkTransform}
-              options={[{ value: "", label: "-- No account --" }, ...accounts.map((a) => ({ value: a.id, label: a.name }))]}
+              options={[{ value: "", label: "-- No customer --" }, ...customers.map((c) => ({ value: c.id, label: c.display_name }))]}
             />
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Email</label>
+              <p className="text-sm text-muted-foreground py-2">{l.customer_email || "\u2014"}</p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Phone</label>
+              <p className="text-sm text-muted-foreground py-2">{l.customer_phone || "\u2014"}</p>
+            </div>
           </div>
         </CardContent>
       </Card>

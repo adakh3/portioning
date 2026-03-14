@@ -20,7 +20,7 @@ class QuoteListCreateView(generics.ListCreateAPIView):
         serializer.save(created_by=user, organisation=get_request_org(self.request))
 
     def get_queryset(self):
-        qs = Quote.objects.select_related('account', 'venue', 'lead', 'event', 'based_on_template', 'primary_contact').prefetch_related('line_items', 'dishes')
+        qs = Quote.objects.select_related('customer', 'venue', 'lead', 'event', 'based_on_template').prefetch_related('line_items', 'dishes')
         qs = apply_org_filter(qs, self.request)
 
         # Salesperson sees only quotes they created or linked to their leads
@@ -38,7 +38,7 @@ class QuoteDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = QuoteSerializer
 
     def get_queryset(self):
-        qs = Quote.objects.select_related('account', 'venue', 'lead', 'event', 'based_on_template', 'primary_contact').prefetch_related('line_items', 'dishes')
+        qs = Quote.objects.select_related('customer', 'venue', 'lead', 'event', 'based_on_template').prefetch_related('line_items', 'dishes')
         return apply_org_filter(qs, self.request)
 
     def perform_update(self, serializer):
@@ -50,7 +50,7 @@ class QuoteTransitionView(APIView):
 
     def post(self, request, pk):
         quote = get_org_object_or_404(
-            Quote.objects.select_related('account', 'lead', 'based_on_template', 'primary_contact', 'venue').prefetch_related('dishes'),
+            Quote.objects.select_related('customer', 'lead', 'based_on_template', 'venue').prefetch_related('dishes'),
             request, pk=pk,
         )
         new_status = request.data.get('status')
@@ -65,15 +65,15 @@ class QuoteTransitionView(APIView):
         if new_status == QuoteStatus.ACCEPTED and not quote.event:
             from events.models import Event
             user = request.user if request.user.is_authenticated else None
-            event_name = f"{quote.account.name} — {quote.event_type}"
+            customer_display = str(quote.customer) if quote.customer else 'Unknown'
+            event_name = f"{customer_display} — {quote.event_type}"
             guest_count = quote.guest_count
             event = Event.objects.create(
                 name=event_name,
                 date=quote.event_date,
                 gents=guest_count // 2,
                 ladies=guest_count - (guest_count // 2),
-                account=quote.account,
-                primary_contact=quote.primary_contact,
+                customer=quote.customer,
                 venue=quote.venue,
                 venue_address=quote.venue_address,
                 event_type=quote.event_type,
@@ -87,21 +87,8 @@ class QuoteTransitionView(APIView):
             # Copy menu (dishes) from quote to event
             if quote.dishes.exists():
                 event.dishes.set(quote.dishes.all())
-
-                # Auto-calculate portions for kitchen
-                from calculator.engine.calculator import calculate_portions
-                from events.models import EventDishComment
-                result = calculate_portions(
-                    dish_ids=list(event.dishes.values_list('id', flat=True)),
-                    guests={'gents': event.gents, 'ladies': event.ladies},
-                    org=quote.organisation,
-                )
-                for p in result['portions']:
-                    EventDishComment.objects.create(
-                        event=event,
-                        dish_id=p['dish_id'],
-                        portion_grams=p['grams_per_person'],
-                    )
+                from events.utils import auto_calculate_portions
+                auto_calculate_portions(event)
 
             quote.event = event
             quote.save(update_fields=['event', 'updated_at'])
@@ -121,7 +108,7 @@ class QuoteTransitionView(APIView):
 
         # Re-fetch with all relations for serializer
         quote = get_org_object_or_404(
-            Quote.objects.select_related('account', 'venue', 'lead', 'event', 'based_on_template', 'primary_contact').prefetch_related('line_items', 'dishes'),
+            Quote.objects.select_related('customer', 'venue', 'lead', 'event', 'based_on_template').prefetch_related('line_items', 'dishes'),
             request, pk=pk,
         )
         return Response(QuoteSerializer(quote).data)
@@ -172,7 +159,7 @@ class QuotePDFView(APIView):
     def get(self, request, pk):
         quote = get_org_object_or_404(
             Quote.objects.select_related(
-                'account', 'venue', 'primary_contact', 'based_on_template',
+                'customer', 'venue', 'based_on_template',
                 'created_by', 'created_by__organisation',
                 'lead', 'lead__assigned_to', 'lead__assigned_to__organisation',
             ).prefetch_related('line_items', 'dishes'),

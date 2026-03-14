@@ -1,33 +1,20 @@
 from rest_framework import serializers
 
-from bookings.models import Account, Contact
+from bookings.models import Customer
 
 
-class ContactSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Contact
-        fields = [
-            'id', 'account', 'name', 'email', 'phone', 'role',
-            'is_primary', 'notes', 'created_at', 'updated_at',
-        ]
-        read_only_fields = ['created_at', 'updated_at']
-        extra_kwargs = {
-            'account': {'required': False},
-            'notes': {'max_length': 5000},
-        }
-
-
-class AccountSerializer(serializers.ModelSerializer):
-    contacts = ContactSerializer(many=True, read_only=True)
+class CustomerSerializer(serializers.ModelSerializer):
+    display_name = serializers.CharField(read_only=True)
 
     class Meta:
-        model = Account
+        model = Customer
         fields = [
-            'id', 'name', 'account_type',
+            'id', 'customer_type', 'name', 'company_name', 'display_name',
+            'email', 'phone',
             'billing_address_line1', 'billing_address_line2',
             'billing_city', 'billing_postcode', 'billing_country',
             'vat_number', 'payment_terms', 'notes',
-            'contacts', 'created_at', 'updated_at',
+            'created_at', 'updated_at',
         ]
         read_only_fields = ['created_at', 'updated_at']
         extra_kwargs = {'notes': {'max_length': 5000}}

@@ -16,9 +16,9 @@ import {
   CollisionDetection,
 } from "@dnd-kit/core";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
-import { api, Lead, LeadFilters, AuthUser, ProductLine, ChoiceOption } from "@/lib/api";
+import { api, Lead, LeadFilters, AuthUser, ProductLine, ChoiceOption, Customer } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { useLeads, useUsers, useProductLines, useEventTypes, useLeadStatuses, useLostReasons, useDateFormat, revalidate } from "@/lib/hooks";
+import { useLeads, useUsers, useProductLines, useEventTypes, useLeadStatuses, useLostReasons, useCustomers, useDateFormat, revalidate } from "@/lib/hooks";
 import { formatDate } from "@/lib/dateFormat";
 import { Button } from "@/components/ui/button";
 import { ValidatedInput } from "@/components/ui/validated-input";
@@ -72,10 +72,10 @@ const STATUS_VARIANT: Record<string, "default" | "warning" | "info" | "success" 
   lost: "secondary",
 };
 
-type SortField = "contact_name" | "event_date" | "lead_date" | "guest_estimate" | "status" | "created_at";
+type SortField = "customer_name" | "event_date" | "lead_date" | "guest_estimate" | "status" | "created_at";
 
 const SORTABLE_COLUMNS: { field: SortField; label: string }[] = [
-  { field: "contact_name", label: "Name" },
+  { field: "customer_name", label: "Name" },
   { field: "event_date", label: "Event Date" },
   { field: "lead_date", label: "Lead Date" },
   { field: "guest_estimate", label: "Guests" },
@@ -108,7 +108,7 @@ function LeadCard({ lead, isDragging }: { lead: Lead; isDragging?: boolean }) {
         isDragging && "shadow-lg ring-2 ring-ring opacity-90"
       )}
     >
-      <p className="font-medium text-sm text-foreground truncate">{lead.contact_name}</p>
+      <p className="font-medium text-sm text-foreground truncate">{lead.customer_name}</p>
       <p className="text-xs text-muted-foreground mt-1">
         {lead.event_type_display}
         {lead.event_date && ` · ${lead.event_date}`}
@@ -293,11 +293,10 @@ function LeadsContent() {
   // Client-side text search filter (applied on top of server filters)
   const filtered = search
     ? leads.filter((l) =>
-        l.contact_name.toLowerCase().includes(search.toLowerCase()) ||
-        l.event_type_display.toLowerCase().includes(search.toLowerCase()) ||
-        l.contact_email.toLowerCase().includes(search.toLowerCase()) ||
-        l.contact_phone?.toLowerCase().includes(search.toLowerCase()) ||
-        l.account_name?.toLowerCase().includes(search.toLowerCase())
+        l.customer_name?.toLowerCase().includes(search.toLowerCase()) ||
+        l.event_type_display?.toLowerCase().includes(search.toLowerCase()) ||
+        l.customer_email?.toLowerCase().includes(search.toLowerCase()) ||
+        l.customer_phone?.toLowerCase().includes(search.toLowerCase())
       )
     : leads;
 
@@ -955,6 +954,7 @@ function LeadsTable({
   const dateFormat = useDateFormat();
   const { data: eventTypes = [] } = useEventTypes();
   const { data: leadStatuses = [] } = useLeadStatuses();
+  const { data: customers = [] } = useCustomers();
   const allSelected = leads.length > 0 && selectedIds.size === leads.length;
 
   // Inline editing state
@@ -983,8 +983,8 @@ function LeadsTable({
   }
 
   async function saveQuickAdd() {
-    if (!quickAdd.contact_name?.trim()) {
-      onToast("Name is required");
+    if (!quickAdd.customer) {
+      onToast("Customer is required");
       return;
     }
     setQuickAddSaving(true);
@@ -1213,8 +1213,8 @@ function LeadsTable({
               />
             </TableHead>
             <TableHead>
-              <button className="flex items-center hover:text-foreground" onClick={() => onToggleSort("contact_name")}>
-                Name <SortIcon field="contact_name" current={ordering} />
+              <button className="flex items-center hover:text-foreground" onClick={() => onToggleSort("customer_name")}>
+                Name <SortIcon field="customer_name" current={ordering} />
               </button>
             </TableHead>
             <TableHead className="hidden lg:table-cell">Email</TableHead>
@@ -1292,35 +1292,28 @@ function LeadsTable({
                   </button>
                 </div>
               </TableCell>
-              {/* Name */}
+              {/* Customer */}
               <TableCell>
-                <ValidatedInput
-                  placeholder="Name *"
-                  value={quickAdd.contact_name || ""}
-                  onChange={(e) => setQuickAdd((p) => ({ ...p, contact_name: e.target.value }))}
+                <select
+                  value={quickAdd.customer || ""}
+                  onChange={(e) => setQuickAdd((p) => ({ ...p, customer: e.target.value ? Number(e.target.value) : null }))}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") saveQuickAdd();
                     if (e.key === "Escape") cancelQuickAdd();
                   }}
                   autoFocus
                   disabled={quickAddSaving}
-                  className="h-7 text-sm"
-                />
+                  className="h-7 w-full text-sm rounded border border-input bg-transparent px-2"
+                >
+                  <option value="">Customer *</option>
+                  {customers.map((c) => <option key={c.id} value={c.id}>{c.display_name}</option>)}
+                </select>
               </TableCell>
-              {/* Email */}
+              {/* Email (read-only from customer) */}
               <TableCell className="hidden lg:table-cell">
-                <ValidatedInput
-                  type="email"
-                  placeholder="Email"
-                  value={quickAdd.contact_email || ""}
-                  onChange={(e) => setQuickAdd((p) => ({ ...p, contact_email: e.target.value }))}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") saveQuickAdd();
-                    if (e.key === "Escape") cancelQuickAdd();
-                  }}
-                  disabled={quickAddSaving}
-                  className="h-7 text-sm"
-                />
+                <span className="text-xs text-muted-foreground">
+                  {customers.find((c) => c.id === quickAdd.customer)?.email || "\u2014"}
+                </span>
               </TableCell>
               {/* Event Type */}
               <TableCell className="hidden md:table-cell">
@@ -1454,16 +1447,16 @@ function LeadsTable({
                 {/* Name - editable text */}
                 <EditableTextCell
                   lead={lead}
-                  field="contact_name"
-                  display={lead.contact_name}
+                  field="customer_name"
+                  display={lead.customer_name || ""}
                   className="font-medium"
                 />
 
                 {/* Email - editable text */}
                 <EditableTextCell
                   lead={lead}
-                  field="contact_email"
-                  display={lead.contact_email || "-"}
+                  field="customer_email"
+                  display={lead.customer_email || "-"}
                   className="hidden lg:table-cell text-muted-foreground"
                   type="email"
                 />

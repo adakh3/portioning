@@ -34,12 +34,8 @@ class Quote(models.Model):
         'bookings.Lead', null=True, blank=True,
         on_delete=models.SET_NULL, related_name='quotes',
     )
-    account = models.ForeignKey(
-        'bookings.Account', on_delete=models.PROTECT, related_name='quotes',
-    )
-    primary_contact = models.ForeignKey(
-        'bookings.Contact', null=True, blank=True,
-        on_delete=models.SET_NULL, related_name='quotes',
+    customer = models.ForeignKey(
+        'bookings.Customer', on_delete=models.PROTECT, related_name='quotes',
     )
     version = models.IntegerField(default=1)
     status = models.CharField(max_length=20, choices=QuoteStatus.choices, default=QuoteStatus.DRAFT)
@@ -86,7 +82,7 @@ class Quote(models.Model):
         ordering = ['-created_at']
 
     def __str__(self):
-        return f"Quote #{self.pk} v{self.version} — {self.account.name} ({self.get_status_display()})"
+        return f"Quote #{self.pk} v{self.version} — {self.customer} ({self.get_status_display()})"
 
     def can_transition_to(self, new_status):
         return new_status in QUOTE_TRANSITIONS.get(self.status, [])

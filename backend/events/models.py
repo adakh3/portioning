@@ -47,14 +47,9 @@ class Event(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     # Booking fields
-    account = models.ForeignKey(
-        'bookings.Account',
+    customer = models.ForeignKey(
+        'bookings.Customer', null=True, blank=True,
         on_delete=models.PROTECT, related_name='events',
-        null=True, blank=True,
-    )
-    primary_contact = models.ForeignKey(
-        'bookings.Contact', null=True, blank=True,
-        on_delete=models.SET_NULL, related_name='events',
     )
     venue = models.ForeignKey(
         'bookings.Venue', null=True, blank=True,

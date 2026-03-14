@@ -8,7 +8,7 @@ from django.contrib import messages
 
 from users.models import User
 from .models import (
-    Account, Contact, Venue, Lead, ProductLine, Quote, QuoteLineItem,
+    Customer, Venue, Lead, ProductLine, Quote, QuoteLineItem,
     Invoice, Payment,
     SiteSettings,
     EventTypeOption, SourceOption, ServiceStyleOption, LeadStatusOption,
@@ -21,26 +21,13 @@ from .services.lead_import import (
 )
 
 
-# --- Accounts & Contacts ---
+# --- Customers ---
 
-class ContactInline(admin.TabularInline):
-    model = Contact
-    extra = 1
-
-
-@admin.register(Account)
-class AccountAdmin(admin.ModelAdmin):
-    list_display = ['name', 'account_type', 'billing_city', 'payment_terms', 'created_at']
-    list_filter = ['account_type', 'payment_terms']
-    search_fields = ['name', 'vat_number']
-    inlines = [ContactInline]
-
-
-@admin.register(Contact)
-class ContactAdmin(admin.ModelAdmin):
-    list_display = ['name', 'account', 'role', 'email', 'phone', 'is_primary']
-    list_filter = ['role', 'is_primary']
-    search_fields = ['name', 'email', 'account__name']
+@admin.register(Customer)
+class CustomerAdmin(admin.ModelAdmin):
+    list_display = ['name', 'company_name', 'customer_type', 'email', 'phone', 'billing_city', 'payment_terms', 'created_at']
+    list_filter = ['customer_type', 'payment_terms']
+    search_fields = ['name', 'company_name', 'email', 'vat_number']
 
 
 # --- Venues ---
@@ -63,9 +50,9 @@ class ProductLineAdmin(admin.ModelAdmin):
 
 @admin.register(Lead)
 class LeadAdmin(admin.ModelAdmin):
-    list_display = ['contact_name', 'event_type', 'event_date', 'lead_date', 'status', 'product', 'assigned_to', 'source', 'guest_estimate', 'created_at']
+    list_display = ['__str__', 'event_type', 'event_date', 'lead_date', 'status', 'product', 'assigned_to', 'source', 'guest_estimate', 'created_at']
     list_filter = ['status', 'source', 'event_type', 'product']
-    search_fields = ['contact_name', 'contact_email', 'account__name']
+    search_fields = ['customer__name', 'customer__company_name', 'customer__email']
     readonly_fields = ['won_quote', 'won_event', 'contacted_at', 'qualified_at', 'proposal_sent_at', 'won_at', 'lost_at']
     change_list_template = "admin/bookings/lead/change_list.html"
 
@@ -219,7 +206,8 @@ class LeadAdmin(admin.ModelAdmin):
             except User.DoesNotExist:
                 pass
 
-        created_count, errors = commit_rows(import_rows, product, assigned_to)
+        org = getattr(request.user, 'organisation', None)
+        created_count, errors = commit_rows(import_rows, product, assigned_to, organisation=org)
         skipped_count = sum(1 for r in import_rows if r.skipped)
         error_count = len(errors)
 
@@ -244,9 +232,9 @@ class QuoteLineItemInline(admin.TabularInline):
 
 @admin.register(Quote)
 class QuoteAdmin(admin.ModelAdmin):
-    list_display = ['__str__', 'account', 'event_date', 'guest_count', 'total', 'status', 'created_at']
+    list_display = ['__str__', 'customer', 'event_date', 'guest_count', 'total', 'status', 'created_at']
     list_filter = ['status', 'event_type']
-    search_fields = ['account__name']
+    search_fields = ['customer__name', 'customer__company_name']
     readonly_fields = ['subtotal', 'tax_amount', 'total', 'sent_at', 'accepted_at']
     inlines = [QuoteLineItemInline]
 

@@ -6,11 +6,10 @@ import Link from "next/link";
 import {
   api,
   EventData,
-  Contact,
 } from "@/lib/api";
 import {
   useEvent,
-  useAccounts,
+  useCustomers,
   useVenues,
   useLaborRoles,
   useStaff,
@@ -57,7 +56,7 @@ export default function EventDetailPage() {
 
   // SWR hooks
   const { data: event, error: loadError, isLoading: eventLoading, mutate: mutateEvent } = useEvent(isNew || isNaN(eventId) ? null : eventId);
-  const { data: accounts = [] } = useAccounts();
+  const { data: customers = [] } = useCustomers();
   const { data: venues = [] } = useVenues();
   const { data: laborRoles = [] } = useLaborRoles();
   const { data: staffList = [] } = useStaff();
@@ -90,8 +89,7 @@ export default function EventDetailPage() {
   // Form fields (used in edit mode)
   const [formName, setFormName] = useState("");
   const [formDate, setFormDate] = useState("");
-  const [formAccount, setFormAccount] = useState<number | null>(null);
-  const [formContact, setFormContact] = useState<number | null>(null);
+  const [formCustomer, setFormCustomer] = useState<number | null>(null);
   const [formVenue, setFormVenue] = useState<number | null>(null);
   const [formVenueAddress, setFormVenueAddress] = useState("");
   const [formEventType, setFormEventType] = useState("");
@@ -131,8 +129,7 @@ export default function EventDetailPage() {
   const syncFormToEvent = useCallback((data: EventData) => {
     setFormName(data.name);
     setFormDate(data.date);
-    setFormAccount(data.account);
-    setFormContact(data.primary_contact);
+    setFormCustomer(data.customer);
     setFormVenue(data.venue);
     setFormVenueAddress(data.venue_address || "");
     setFormEventType(data.event_type || "");
@@ -187,16 +184,15 @@ export default function EventDetailPage() {
       setError("Event date is required");
       return;
     }
-    if (!formAccount) {
-      setError("Account is required");
+    if (!formCustomer) {
+      setError("Customer is required");
       return;
     }
     setSaving(true);
     const payload = {
       name: formName,
       date: formDate,
-      account: formAccount,
-      primary_contact: formContact,
+      customer: formCustomer,
       venue: venueMode === "saved" ? formVenue : null,
       venue_address: venueMode === "custom" ? formVenueAddress : "",
       event_type: formEventType,
@@ -377,10 +373,6 @@ export default function EventDetailPage() {
       setSaving(false);
     }
   };
-
-  // Contacts for selected account
-  const selectedAccount = accounts.find((a) => a.id === (editing || isNew ? formAccount : event?.account));
-  const contactsForAccount: Contact[] = selectedAccount?.contacts || [];
 
   if (loading) {
     return (
@@ -609,34 +601,16 @@ export default function EventDetailPage() {
             {editing ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Account *</label>
+                  <label className="block text-sm font-medium text-foreground mb-1">Customer *</label>
                   <select
                     required
-                    value={formAccount ?? ""}
-                    onChange={(e) => {
-                      const val = e.target.value ? Number(e.target.value) : null;
-                      setFormAccount(val);
-                      setFormContact(null);
-                    }}
+                    value={formCustomer ?? ""}
+                    onChange={(e) => setFormCustomer(e.target.value ? Number(e.target.value) : null)}
                     className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                   >
-                    <option value="">-- Select Account --</option>
-                    {accounts.map((a) => (
-                      <option key={a.id} value={a.id}>{a.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Primary Contact</label>
-                  <select
-                    value={formContact ?? ""}
-                    onChange={(e) => setFormContact(e.target.value ? Number(e.target.value) : null)}
-                    disabled={!formAccount}
-                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <option value="">-- Select Contact --</option>
-                    {contactsForAccount.map((c) => (
-                      <option key={c.id} value={c.id}>{c.name} {c.role ? `(${c.role})` : ""}</option>
+                    <option value="">-- Select Customer --</option>
+                    {customers.map((c) => (
+                      <option key={c.id} value={c.id}>{c.display_name}</option>
                     ))}
                   </select>
                 </div>
@@ -737,8 +711,7 @@ export default function EventDetailPage() {
               </div>
             ) : (
               <dl className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                <InfoRow label="Account" value={event!.account_name} />
-                <InfoRow label="Primary Contact" value={event!.contact_name} />
+                <InfoRow label="Customer" value={event!.customer_name} />
                 <InfoRow label="Venue" value={event!.venue_name || event!.venue_address || null} />
                 <InfoRow label="Event Type" value={eventTypeLabels[event!.event_type] || event!.event_type} />
                 <InfoRow label="Service Style" value={serviceStyleLabels[event!.service_style] || event!.service_style} />

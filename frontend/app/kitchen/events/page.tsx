@@ -94,7 +94,7 @@ export default function KitchenEventsPage() {
                     <span>{event.dishes.length} dishes</span>
                   </div>
                   <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground">
-                    {event.account_name && <span>{event.account_name}</span>}
+                    {event.customer_name && <span>{event.customer_name}</span>}
                     {(event.venue_name || event.venue_address) && (
                       <span>{event.venue_name || event.venue_address.slice(0, 40)}</span>
                     )}

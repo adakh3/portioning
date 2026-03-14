@@ -4,7 +4,7 @@ import re
 from dataclasses import dataclass, field
 from datetime import datetime
 
-from bookings.models import Lead
+from bookings.models import Lead, Customer
 
 
 # Map Excel event types to model choices
@@ -235,8 +235,8 @@ def flag_duplicates(import_rows):
     if not emails:
         return
     existing = set(
-        Lead.objects.filter(contact_email__in=emails)
-        .values_list("contact_email", flat=True)
+        Customer.objects.filter(email__in=emails)
+        .values_list("email", flat=True)
     )
     existing_lower = {e.lower() for e in existing}
     for row in import_rows:
@@ -244,7 +244,7 @@ def flag_duplicates(import_rows):
             row.duplicate_warning = True
 
 
-def commit_rows(import_rows, product=None, assigned_to=None):
+def commit_rows(import_rows, product=None, assigned_to=None, organisation=None):
     """Create Lead objects for valid (non-skipped) rows. Returns (created_count, errors)."""
     created = 0
     errors = []
@@ -252,10 +252,18 @@ def commit_rows(import_rows, product=None, assigned_to=None):
         if row.skipped or row.error:
             continue
         try:
+            # Create or find a Customer for the lead
+            customer = None
+            if row.contact_name or row.contact_email:
+                customer = Customer.objects.create(
+                    name=row.contact_name or 'Unknown',
+                    email=row.contact_email,
+                    phone=row.contact_phone,
+                    customer_type='consumer',
+                    organisation=organisation,
+                )
             Lead.objects.create(
-                contact_name=row.contact_name,
-                contact_email=row.contact_email,
-                contact_phone=row.contact_phone,
+                customer=customer,
                 event_type=row.event_type,
                 guest_estimate=row.guest_estimate,
                 event_date=row.event_date,
@@ -265,6 +273,7 @@ def commit_rows(import_rows, product=None, assigned_to=None):
                 notes=row.notes,
                 product=product,
                 assigned_to=assigned_to,
+                organisation=organisation,
             )
             row.created = True
             created += 1

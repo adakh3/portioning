@@ -89,8 +89,7 @@ function EventsContent() {
         const filtered = search
           ? events.filter((e) =>
               e.name?.toLowerCase().includes(s) ||
-              e.account_name?.toLowerCase().includes(s) ||
-              e.contact_name?.toLowerCase().includes(s) ||
+              e.customer_name?.toLowerCase().includes(s) ||
               e.venue_name?.toLowerCase().includes(s) ||
               e.venue_address?.toLowerCase().includes(s) ||
               e.date?.includes(s)
@@ -133,8 +132,8 @@ function EventsContent() {
                     <span>{event.dishes.length} dishes</span>
                   </div>
                   <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground">
-                    {event.account_name && (
-                      <span>Customer: {event.account_name}</span>
+                    {event.customer_name && (
+                      <span>Customer: {event.customer_name}</span>
                     )}
                     {(event.venue_name || event.venue_address) && (
                       <span>Venue: {event.venue_name || event.venue_address.slice(0, 40)}</span>
