@@ -492,6 +492,7 @@ export interface SiteSettingsData {
   currency_symbol: string;
   currency_code: string;
   date_format: string;
+  date_format_choices?: { value: string; label: string }[];
   default_price_per_head: string;
   target_food_cost_percentage: string;
   price_rounding_step: string;

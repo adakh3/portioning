@@ -110,9 +110,9 @@ export default function SettingsPage() {
                   onChange={(e) => setFormData({ ...formData, date_format: e.target.value })}
                   className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 >
-                  <option value="DD/MM/YYYY">DD/MM/YYYY (UK / Europe)</option>
-                  <option value="MM/DD/YYYY">MM/DD/YYYY (US)</option>
-                  <option value="YYYY-MM-DD">YYYY-MM-DD (ISO)</option>
+                  {(settings?.date_format_choices || []).map((c: { value: string; label: string }) => (
+                    <option key={c.value} value={c.value}>{c.label}</option>
+                  ))}
                 </select>
                 <p className="text-xs text-muted-foreground mt-1">
                   Controls how dates are displayed across the application.
