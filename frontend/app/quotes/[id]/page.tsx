@@ -69,8 +69,6 @@ export default function QuoteDetailPage() {
     internal_notes: "",
   });
   const [showAcceptConfirm, setShowAcceptConfirm] = useState(false);
-  const [suggestedPrice, setSuggestedPrice] = useState<number | null>(null);
-  const handleSuggestedPriceChange = useCallback((price: number | null) => setSuggestedPrice(price), []);
 
   // Create mode state
   const [createData, setCreateData] = useState({
@@ -430,8 +428,8 @@ export default function QuoteDetailPage() {
                 basedOnTemplate={menuData.based_on_template}
                 guestCount={createData.guest_count ? Number(createData.guest_count) : undefined}
                 onChange={setMenuData}
-                onSuggestedPriceChange={handleSuggestedPriceChange}
-                onUseSuggestedPrice={(price) => setCreateData((prev) => ({ ...prev, price_per_head: price.toFixed(2) }))}
+                pricePerHead={createData.price_per_head}
+                onPricePerHeadChange={(val) => setCreateData((prev) => ({ ...prev, price_per_head: val }))}
                 currencySymbol={cs}
                 priceRoundingStep={Number(settings.price_rounding_step) || 50}
               />
@@ -443,40 +441,6 @@ export default function QuoteDetailPage() {
             <CardContent className="p-6">
               <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Pricing &amp; Terms</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Price Per Head ({cs})</label>
-                  <div className="flex gap-2">
-                    <ValidatedInput
-                      type="number"
-                      step="0.01"
-                      min={0}
-                      max={9999999.99}
-                      value={createData.price_per_head}
-                      onChange={setCreate("price_per_head")}
-                      placeholder="0.00"
-                    />
-                    {suggestedPrice !== null && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => setCreateData({ ...createData, price_per_head: suggestedPrice.toFixed(2) })}
-                        className="whitespace-nowrap border-success/30 text-success bg-success/10 hover:bg-success/15 hover:text-success"
-                      >
-                        Use {formatCurrency(suggestedPrice, cs)}
-                      </Button>
-                    )}
-                  </div>
-                  {suggestedPrice !== null && (
-                    <p className="text-xs text-success/80 mt-1">
-                      Suggested: {formatCurrency(suggestedPrice, cs)}/head
-                    </p>
-                  )}
-                  {createData.price_per_head && createData.guest_count && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Food total: {formatCurrency(parseFloat(createData.price_per_head) * Number(createData.guest_count), cs)} ({createData.guest_count} guests)
-                    </p>
-                  )}
-                </div>
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Tax Rate (%)</label>
                   <ValidatedInput
@@ -647,32 +611,6 @@ export default function QuoteDetailPage() {
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">Guest Count *</label>
               <ValidatedInput type="number" required min={1} max={50000} value={editData.guest_count} onChange={setEdit("guest_count")} />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Price Per Head ({cs})</label>
-              <div className="flex gap-2">
-                <ValidatedInput type="number" step="0.01" min={0} max={9999999.99} value={editData.price_per_head} onChange={setEdit("price_per_head")} placeholder="0.00" />
-                {suggestedPrice !== null && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setEditData({ ...editData, price_per_head: suggestedPrice.toFixed(2) })}
-                    className="whitespace-nowrap border-success/30 text-success bg-success/10 hover:bg-success/15 hover:text-success"
-                  >
-                    Use {formatCurrency(suggestedPrice, cs)}
-                  </Button>
-                )}
-              </div>
-              {suggestedPrice !== null && (
-                <p className="text-xs text-success/80 mt-1">
-                  Suggested: {formatCurrency(suggestedPrice, cs)}/head
-                </p>
-              )}
-              {editData.price_per_head && editData.guest_count && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  Food total: {formatCurrency(parseFloat(editData.price_per_head) * Number(editData.guest_count), cs)}
-                </p>
-              )}
             </div>
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">Event Type</label>
@@ -861,8 +799,8 @@ export default function QuoteDetailPage() {
               });
               await mutateQuote();
             }}
-            onSuggestedPriceChange={handleSuggestedPriceChange}
-            onUseSuggestedPrice={(price) => setEditData((prev) => ({ ...prev, price_per_head: price.toFixed(2) }))}
+            pricePerHead={editData.price_per_head}
+            onPricePerHeadChange={editing ? (val) => setEditData((prev) => ({ ...prev, price_per_head: val })) : undefined}
             currencySymbol={cs}
             priceRoundingStep={Number(settings.price_rounding_step) || 50}
           />

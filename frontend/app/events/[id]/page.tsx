@@ -742,10 +742,44 @@ export default function EventDetailPage() {
         </CardContent>
       </Card>
 
-      {/* Guest Counts Section */}
+      {/* Timeline Section */}
       <Card>
         <CardContent className="p-6">
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Guest Counts</h2>
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Timeline</h2>
+            {editing ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Setup Time</label>
+                  <ValidatedInput type="datetime-local" value={formSetupTime} onChange={(e) => setFormSetupTime(e.target.value)} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Guest Arrival Time</label>
+                  <ValidatedInput type="datetime-local" value={formArrivalTime} onChange={(e) => setFormArrivalTime(e.target.value)} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Meal Time</label>
+                  <ValidatedInput type="datetime-local" value={formMealTime} onChange={(e) => setFormMealTime(e.target.value)} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">End Time</label>
+                  <ValidatedInput type="datetime-local" value={formEndTime} onChange={(e) => setFormEndTime(e.target.value)} />
+                </div>
+              </div>
+            ) : (
+              <dl className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <InfoRow label="Setup Time" value={formatDateTime(event!.setup_time)} />
+                <InfoRow label="Guest Arrival" value={formatDateTime(event!.guest_arrival_time)} />
+                <InfoRow label="Meal Time" value={formatDateTime(event!.meal_time)} />
+                <InfoRow label="End Time" value={formatDateTime(event!.end_time)} />
+              </dl>
+            )}
+        </CardContent>
+      </Card>
+
+      {/* Main Meal Section */}
+      <Card>
+        <CardContent className="p-6">
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Main Meal</h2>
             {editing ? (
               <div className="space-y-4">
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
@@ -840,80 +874,90 @@ export default function EventDetailPage() {
                     </div>
                   )}
                 </div>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1">Guaranteed Count</label>
+                    <ValidatedInput
+                      type="number"
+                      min={0}
+                      max={100000}
+                      value={formGuaranteed ?? ""}
+                      onChange={(e) => setFormGuaranteed(e.target.value ? Number(e.target.value) : null)}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1">Final Count</label>
+                    <ValidatedInput
+                      type="number"
+                      min={0}
+                      max={100000}
+                      value={formFinalCount ?? ""}
+                      onChange={(e) => setFormFinalCount(e.target.value ? Number(e.target.value) : null)}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1">Final Count Due</label>
+                    <ValidatedInput
+                      type="date"
+                      value={formFinalCountDue}
+                      onChange={(e) => setFormFinalCountDue(e.target.value)}
+                    />
+                  </div>
+                </div>
+                <div className="border-t border-border pt-4">
+                  {isNew ? (
+                    <MenuBuilder
+                      selectedDishIds={menuData.dish_ids}
+                      basedOnTemplate={menuData.based_on_template}
+                      onChange={setMenuData}
+                      pricePerHead={formPricePerHead}
+                      onPricePerHeadChange={setFormPricePerHead}
+                      guestCount={formTotalGuests}
+                      currencySymbol={settings.currency_symbol}
+                    />
+                  ) : (
+                    <MenuBuilder
+                      selectedDishIds={event!.dishes}
+                      basedOnTemplate={event!.based_on_template}
+                      onSave={handleMenuSave}
+                      pricePerHead={formPricePerHead}
+                      onPricePerHeadChange={setFormPricePerHead}
+                      guestCount={formTotalGuests}
+                      currencySymbol={settings.currency_symbol}
+                      disabled={false}
+                    />
+                  )}
+                </div>
               </div>
             ) : (
-              <dl className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                <InfoRow label="Total Guests" value={event!.gents + event!.ladies} />
-                <InfoRow label="Gents" value={event!.gents} />
-                <InfoRow label="Ladies" value={event!.ladies} />
-                {event!.big_eaters && <InfoRow label="Big Eaters" value={`+${event!.big_eaters_percentage}%`} />}
-              </dl>
-            )}
-        </CardContent>
-      </Card>
-
-      {/* Timeline Section */}
-      <Card>
-        <CardContent className="p-6">
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Timeline</h2>
-            {editing ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Setup Time</label>
-                  <ValidatedInput type="datetime-local" value={formSetupTime} onChange={(e) => setFormSetupTime(e.target.value)} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Guest Arrival Time</label>
-                  <ValidatedInput type="datetime-local" value={formArrivalTime} onChange={(e) => setFormArrivalTime(e.target.value)} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Meal Time</label>
-                  <ValidatedInput type="datetime-local" value={formMealTime} onChange={(e) => setFormMealTime(e.target.value)} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">End Time</label>
-                  <ValidatedInput type="datetime-local" value={formEndTime} onChange={(e) => setFormEndTime(e.target.value)} />
+              <div className="space-y-4">
+                <dl className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  <InfoRow label="Total Guests" value={event!.gents + event!.ladies} />
+                  <InfoRow label="Gents" value={event!.gents} />
+                  <InfoRow label="Ladies" value={event!.ladies} />
+                  {event!.big_eaters && <InfoRow label="Big Eaters" value={`+${event!.big_eaters_percentage}%`} />}
+                  {event!.guaranteed_count != null && <InfoRow label="Guaranteed Count" value={event!.guaranteed_count} />}
+                  {event!.final_count != null && <InfoRow label="Final Count" value={event!.final_count} />}
+                  {event!.final_count_due && <InfoRow label="Final Count Due" value={formatDate(event!.final_count_due, dateFormat)} />}
+                </dl>
+                <div className="border-t border-border pt-4">
+                  {event!.dishes.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No menu selected.</p>
+                  ) : (
+                    <MenuBuilder
+                      selectedDishIds={event!.dishes}
+                      basedOnTemplate={event!.based_on_template}
+                      onSave={handleMenuSave}
+                      pricePerHead={formPricePerHead}
+                      onPricePerHeadChange={undefined}
+                      guestCount={event!.gents + event!.ladies}
+                      currencySymbol={settings.currency_symbol}
+                      disabled={true}
+                    />
+                  )}
                 </div>
               </div>
-            ) : (
-              <dl className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <InfoRow label="Setup Time" value={formatDateTime(event!.setup_time)} />
-                <InfoRow label="Guest Arrival" value={formatDateTime(event!.guest_arrival_time)} />
-                <InfoRow label="Meal Time" value={formatDateTime(event!.meal_time)} />
-                <InfoRow label="End Time" value={formatDateTime(event!.end_time)} />
-              </dl>
             )}
-        </CardContent>
-      </Card>
-
-      {/* Menu Section */}
-      <Card>
-        <CardContent className="p-6">
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Menu</h2>
-          {isNew ? (
-            <MenuBuilder
-              selectedDishIds={menuData.dish_ids}
-              basedOnTemplate={menuData.based_on_template}
-              onChange={setMenuData}
-
-              onUseSuggestedPrice={(price) => setFormPricePerHead(price.toFixed(2))}
-              guestCount={formTotalGuests}
-              currencySymbol={settings.currency_symbol}
-            />
-          ) : !editing && event!.dishes.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No menu selected.</p>
-          ) : (
-            <MenuBuilder
-              selectedDishIds={event!.dishes}
-              basedOnTemplate={event!.based_on_template}
-              onSave={handleMenuSave}
-
-              onUseSuggestedPrice={(price) => setFormPricePerHead(price.toFixed(2))}
-              guestCount={editing ? formTotalGuests : (event!.gents + event!.ladies)}
-              currencySymbol={settings.currency_symbol}
-              disabled={!editing}
-            />
-          )}
         </CardContent>
       </Card>
 
@@ -978,7 +1022,7 @@ export default function EventDetailPage() {
                     </Button>
                   )}
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-sm font-medium text-foreground mb-1">Guest Count</label>
                     {editing ? (
@@ -994,25 +1038,6 @@ export default function EventDetailPage() {
                       />
                     ) : (
                       <span className="text-sm">{meal.guest_count}</span>
-                    )}
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-1">Price/Head ({settings.currency_symbol})</label>
-                    {editing ? (
-                      <ValidatedInput
-                        type="number"
-                        step="0.01"
-                        min={0}
-                        value={meal.price_per_head || ""}
-                        onChange={(e) => {
-                          const updated = [...formAdditionalMeals];
-                          updated[idx] = { ...updated[idx], price_per_head: e.target.value || null };
-                          setFormAdditionalMeals(updated);
-                        }}
-                        placeholder="0.00"
-                      />
-                    ) : (
-                      <span className="text-sm">{meal.price_per_head ? formatCurrency(meal.price_per_head, settings.currency_symbol) : "\u2014"}</span>
                     )}
                   </div>
                   <div>
@@ -1061,6 +1086,12 @@ export default function EventDetailPage() {
                     updated[idx] = { ...updated[idx], dishes: data.dish_ids, based_on_template: data.based_on_template };
                     setFormAdditionalMeals(updated);
                   }}
+                  pricePerHead={meal.price_per_head || ""}
+                  onPricePerHeadChange={editing ? (val) => {
+                    const updated = [...formAdditionalMeals];
+                    updated[idx] = { ...updated[idx], price_per_head: val || null };
+                    setFormAdditionalMeals(updated);
+                  } : undefined}
                   guestCount={meal.guest_count}
                   currencySymbol={settings.currency_symbol}
                   disabled={!editing}
@@ -1226,24 +1257,6 @@ export default function EventDetailPage() {
 
             return (
               <div className="space-y-4">
-                {editing && (
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-foreground mb-1">
-                        Price Per Head ({settings.currency_symbol})
-                      </label>
-                      <ValidatedInput
-                        type="number"
-                        step="0.01"
-                        min={0}
-                        max={9999999.99}
-                        value={formPricePerHead}
-                        onChange={(e) => setFormPricePerHead(e.target.value)}
-                        placeholder="0.00"
-                      />
-                    </div>
-                  </div>
-                )}
                 <div className="border border-border rounded-lg divide-y divide-border">
                   <div className="flex justify-between px-4 py-2 text-sm">
                     <span className="text-muted-foreground">Food ({formatCurrency(pph, settings.currency_symbol)}/head × {guests} guests)</span>
