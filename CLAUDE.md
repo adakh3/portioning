@@ -41,8 +41,9 @@ npm run dev
 
 - **Any change to calculation logic** (engine, pools, categories, baselines, ceilings) **must also update PORTIONING_LOGIC.md** to keep documentation in sync with the code.
 - **Any change to PORTIONING_LOGIC.md** must also update **`frontend/app/help/page.tsx`** — the help page is static content distilled from the logic doc.
-- **Any change to seed data** (new dishes, menus, categories, rules, cost data, surcharges, etc.) **must regenerate `backend/seed.json`** by running: `cd backend && python manage.py dumpdata users.Organisation dishes menus rules bookings.OrgSettings bookings.ProductLine bookings.EventTypeOption bookings.SourceOption bookings.ServiceStyleOption bookings.LeadStatusOption bookings.LostReasonOption bookings.MealTypeOption bookings.ArrangementTypeOption bookings.BeverageTypeOption staff.LaborRole staff.AllocationRule equipment.EquipmentItem --indent 2 -o seed.json`
-- **`seed.json`** contains only production reference/config data. **`test_fixtures.json`** contains demo transactional data (accounts, leads, quotes, events) and must NEVER be deployed to prod.
+- **Any change to seed data** (new dishes, menus, categories, rules, cost data, surcharges, etc.) **must regenerate `backend/seed.json`** by running: `cd backend && python manage.py dumpdata users.Organisation dishes menus rules bookings.OrgSettings bookings.ProductLine staff.LaborRole staff.AllocationRule equipment.EquipmentItem --indent 2 -o seed.json`
+- **Choice options** (EventTypeOption, SourceOption, ServiceStyleOption, LeadStatusOption, LostReasonOption, MealTypeOption, ArrangementTypeOption, BeverageTypeOption) are **NOT in seed.json**. They are managed via data migrations using `get_or_create` (keyed on `organisation` + `value`) so that custom edits on prod are preserved. To add new choice options, create a new data migration in `bookings/migrations/` — see `0027_seed_choice_options.py` as the reference pattern.
+- **`seed.json`** contains only production reference/config data (dishes, menus, rules, settings, labor roles, equipment). **`test_fixtures.json`** contains demo transactional data (accounts, leads, quotes, events) and must NEVER be deployed to prod.
 - **Any new npm package** must be committed with both `frontend/package.json` and `frontend/package-lock.json` so deployments can install it.
 
 ## Running Tests
