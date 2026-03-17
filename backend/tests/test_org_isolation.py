@@ -11,8 +11,7 @@ from rest_framework.test import APIClient
 from users.models import Organisation, User
 from bookings.models import Account, Contact, Venue, Lead, Quote
 from bookings.models.choices import (
-    EventTypeOption, SourceOption, ServiceStyleOption,
-    LeadStatusOption, LostReasonOption,
+    EventTypeOption, LostReasonOption,
 )
 from bookings.models.settings import OrgSettings
 from events.models import Event
@@ -45,16 +44,11 @@ class OrgIsolationTestBase(TestCase):
             first_name="Bob", last_name="B", role="owner", organisation=cls.org_b,
         )
 
-        # Seed choice options for Org A
-        LeadStatusOption.objects.create(organisation=cls.org_a, value="new", label="New", sort_order=0)
-        LeadStatusOption.objects.create(organisation=cls.org_a, value="contacted", label="Contacted", sort_order=1)
-        LeadStatusOption.objects.create(organisation=cls.org_a, value="won", label="Won", sort_order=5)
-        LeadStatusOption.objects.create(organisation=cls.org_a, value="lost", label="Lost", sort_order=6)
+        # Seed choice options for Org A (lead statuses/lost reasons auto-created by signal)
         EventTypeOption.objects.create(organisation=cls.org_a, value="wedding", label="Wedding")
-        LostReasonOption.objects.create(organisation=cls.org_a, value="budget", label="Budget")
+        LostReasonOption.objects.get_or_create(organisation=cls.org_a, value="budget", defaults={"label": "Budget"})
 
-        # Seed choice options for Org B too
-        LeadStatusOption.objects.create(organisation=cls.org_b, value="new", label="New", sort_order=0)
+        # Seed choice options for Org B too (lead statuses auto-created by signal)
         EventTypeOption.objects.create(organisation=cls.org_b, value="wedding", label="Wedding")
 
         # Org A data
