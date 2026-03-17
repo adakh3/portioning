@@ -715,6 +715,15 @@ export interface AutoAssignResult {
   skipped_no_staff: number;
 }
 
+export interface KanbanColumn {
+  count: number;
+  results: Lead[];
+}
+
+export interface KanbanResponse {
+  columns: Record<string, KanbanColumn>;
+}
+
 // Dashboard stats
 export interface SalespersonPerformance {
   user_id: number | null;
@@ -948,6 +957,16 @@ export const api = {
     if (dateFrom) params.set("date_from", dateFrom);
     if (dateTo) params.set("date_to", dateTo);
     return fetchApi<DashboardStats>(`/bookings/dashboard/stats/?${params.toString()}`);
+  },
+  getLeadsKanban: (filters?: LeadFilters) => {
+    const params = new URLSearchParams();
+    if (filters) {
+      Object.entries(filters).forEach(([key, val]) => {
+        if (val != null && val !== "") params.set(key, String(val));
+      });
+    }
+    const qs = params.toString();
+    return fetchApi<KanbanResponse>(`/bookings/leads/kanban/${qs ? `?${qs}` : ""}`);
   },
   autoAssignLeads: () =>
     fetchApi<AutoAssignResult>("/bookings/leads/auto-assign/", { method: "POST" }),
