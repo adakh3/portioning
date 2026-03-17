@@ -334,7 +334,7 @@ class TestAccountAPI(TestCase):
     def test_list_accounts(self):
         make_account(org=self.org, name="Alpha")
         make_account(org=self.org, name="Beta")
-        res = self.client.get("/api/bookings/accounts/")
+        res = self.client.get("/api/bookings/accounts/?page_size=all")
         self.assertEqual(res.status_code, 200)
         self.assertEqual(len(res.json()), 2)
 
@@ -384,7 +384,7 @@ class TestVenueAPI(TestCase):
     def test_list_venues(self):
         make_venue(org=self.org, name="Hall A")
         make_venue(org=self.org, name="Hall B")
-        res = self.client.get("/api/bookings/venues/")
+        res = self.client.get("/api/bookings/venues/?page_size=all")
         self.assertEqual(res.status_code, 200)
         self.assertEqual(len(res.json()), 2)
 
@@ -407,7 +407,7 @@ class TestLeadAPI(TestCase):
         lead_b = make_lead(org=self.org, contact_name="B")
         lead_b.transition_to("contacted")
 
-        res = self.client.get("/api/bookings/leads/?status=new")
+        res = self.client.get("/api/bookings/leads/?status=new&page_size=all")
         self.assertEqual(len(res.json()), 1)
         self.assertEqual(res.json()[0]["contact_name"], "A")
 
@@ -593,7 +593,7 @@ class TestQuoteAPI(TestCase):
         q2 = make_quote(org=self.org, account=self.account)
         q2.transition_to(QuoteStatus.SENT)
 
-        res = self.client.get("/api/bookings/quotes/?status=draft")
+        res = self.client.get("/api/bookings/quotes/?status=draft&page_size=all")
         self.assertEqual(len(res.json()), 1)
         self.assertEqual(res.json()[0]["id"], q1.id)
 
@@ -639,7 +639,7 @@ class TestEquipmentAPI(TestCase):
             name="Table", category="table", stock_quantity=10,
             rental_price=Decimal("50.00"), organisation=self.org,
         )
-        res = self.client.get("/api/equipment/items/")
+        res = self.client.get("/api/equipment/items/?page_size=all")
         self.assertEqual(res.status_code, 200)
         self.assertEqual(len(res.json()), 1)
 

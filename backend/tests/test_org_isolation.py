@@ -112,7 +112,7 @@ class OrgIsolationTestBase(TestCase):
 
 class TestLeadIsolation(OrgIsolationTestBase):
     def test_list_excludes_other_org(self):
-        resp = self.client.get("/api/bookings/leads/")
+        resp = self.client.get("/api/bookings/leads/?page_size=all")
         self.assertEqual(resp.status_code, 200)
         ids = [l["id"] for l in resp.data]
         self.assertNotIn(self.lead_a.id, ids)
@@ -139,7 +139,7 @@ class TestLeadIsolation(OrgIsolationTestBase):
 
 class TestQuoteIsolation(OrgIsolationTestBase):
     def test_list_excludes_other_org(self):
-        resp = self.client.get("/api/bookings/quotes/")
+        resp = self.client.get("/api/bookings/quotes/?page_size=all")
         self.assertEqual(resp.status_code, 200)
         ids = [q["id"] for q in resp.data]
         self.assertNotIn(self.quote_a.id, ids)
@@ -166,7 +166,7 @@ class TestQuoteIsolation(OrgIsolationTestBase):
 
 class TestAccountIsolation(OrgIsolationTestBase):
     def test_list_excludes_other_org(self):
-        resp = self.client.get("/api/bookings/accounts/")
+        resp = self.client.get("/api/bookings/accounts/?page_size=all")
         self.assertEqual(resp.status_code, 200)
         ids = [a["id"] for a in resp.data]
         self.assertNotIn(self.account_a.id, ids)
@@ -176,7 +176,7 @@ class TestAccountIsolation(OrgIsolationTestBase):
         self.assertEqual(resp.status_code, 404)
 
     def test_contacts_for_other_org_account_empty(self):
-        resp = self.client.get(f"/api/bookings/accounts/{self.account_a.id}/contacts/")
+        resp = self.client.get(f"/api/bookings/accounts/{self.account_a.id}/contacts/?page_size=all")
         # Either 404 or empty list depending on implementation
         if resp.status_code == 200:
             self.assertEqual(len(resp.data), 0)
@@ -184,7 +184,7 @@ class TestAccountIsolation(OrgIsolationTestBase):
 
 class TestEventIsolation(OrgIsolationTestBase):
     def test_list_excludes_other_org(self):
-        resp = self.client.get("/api/events/")
+        resp = self.client.get("/api/events/?page_size=all")
         self.assertEqual(resp.status_code, 200)
         ids = [e["id"] for e in resp.data]
         self.assertNotIn(self.event_a.id, ids)
@@ -200,7 +200,7 @@ class TestEventIsolation(OrgIsolationTestBase):
 
 class TestVenueIsolation(OrgIsolationTestBase):
     def test_list_excludes_other_org(self):
-        resp = self.client.get("/api/bookings/venues/")
+        resp = self.client.get("/api/bookings/venues/?page_size=all")
         self.assertEqual(resp.status_code, 200)
         ids = [v["id"] for v in resp.data]
         self.assertNotIn(self.venue_a.id, ids)
@@ -212,13 +212,13 @@ class TestVenueIsolation(OrgIsolationTestBase):
 
 class TestDishIsolation(OrgIsolationTestBase):
     def test_list_excludes_other_org(self):
-        resp = self.client.get("/api/dishes/")
+        resp = self.client.get("/api/dishes/?page_size=all")
         self.assertEqual(resp.status_code, 200)
         ids = [d["id"] for d in resp.data]
         self.assertNotIn(self.dish_a.id, ids)
 
     def test_categories_excludes_other_org(self):
-        resp = self.client.get("/api/dishes/categories/")
+        resp = self.client.get("/api/dishes/categories/?page_size=all")
         # May be 200 with empty list or 404 depending on view
         if resp.status_code == 200:
             ids = [c["id"] for c in resp.data]
@@ -227,7 +227,7 @@ class TestDishIsolation(OrgIsolationTestBase):
 
 class TestMenuIsolation(OrgIsolationTestBase):
     def test_list_excludes_other_org(self):
-        resp = self.client.get("/api/menus/")
+        resp = self.client.get("/api/menus/?page_size=all")
         self.assertEqual(resp.status_code, 200)
         ids = [m["id"] for m in resp.data]
         self.assertNotIn(self.menu_a.id, ids)
@@ -235,13 +235,13 @@ class TestMenuIsolation(OrgIsolationTestBase):
 
 class TestStaffIsolation(OrgIsolationTestBase):
     def test_roles_excludes_other_org(self):
-        resp = self.client.get("/api/staff/labor-roles/")
+        resp = self.client.get("/api/staff/labor-roles/?page_size=all")
         self.assertEqual(resp.status_code, 200)
         ids = [r["id"] for r in resp.data]
         self.assertNotIn(self.role_a.id, ids)
 
     def test_members_excludes_other_org(self):
-        resp = self.client.get("/api/staff/members/")
+        resp = self.client.get("/api/staff/members/?page_size=all")
         self.assertEqual(resp.status_code, 200)
         ids = [m["id"] for m in resp.data]
         self.assertNotIn(self.staff_a.id, ids)
@@ -249,7 +249,7 @@ class TestStaffIsolation(OrgIsolationTestBase):
 
 class TestEquipmentIsolation(OrgIsolationTestBase):
     def test_items_excludes_other_org(self):
-        resp = self.client.get("/api/equipment/items/")
+        resp = self.client.get("/api/equipment/items/?page_size=all")
         self.assertEqual(resp.status_code, 200)
         ids = [e["id"] for e in resp.data]
         self.assertNotIn(self.equip_a.id, ids)
@@ -286,7 +286,7 @@ class TestSuperuserOrgSwitch(OrgIsolationTestBase):
         """Superuser without explicit override sees only their own org's data."""
         client = APIClient()
         client.force_authenticate(user=self.superuser)
-        resp = client.get("/api/bookings/leads/")
+        resp = client.get("/api/bookings/leads/?page_size=all")
         self.assertEqual(resp.status_code, 200)
         # force_authenticate fallback uses user.organisation = org_a
         ids = [l["id"] for l in resp.data]

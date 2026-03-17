@@ -5,6 +5,8 @@ from django.contrib import admin
 from django.shortcuts import render, redirect
 from django.urls import path, reverse
 from django.contrib import messages
+from django.http import FileResponse
+from django.contrib.staticfiles import finders
 
 from users.models import User
 from .models import (
@@ -75,6 +77,11 @@ class LeadAdmin(admin.ModelAdmin):
                 "import/",
                 self.admin_site.admin_view(self.import_view),
                 name="bookings_lead_import",
+            ),
+            path(
+                "import/template/",
+                self.admin_site.admin_view(self.download_template),
+                name="bookings_lead_import_template",
             ),
             path(
                 "import/confirm/",
@@ -231,6 +238,16 @@ class LeadAdmin(admin.ModelAdmin):
             "errors": errors,
         }
         return render(request, "admin/bookings/lead/import_results.html", context)
+
+    def download_template(self, request):
+        """Serve the CSV template file as a download."""
+        file_path = finders.find("bookings/leads_import_template.csv")
+        return FileResponse(
+            open(file_path, "rb"),
+            content_type="text/csv",
+            as_attachment=True,
+            filename="leads_import_template.csv",
+        )
 
 
 # --- Quotes ---

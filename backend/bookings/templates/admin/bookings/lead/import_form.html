@@ -14,6 +14,16 @@
 </ul>
 {% endif %}
 
+<div style="background: #edf6ff; border: 1px solid #79aec8; border-radius: 6px; padding: 1em 1.5em; margin-bottom: 1.5em;">
+  <p style="margin: 0 0 0.5em;"><strong>Steps to import leads:</strong></p>
+  <ol style="margin: 0; padding-left: 1.5em;">
+    <li><a href="{% url 'admin:bookings_lead_import_template' %}" style="font-weight: bold;">Download the CSV template</a> and fill in your leads</li>
+    <li>Choose a product line and assignee (optional)</li>
+    <li>Upload the file and preview the results</li>
+    <li>Confirm to create the leads</li>
+  </ol>
+</div>
+
 <form method="post" enctype="multipart/form-data">
   {% csrf_token %}
   <fieldset class="module aligned">

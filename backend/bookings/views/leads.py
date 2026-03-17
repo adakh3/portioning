@@ -10,7 +10,7 @@ from users.mixins import get_request_org, apply_org_filter, get_org_object_or_40
 from bookings.models import Lead, ProductLine, Quote
 from bookings.models.choices import LeadStatusOption
 from bookings.serializers import LeadSerializer, QuoteSerializer
-from bookings.serializers.leads import ProductLineSerializer
+from bookings.serializers.leads import ProductLineSerializer, LeadListSerializer
 from bookings.activity import log_activity, log_field_changes, TRACKED_FIELDS
 from bookings.permissions import IsManagerOrOwner, is_salesperson
 
@@ -50,6 +50,11 @@ LEAD_ORDERING_FIELDS = {
 class LeadListCreateView(generics.ListCreateAPIView):
     serializer_class = LeadSerializer
 
+    def get_serializer_class(self):
+        if self.request.method == 'GET':
+            return LeadListSerializer
+        return LeadSerializer
+
     def perform_create(self, serializer):
         user = self.request.user if self.request.user.is_authenticated else None
         lead = serializer.save(created_by=user, organisation=get_request_org(self.request))
@@ -59,7 +64,7 @@ class LeadListCreateView(generics.ListCreateAPIView):
         qs = Lead.objects.select_related(
             'account', 'won_quote', 'won_event', 'product', 'assigned_to',
             'lost_reason_option',
-        ).prefetch_related('quotes')
+        )
         qs = apply_org_filter(qs, self.request)
 
         # Salesperson sees only their own leads

@@ -18,7 +18,7 @@ import {
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { api, Lead, LeadFilters, AuthUser, ProductLine, ChoiceOption } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { useLeads, useUsers, useProductLines, useEventTypes, useLeadStatuses, useLostReasons, useDateFormat, revalidate } from "@/lib/hooks";
+import { useLeadsByStatus, useLeadsPaginated, useUsers, useProductLines, useEventTypes, useLeadStatuses, useLostReasons, useDateFormat, revalidate } from "@/lib/hooks";
 import { formatDate } from "@/lib/dateFormat";
 import { Button } from "@/components/ui/button";
 import { ValidatedInput } from "@/components/ui/validated-input";
@@ -158,21 +158,35 @@ function KanbanColumn({
   color,
   badge,
   leads,
+  count,
+  hasMore,
+  loadMore,
+  loadingMore,
+  optimisticLeads,
 }: {
   status: string;
   label: string;
   color: string;
   badge: string;
   leads: Lead[];
+  count: number;
+  hasMore?: boolean;
+  loadMore?: () => void;
+  loadingMore?: boolean;
+  optimisticLeads?: Lead[];
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: status });
+  // Merge optimistic leads (dropped into this column) with server leads
+  const allLeads = optimisticLeads
+    ? [...optimisticLeads.filter((ol) => !leads.some((l) => l.id === ol.id)), ...leads]
+    : leads;
 
   return (
     <div className="flex flex-col min-w-[200px] flex-1">
       <div className={cn(color, "rounded-t-lg px-3 py-2 flex items-center justify-between")}>
         <span className={cn("text-sm font-semibold", color === "bg-muted" ? "text-muted-foreground" : "text-white")}>{label}</span>
         <span className={cn("text-xs font-medium px-1.5 py-0.5 rounded-full", badge)}>
-          {leads.length}
+          {count}
         </span>
       </div>
       <div
@@ -182,11 +196,20 @@ function KanbanColumn({
           isOver && "bg-accent ring-2 ring-ring ring-inset"
         )}
       >
-        {leads.map((lead) => (
+        {allLeads.map((lead) => (
           <DraggableCard key={lead.id} lead={lead} />
         ))}
-        {leads.length === 0 && (
+        {allLeads.length === 0 && (
           <p className="text-xs text-muted-foreground text-center py-8">No leads</p>
+        )}
+        {hasMore && loadMore && (
+          <button
+            onClick={loadMore}
+            disabled={loadingMore}
+            className="w-full text-xs text-primary hover:text-primary/80 py-2 text-center disabled:opacity-50"
+          >
+            {loadingMore ? "Loading..." : `Load more (${count - allLeads.length} remaining)`}
+          </button>
         )}
       </div>
     </div>
@@ -237,9 +260,13 @@ function LeadsContent() {
   const [bulkLoading, setBulkLoading] = useState(false);
 
   // Kanban state
-  const [leads, setLeads] = useState<Lead[]>([]);
   const [activeLead, setActiveLead] = useState<Lead | null>(null);
   const [toast, setToast] = useState("");
+  // Optimistic moves: leads temporarily added to a column after drag
+  const [optimisticMoves, setOptimisticMoves] = useState<Record<string, Lead[]>>({});
+
+  // Table pagination
+  const [tablePage, setTablePage] = useState(1);
 
   // Lost reason dialog state
   const [pendingLostLeadId, setPendingLostLeadId] = useState<number | null>(null);
@@ -251,8 +278,8 @@ function LeadsContent() {
   const [pendingWonLeadId, setPendingWonLeadId] = useState<number | null>(null);
   const [wonSaving, setWonSaving] = useState(false);
 
-  // Build filters for API
-  const filters: LeadFilters = useMemo(() => {
+  // Build filters for API (without status — Kanban columns add their own)
+  const baseFilters: LeadFilters = useMemo(() => {
     const f: LeadFilters = {};
     if (filterAssigned) f.assigned_to = filterAssigned;
     if (filterProduct) f.product = filterProduct;
@@ -265,7 +292,41 @@ function LeadsContent() {
     return f;
   }, [filterAssigned, filterProduct, filterEventType, filterDateFrom, filterDateTo, filterLeadDateFrom, filterLeadDateTo, ordering]);
 
-  const { data: fetchedLeads, error: loadError, isLoading: loading } = useLeads(filters);
+  // Alias for table use
+  const filters = baseFilters;
+
+  // ── Per-column data for Kanban ──
+  const colNew = useLeadsByStatus("new", baseFilters);
+  const colContacted = useLeadsByStatus("contacted", baseFilters);
+  const colQualified = useLeadsByStatus("qualified", baseFilters);
+  const colProposal = useLeadsByStatus("proposal_sent", baseFilters);
+  const colWon = useLeadsByStatus("won", baseFilters);
+  const colLost = useLeadsByStatus("lost", baseFilters);
+
+  const columnData: Record<string, ReturnType<typeof useLeadsByStatus>> = {
+    new: colNew,
+    contacted: colContacted,
+    qualified: colQualified,
+    proposal_sent: colProposal,
+    won: colWon,
+    lost: colLost,
+  };
+
+  // ── Table data (paginated) ──
+  const tableFilters: LeadFilters = useMemo(
+    () => ({ ...baseFilters, page_size: 50, page: tablePage }),
+    [baseFilters, tablePage],
+  );
+  const { data: tableData, error: tableError, isLoading: tableLoading } = useLeadsPaginated(tableFilters);
+  const tableLeads = tableData?.results || [];
+  const tableCount = tableData?.count ?? 0;
+  const tableTotalPages = Math.max(1, Math.ceil(tableCount / 50));
+
+  // Reset table page when filters change
+  useEffect(() => {
+    setTablePage(1);
+  }, [filterAssigned, filterProduct, filterEventType, filterDateFrom, filterDateTo, filterLeadDateFrom, filterLeadDateTo, ordering]);
+
   const { data: users } = useUsers();
   const { data: productLines } = useProductLines();
   const { data: eventTypes = [] } = useEventTypes();
@@ -277,35 +338,44 @@ function LeadsContent() {
   );
 
   useEffect(() => {
-    if (fetchedLeads) setLeads(fetchedLeads);
-  }, [fetchedLeads]);
-
-  useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(""), 3000);
     return () => clearTimeout(t);
   }, [toast]);
 
-  // Clear selection when data changes
+  // Clear selection when table data changes
   useEffect(() => {
     setSelectedIds(new Set());
-  }, [fetchedLeads]);
+  }, [tableData]);
 
-  // Client-side text search filter (applied on top of server filters)
+  // Client-side text search filter for table
   const filtered = search
-    ? leads.filter((l) =>
+    ? tableLeads.filter((l) =>
         l.contact_name.toLowerCase().includes(search.toLowerCase()) ||
         l.event_type_display.toLowerCase().includes(search.toLowerCase()) ||
         l.contact_email.toLowerCase().includes(search.toLowerCase()) ||
         l.contact_phone?.toLowerCase().includes(search.toLowerCase()) ||
         l.account_name?.toLowerCase().includes(search.toLowerCase())
       )
-    : leads;
+    : tableLeads;
 
-  const leadsByStatus = COLUMNS.reduce<Record<string, Lead[]>>((acc, col) => {
-    acc[col.status] = filtered.filter((l) => l.status === col.status);
-    return acc;
-  }, {});
+  // Kanban loading state
+  const kanbanLoading = viewMode === "kanban" && colNew.isLoading;
+  const loadError = viewMode === "kanban" ? colNew.error : tableError;
+  const loading = viewMode === "kanban" ? kanbanLoading : tableLoading;
+
+  function revalidateAllLeads() {
+    // Revalidate all column SWR keys + table
+    Object.values(columnData).forEach((col) => col.revalidateColumn());
+    revalidate("leads-paginated");
+    // Also pattern-revalidate any filtered leads keys
+    const qs = Object.entries(baseFilters)
+      .filter(([, v]) => v != null && v !== "")
+      .map(([k, v]) => `${k}=${v}`)
+      .sort()
+      .join("&");
+    if (qs) revalidate(`leads-paginated?${qs}`);
+  }
 
   const hasFilters = filterAssigned || filterProduct || filterEventType || filterDateFrom || filterDateTo || filterLeadDateFrom || filterLeadDateTo;
 
@@ -355,14 +425,7 @@ function LeadsContent() {
       setSelectedIds(new Set());
       setBulkAction("");
       setBulkValue("");
-      revalidate("leads");
-      // Revalidate all filtered lead keys
-      const qs = Object.entries(filters)
-        .filter(([, v]) => v)
-        .map(([k, v]) => `${k}=${v}`)
-        .sort()
-        .join("&");
-      if (qs) revalidate(`leads?${qs}`);
+      revalidateAllLeads();
       setToast(`${action === "delete" ? "Deleted" : "Updated"} ${selectedIds.size} lead(s)`);
     } catch (e) {
       setToast(e instanceof Error ? e.message : "Bulk action failed");
@@ -374,8 +437,16 @@ function LeadsContent() {
 
   // ── Kanban drag ──
 
+  function findLeadById(id: string): Lead | undefined {
+    for (const col of Object.values(columnData)) {
+      const found = col.leads.find((l) => l.id.toString() === id);
+      if (found) return found;
+    }
+    return undefined;
+  }
+
   function handleDragStart(event: DragStartEvent) {
-    const lead = leads.find((l) => l.id.toString() === event.active.id);
+    const lead = findLeadById(event.active.id as string);
     setActiveLead(lead || null);
   }
 
@@ -384,7 +455,7 @@ function LeadsContent() {
     const { active, over } = event;
     if (!over) return;
 
-    const lead = leads.find((l) => l.id.toString() === active.id);
+    const lead = findLeadById(active.id as string);
     if (!lead) return;
 
     const targetStatus = over.id as string;
@@ -402,27 +473,36 @@ function LeadsContent() {
       return;
     }
 
-    setLeads((prev) =>
-      prev.map((l) =>
-        l.id === lead.id ? { ...l, status: targetStatus } : l
-      )
-    );
+    // Optimistic: show lead in target column immediately
+    const movedLead = { ...lead, status: targetStatus };
+    setOptimisticMoves((prev) => ({
+      ...prev,
+      [targetStatus]: [...(prev[targetStatus] || []), movedLead],
+    }));
 
     try {
       await api.transitionLead(lead.id, targetStatus);
-      revalidate("leads");
-      const qs = Object.entries(filters)
-        .filter(([, v]) => v)
-        .map(([k, v]) => `${k}=${v}`)
-        .sort()
-        .join("&");
-      if (qs) revalidate(`leads?${qs}`);
+      // Clear optimistic state and revalidate both source + target columns
+      setOptimisticMoves((prev) => {
+        const next = { ...prev };
+        if (next[targetStatus]) {
+          next[targetStatus] = next[targetStatus].filter((l) => l.id !== lead.id);
+          if (next[targetStatus].length === 0) delete next[targetStatus];
+        }
+        return next;
+      });
+      columnData[lead.status]?.revalidateColumn();
+      columnData[targetStatus]?.revalidateColumn();
     } catch (e: unknown) {
-      setLeads((prev) =>
-        prev.map((l) =>
-          l.id === lead.id ? { ...l, status: lead.status } : l
-        )
-      );
+      // Revert optimistic move
+      setOptimisticMoves((prev) => {
+        const next = { ...prev };
+        if (next[targetStatus]) {
+          next[targetStatus] = next[targetStatus].filter((l) => l.id !== lead.id);
+          if (next[targetStatus].length === 0) delete next[targetStatus];
+        }
+        return next;
+      });
       const msg = e instanceof Error ? e.message : "Transition failed";
       setToast(msg);
     }
@@ -431,30 +511,13 @@ function LeadsContent() {
   async function handleConfirmLost() {
     if (!pendingLostLeadId || !lostReasonId) return;
     setLostSaving(true);
-    setLeads((prev) =>
-      prev.map((l) =>
-        l.id === pendingLostLeadId ? { ...l, status: "lost" } : l
-      )
-    );
     try {
       await api.transitionLead(pendingLostLeadId, "lost", {
         lost_reason_option: lostReasonId,
         lost_notes: lostNotesInput,
       });
-      revalidate("leads");
-      const qs = Object.entries(filters)
-        .filter(([, v]) => v)
-        .map(([k, v]) => `${k}=${v}`)
-        .sort()
-        .join("&");
-      if (qs) revalidate(`leads?${qs}`);
+      revalidateAllLeads();
     } catch (e: unknown) {
-      setLeads((prev) =>
-        prev.map((l) => {
-          const original = fetchedLeads?.find((fl) => fl.id === l.id);
-          return l.id === pendingLostLeadId && original ? { ...l, status: original.status } : l;
-        })
-      );
       setToast(e instanceof Error ? e.message : "Failed to mark lost");
     } finally {
       setPendingLostLeadId(null);
@@ -467,30 +530,13 @@ function LeadsContent() {
   async function handleConfirmWon(createEvent: boolean) {
     if (!pendingWonLeadId) return;
     setWonSaving(true);
-    setLeads((prev) =>
-      prev.map((l) =>
-        l.id === pendingWonLeadId ? { ...l, status: "won" } : l
-      )
-    );
     try {
       const updated = await api.markLeadWon(pendingWonLeadId, { create_event: createEvent });
-      revalidate("leads");
-      const qs = Object.entries(filters)
-        .filter(([, v]) => v)
-        .map(([k, v]) => `${k}=${v}`)
-        .sort()
-        .join("&");
-      if (qs) revalidate(`leads?${qs}`);
+      revalidateAllLeads();
       if (createEvent && updated.won_event) {
         router.push(`/events/${updated.won_event}`);
       }
     } catch (e: unknown) {
-      setLeads((prev) =>
-        prev.map((l) => {
-          const original = fetchedLeads?.find((fl) => fl.id === l.id);
-          return l.id === pendingWonLeadId && original ? { ...l, status: original.status } : l;
-        })
-      );
       setToast(e instanceof Error ? e.message : "Failed to mark won");
     } finally {
       setPendingWonLeadId(null);
@@ -498,7 +544,7 @@ function LeadsContent() {
     }
   }
 
-  if (loadError && !leads.length) return <p className="text-destructive">Error: {loadError.message}</p>;
+  if (loadError) return <p className="text-destructive">Error: {loadError.message}</p>;
 
   return (
     <div className="flex flex-col h-full">
@@ -751,16 +797,24 @@ function LeadsContent() {
           onDragEnd={handleDragEnd}
         >
           <div className="flex gap-3 overflow-x-auto pb-4 flex-1">
-            {COLUMNS.map((col) => (
-              <KanbanColumn
-                key={col.status}
-                status={col.status}
-                label={col.label}
-                color={col.color}
-                badge={col.badge}
-                leads={leadsByStatus[col.status] || []}
-              />
-            ))}
+            {COLUMNS.map((col) => {
+              const cd = columnData[col.status];
+              return (
+                <KanbanColumn
+                  key={col.status}
+                  status={col.status}
+                  label={col.label}
+                  color={col.color}
+                  badge={col.badge}
+                  leads={cd?.leads || []}
+                  count={cd?.count ?? 0}
+                  hasMore={cd?.hasMore}
+                  loadMore={cd?.loadMore}
+                  loadingMore={cd?.loadingMore}
+                  optimisticLeads={optimisticMoves[col.status]}
+                />
+              );
+            })}
           </div>
 
           <DragOverlay>
@@ -768,23 +822,52 @@ function LeadsContent() {
           </DragOverlay>
         </DndContext>
       ) : (
-        <LeadsTable
-          leads={filtered}
-          selectedIds={selectedIds}
-          ordering={ordering}
-          onToggleSelect={toggleSelect}
-          onToggleSelectAll={toggleSelectAll}
-          onToggleSort={toggleSort}
-          users={users || []}
-          productLines={productLines || []}
-          filters={filters}
-          onToast={setToast}
-          onOptimisticUpdate={(leadId, patch) =>
-            setLeads((prev) => prev.map((l) => l.id === leadId ? { ...l, ...patch } : l))
-          }
-          onMarkLost={(leadId) => setPendingLostLeadId(leadId)}
-          onMarkWon={(leadId) => setPendingWonLeadId(leadId)}
-        />
+        <>
+          <LeadsTable
+            leads={filtered}
+            selectedIds={selectedIds}
+            ordering={ordering}
+            onToggleSelect={toggleSelect}
+            onToggleSelectAll={toggleSelectAll}
+            onToggleSort={toggleSort}
+            users={users || []}
+            productLines={productLines || []}
+            filters={filters}
+            onToast={setToast}
+            onRevalidate={revalidateAllLeads}
+            onMarkLost={(leadId) => setPendingLostLeadId(leadId)}
+            onMarkWon={(leadId) => setPendingWonLeadId(leadId)}
+          />
+          {/* Pagination controls */}
+          {tableTotalPages > 1 && (
+            <div className="flex items-center justify-between mt-3 px-2">
+              <p className="text-sm text-muted-foreground">
+                {tableCount} lead{tableCount !== 1 ? "s" : ""} total
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={tablePage <= 1}
+                  onClick={() => setTablePage((p) => Math.max(1, p - 1))}
+                >
+                  Previous
+                </Button>
+                <span className="text-sm text-muted-foreground">
+                  Page {tablePage} of {tableTotalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={tablePage >= tableTotalPages}
+                  onClick={() => setTablePage((p) => Math.min(tableTotalPages, p + 1))}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       {/* Delete confirmation dialog */}
@@ -934,7 +1017,7 @@ function LeadsTable({
   productLines,
   filters,
   onToast,
-  onOptimisticUpdate,
+  onRevalidate,
   onMarkLost,
   onMarkWon,
 }: {
@@ -948,7 +1031,7 @@ function LeadsTable({
   productLines: ProductLine[];
   filters: LeadFilters;
   onToast: (msg: string) => void;
-  onOptimisticUpdate: (leadId: number, patch: Partial<Lead>) => void;
+  onRevalidate: () => void;
   onMarkLost: (leadId: number) => void;
   onMarkWon: (leadId: number) => void;
 }) {
@@ -974,13 +1057,7 @@ function LeadsTable({
     saving?.leadId === leadId && saving?.field === field;
 
   function revalidateLeads() {
-    revalidate("leads");
-    const qs = Object.entries(filters)
-      .filter(([, v]) => v)
-      .map(([k, v]) => `${k}=${v}`)
-      .sort()
-      .join("&");
-    if (qs) revalidate(`leads?${qs}`);
+    onRevalidate();
   }
 
   async function saveQuickAdd() {
@@ -1034,7 +1111,6 @@ function LeadsTable({
           onMarkWon(leadId);
           return;
         }
-        onOptimisticUpdate(leadId, { status: value });
         await api.transitionLead(leadId, value);
       } else if (field === "guest_estimate") {
         const parsed = value === "" ? null : parseInt(value, 10);
@@ -1042,33 +1118,18 @@ function LeadsTable({
           onToast("Invalid guest count");
           return;
         }
-        onOptimisticUpdate(leadId, { guest_estimate: parsed });
         await api.updateLead(leadId, { guest_estimate: parsed });
       } else if (field === "assigned_to") {
         const numVal = value === "" ? null : parseInt(value, 10);
-        const userName = users.find((u) => u.id === numVal);
-        onOptimisticUpdate(leadId, {
-          assigned_to: numVal,
-          assigned_to_name: userName ? `${userName.first_name} ${userName.last_name}` : null,
-        });
         await api.updateLead(leadId, { assigned_to: numVal } as Partial<Lead>);
       } else if (field === "product") {
         const numVal = value === "" ? null : parseInt(value, 10);
-        const prod = productLines.find((p) => p.id === numVal);
-        onOptimisticUpdate(leadId, {
-          product: numVal,
-          product_name: prod ? prod.name : null,
-        });
         await api.updateLead(leadId, { product: numVal } as Partial<Lead>);
       } else if (field === "event_type") {
-        const display = eventTypes.find((et) => et.value === value)?.label || value;
-        onOptimisticUpdate(leadId, { event_type: value, event_type_display: display });
         await api.updateLead(leadId, { event_type: value });
       } else if (field === "event_date") {
-        onOptimisticUpdate(leadId, { event_date: value || null });
         await api.updateLead(leadId, { event_date: value || null });
       } else {
-        onOptimisticUpdate(leadId, { [field]: value });
         await api.updateLead(leadId, { [field]: value });
       }
       revalidateLeads();
