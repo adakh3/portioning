@@ -195,21 +195,19 @@ export default function Dashboard() {
                 <h2 className="text-sm font-semibold text-foreground">Lost Reasons</h2>
                 <span className="text-xs text-muted-foreground">{totalLost} lost lead{totalLost !== 1 ? "s" : ""}</span>
               </div>
-              <div className="space-y-3">
+              <div className="flex items-end gap-3 h-48">
                 {lostReasons.map((r) => {
-                  const pct = totalLost > 0 ? Math.round((r.count / totalLost) * 100) : 0;
-                  const barWidth = maxCount > 0 ? (r.count / maxCount) * 100 : 0;
+                  const barHeight = maxCount > 0 ? (r.count / maxCount) * 100 : 0;
                   return (
-                    <div key={r.reason} className="flex items-center gap-3">
-                      <span className="text-sm text-foreground w-40 shrink-0 truncate" title={r.reason}>{r.reason}</span>
-                      <div className="flex-1 h-6 bg-muted rounded overflow-hidden">
+                    <div key={r.reason} className="flex-1 flex flex-col items-center gap-1 h-full justify-end min-w-0">
+                      <span className="text-xs font-medium text-foreground">{r.count}</span>
+                      <div className="w-full flex items-end justify-center" style={{ height: "calc(100% - 2rem)" }}>
                         <div
-                          className="h-full bg-red-500/70 rounded transition-all duration-500"
-                          style={{ width: `${barWidth}%`, minWidth: r.count > 0 ? "4px" : "0" }}
+                          className="w-full max-w-14 bg-red-500/70 rounded-t transition-all duration-500"
+                          style={{ height: `${barHeight}%`, minHeight: r.count > 0 ? "4px" : "0" }}
                         />
                       </div>
-                      <span className="text-sm font-medium text-foreground w-8 text-right">{r.count}</span>
-                      <span className="text-xs text-muted-foreground w-10 text-right">{pct}%</span>
+                      <span className="text-[10px] text-muted-foreground text-center leading-tight truncate w-full" title={r.reason}>{r.reason}</span>
                     </div>
                   );
                 })}
