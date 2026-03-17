@@ -101,6 +101,8 @@ class ImportRow:
     source: str = "website"
     status: str = "new"
     notes: str = ""
+    product_name: str = ""
+    assigned_to_email: str = ""
     skipped: bool = False
     skip_reason: str = ""
     error: str = ""
@@ -111,7 +113,7 @@ class ImportRow:
 def parse_rows(data_rows, header):
     """Parse raw spreadsheet rows into ImportRow objects. Pure function, no DB access."""
     col = {name: i for i, name in enumerate(header)}
-    required = ["full_name", "email", "event_type"]
+    required = ["full_name", "phone_number", "event_type"]
     for r in required:
         if r not in col:
             raise ValueError(f"Missing required column: {r}")
@@ -175,6 +177,9 @@ def parse_rows(data_rows, header):
         if date_raw and not event_date:
             notes_parts.append(f"Date (unparsed): {date_raw}")
 
+        product_name = str(row[col["product"]] or "").strip() if "product" in col else ""
+        assigned_to_email = str(row[col["assigned_to"]] or "").strip() if "assigned_to" in col else ""
+
         ir.contact_name = name[:200]
         ir.contact_email = email[:254]
         ir.contact_phone = phone[:50]
@@ -186,6 +191,8 @@ def parse_rows(data_rows, header):
         ir.source = source[:50]
         ir.status = status
         ir.notes = "\n".join(notes_parts)
+        ir.product_name = product_name
+        ir.assigned_to_email = assigned_to_email
 
         results.append(ir)
 
@@ -246,11 +253,42 @@ def flag_duplicates(import_rows):
 
 def commit_rows(import_rows, product=None, assigned_to=None):
     """Create Lead objects for valid (non-skipped) rows. Returns (created_count, errors)."""
+    from bookings.models.leads import ProductLine
+    from users.models import User
+
+    # Build lookup caches for per-row product/assigned_to
+    product_names = {r.product_name.lower() for r in import_rows if r.product_name}
+    user_emails = {r.assigned_to_email.lower() for r in import_rows if r.assigned_to_email}
+
+    product_cache = {}
+    if product_names:
+        for p in ProductLine.objects.filter(name__in=[n for n in product_names]):
+            product_cache[p.name.lower()] = p
+
+    user_cache = {}
+    if user_emails:
+        for u in User.objects.filter(email__in=[e for e in user_emails]):
+            user_cache[u.email.lower()] = u
+
     created = 0
     errors = []
     for row in import_rows:
         if row.skipped or row.error:
             continue
+
+        row_product = product
+        if row.product_name:
+            row_product = product_cache.get(row.product_name.lower()) or product
+
+        if not row_product:
+            row.error = "Product line is required (set in CSV or select from dropdown)"
+            errors.append(f"Row {row.row_num}: {row.error}")
+            continue
+
+        row_assigned = assigned_to
+        if row.assigned_to_email:
+            row_assigned = user_cache.get(row.assigned_to_email.lower()) or assigned_to
+
         try:
             Lead.objects.create(
                 contact_name=row.contact_name,
@@ -263,8 +301,8 @@ def commit_rows(import_rows, product=None, assigned_to=None):
                 source=row.source,
                 status=row.status,
                 notes=row.notes,
-                product=product,
-                assigned_to=assigned_to,
+                product=row_product,
+                assigned_to=row_assigned,
             )
             row.created = True
             created += 1

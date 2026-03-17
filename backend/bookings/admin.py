@@ -94,10 +94,16 @@ class LeadAdmin(admin.ModelAdmin):
 
     def import_view(self, request):
         """GET: show upload form. POST: parse file and show preview."""
+        org = request.user.organisation
         context = {
             **self.admin_site.each_context(request),
-            "products": ProductLine.objects.filter(is_active=True),
-            "users": User.objects.filter(is_active=True),
+            "products": list(ProductLine.objects.filter(is_active=True).values_list('name', flat=True)),
+            "event_types": EventTypeOption.objects.filter(organisation=org, is_active=True).order_by('sort_order').values_list('value', flat=True),
+            "sources": SourceOption.objects.filter(organisation=org, is_active=True).order_by('sort_order').values_list('value', flat=True),
+            "service_styles": ServiceStyleOption.objects.filter(organisation=org, is_active=True).order_by('sort_order').values_list('value', flat=True),
+            "lead_statuses": LeadStatusOption.objects.filter(organisation=org, is_active=True).order_by('sort_order').values_list('value', flat=True),
+            "meal_types": MealTypeOption.objects.filter(organisation=org, is_active=True).order_by('sort_order').values_list('value', flat=True),
+            "date_format": org.settings.date_format if hasattr(org, 'settings') else 'DD/MM/YYYY',
         }
 
         if request.method != "POST":

@@ -1,1 +1,1 @@
-full_name,email,event_type,phone_number,your_event_date,your_guests,lead_date,platform,lead_status,campaign_name
+full_name,phone_number,event_type,product,email,your_event_date,your_guests,lead_date,platform,lead_status,campaign_name,assigned_to
