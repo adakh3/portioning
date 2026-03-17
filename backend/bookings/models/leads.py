@@ -85,10 +85,7 @@ class Lead(models.Model):
         ordering = ['-created_at']
 
     def __str__(self):
-        from bookings.models.choices import EventTypeOption, LeadStatusOption
-        et_label = EventTypeOption.objects.filter(value=self.event_type, organisation=self.organisation).values_list('label', flat=True).first() or self.event_type
-        st_label = LeadStatusOption.objects.filter(value=self.status, organisation=self.organisation).values_list('label', flat=True).first() or self.status
-        return f"{self.contact_name} — {et_label} ({st_label})"
+        return f"{self.contact_name} — {self.event_type} ({self.status})"
 
     def can_transition_to(self, new_status):
         from bookings.models.choices import LeadStatusOption
