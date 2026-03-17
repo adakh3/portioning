@@ -220,3 +220,28 @@ class EventSerializer(serializers.ModelSerializer):
         for dc in dish_comments:
             EventMealDishComment.objects.create(meal=meal, **dc)
         return meal
+
+
+EVENT_LIST_EXCLUDE = {
+    'shifts', 'equipment_reservations', 'invoices',
+    'dish_comments', 'constraint_override',
+    'dish_ids', 'arrangements', 'beverages', 'additional_meals',
+}
+
+
+class EventListSerializer(serializers.ModelSerializer):
+    """Lighter serializer for event list views."""
+    account_name = serializers.CharField(source='account.name', read_only=True, default=None)
+    contact_name = serializers.CharField(source='primary_contact.name', read_only=True, default=None)
+    venue_name = serializers.CharField(source='venue.name', read_only=True, default=None)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    source_quote_id = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Event
+        fields = [f for f in EventSerializer.Meta.fields if f not in EVENT_LIST_EXCLUDE]
+        read_only_fields = ['created_at']
+
+    def get_source_quote_id(self, obj):
+        quote = getattr(obj, 'source_quote', None)
+        return quote.id if quote else None

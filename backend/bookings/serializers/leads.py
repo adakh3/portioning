@@ -104,3 +104,10 @@ class LeadSerializer(serializers.ModelSerializer):
         if obj.assigned_to:
             return f"{obj.assigned_to.first_name} {obj.assigned_to.last_name}".strip() or obj.assigned_to.email
         return None
+
+
+class LeadListSerializer(LeadSerializer):
+    """Lighter serializer for list/Kanban views — excludes nested quotes."""
+
+    class Meta(LeadSerializer.Meta):
+        fields = [f for f in LeadSerializer.Meta.fields if f != 'quotes']

@@ -20,7 +20,7 @@ class TestAPI(TestCase):
         self.assertGreater(len(res.json()), 0)
 
     def test_list_categories(self):
-        res = self.client.get('/api/categories/')
+        res = self.client.get('/api/categories/?page_size=all')
         self.assertEqual(res.status_code, 200)
         data = res.json()
         self.assertGreater(len(data), 0)
@@ -29,7 +29,7 @@ class TestAPI(TestCase):
         self.assertIn('baseline_budget_grams', data[0])
 
     def test_list_menus(self):
-        res = self.client.get('/api/menus/')
+        res = self.client.get('/api/menus/?page_size=all')
         self.assertEqual(res.status_code, 200)
         data = res.json()
         self.assertGreater(len(data), 0)
