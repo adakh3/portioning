@@ -244,6 +244,7 @@ function LeadsContent() {
   const viewMode = (viewModeRaw === "table" ? "table" : "kanban") as "kanban" | "table";
   const [search, setSearch] = useState("");
   const [filterAssigned, setFilterAssigned] = useQueryState("assigned", "");
+  const [filterStatus, setFilterStatus] = useQueryState("status", "");
   const [filterProduct, setFilterProduct] = useQueryState("product", "");
   const [filterEventType, setFilterEventType] = useQueryState("eventType", "");
   const [filterDateFrom, setFilterDateFrom] = useQueryState("dateFrom", "");
@@ -282,6 +283,7 @@ function LeadsContent() {
   const baseFilters: LeadFilters = useMemo(() => {
     const f: LeadFilters = {};
     if (filterAssigned) f.assigned_to = filterAssigned;
+    if (filterStatus) f.status = filterStatus;
     if (filterProduct) f.product = filterProduct;
     if (filterEventType) f.event_type = filterEventType;
     if (filterDateFrom) f.date_from = filterDateFrom;
@@ -290,7 +292,7 @@ function LeadsContent() {
     if (filterLeadDateTo) f.lead_date_to = filterLeadDateTo;
     if (ordering) f.ordering = ordering;
     return f;
-  }, [filterAssigned, filterProduct, filterEventType, filterDateFrom, filterDateTo, filterLeadDateFrom, filterLeadDateTo, ordering]);
+  }, [filterAssigned, filterStatus, filterProduct, filterEventType, filterDateFrom, filterDateTo, filterLeadDateFrom, filterLeadDateTo, ordering]);
 
   // Alias for table use
   const filters = baseFilters;
@@ -325,7 +327,7 @@ function LeadsContent() {
   // Reset table page when filters change
   useEffect(() => {
     setTablePage(1);
-  }, [filterAssigned, filterProduct, filterEventType, filterDateFrom, filterDateTo, filterLeadDateFrom, filterLeadDateTo, ordering]);
+  }, [filterAssigned, filterStatus, filterProduct, filterEventType, filterDateFrom, filterDateTo, filterLeadDateFrom, filterLeadDateTo, ordering]);
 
   const { data: users } = useUsers();
   const { data: productLines } = useProductLines();
@@ -377,9 +379,9 @@ function LeadsContent() {
     if (qs) revalidate(`leads-paginated?${qs}`);
   }
 
-  const hasFilters = filterAssigned || filterProduct || filterEventType || filterDateFrom || filterDateTo || filterLeadDateFrom || filterLeadDateTo;
+  const hasFilters = filterAssigned || filterStatus || filterProduct || filterEventType || filterDateFrom || filterDateTo || filterLeadDateFrom || filterLeadDateTo;
 
-  const clearQueryFilters = useClearQueryState(["assigned", "product", "eventType", "dateFrom", "dateTo", "leadDateFrom", "leadDateTo"]);
+  const clearQueryFilters = useClearQueryState(["assigned", "status", "product", "eventType", "dateFrom", "dateTo", "leadDateFrom", "leadDateTo"]);
   function clearFilters() {
     clearQueryFilters();
     setSearch("");
@@ -612,6 +614,7 @@ function LeadsContent() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="__all__">All Users</SelectItem>
+                <SelectItem value="unassigned">Unassigned</SelectItem>
                 {users?.map((u) => (
                   <SelectItem key={u.id} value={u.id.toString()}>
                     {u.first_name} {u.last_name}
@@ -620,6 +623,19 @@ function LeadsContent() {
               </SelectContent>
             </Select>
           )}
+          <Select value={filterStatus || "__all__"} onValueChange={(v) => setFilterStatus(v === "__all__" ? "" : v)}>
+            <SelectTrigger className="w-40">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">All Statuses</SelectItem>
+              {leadStatuses.map((s) => (
+                <SelectItem key={s.value} value={s.value}>
+                  {s.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Select value={filterProduct || "__all__"} onValueChange={(v) => setFilterProduct(v === "__all__" ? "" : v)}>
             <SelectTrigger className="w-40">
               <SelectValue placeholder="Product" />
