@@ -55,11 +55,17 @@ class DashboardStatsView(APIView):
         if until:
             period_logs = period_logs.filter(created_at__lt=until)
 
-        # Lead summary
-        new_leads = period_logs.filter(action='created').count()
-        status_transitions = period_logs.filter(action='status_change').count()
-        won = period_logs.filter(action='status_change', new_value='won').count()
-        lost = period_logs.filter(action='status_change', new_value='lost').count()
+        # Lead summary (single aggregate instead of 4 separate counts)
+        summary = period_logs.aggregate(
+            new_leads=Count('id', filter=Q(action='created')),
+            status_transitions=Count('id', filter=Q(action='status_change')),
+            won=Count('id', filter=Q(action='status_change', new_value='won')),
+            lost=Count('id', filter=Q(action='status_change', new_value='lost')),
+        )
+        new_leads = summary['new_leads']
+        status_transitions = summary['status_transitions']
+        won = summary['won']
+        lost = summary['lost']
         total_active = base_leads.exclude(status__in=['won', 'lost']).count()
 
         # Team activity — per user (period-scoped from activity logs)
@@ -92,12 +98,12 @@ class DashboardStatsView(APIView):
         if new_leads > 0:
             conversion_rate = round(won / new_leads * 100, 1)
 
-        converted_lead_ids = list(
+        converted_lead_ids = (
             period_logs.filter(action='status_change', new_value='won')
             .values_list('object_id', flat=True)
         )
         avg_days = None
-        if converted_lead_ids:
+        if converted_lead_ids.exists():
             result = (
                 base_leads.filter(id__in=converted_lead_ids, won_at__isnull=False)
                 .annotate(days=F('won_at') - F('created_at'))
@@ -121,8 +127,8 @@ class DashboardStatsView(APIView):
         status_values = [s[0] for s in statuses]
         status_labels = {s[0]: s[1] for s in statuses}
 
-        # Lead IDs that had any activity in the period
-        active_lead_ids = list(
+        # Lead IDs that had any activity in the period (kept as subquery)
+        active_lead_ids = (
             period_logs.values_list('object_id', flat=True).distinct()
         ) if since or until else None
 
@@ -143,26 +149,26 @@ class DashboardStatsView(APIView):
             .order_by('assigned_to__first_name', 'assigned_to__last_name')
         )
 
-        # Overdue reminders per assigned user
+        # Overdue reminders per user (assigned + unassigned in one query)
         reminder_base = Reminder.objects.filter(
             status='pending',
             due_at__lt=now,
-            lead__assigned_to__isnull=False,
         )
         if org is not None:
             reminder_base = reminder_base.filter(lead__organisation=org)
-        overdue_by_user = dict(
+        overdue_all = dict(
             reminder_base
             .values_list('lead__assigned_to')
             .annotate(c=Count('id'))
             .values_list('lead__assigned_to', 'c')
         )
+        unassigned_overdue = overdue_all.pop(None, 0)
+        overdue_by_user = overdue_all
 
-        # Stale leads per assigned user (no activity in 7+ days, still active)
+        # Stale leads per user (assigned + unassigned in one query)
         stale_cutoff = now - timedelta(days=7)
-        stale_by_user = dict(
+        stale_all = dict(
             base_leads.filter(
-                assigned_to__isnull=False,
                 updated_at__lt=stale_cutoff,
             )
             .exclude(status__in=['won', 'lost'])
@@ -170,6 +176,8 @@ class DashboardStatsView(APIView):
             .annotate(c=Count('id'))
             .values_list('assigned_to', 'c')
         )
+        unassigned_stale = stale_all.pop(None, 0)
+        stale_by_user = stale_all
 
         # Build per-salesperson data
         sp_map = {}
@@ -215,23 +223,6 @@ class DashboardStatsView(APIView):
             unassigned_total += row['count']
             unassigned_value += float(row['value'] or 0)
 
-        unassigned_stale = (
-            base_leads.filter(
-                assigned_to__isnull=True,
-                updated_at__lt=stale_cutoff,
-            )
-            .exclude(status__in=['won', 'lost'])
-            .count()
-        )
-        unassigned_reminder_base = Reminder.objects.filter(
-            status='pending',
-            due_at__lt=now,
-            lead__assigned_to__isnull=True,
-        )
-        if org is not None:
-            unassigned_reminder_base = unassigned_reminder_base.filter(lead__organisation=org)
-        unassigned_overdue = unassigned_reminder_base.count()
-
         unassigned_row = {
             'user_id': None,
             'user_name': 'Unassigned',
@@ -247,12 +238,12 @@ class DashboardStatsView(APIView):
             salesperson_performance.append(unassigned_row)
 
         # ── Lost reasons breakdown (period-scoped) ──
-        lost_lead_ids = list(
+        lost_lead_ids = (
             period_logs.filter(action='status_change', new_value='lost')
             .values_list('object_id', flat=True)
         )
         lost_reasons = []
-        if lost_lead_ids:
+        if lost_lead_ids.exists():
             lost_reason_qs = (
                 Lead.objects.filter(id__in=lost_lead_ids)
                 .values('lost_reason_option__label')
