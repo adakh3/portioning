@@ -81,7 +81,9 @@ class LeadListCreateView(generics.ListCreateAPIView):
 
         # Assigned user filter
         assigned_to = params.get('assigned_to')
-        if assigned_to:
+        if assigned_to == 'unassigned':
+            qs = qs.filter(assigned_to__isnull=True)
+        elif assigned_to:
             qs = qs.filter(assigned_to_id=assigned_to)
 
         # Product filter
