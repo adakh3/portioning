@@ -49,13 +49,13 @@ export default function Dashboard() {
   const dateFormat = useDateFormat();
 
   const { data: reminderCounts } = useReminderCounts();
-  const { data: allEvents } = useEvents({ date_from: new Date().toISOString().split("T")[0] });
-  const { data: allQuotes } = useQuotes();
-  const { data: allLeads } = useLeads();
+  const { data: allEvents } = useEvents({ date_from: new Date().toISOString().split("T")[0], page_size: 5 });
+  const { data: allQuotes } = useQuotes("draft", 5);
+  const { data: allLeads } = useLeads({ page_size: 5 });
 
-  const events = (allEvents || []).slice(0, 5);
-  const quotes = (allQuotes || []).filter((q) => q.status === "draft" || q.status === "sent").slice(0, 5);
-  const leads = (allLeads || []).slice(0, 5);
+  const events = allEvents || [];
+  const quotes = allQuotes || [];
+  const leads = allLeads || [];
 
   const summary = stats?.lead_summary;
   const kpis = stats?.kpis;
