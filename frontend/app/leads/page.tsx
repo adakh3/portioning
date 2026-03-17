@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -18,7 +18,7 @@ import {
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { api, Lead, LeadFilters, AuthUser, ProductLine, ChoiceOption } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { useLeadsByStatus, useLeadsPaginated, useUsers, useProductLines, useEventTypes, useLeadStatuses, useLostReasons, useDateFormat, revalidate } from "@/lib/hooks";
+import { useKanbanData, useLeadsPaginated, useUsers, useProductLines, useEventTypes, useLeadStatuses, useLostReasons, useDateFormat, revalidate } from "@/lib/hooks";
 import { formatDate } from "@/lib/dateFormat";
 import { Button } from "@/components/ui/button";
 import { ValidatedInput } from "@/components/ui/validated-input";
@@ -297,29 +297,66 @@ function LeadsContent() {
   // Alias for table use
   const filters = baseFilters;
 
-  // ── Per-column data for Kanban ──
-  const colNew = useLeadsByStatus("new", baseFilters);
-  const colContacted = useLeadsByStatus("contacted", baseFilters);
-  const colQualified = useLeadsByStatus("qualified", baseFilters);
-  const colProposal = useLeadsByStatus("proposal_sent", baseFilters);
-  const colWon = useLeadsByStatus("won", baseFilters);
-  const colLost = useLeadsByStatus("lost", baseFilters);
+  // ── Single-endpoint Kanban data (paused when in table view) ──
+  const kanbanPaused = viewMode !== "kanban";
+  const { data: kanbanData, isLoading: kanbanIsLoading, revalidate: revalidateKanban } = useKanbanData(baseFilters, kanbanPaused);
 
-  const columnData: Record<string, ReturnType<typeof useLeadsByStatus>> = {
-    new: colNew,
-    contacted: colContacted,
-    qualified: colQualified,
-    proposal_sent: colProposal,
-    won: colWon,
-    lost: colLost,
-  };
+  // Per-column "Load more" extra leads state
+  const [extraLeads, setExtraLeads] = useState<Record<string, Lead[]>>({});
+  const [loadingMoreCol, setLoadingMoreCol] = useState<Record<string, boolean>>({});
+  const pageRefs = useRef<Record<string, number>>({});
+
+  // Reset extras when kanban data changes (filters changed, revalidation)
+  const prevKanbanKeyRef = useRef<string | null>(null);
+  const kanbanKeyStr = JSON.stringify(baseFilters);
+  if (prevKanbanKeyRef.current !== kanbanKeyStr) {
+    prevKanbanKeyRef.current = kanbanKeyStr;
+    setExtraLeads({});
+    pageRefs.current = {};
+  }
+
+  const loadMoreForColumn = useCallback(async (colStatus: string) => {
+    if (loadingMoreCol[colStatus]) return;
+    setLoadingMoreCol((prev) => ({ ...prev, [colStatus]: true }));
+    try {
+      const nextPage = (pageRefs.current[colStatus] || 1) + 1;
+      const resp = await api.getLeadsPaginated({ ...baseFilters, status: colStatus, page_size: 20, page: nextPage });
+      pageRefs.current[colStatus] = nextPage;
+      setExtraLeads((prev) => ({
+        ...prev,
+        [colStatus]: [...(prev[colStatus] || []), ...resp.results],
+      }));
+    } finally {
+      setLoadingMoreCol((prev) => ({ ...prev, [colStatus]: false }));
+    }
+  }, [loadingMoreCol, baseFilters]);
+
+  // Build columnData from kanban response + extra leads
+  const columnData = useMemo(() => {
+    const result: Record<string, { leads: Lead[]; count: number; hasMore: boolean; loadMore: () => void; loadingMore: boolean }> = {};
+    for (const col of COLUMNS) {
+      const colInfo = kanbanData?.columns[col.status];
+      const serverLeads = colInfo?.results || [];
+      const extras = extraLeads[col.status] || [];
+      const allLeads = [...serverLeads, ...extras];
+      const count = colInfo?.count ?? 0;
+      result[col.status] = {
+        leads: allLeads,
+        count,
+        hasMore: allLeads.length < count,
+        loadMore: () => loadMoreForColumn(col.status),
+        loadingMore: !!loadingMoreCol[col.status],
+      };
+    }
+    return result;
+  }, [kanbanData, extraLeads, loadingMoreCol, loadMoreForColumn]);
 
   // ── Table data (paginated) ──
   const tableFilters: LeadFilters = useMemo(
     () => ({ ...baseFilters, page_size: 50, page: tablePage }),
     [baseFilters, tablePage],
   );
-  const { data: tableData, error: tableError, isLoading: tableLoading } = useLeadsPaginated(tableFilters);
+  const { data: tableData, error: tableError, isLoading: tableLoading } = useLeadsPaginated(tableFilters, viewMode !== "table");
   const tableLeads = tableData?.results || [];
   const tableCount = tableData?.count ?? 0;
   const tableTotalPages = Math.max(1, Math.ceil(tableCount / 50));
@@ -362,15 +399,16 @@ function LeadsContent() {
     : tableLeads;
 
   // Kanban loading state
-  const kanbanLoading = viewMode === "kanban" && colNew.isLoading;
-  const loadError = viewMode === "kanban" ? colNew.error : tableError;
+  const kanbanLoading = viewMode === "kanban" && kanbanIsLoading;
+  const loadError = viewMode === "kanban" ? undefined : tableError;
   const loading = viewMode === "kanban" ? kanbanLoading : tableLoading;
 
   function revalidateAllLeads() {
-    // Revalidate all column SWR keys + table
-    Object.values(columnData).forEach((col) => col.revalidateColumn());
+    // Revalidate kanban (single key) + table
+    revalidateKanban();
+    setExtraLeads({});
+    pageRefs.current = {};
     revalidate("leads-paginated");
-    // Also pattern-revalidate any filtered leads keys
     const qs = Object.entries(baseFilters)
       .filter(([, v]) => v != null && v !== "")
       .map(([k, v]) => `${k}=${v}`)
@@ -493,8 +531,7 @@ function LeadsContent() {
         }
         return next;
       });
-      columnData[lead.status]?.revalidateColumn();
-      columnData[targetStatus]?.revalidateColumn();
+      revalidateAllLeads();
     } catch (e: unknown) {
       // Revert optimistic move
       setOptimisticMoves((prev) => {

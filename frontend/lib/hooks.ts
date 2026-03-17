@@ -8,6 +8,7 @@ import {
   Lead,
   LeadFilters,
   PaginatedResponse,
+  KanbanResponse,
   Quote,
   EventData,
   Dish,
@@ -196,7 +197,7 @@ export function useLeads(filters?: LeadFilters) {
 }
 
 /** Paginated leads — returns { data, count, hasMore } for a specific page. */
-export function useLeadsPaginated(filters?: LeadFilters) {
+export function useLeadsPaginated(filters?: LeadFilters, paused?: boolean) {
   const qs = filters
     ? Object.entries(filters)
         .filter(([, v]) => v != null && v !== "")
@@ -204,7 +205,7 @@ export function useLeadsPaginated(filters?: LeadFilters) {
         .sort()
         .join("&")
     : "";
-  const key = qs ? `leads-paginated?${qs}` : "leads-paginated";
+  const key = paused ? null : (qs ? `leads-paginated?${qs}` : "leads-paginated");
   return useSWR<PaginatedResponse<Lead>>(key, () => api.getLeadsPaginated(filters));
 }
 
@@ -213,6 +214,7 @@ export function useLeadsByStatus(
   status: string,
   filters?: LeadFilters,
   pageSize: number = 20,
+  paused?: boolean,
 ) {
   const qs = filters
     ? Object.entries(filters)
@@ -221,7 +223,8 @@ export function useLeadsByStatus(
         .sort()
         .join("&")
     : "";
-  const key = `leads-col-${status}${qs ? `?${qs}` : ""}-ps${pageSize}`;
+  const activeKey = `leads-col-${status}${qs ? `?${qs}` : ""}-ps${pageSize}`;
+  const key = paused ? null : activeKey;
 
   // SWR fetches page 1
   const { data, error, isLoading, mutate: mutateSWR } = useSWR<PaginatedResponse<Lead>>(
@@ -266,6 +269,29 @@ export function useLeadsByStatus(
   }, [mutateSWR]);
 
   return { leads: allLeads, count, hasMore, loadMore, loadingMore, isLoading, error, revalidateColumn };
+}
+
+/** Single-endpoint Kanban data — returns all columns in one API call. */
+export function useKanbanData(filters?: LeadFilters, paused?: boolean) {
+  const qs = filters
+    ? Object.entries(filters)
+        .filter(([, v]) => v != null && v !== "")
+        .map(([k, v]) => `${k}=${v}`)
+        .sort()
+        .join("&")
+    : "";
+  const key = paused ? null : (qs ? `leads-kanban?${qs}` : "leads-kanban");
+
+  const { data, error, isLoading, mutate: mutateSWR } = useSWR<KanbanResponse>(
+    key,
+    () => api.getLeadsKanban(filters),
+  );
+
+  const revalidate = useCallback(() => {
+    mutateSWR();
+  }, [mutateSWR]);
+
+  return { data, error, isLoading, revalidate, swrKey: key };
 }
 
 /** Fetch ALL leads (page_size=all) — used by Kanban view. */

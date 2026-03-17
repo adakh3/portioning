@@ -12,6 +12,7 @@ class ProductLine(models.Model):
         on_delete=models.CASCADE, related_name='product_lines',
     )
     is_active = models.BooleanField(default=True)
+    round_robin_index = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

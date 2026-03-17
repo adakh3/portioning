@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 from django.db.models import Q
 from django.utils import timezone
 from rest_framework import generics, status
@@ -47,6 +49,53 @@ LEAD_ORDERING_FIELDS = {
 }
 
 
+def _apply_lead_filters(qs, request):
+    """Shared filter logic used by both list and kanban views."""
+    user = request.user
+    if is_salesperson(user):
+        qs = qs.filter(Q(assigned_to=user) | Q(created_by=user))
+
+    params = request.query_params
+
+    lead_status = params.get('status')
+    if lead_status:
+        qs = qs.filter(status=lead_status)
+
+    assigned_to = params.get('assigned_to')
+    if assigned_to == 'unassigned':
+        qs = qs.filter(assigned_to__isnull=True)
+    elif assigned_to:
+        qs = qs.filter(assigned_to_id=assigned_to)
+
+    product = params.get('product')
+    if product:
+        qs = qs.filter(product_id=product)
+
+    event_type = params.get('event_type')
+    if event_type:
+        qs = qs.filter(event_type=event_type)
+
+    date_from = params.get('date_from')
+    if date_from:
+        qs = qs.filter(event_date__gte=date_from)
+    date_to = params.get('date_to')
+    if date_to:
+        qs = qs.filter(event_date__lte=date_to)
+
+    lead_date_from = params.get('lead_date_from')
+    if lead_date_from:
+        qs = qs.filter(lead_date__gte=lead_date_from)
+    lead_date_to = params.get('lead_date_to')
+    if lead_date_to:
+        qs = qs.filter(lead_date__lte=lead_date_to)
+
+    ordering = params.get('ordering')
+    if ordering and ordering in LEAD_ORDERING_FIELDS:
+        qs = qs.order_by(ordering)
+
+    return qs
+
+
 class LeadListCreateView(generics.ListCreateAPIView):
     serializer_class = LeadSerializer
 
@@ -66,58 +115,7 @@ class LeadListCreateView(generics.ListCreateAPIView):
             'lost_reason_option',
         )
         qs = apply_org_filter(qs, self.request)
-
-        # Salesperson sees only their own leads
-        user = self.request.user
-        if is_salesperson(user):
-            qs = qs.filter(Q(assigned_to=user) | Q(created_by=user))
-
-        params = self.request.query_params
-
-        # Status filter
-        lead_status = params.get('status')
-        if lead_status:
-            qs = qs.filter(status=lead_status)
-
-        # Assigned user filter
-        assigned_to = params.get('assigned_to')
-        if assigned_to == 'unassigned':
-            qs = qs.filter(assigned_to__isnull=True)
-        elif assigned_to:
-            qs = qs.filter(assigned_to_id=assigned_to)
-
-        # Product filter
-        product = params.get('product')
-        if product:
-            qs = qs.filter(product_id=product)
-
-        # Event type filter
-        event_type = params.get('event_type')
-        if event_type:
-            qs = qs.filter(event_type=event_type)
-
-        # Event date range
-        date_from = params.get('date_from')
-        if date_from:
-            qs = qs.filter(event_date__gte=date_from)
-        date_to = params.get('date_to')
-        if date_to:
-            qs = qs.filter(event_date__lte=date_to)
-
-        # Lead date range
-        lead_date_from = params.get('lead_date_from')
-        if lead_date_from:
-            qs = qs.filter(lead_date__gte=lead_date_from)
-        lead_date_to = params.get('lead_date_to')
-        if lead_date_to:
-            qs = qs.filter(lead_date__lte=lead_date_to)
-
-        # Ordering
-        ordering = params.get('ordering')
-        if ordering and ordering in LEAD_ORDERING_FIELDS:
-            qs = qs.order_by(ordering)
-
-        return qs
+        return _apply_lead_filters(qs, self.request)
 
 
 class LeadBulkUpdateView(APIView):
@@ -508,3 +506,40 @@ class LeadAutoAssignView(APIView):
         from bookings.services.round_robin import run_round_robin
         result = run_round_robin(request.user, org=get_request_org(request))
         return Response(result)
+
+
+KANBAN_STATUSES = ['new', 'contacted', 'qualified', 'proposal_sent', 'won', 'lost']
+
+
+class LeadKanbanView(APIView):
+    """GET /api/bookings/leads/kanban/ — All columns in a single response."""
+
+    def get(self, request):
+        page_size = int(request.query_params.get('page_size', 20))
+
+        qs = Lead.objects.select_related(
+            'account', 'won_quote', 'won_event', 'product', 'assigned_to',
+            'lost_reason_option',
+        )
+        qs = apply_org_filter(qs, request)
+        qs = _apply_lead_filters(qs, request)
+
+        # Group leads by status in Python
+        buckets = defaultdict(list)
+        counts = defaultdict(int)
+        for lead in qs.iterator():
+            s = lead.status
+            counts[s] += 1
+            if len(buckets[s]) < page_size:
+                buckets[s].append(lead)
+
+        # Serialize and build response
+        columns = {}
+        for status_val in KANBAN_STATUSES:
+            leads = buckets.get(status_val, [])
+            columns[status_val] = {
+                'count': counts.get(status_val, 0),
+                'results': LeadListSerializer(leads, many=True).data,
+            }
+
+        return Response({'columns': columns})
