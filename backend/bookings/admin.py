@@ -19,7 +19,7 @@ from .models import (
     Reminder,
 )
 from .services.lead_import import (
-    load_xlsx, load_csv, parse_rows, flag_duplicates, commit_rows, ImportRow,
+    load_xlsx, load_csv, parse_rows, validate_rows, flag_duplicates, commit_rows, ImportRow,
 )
 
 
@@ -97,7 +97,7 @@ class LeadAdmin(admin.ModelAdmin):
         org = request.user.organisation
         context = {
             **self.admin_site.each_context(request),
-            "products": list(ProductLine.objects.filter(is_active=True).values_list('name', flat=True)),
+            "products": list(ProductLine.objects.filter(organisation=org, is_active=True).values_list('name', flat=True)),
             "event_types": EventTypeOption.objects.filter(organisation=org, is_active=True).order_by('sort_order').values_list('value', flat=True),
             "sources": SourceOption.objects.filter(organisation=org, is_active=True).order_by('sort_order').values_list('value', flat=True),
             "service_styles": ServiceStyleOption.objects.filter(organisation=org, is_active=True).order_by('sort_order').values_list('value', flat=True),
@@ -138,6 +138,7 @@ class LeadAdmin(admin.ModelAdmin):
                 return render(request, "admin/bookings/lead/import_form.html", context)
 
             import_rows = parse_rows(data_rows, header)
+            validate_rows(import_rows, org)
             flag_duplicates(import_rows)
         except ValueError as e:
             context["errors"] = [str(e)]
@@ -199,8 +200,9 @@ class LeadAdmin(admin.ModelAdmin):
             return redirect(reverse("admin:bookings_lead_import"))
 
         rows_json = request.session.pop("import_rows", None)
-        product_id = request.session.pop("import_product_id", None)
-        assigned_to_id = request.session.pop("import_assigned_to_id", None)
+        # Clear legacy session keys if present
+        request.session.pop("import_product_id", None)
+        request.session.pop("import_assigned_to_id", None)
 
         if not rows_json:
             messages.error(request, "No import data found. Please upload a file again.")
@@ -219,21 +221,8 @@ class LeadAdmin(admin.ModelAdmin):
                 d["lead_date"] = date(int(parts[0]), int(parts[1]), int(parts[2]))
             import_rows.append(ImportRow(**d))
 
-        product = None
-        if product_id:
-            try:
-                product = ProductLine.objects.get(pk=product_id)
-            except ProductLine.DoesNotExist:
-                pass
-
-        assigned_to = None
-        if assigned_to_id:
-            try:
-                assigned_to = User.objects.get(pk=assigned_to_id)
-            except User.DoesNotExist:
-                pass
-
-        created_count, errors = commit_rows(import_rows, product, assigned_to)
+        org = request.user.organisation
+        created_count, errors = commit_rows(import_rows, org)
         skipped_count = sum(1 for r in import_rows if r.skipped)
         error_count = len(errors)
 
