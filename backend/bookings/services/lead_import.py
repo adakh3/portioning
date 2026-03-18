@@ -241,11 +241,11 @@ def flag_duplicates(import_rows):
     emails = [r.contact_email.lower() for r in import_rows if r.contact_email and not r.skipped]
     if not emails:
         return
-    existing = set(
-        Lead.objects.filter(contact_email__in=emails)
+    all_db_emails = set(
+        Lead.objects.exclude(contact_email='')
         .values_list("contact_email", flat=True)
     )
-    existing_lower = {e.lower() for e in existing}
+    existing_lower = {e.lower() for e in all_db_emails}
     for row in import_rows:
         if row.contact_email and row.contact_email.lower() in existing_lower:
             row.duplicate_warning = True
@@ -262,13 +262,15 @@ def commit_rows(import_rows, product=None, assigned_to=None):
 
     product_cache = {}
     if product_names:
-        for p in ProductLine.objects.filter(name__in=[n for n in product_names]):
-            product_cache[p.name.lower()] = p
+        for p in ProductLine.objects.all():
+            if p.name.lower() in product_names:
+                product_cache[p.name.lower()] = p
 
     user_cache = {}
     if user_emails:
-        for u in User.objects.filter(email__in=[e for e in user_emails]):
-            user_cache[u.email.lower()] = u
+        for u in User.objects.all():
+            if u.email.lower() in user_emails:
+                user_cache[u.email.lower()] = u
 
     created = 0
     errors = []
