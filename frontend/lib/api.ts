@@ -522,9 +522,7 @@ export interface SiteSettingsData {
   price_rounding_step: string;
   tax_label: string;
   default_tax_rate: string;
-  // WhatsApp / Twilio
-  twilio_account_sid?: string;
-  twilio_whatsapp_number?: string;
+  // WhatsApp
   whatsapp_enabled?: boolean;
   twilio_configured?: boolean;
 }

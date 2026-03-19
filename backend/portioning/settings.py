@@ -230,6 +230,11 @@ LOGGING = {
     },
 }
 
+# ── Twilio (platform-level) ──
+TWILIO_ACCOUNT_SID = os.environ.get('TWILIO_ACCOUNT_SID', '')
+TWILIO_AUTH_TOKEN = os.environ.get('TWILIO_AUTH_TOKEN', '')
+TWILIO_WHATSAPP_NUMBER = os.environ.get('TWILIO_WHATSAPP_NUMBER', '')
+
 # ── Production security settings ──
 if not DEBUG:
     SECURE_HSTS_SECONDS = 31536000

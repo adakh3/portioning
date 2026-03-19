@@ -103,13 +103,7 @@ class OrgSettings(models.Model):
         help_text='Terms & Conditions text printed on quotation PDFs.',
     )
 
-    # Twilio WhatsApp integration
-    twilio_account_sid = models.CharField(max_length=64, blank=True, default='')
-    twilio_auth_token_encrypted = models.TextField(blank=True, default='')
-    twilio_whatsapp_number = models.CharField(
-        max_length=20, blank=True, default='',
-        help_text='Twilio WhatsApp sender number, e.g. +14155238886',
-    )
+    # WhatsApp integration
     whatsapp_enabled = models.BooleanField(default=False)
 
     class Meta:
@@ -120,23 +114,14 @@ class OrgSettings(models.Model):
         return f"Settings for {self.organisation.name}"
 
     @property
-    def twilio_auth_token(self):
-        if not self.twilio_auth_token_encrypted:
-            return ''
-        from bookings.services.encryption import decrypt
-        return decrypt(self.twilio_auth_token_encrypted)
-
-    @twilio_auth_token.setter
-    def twilio_auth_token(self, value):
-        if not value:
-            self.twilio_auth_token_encrypted = ''
-            return
-        from bookings.services.encryption import encrypt
-        self.twilio_auth_token_encrypted = encrypt(value)
-
-    @property
     def twilio_configured(self):
-        return bool(self.twilio_account_sid and self.twilio_auth_token_encrypted and self.twilio_whatsapp_number)
+        """Check whether platform-level Twilio env vars are set."""
+        from django.conf import settings as django_settings
+        return bool(
+            getattr(django_settings, 'TWILIO_ACCOUNT_SID', '') and
+            getattr(django_settings, 'TWILIO_AUTH_TOKEN', '') and
+            getattr(django_settings, 'TWILIO_WHATSAPP_NUMBER', '')
+        )
 
     @classmethod
     def for_org(cls, org):

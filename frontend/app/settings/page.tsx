@@ -25,13 +25,8 @@ export default function SettingsPage() {
     price_rounding_step: "50",
   });
 
-  // WhatsApp form state (separate save)
-  const [waForm, setWaForm] = useState({
-    twilio_account_sid: "",
-    twilio_auth_token: "",
-    twilio_whatsapp_number: "",
-    whatsapp_enabled: false,
-  });
+  // WhatsApp toggle state (separate save)
+  const [waEnabled, setWaEnabled] = useState(false);
   const [waSaving, setWaSaving] = useState(false);
   const [waError, setWaError] = useState("");
   const [waSuccess, setWaSuccess] = useState("");
@@ -46,12 +41,7 @@ export default function SettingsPage() {
         target_food_cost_percentage: settings.target_food_cost_percentage,
         price_rounding_step: settings.price_rounding_step || "50",
       });
-      setWaForm({
-        twilio_account_sid: settings.twilio_account_sid || "",
-        twilio_auth_token: "",
-        twilio_whatsapp_number: settings.twilio_whatsapp_number || "",
-        whatsapp_enabled: settings.whatsapp_enabled || false,
-      });
+      setWaEnabled(settings.whatsapp_enabled || false);
     }
   }, [settings]);
 
@@ -72,23 +62,15 @@ export default function SettingsPage() {
     }
   }
 
-  async function handleWhatsAppSave() {
+  async function handleWhatsAppToggle(enabled: boolean) {
     setWaSaving(true);
     setWaError("");
     setWaSuccess("");
     try {
-      const payload: Record<string, unknown> = {
-        twilio_account_sid: waForm.twilio_account_sid,
-        twilio_whatsapp_number: waForm.twilio_whatsapp_number,
-        whatsapp_enabled: waForm.whatsapp_enabled,
-      };
-      if (waForm.twilio_auth_token) {
-        payload.twilio_auth_token = waForm.twilio_auth_token;
-      }
-      await api.updateSiteSettings(payload);
+      await api.updateSiteSettings({ whatsapp_enabled: enabled });
+      setWaEnabled(enabled);
       mutateSettings();
-      setWaForm((prev) => ({ ...prev, twilio_auth_token: "" }));
-      setWaSuccess("WhatsApp settings saved.");
+      setWaSuccess(enabled ? "WhatsApp enabled." : "WhatsApp disabled.");
       setTimeout(() => setWaSuccess(""), 3000);
     } catch (err) {
       setWaError(err instanceof Error ? err.message : "Failed to save");
@@ -229,71 +211,46 @@ export default function SettingsPage() {
         <ProductLineColours />
       </div>
 
-      {/* WhatsApp Integration — separate save */}
+      {/* WhatsApp Integration */}
       <div className="space-y-6 max-w-2xl mt-8">
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
-              <CardTitle>WhatsApp Integration</CardTitle>
+              <CardTitle>WhatsApp</CardTitle>
               {settings?.twilio_configured ? (
-                <Badge variant="success">Configured</Badge>
+                <Badge variant="success">Available</Badge>
               ) : (
-                <Badge variant="secondary">Not configured</Badge>
+                <Badge variant="secondary">Not available</Badge>
               )}
             </div>
           </CardHeader>
           <CardContent>
             {waError && <p className="text-destructive mb-3 text-sm">{waError}</p>}
             {waSuccess && <p className="text-success mb-3 text-sm">{waSuccess}</p>}
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Twilio Account SID</label>
-                <Input
-                  type="text"
-                  value={waForm.twilio_account_sid}
-                  onChange={(e) => setWaForm({ ...waForm, twilio_account_sid: e.target.value })}
-                  placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-                />
+            {settings?.twilio_configured ? (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-foreground">WhatsApp Messaging</p>
+                    <p className="text-xs text-muted-foreground">
+                      Send messages to leads directly via WhatsApp.
+                    </p>
+                  </div>
+                  <Button
+                    variant={waEnabled ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => handleWhatsAppToggle(!waEnabled)}
+                    disabled={waSaving}
+                  >
+                    {waSaving ? "Saving..." : waEnabled ? "Enabled" : "Disabled"}
+                  </Button>
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">
-                  Twilio Auth Token {settings?.twilio_configured && "(leave blank to keep current)"}
-                </label>
-                <Input
-                  type="password"
-                  value={waForm.twilio_auth_token}
-                  onChange={(e) => setWaForm({ ...waForm, twilio_auth_token: e.target.value })}
-                  placeholder={settings?.twilio_configured ? "••••••••" : "Enter auth token"}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">WhatsApp Sender Number</label>
-                <Input
-                  type="tel"
-                  value={waForm.twilio_whatsapp_number}
-                  onChange={(e) => setWaForm({ ...waForm, twilio_whatsapp_number: e.target.value })}
-                  placeholder="+14155238886"
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Your Twilio WhatsApp-enabled phone number (include country code).
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="whatsapp_enabled"
-                  checked={waForm.whatsapp_enabled}
-                  onChange={(e) => setWaForm({ ...waForm, whatsapp_enabled: e.target.checked })}
-                  className="h-4 w-4 rounded border-input"
-                />
-                <label htmlFor="whatsapp_enabled" className="text-sm text-foreground">
-                  Enable WhatsApp messaging
-                </label>
-              </div>
-              <Button onClick={handleWhatsAppSave} disabled={waSaving}>
-                {waSaving ? "Saving..." : "Save WhatsApp Settings"}
-              </Button>
-            </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                WhatsApp messaging is not available. Contact your platform administrator to configure the messaging service.
+              </p>
+            )}
           </CardContent>
         </Card>
       </div>

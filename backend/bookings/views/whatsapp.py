@@ -73,8 +73,8 @@ class TwilioWebhookView(APIView):
         if not message_sid:
             return Response(status=status.HTTP_400_BAD_REQUEST)
 
-        # Validate Twilio signature if configured
-        auth_token = getattr(settings, 'TWILIO_AUTH_TOKEN', None)
+        # Validate Twilio signature using platform-level credentials
+        auth_token = getattr(settings, 'TWILIO_AUTH_TOKEN', '') or None
         if auth_token:
             from twilio.request_validator import RequestValidator
             validator = RequestValidator(auth_token)

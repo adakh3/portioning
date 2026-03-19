@@ -1,5 +1,6 @@
 import logging
 
+from django.conf import settings as django_settings
 from django.contrib.contenttypes.models import ContentType
 
 from bookings.models import OrgSettings, WhatsAppMessage, ActivityLog
@@ -7,23 +8,32 @@ from bookings.models import OrgSettings, WhatsAppMessage, ActivityLog
 logger = logging.getLogger(__name__)
 
 
+def _get_twilio_credentials():
+    """Read Twilio credentials from platform-level Django settings / env vars."""
+    sid = getattr(django_settings, 'TWILIO_ACCOUNT_SID', '')
+    token = getattr(django_settings, 'TWILIO_AUTH_TOKEN', '')
+    number = getattr(django_settings, 'TWILIO_WHATSAPP_NUMBER', '')
+    return sid, token, number
+
+
 class WhatsAppService:
     def __init__(self, org):
         self.org = org
-        self.settings = OrgSettings.for_org(org)
+        self.org_settings = OrgSettings.for_org(org)
 
     def send_message(self, lead, body, reminder=None, sent_by=None):
         """Send a WhatsApp message to the lead's contact_phone.
 
         Returns the WhatsAppMessage record.
         """
-        if not self.settings.twilio_configured or not self.settings.whatsapp_enabled:
+        sid, token, whatsapp_number = _get_twilio_credentials()
+        if not (sid and token and whatsapp_number) or not self.org_settings.whatsapp_enabled:
             raise ValueError('WhatsApp is not configured for this organisation.')
 
         if not lead.contact_phone:
             raise ValueError('Lead has no contact phone number.')
 
-        from_phone = f'whatsapp:{self.settings.twilio_whatsapp_number}'
+        from_phone = f'whatsapp:{whatsapp_number}'
         to_phone = lead.contact_phone
         if not to_phone.startswith('whatsapp:'):
             to_phone = f'whatsapp:{to_phone}'
@@ -42,10 +52,7 @@ class WhatsAppService:
 
         try:
             from twilio.rest import Client
-            client = Client(
-                self.settings.twilio_account_sid,
-                self.settings.twilio_auth_token,
-            )
+            client = Client(sid, token)
             twilio_msg = client.messages.create(
                 body=body,
                 from_=from_phone,
