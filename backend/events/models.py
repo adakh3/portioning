@@ -64,6 +64,10 @@ class Event(models.Model):
         on_delete=models.SET_NULL, related_name='events',
     )
     venue_address = models.TextField(blank=True, help_text='Freeform address for ad-hoc locations')
+    product = models.ForeignKey(
+        'bookings.ProductLine', null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='events',
+    )
     event_type = models.CharField(max_length=50, blank=True)
     meal_type = models.CharField(max_length=50, blank=True)
     service_style = models.CharField(max_length=50, blank=True)

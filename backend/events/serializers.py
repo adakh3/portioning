@@ -74,6 +74,7 @@ class EventSerializer(serializers.ModelSerializer):
     account_name = serializers.CharField(source='account.name', read_only=True, default=None)
     contact_name = serializers.CharField(source='primary_contact.name', read_only=True, default=None)
     venue_name = serializers.CharField(source='venue.name', read_only=True, default=None)
+    product_name = serializers.CharField(source='product.name', read_only=True, default=None)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     source_quote_id = serializers.SerializerMethodField()
 
@@ -105,6 +106,7 @@ class EventSerializer(serializers.ModelSerializer):
                   'account', 'account_name',
                   'primary_contact', 'contact_name',
                   'venue', 'venue_name', 'venue_address',
+                  'product', 'product_name',
                   'event_type', 'meal_type', 'service_style', 'booking_date', 'price_per_head',
                   'status', 'status_display', 'is_taxable',
                   # Timeline

@@ -266,6 +266,7 @@ export interface LeadQuoteSummary {
 export interface ProductLine {
   id: number;
   name: string;
+  colour: string;
   is_active: boolean;
 }
 
@@ -343,6 +344,8 @@ export interface Quote {
   venue: number | null;
   venue_name: string | null;
   venue_address: string;
+  product: number | null;
+  product_name: string | null;
   guest_count: number;
   price_per_head: string | null;
   food_total: string;
@@ -550,6 +553,8 @@ export interface EventData {
   // Booking fields
   account: number | null;
   account_name: string | null;
+  product: number | null;
+  product_name: string | null;
   primary_contact: number | null;
   contact_name: string | null;
   venue: number | null;
@@ -731,6 +736,35 @@ export interface WhatsAppMessage {
   sent_by_name: string | null;
   created_at: string;
   updated_at: string;
+}
+
+// Calendar types
+export interface CalendarEvent {
+  id: number;
+  name: string;
+  status: string;
+  guest_count: number;
+  account_name: string | null;
+  product_name: string | null;
+  product_colour: string | null;
+}
+
+export interface CalendarDay {
+  date: string;
+  org_event_count: number;
+  org_total_guests: number;
+  my_event_count: number;
+  my_total_guests: number;
+  my_events: CalendarEvent[];
+}
+
+export interface LockedDate {
+  id: number;
+  date: string;
+  reason: string;
+  locked_by: number | null;
+  locked_by_name: string | null;
+  created_at: string;
 }
 
 export interface AutoAssignResult {
@@ -920,6 +954,8 @@ export const api = {
 
   // Bookings: Product Lines & Users
   getProductLines: () => fetchList<ProductLine>("/bookings/product-lines/?page_size=all"),
+  updateProductLine: (id: number, data: Partial<ProductLine>) =>
+    fetchApi<ProductLine>(`/bookings/product-lines/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
   getUsers: () => fetchList<AuthUser>("/bookings/users/?page_size=all"),
 
   // Bookings: Leads
@@ -1147,4 +1183,20 @@ export const api = {
     fetchApi<WhatsAppMessage[]>(`/bookings/leads/${leadId}/whatsapp/`),
   sendWhatsAppMessage: (leadId: number, data: { body?: string; template?: string; template_context?: Record<string, string> }) =>
     fetchApi<WhatsAppMessage>(`/bookings/leads/${leadId}/whatsapp/send/`, { method: "POST", body: JSON.stringify(data) }),
+
+  // Calendar
+  getEventCalendar: (month: string, status?: string, product?: string) => {
+    const params = new URLSearchParams({ month });
+    if (status) params.set("status", status);
+    if (product) params.set("product", product);
+    return fetchApi<CalendarDay[]>(`/events/calendar/?${params.toString()}`);
+  },
+
+  // Locked Dates
+  getLockedDates: (dateFrom: string, dateTo: string) =>
+    fetchList<LockedDate>(`/bookings/locked-dates/?date_from=${dateFrom}&date_to=${dateTo}`),
+  lockDate: (data: { date: string; reason?: string }) =>
+    fetchApi<LockedDate>("/bookings/locked-dates/", { method: "POST", body: JSON.stringify(data) }),
+  unlockDate: (id: number) =>
+    fetchApi<void>(`/bookings/locked-dates/${id}/`, { method: "DELETE" }),
 };

@@ -1,6 +1,6 @@
 from .accounts import AccountListCreateView, AccountDetailView, ContactListCreateView, ContactDetailView
 from .venues import VenueListCreateView, VenueDetailView
-from .leads import UserListView, ProductLineListView, LeadListCreateView, LeadDetailView, LeadTransitionView, LeadConvertView, LeadCreateQuoteView, LeadWonView, LeadCreateEventView, LeadBulkUpdateView, LeadActivityView, LeadAutoAssignView, LeadKanbanView
+from .leads import UserListView, ProductLineListView, ProductLineDetailView, LeadListCreateView, LeadDetailView, LeadTransitionView, LeadConvertView, LeadCreateQuoteView, LeadWonView, LeadCreateEventView, LeadBulkUpdateView, LeadActivityView, LeadAutoAssignView, LeadKanbanView
 from .dashboard import DashboardStatsView
 from .quotes import (
     QuoteListCreateView, QuoteDetailView, QuoteTransitionView,
@@ -24,3 +24,4 @@ from .reminders import (
     LeadReminderListCreateView, ReminderCountsView,
 )
 from .whatsapp import WhatsAppMessageListView, WhatsAppSendView, TwilioWebhookView
+from .locked_dates import LockedDateListCreateView, LockedDateDeleteView

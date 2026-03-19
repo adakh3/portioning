@@ -11,6 +11,7 @@ class ProductLine(models.Model):
         'users.Organisation', null=True, blank=True,
         on_delete=models.CASCADE, related_name='product_lines',
     )
+    colour = models.CharField(max_length=7, default='#6B7280', help_text='Hex colour for calendar display')
     is_active = models.BooleanField(default=True)
     round_robin_index = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)

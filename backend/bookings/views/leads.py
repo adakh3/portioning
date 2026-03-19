@@ -39,6 +39,13 @@ class ProductLineListView(generics.ListAPIView):
         return qs
 
 
+class ProductLineDetailView(generics.RetrieveUpdateAPIView):
+    serializer_class = ProductLineSerializer
+
+    def get_queryset(self):
+        return apply_org_filter(ProductLine.objects.all(), self.request)
+
+
 LEAD_ORDERING_FIELDS = {
     'created_at', '-created_at',
     'event_date', '-event_date',
@@ -317,6 +324,7 @@ class LeadCreateQuoteView(APIView):
             event_type=lead.event_type,
             meal_type=lead.meal_type,
             service_style=lead.service_style,
+            product=lead.product,
             created_by=user,
             organisation=lead.organisation,
         )
@@ -416,6 +424,7 @@ class LeadWonView(APIView):
             event_type=lead.event_type,
             meal_type=lead.meal_type,
             service_style=lead.service_style,
+            product=lead.product,
             booking_date=booking_date,
             price_per_head=price_per_head,
             status=event_status,

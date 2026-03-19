@@ -49,6 +49,10 @@ class Quote(models.Model):
         on_delete=models.SET_NULL, related_name='quotes',
     )
     venue_address = models.TextField(blank=True, help_text='Freeform address for ad-hoc venues')
+    product = models.ForeignKey(
+        'bookings.ProductLine', null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='quotes',
+    )
     guest_count = models.IntegerField(validators=[MinValueValidator(1), MaxValueValidator(50000)])
     price_per_head = models.DecimalField(
         max_digits=10, decimal_places=2, null=True, blank=True,

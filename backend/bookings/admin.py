@@ -18,6 +18,7 @@ from .models import (
     ActivityLog,
     Reminder,
     WhatsAppMessage,
+    LockedDate,
 )
 from .services.lead_import import (
     load_xlsx, load_csv, parse_rows, validate_rows, flag_duplicates, commit_rows, ImportRow,
@@ -394,3 +395,13 @@ class WhatsAppMessageAdmin(admin.ModelAdmin):
     list_filter = ['status', 'direction']
     search_fields = ['to_phone', 'body', 'twilio_sid', 'lead__contact_name']
     readonly_fields = ['twilio_sid', 'created_at', 'updated_at']
+
+
+# --- Locked Dates ---
+
+@admin.register(LockedDate)
+class LockedDateAdmin(admin.ModelAdmin):
+    list_display = ['date', 'reason', 'locked_by', 'organisation', 'created_at']
+    list_filter = ['organisation']
+    search_fields = ['reason']
+    readonly_fields = ['created_at']

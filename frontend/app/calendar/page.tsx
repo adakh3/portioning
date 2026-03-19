@@ -216,16 +216,24 @@ function CalendarContent() {
                 const isToday = ds === todayStr;
                 const isSelected = ds === selectedDate;
 
-                // Collect unique product colour dots
-                const productDots: string[] = [];
+                // Group events by product for per-product summary
+                const productSummary: { name: string; colour: string; count: number }[] = [];
                 if (dayData) {
-                  const seen = new Set<string>();
+                  const grouped = new Map<string, { name: string; colour: string; count: number }>();
                   for (const evt of dayData.my_events) {
-                    if (evt.product_colour && !seen.has(evt.product_colour)) {
-                      seen.add(evt.product_colour);
-                      productDots.push(evt.product_colour);
+                    const key = evt.product_name || "_none";
+                    const existing = grouped.get(key);
+                    if (existing) {
+                      existing.count++;
+                    } else {
+                      grouped.set(key, {
+                        name: evt.product_name || "Other",
+                        colour: evt.product_colour || "#6B7280",
+                        count: 1,
+                      });
                     }
                   }
+                  productSummary.push(...grouped.values());
                 }
 
                 return (
@@ -255,23 +263,20 @@ function CalendarContent() {
                         </span>
                       )}
                     </div>
-                    {dayData && (
+                    {dayData && dayData.my_event_count > 0 && (
                       <div className="mt-1 space-y-0.5">
-                        {/* Product colour dots */}
-                        {productDots.length > 0 && (
-                          <div className="flex gap-0.5 mb-0.5">
-                            {productDots.map((colour) => (
-                              <span
-                                key={colour}
-                                className="inline-block h-2 w-2 rounded-full"
-                                style={{ backgroundColor: colour }}
-                              />
-                            ))}
+                        {/* Per-product breakdown */}
+                        {productSummary.map((ps) => (
+                          <div key={ps.name} className="flex items-center gap-1">
+                            <span
+                              className="inline-block h-2 w-2 rounded-full shrink-0"
+                              style={{ backgroundColor: ps.colour }}
+                            />
+                            <span className="text-[10px] text-foreground truncate">
+                              {ps.count} {ps.name}
+                            </span>
                           </div>
-                        )}
-                        <div className="text-[10px] font-medium text-foreground">
-                          {dayData.my_event_count} event{dayData.my_event_count !== 1 ? "s" : ""}
-                        </div>
+                        ))}
                         <div className="text-[10px] text-muted-foreground">
                           {dayData.my_total_guests} guests
                         </div>

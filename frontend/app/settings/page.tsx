@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { api } from "@/lib/api";
-import { useSiteSettings } from "@/lib/hooks";
+import { api, ProductLine } from "@/lib/api";
+import { useSiteSettings, useProductLines, revalidate } from "@/lib/hooks";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ValidatedInput } from "@/components/ui/validated-input";
@@ -224,6 +224,11 @@ export default function SettingsPage() {
         </Button>
       </form>
 
+      {/* Product Line Colours */}
+      <div className="space-y-6 max-w-2xl mt-8">
+        <ProductLineColours />
+      </div>
+
       {/* WhatsApp Integration — separate save */}
       <div className="space-y-6 max-w-2xl mt-8">
         <Card>
@@ -293,5 +298,66 @@ export default function SettingsPage() {
         </Card>
       </div>
     </div>
+  );
+}
+
+
+const DEFAULT_PALETTE = ["#EF4444", "#F59E0B", "#10B981", "#3B82F6", "#8B5CF6", "#EC4899", "#6366F1", "#14B8A6"];
+
+function ProductLineColours() {
+  const { data: productLines = [], mutate } = useProductLines();
+  const [saving, setSaving] = useState<number | null>(null);
+
+  async function handleColourChange(pl: ProductLine, colour: string) {
+    setSaving(pl.id);
+    try {
+      await api.updateProductLine(pl.id, { colour });
+      revalidate("product-lines");
+      mutate();
+    } catch { /* silently fail */ }
+    finally { setSaving(null); }
+  }
+
+  if (productLines.length === 0) return null;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Product Line Colours</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <p className="text-xs text-muted-foreground mb-4">
+          Colours are used on the calendar and lead kanban to visually distinguish products.
+        </p>
+        <div className="space-y-3">
+          {productLines.map((pl) => (
+            <div key={pl.id} className="flex items-center gap-3">
+              <input
+                type="color"
+                value={pl.colour || "#6B7280"}
+                onChange={(e) => handleColourChange(pl, e.target.value)}
+                disabled={saving === pl.id}
+                className="h-9 w-9 rounded-md border border-input cursor-pointer p-0.5"
+              />
+              <span className="text-sm text-foreground">{pl.name}</span>
+              {saving === pl.id && (
+                <span className="text-xs text-muted-foreground">Saving...</span>
+              )}
+              <div className="flex gap-1 ml-auto">
+                {DEFAULT_PALETTE.map((c) => (
+                  <button
+                    key={c}
+                    onClick={() => handleColourChange(pl, c)}
+                    className="h-5 w-5 rounded-full border border-border hover:ring-2 hover:ring-ring transition-shadow"
+                    style={{ backgroundColor: c }}
+                    title={c}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
   );
 }

@@ -28,6 +28,8 @@ import {
   Reminder,
   ReminderCounts,
   WhatsAppMessage,
+  CalendarDay,
+  LockedDate,
 } from "./api";
 
 // ── Revalidation helper ──
@@ -407,6 +409,26 @@ export function useLeadWhatsAppMessages(leadId: number | null) {
     leadId ? `lead-whatsapp-${leadId}` : null,
     () => api.getLeadWhatsAppMessages(leadId!),
     { dedupingInterval: 15000 }
+  );
+}
+
+export function useEventCalendar(month: string, status?: string, product?: string) {
+  const key = `event-calendar-${month}${status ? `-s${status}` : ""}${product ? `-p${product}` : ""}`;
+  return useSWR<CalendarDay[]>(key, () => api.getEventCalendar(month, status, product), {
+    dedupingInterval: 30000,
+  });
+}
+
+export function useLockedDates(month: string) {
+  // Compute first and last day of month for the range query
+  const [y, m] = month.split("-").map(Number);
+  const lastDay = new Date(y, m, 0).getDate();
+  const dateFrom = `${month}-01`;
+  const dateTo = `${month}-${String(lastDay).padStart(2, "0")}`;
+  return useSWR<LockedDate[]>(
+    `locked-dates-${month}`,
+    () => api.getLockedDates(dateFrom, dateTo),
+    { dedupingInterval: 30000 }
   );
 }
 

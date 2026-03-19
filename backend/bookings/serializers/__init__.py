@@ -13,3 +13,4 @@ from .choices import (
 )
 from .reminders import ReminderSerializer
 from .whatsapp import WhatsAppMessageSerializer, WhatsAppSendSerializer
+from .locked_dates import LockedDateSerializer
