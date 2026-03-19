@@ -23,6 +23,7 @@ import {
   Invoice,
   ActivityLogEntry,
   DashboardStats,
+  MyDashboardStats,
   AllocationRule,
   StaffReportEntry,
   Reminder,
@@ -364,6 +365,14 @@ export function useDashboardStats(period: string | null, dateFrom?: string, date
   return useSWR<DashboardStats>(
     key,
     () => api.getDashboardStats(period!, dateFrom, dateTo),
+    { dedupingInterval: 30000 }
+  );
+}
+
+export function useMyDashboardStats() {
+  return useSWR<MyDashboardStats>(
+    "my-dashboard-stats",
+    () => api.getMyDashboardStats(),
     { dedupingInterval: 30000 }
   );
 }

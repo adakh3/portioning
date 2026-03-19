@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth";
-import { useEvents, useQuotes, useLeads, useDashboardStats, useSiteSettings, useReminderCounts, useDateFormat } from "@/lib/hooks";
+import { useEvents, useQuotes, useLeads, useDashboardStats, useMyDashboardStats, useSiteSettings, useReminderCounts, useDateFormat } from "@/lib/hooks";
 import { formatDate } from "@/lib/dateFormat";
 import { api, AutoAssignResult } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -48,10 +48,12 @@ export default function Dashboard() {
   const cs = rawSettings?.currency_symbol || "\u00a3";
   const dateFormat = useDateFormat();
 
+  const { data: myStats } = useMyDashboardStats();
+
   const { data: reminderCounts } = useReminderCounts();
   const { data: allEvents } = useEvents({ date_from: new Date().toISOString().split("T")[0], page_size: 5 });
   const { data: allQuotes } = useQuotes("draft", 5);
-  const { data: allLeads } = useLeads({ page_size: 5 });
+  const { data: allLeads } = useLeads(isManager ? { page_size: 5 } : { page_size: 5, assigned_to: user?.id ? String(user.id) : undefined });
 
   const events = allEvents || [];
   const quotes = allQuotes || [];
@@ -305,6 +307,57 @@ export default function Dashboard() {
       )}
       </>
       )}
+
+      {/* Salesperson Dashboard */}
+      {!isManager && myStats && (() => {
+        const pv = Number(myStats.pipeline_value);
+        const pvDisplay = pv >= 1000
+          ? `${cs}${(pv / 1000).toFixed(pv >= 10000 ? 0 : 1)}k`
+          : `${cs}${pv}`;
+        const myStatusDist = myStats.status_distribution || [];
+        const maxCount = Math.max(...myStatusDist.map((s) => s.count), 1);
+        const totalLeads = myStatusDist.reduce((sum, s) => sum + s.count, 0);
+        return (
+          <>
+            {/* My Pipeline KPIs */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <StatCard label="Active Leads" value={myStats.kpis.total_active} />
+              <StatCard label="Pipeline Value" value={pvDisplay} />
+              <StatCard label="Conversion Rate" value={`${myStats.kpis.conversion_rate}%`} />
+              <StatCard label="Avg Days to Convert" value={myStats.kpis.avg_days_to_convert ?? "-"} />
+            </div>
+
+            {/* My Leads by Status */}
+            {totalLeads > 0 && (
+              <Card>
+                <CardContent className="p-5">
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-sm font-semibold text-foreground">My Leads by Status</h2>
+                    <span className="text-xs text-muted-foreground">{totalLeads} total</span>
+                  </div>
+                  <div className="flex items-end gap-3 h-48">
+                    {myStatusDist.map((s) => {
+                      const barHeight = maxCount > 0 ? (s.count / maxCount) * 100 : 0;
+                      return (
+                        <div key={s.status} className="flex-1 flex flex-col items-center gap-1 h-full justify-end min-w-0">
+                          <span className="text-xs font-medium text-foreground">{s.count}</span>
+                          <div className="w-full flex items-end justify-center" style={{ height: "calc(100% - 2rem)" }}>
+                            <div
+                              className="w-full max-w-14 bg-primary rounded-t transition-all duration-500"
+                              style={{ height: `${barHeight}%`, minHeight: s.count > 0 ? "4px" : "0" }}
+                            />
+                          </div>
+                          <span className="text-[10px] text-muted-foreground text-center leading-tight truncate w-full">{s.label}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </>
+        );
+      })()}
 
       {/* Follow-up Reminders */}
       {reminderCounts && (reminderCounts.overdue > 0 || reminderCounts.due_today > 0) && (

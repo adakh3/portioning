@@ -822,6 +822,19 @@ export interface DashboardStats {
   };
 }
 
+// My dashboard stats (salesperson)
+export interface MyDashboardStats {
+  pipeline: Record<string, number>;
+  pipeline_value: string;
+  kpis: {
+    conversion_rate: number;
+    avg_days_to_convert: number | null;
+    total_active: number;
+  };
+  status_columns: { value: string; label: string }[];
+  status_distribution: { status: string; label: string; count: number }[];
+}
+
 // Lead filter params
 export interface LeadFilters {
   status?: string;
@@ -1016,6 +1029,7 @@ export const api = {
     if (dateTo) params.set("date_to", dateTo);
     return fetchApi<DashboardStats>(`/bookings/dashboard/stats/?${params.toString()}`);
   },
+  getMyDashboardStats: () => fetchApi<MyDashboardStats>("/bookings/dashboard/my-stats/"),
   getLeadsKanban: (filters?: LeadFilters) => {
     const params = new URLSearchParams();
     if (filters) {
