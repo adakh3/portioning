@@ -3,7 +3,8 @@
 import { Suspense, useState } from "react";
 import Link from "next/link";
 import { EventData } from "@/lib/api";
-import { useEvents } from "@/lib/hooks";
+import { useEvents, useDateFormat } from "@/lib/hooks";
+import { formatDate } from "@/lib/dateFormat";
 import { useQueryState } from "@/lib/useQueryState";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -30,6 +31,7 @@ function EventsContent() {
   const [statusFilter, setStatusFilter] = useQueryState("status", "");
   const [search, setSearch] = useState("");
   const { data: events = [], error, isLoading: loading } = useEvents(statusFilter ? { status: statusFilter } : undefined);
+  const dateFormat = useDateFormat();
 
   const statuses = ["", "tentative", "confirmed", "in_progress", "completed", "cancelled"];
   const statusLabels: Record<string, string> = {
@@ -127,7 +129,7 @@ function EventsContent() {
                     )}
                   </div>
                   <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground">
-                    <span>{event.date}</span>
+                    <span>{formatDate(event.date, dateFormat)}</span>
                     <span>{event.gents}G / {event.ladies}L</span>
                     {event.big_eaters && <span>big eaters +{event.big_eaters_percentage}%</span>}
                     <span>{event.dishes.length} dishes</span>

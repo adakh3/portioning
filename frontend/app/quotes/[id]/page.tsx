@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { api, Contact } from "@/lib/api";
-import { useQuote, useAccounts, useVenues, useSiteSettings, useDateFormat, useEventTypes, useServiceStyles, useLeads, revalidate } from "@/lib/hooks";
+import { useQuote, useAccounts, useVenues, useSiteSettings, useDateFormat, useEventTypes, useServiceStyles, useMealTypes, useAllLeads, revalidate } from "@/lib/hooks";
 import { formatDate } from "@/lib/dateFormat";
 import { formatCurrency } from "@/lib/utils";
 import MenuBuilder from "@/components/MenuBuilder";
@@ -44,7 +44,8 @@ export default function QuoteDetailPage() {
   const dateFormat = useDateFormat();
   const { data: eventTypes = [] } = useEventTypes();
   const { data: serviceStyles = [] } = useServiceStyles();
-  const { data: allLeads = [] } = useLeads();
+  const { data: mealTypes = [] } = useMealTypes();
+  const { data: allLeads = [] } = useAllLeads();
   const leads = allLeads.filter((l) => !["won", "lost"].includes(l.status));
   const [showItemForm, setShowItemForm] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -59,6 +60,8 @@ export default function QuoteDetailPage() {
     venue: "",
     venue_address: "",
     event_type: "",
+    meal_type: "",
+    booking_date: "",
     service_style: "",
     tax_rate: "",
     valid_until: "",
@@ -66,8 +69,6 @@ export default function QuoteDetailPage() {
     internal_notes: "",
   });
   const [showAcceptConfirm, setShowAcceptConfirm] = useState(false);
-  const [suggestedPrice, setSuggestedPrice] = useState<number | null>(null);
-  const handleSuggestedPriceChange = useCallback((price: number | null) => setSuggestedPrice(price), []);
 
   // Create mode state
   const [createData, setCreateData] = useState({
@@ -80,6 +81,8 @@ export default function QuoteDetailPage() {
     guest_count: "",
     price_per_head: "",
     event_type: "other",
+    meal_type: "",
+    booking_date: "",
     service_style: "",
     tax_rate: "0.2000",
     valid_until: "",
@@ -131,6 +134,7 @@ export default function QuoteDetailPage() {
       event_date: selectedLead.event_date || prev.event_date,
       guest_count: selectedLead.guest_estimate ? String(selectedLead.guest_estimate) : prev.guest_count,
       event_type: selectedLead.event_type || prev.event_type,
+      meal_type: selectedLead.meal_type || prev.meal_type,
       service_style: selectedLead.service_style || prev.service_style,
     }));
   }
@@ -150,6 +154,8 @@ export default function QuoteDetailPage() {
         guest_count: Number(createData.guest_count),
         price_per_head: createData.price_per_head ? createData.price_per_head : null,
         event_type: createData.event_type,
+        meal_type: createData.meal_type || undefined,
+        booking_date: createData.booking_date || null,
         service_style: createData.service_style || undefined,
         tax_rate: createData.tax_rate,
         valid_until: createData.valid_until || null,
@@ -186,6 +192,8 @@ export default function QuoteDetailPage() {
       venue: quote.venue ? String(quote.venue) : "",
       venue_address: quote.venue_address || "",
       event_type: quote.event_type,
+      meal_type: quote.meal_type || "",
+      booking_date: quote.booking_date || "",
       service_style: quote.service_style || "",
       tax_rate: String(Math.round(parseFloat(quote.tax_rate) * 10000) / 100),
       valid_until: quote.valid_until || "",
@@ -212,6 +220,8 @@ export default function QuoteDetailPage() {
         venue: editData.venue ? Number(editData.venue) : null,
         venue_address: editData.venue_address,
         event_type: editData.event_type,
+        meal_type: editData.meal_type || undefined,
+        booking_date: editData.booking_date || null,
         service_style: editData.service_style || undefined,
         tax_rate: (parseFloat(editData.tax_rate) / 100).toFixed(4),
         valid_until: editData.valid_until || null,
@@ -299,17 +309,7 @@ export default function QuoteDetailPage() {
           {/* Header */}
           <Card>
             <CardContent className="p-6">
-              <div className="flex items-start justify-between">
-                <h1 className="text-2xl font-bold text-foreground">New Quote</h1>
-                <div className="flex gap-3">
-                  <Button type="button" variant="outline" onClick={() => router.push("/quotes")}>
-                    Discard
-                  </Button>
-                  <Button type="submit" disabled={saving}>
-                    {saving ? "Creating..." : "Create Quote"}
-                  </Button>
-                </div>
-              </div>
+              <h1 className="text-2xl font-bold text-foreground">New Quote</h1>
             </CardContent>
           </Card>
 
@@ -323,7 +323,7 @@ export default function QuoteDetailPage() {
                   <option value="">-- No lead (standalone quote) --</option>
                   {leads.map((l) => (
                     <option key={l.id} value={l.id}>
-                      {l.contact_name}{l.event_type_display ? ` — ${l.event_type_display}` : ""}{l.event_date ? ` (${l.event_date})` : ""}
+                      {l.contact_name}{l.event_type_display ? ` — ${l.event_type_display}` : ""}{l.event_date ? ` (${formatDate(l.event_date, dateFormat)})` : ""}
                     </option>
                   ))}
                 </select>
@@ -368,6 +368,17 @@ export default function QuoteDetailPage() {
                   <select value={createData.event_type} onChange={setCreate("event_type")} className={selectClass}>
                     {eventTypes.map((et) => <option key={et.id} value={et.value}>{et.label}</option>)}
                   </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Meal Type</label>
+                  <select value={createData.meal_type} onChange={setCreate("meal_type")} className={selectClass}>
+                    <option value="">-- Select --</option>
+                    {mealTypes.map((mt) => <option key={mt.id} value={mt.value}>{mt.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Booking Date</label>
+                  <ValidatedInput type="date" value={createData.booking_date} onChange={setCreate("booking_date")} />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Service Style</label>
@@ -417,8 +428,8 @@ export default function QuoteDetailPage() {
                 basedOnTemplate={menuData.based_on_template}
                 guestCount={createData.guest_count ? Number(createData.guest_count) : undefined}
                 onChange={setMenuData}
-                onSuggestedPriceChange={handleSuggestedPriceChange}
-                onUseSuggestedPrice={(price) => setCreateData((prev) => ({ ...prev, price_per_head: price.toFixed(2) }))}
+                pricePerHead={createData.price_per_head}
+                onPricePerHeadChange={(val) => setCreateData((prev) => ({ ...prev, price_per_head: val }))}
                 currencySymbol={cs}
                 priceRoundingStep={Number(settings.price_rounding_step) || 50}
               />
@@ -430,40 +441,6 @@ export default function QuoteDetailPage() {
             <CardContent className="p-6">
               <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Pricing &amp; Terms</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Price Per Head ({cs})</label>
-                  <div className="flex gap-2">
-                    <ValidatedInput
-                      type="number"
-                      step="0.01"
-                      min={0}
-                      max={9999999.99}
-                      value={createData.price_per_head}
-                      onChange={setCreate("price_per_head")}
-                      placeholder="0.00"
-                    />
-                    {suggestedPrice !== null && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => setCreateData({ ...createData, price_per_head: suggestedPrice.toFixed(2) })}
-                        className="whitespace-nowrap border-success/30 text-success bg-success/10 hover:bg-success/15 hover:text-success"
-                      >
-                        Use {formatCurrency(suggestedPrice, cs)}
-                      </Button>
-                    )}
-                  </div>
-                  {suggestedPrice !== null && (
-                    <p className="text-xs text-success/80 mt-1">
-                      Suggested: {formatCurrency(suggestedPrice, cs)}/head
-                    </p>
-                  )}
-                  {createData.price_per_head && createData.guest_count && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Food total: {formatCurrency(parseFloat(createData.price_per_head) * Number(createData.guest_count), cs)} ({createData.guest_count} guests)
-                    </p>
-                  )}
-                </div>
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Tax Rate (%)</label>
                   <ValidatedInput
@@ -499,6 +476,16 @@ export default function QuoteDetailPage() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Bottom action bar */}
+          <div className="sticky bottom-4 flex justify-end gap-3 z-10">
+            <Button type="button" variant="outline" onClick={() => router.push("/quotes")}>
+              Discard
+            </Button>
+            <Button type="submit" disabled={saving}>
+              {saving ? "Creating..." : "Create Quote"}
+            </Button>
+          </div>
         </form>
       </div>
     );
@@ -509,17 +496,9 @@ export default function QuoteDetailPage() {
 
   return (
     <div className="space-y-6">
-      {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-sm">
-        <Link href="/quotes" className="text-primary hover:underline">&larr; Quotes</Link>
-        {q.lead && q.lead_name && (
-          <>
-            <span className="text-muted-foreground">&middot;</span>
-            <span className="text-muted-foreground">From Lead:</span>
-            <Link href={`/leads/${q.lead}`} className="text-primary hover:underline">{q.lead_name}</Link>
-          </>
-        )}
-      </div>
+      <Button variant="outline" size="sm" asChild>
+        <Link href="/quotes">&larr; Back to Quotes</Link>
+      </Button>
 
       {error && <p className="text-destructive">{error}</p>}
 
@@ -660,36 +639,21 @@ export default function QuoteDetailPage() {
               <ValidatedInput type="number" required min={1} max={50000} value={editData.guest_count} onChange={setEdit("guest_count")} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Price Per Head ({cs})</label>
-              <div className="flex gap-2">
-                <ValidatedInput type="number" step="0.01" min={0} max={9999999.99} value={editData.price_per_head} onChange={setEdit("price_per_head")} placeholder="0.00" />
-                {suggestedPrice !== null && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setEditData({ ...editData, price_per_head: suggestedPrice.toFixed(2) })}
-                    className="whitespace-nowrap border-success/30 text-success bg-success/10 hover:bg-success/15 hover:text-success"
-                  >
-                    Use {formatCurrency(suggestedPrice, cs)}
-                  </Button>
-                )}
-              </div>
-              {suggestedPrice !== null && (
-                <p className="text-xs text-success/80 mt-1">
-                  Suggested: {formatCurrency(suggestedPrice, cs)}/head
-                </p>
-              )}
-              {editData.price_per_head && editData.guest_count && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  Food total: {formatCurrency(parseFloat(editData.price_per_head) * Number(editData.guest_count), cs)}
-                </p>
-              )}
-            </div>
-            <div>
               <label className="block text-sm font-medium text-foreground mb-1">Event Type</label>
               <select value={editData.event_type} onChange={setEdit("event_type")} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
                 {eventTypes.map((et) => <option key={et.id} value={et.value}>{et.label}</option>)}
               </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Meal Type</label>
+              <select value={editData.meal_type} onChange={setEdit("meal_type")} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
+                <option value="">-- None --</option>
+                {mealTypes.map((mt) => <option key={mt.id} value={mt.value}>{mt.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Booking Date</label>
+              <ValidatedInput type="date" value={editData.booking_date} onChange={setEdit("booking_date")} />
             </div>
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">Service Style</label>
@@ -791,7 +755,7 @@ export default function QuoteDetailPage() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
               <div>
                 <span className="text-muted-foreground block">Date</span>
-                <span className="font-medium text-foreground">{q.event_date}</span>
+                <span className="font-medium text-foreground">{formatDate(q.event_date, dateFormat)}</span>
               </div>
               <div>
                 <span className="text-muted-foreground block">Guests</span>
@@ -800,6 +764,14 @@ export default function QuoteDetailPage() {
               <div>
                 <span className="text-muted-foreground block">Event Type</span>
                 <span className="font-medium text-foreground capitalize">{q.event_type.replace(/_/g, " ")}</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground block">Meal Type</span>
+                <span className="font-medium text-foreground capitalize">{q.meal_type ? q.meal_type.replace(/_/g, " ") : "—"}</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground block">Booking Date</span>
+                <span className="font-medium text-foreground">{q.booking_date ? formatDate(q.booking_date, dateFormat) : "—"}</span>
               </div>
               <div>
                 <span className="text-muted-foreground block">Service Style</span>
@@ -853,8 +825,8 @@ export default function QuoteDetailPage() {
               });
               await mutateQuote();
             }}
-            onSuggestedPriceChange={handleSuggestedPriceChange}
-            onUseSuggestedPrice={(price) => setEditData((prev) => ({ ...prev, price_per_head: price.toFixed(2) }))}
+            pricePerHead={editData.price_per_head}
+            onPricePerHeadChange={editing ? (val) => setEditData((prev) => ({ ...prev, price_per_head: val })) : undefined}
             currencySymbol={cs}
             priceRoundingStep={Number(settings.price_rounding_step) || 50}
           />

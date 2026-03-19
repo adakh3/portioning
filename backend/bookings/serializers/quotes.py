@@ -1,7 +1,7 @@
 from rest_framework import serializers
 
 from bookings.models import Quote, QuoteLineItem
-from bookings.models.choices import EventTypeOption
+from bookings.serializers.leads import _get_event_type_labels
 from dishes.models import Dish
 from users.mixins import get_request_org
 
@@ -47,7 +47,7 @@ class QuoteSerializer(serializers.ModelSerializer):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         request = self.context.get('request')
-        if request:
+        if request and 'dish_ids' in self.fields:
             org = get_request_org(request)
             if org:
                 self.fields['dish_ids'].child_relation.queryset = Dish.objects.filter(organisation=org)
@@ -62,7 +62,7 @@ class QuoteSerializer(serializers.ModelSerializer):
             'version', 'status', 'status_display', 'is_editable',
             'event_date', 'venue', 'venue_name', 'venue_address', 'guest_count',
             'price_per_head', 'food_total',
-            'event_type', 'service_style', 'valid_until',
+            'event_type', 'meal_type', 'booking_date', 'service_style', 'valid_until',
             'subtotal', 'tax_rate', 'tax_amount', 'total',
             'dishes', 'dish_ids', 'dish_names', 'based_on_template',
             'notes', 'internal_notes',
@@ -107,12 +107,7 @@ class QuoteSerializer(serializers.ModelSerializer):
         try:
             if obj.lead:
                 lead = obj.lead
-                et_label = (
-                    EventTypeOption.objects.filter(
-                        value=lead.event_type, organisation=obj.organisation,
-                    ).values_list('label', flat=True).first()
-                    or lead.event_type
-                )
+                et_label = _get_event_type_labels(obj.organisation_id).get(lead.event_type, lead.event_type)
                 return f"{lead.contact_name} — {et_label}"
         except Exception:
             return None
@@ -140,3 +135,13 @@ class QuoteSerializer(serializers.ModelSerializer):
         if needs_recalc:
             quote.recalculate_totals()
         return quote
+
+
+QUOTE_LIST_EXCLUDE = {'line_items', 'dishes', 'dish_ids', 'dish_names'}
+
+
+class QuoteListSerializer(QuoteSerializer):
+    """Lighter serializer for list views — excludes line_items and dish fields."""
+
+    class Meta(QuoteSerializer.Meta):
+        fields = [f for f in QuoteSerializer.Meta.fields if f not in QUOTE_LIST_EXCLUDE]

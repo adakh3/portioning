@@ -7,6 +7,7 @@ from rest_framework.views import APIView
 from bookings.models import Quote, QuoteLineItem
 from bookings.models.quotes import QuoteStatus
 from bookings.serializers import QuoteSerializer, QuoteLineItemSerializer
+from bookings.serializers.quotes import QuoteListSerializer
 from bookings.pdf import generate_quote_pdf
 from bookings.permissions import is_salesperson
 from users.mixins import get_request_org, apply_org_filter, get_org_object_or_404
@@ -15,12 +16,20 @@ from users.mixins import get_request_org, apply_org_filter, get_org_object_or_40
 class QuoteListCreateView(generics.ListCreateAPIView):
     serializer_class = QuoteSerializer
 
+    def get_serializer_class(self):
+        if self.request.method == 'GET':
+            return QuoteListSerializer
+        return QuoteSerializer
+
     def perform_create(self, serializer):
         user = self.request.user if self.request.user.is_authenticated else None
         serializer.save(created_by=user, organisation=get_request_org(self.request))
 
     def get_queryset(self):
-        qs = Quote.objects.select_related('account', 'venue', 'lead', 'event', 'based_on_template', 'primary_contact').prefetch_related('line_items', 'dishes')
+        qs = Quote.objects.select_related('account', 'venue', 'lead', 'event', 'based_on_template', 'primary_contact')
+        # Only prefetch heavy relations for detail views
+        if self.request.method != 'GET' or self.kwargs.get('pk'):
+            qs = qs.prefetch_related('line_items', 'dishes')
         qs = apply_org_filter(qs, self.request)
 
         # Salesperson sees only quotes they created or linked to their leads
@@ -77,7 +86,9 @@ class QuoteTransitionView(APIView):
                 venue=quote.venue,
                 venue_address=quote.venue_address,
                 event_type=quote.event_type,
+                meal_type=quote.meal_type,
                 service_style=quote.service_style,
+                booking_date=quote.accepted_at.date() if quote.accepted_at else None,
                 price_per_head=quote.price_per_head,
                 status='confirmed',
                 based_on_template=quote.based_on_template,

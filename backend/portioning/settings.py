@@ -113,6 +113,8 @@ REST_FRAMEWORK = {
         'user': '1000/hour',
     },
     'EXCEPTION_HANDLER': 'portioning.exception_handler.custom_exception_handler',
+    'DEFAULT_PAGINATION_CLASS': 'bookings.pagination.OptionalPagination',
+    'PAGE_SIZE': 50,
 }
 
 # JWT

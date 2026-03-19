@@ -4,7 +4,8 @@ import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { api, CalculationResult, EventDishComment } from "@/lib/api";
-import { useEvent, useDishes } from "@/lib/hooks";
+import { useEvent, useDishes, useDateFormat } from "@/lib/hooks";
+import { formatDate } from "@/lib/dateFormat";
 import { revalidate } from "@/lib/hooks";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -41,6 +42,7 @@ export default function KitchenEventDetailPage() {
   const eventId = Number(id);
   const { data: event, error, isLoading, mutate: mutateEvent } = useEvent(eventId);
   const { data: allDishes = [] } = useDishes();
+  const dateFormat = useDateFormat();
 
   const [rows, setRows] = useState<DishRow[]>([]);
   const [saving, setSaving] = useState(false);
@@ -165,6 +167,10 @@ export default function KitchenEventDetailPage() {
 
   return (
     <div className="space-y-6">
+      <Button variant="outline" size="sm" asChild>
+        <Link href="/kitchen/events">&larr; Back to Kitchen Events</Link>
+      </Button>
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -175,15 +181,12 @@ export default function KitchenEventDetailPage() {
             </Badge>
           </div>
           <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground">
-            <span>{event.date}</span>
+            <span>{formatDate(event.date, dateFormat)}</span>
             <span>{totalGuests} guests ({event.gents}G / {event.ladies}L)</span>
             {event.venue_name && <span>{event.venue_name}</span>}
             {event.account_name && <span>{event.account_name}</span>}
           </div>
         </div>
-        <Button variant="outline" size="sm" asChild>
-          <Link href="/kitchen/events">Back to List</Link>
-        </Button>
       </div>
 
       {/* Action buttons */}

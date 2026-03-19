@@ -81,6 +81,27 @@ async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
   return res.json();
 }
 
+/** DRF paginated response shape. */
+export interface PaginatedResponse<T> {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: T[];
+}
+
+/** Unwrap DRF paginated response {count, results} or return raw array. */
+function unwrapResults<T>(data: T[] | { count: number; results: T[] }): T[] {
+  if (Array.isArray(data)) return data;
+  if (data && typeof data === "object" && "results" in data) return data.results;
+  return data as T[];
+}
+
+/** Fetch a list endpoint and unwrap paginated results. */
+async function fetchList<T>(path: string, options?: RequestInit): Promise<T[]> {
+  const data = await fetchApi<T[] | { count: number; results: T[] }>(path, options);
+  return unwrapResults(data);
+}
+
 // Types
 export interface DishCategory {
   id: number;
@@ -261,6 +282,7 @@ export interface Lead {
   budget: string | null;
   event_type: string;
   event_type_display: string;
+  meal_type: string;
   service_style: string;
   notes: string;
   product: number | null;
@@ -325,6 +347,8 @@ export interface Quote {
   price_per_head: string | null;
   food_total: string;
   event_type: string;
+  meal_type: string;
+  booking_date: string | null;
   service_style: string;
   valid_until: string | null;
   subtotal: string;
@@ -489,9 +513,12 @@ export interface SiteSettingsData {
   currency_symbol: string;
   currency_code: string;
   date_format: string;
+  date_format_choices?: { value: string; label: string }[];
   default_price_per_head: string;
   target_food_cost_percentage: string;
   price_rounding_step: string;
+  tax_label: string;
+  default_tax_rate: string;
   // WhatsApp / Twilio
   twilio_account_sid?: string;
   twilio_whatsapp_number?: string;
@@ -511,6 +538,9 @@ export interface EventData {
   dishes: number[];
   based_on_template: number | null;
   notes: string;
+  kitchen_instructions: string;
+  banquet_instructions: string;
+  setup_instructions: string;
   dish_comments?: EventDishComment[];
   constraint_override?: {
     max_total_food_per_person_grams?: number;
@@ -526,10 +556,13 @@ export interface EventData {
   venue_name: string | null;
   venue_address: string;
   event_type: string;
+  meal_type: string;
   service_style: string;
+  booking_date: string | null;
   price_per_head: string | null;
   status: string;
   status_display: string;
+  is_taxable: boolean;
   // Timeline
   setup_time: string | null;
   guest_arrival_time: string | null;
@@ -541,9 +574,41 @@ export interface EventData {
   final_count_due: string | null;
   // Nested
   source_quote_id: number | null;
+  arrangements: EventArrangement[];
+  beverages: EventBeverage[];
+  additional_meals: EventMealData[];
   shifts: Shift[];
   equipment_reservations: EquipmentReservation[];
   invoices: Invoice[];
+}
+
+export interface EventArrangement {
+  id?: number;
+  arrangement_type: string;
+  quantity: number;
+  unit_price: string;
+  notes: string;
+}
+
+export interface EventBeverage {
+  id?: number;
+  beverage_type: string;
+  quantity: number;
+  unit_price: string;
+  notes: string;
+}
+
+export interface EventMealData {
+  id?: number;
+  label: string;
+  guest_count: number;
+  price_per_head: string | null;
+  dishes: number[];
+  dish_ids?: number[];
+  based_on_template: number | null;
+  meal_time: string | null;
+  notes: string;
+  dish_comments?: EventDishComment[];
 }
 
 // Check Portions types
@@ -674,6 +739,15 @@ export interface AutoAssignResult {
   skipped_no_staff: number;
 }
 
+export interface KanbanColumn {
+  count: number;
+  results: Lead[];
+}
+
+export interface KanbanResponse {
+  columns: Record<string, KanbanColumn>;
+}
+
 // Dashboard stats
 export interface SalespersonPerformance {
   user_id: number | null;
@@ -727,6 +801,8 @@ export interface LeadFilters {
   lead_date_from?: string;
   lead_date_to?: string;
   ordering?: string;
+  page_size?: number | string;
+  page?: number;
 }
 
 // API functions
@@ -742,9 +818,9 @@ export const api = {
   },
   getMe: () => fetchApi<AuthUser>("/auth/me/"),
 
-  getDishes: () => fetchApi<Dish[]>("/dishes/"),
-  getCategories: () => fetchApi<DishCategory[]>("/categories/"),
-  getMenus: () => fetchApi<MenuTemplate[]>("/menus/"),
+  getDishes: () => fetchList<Dish>("/dishes/?page_size=all"),
+  getCategories: () => fetchList<DishCategory>("/categories/?page_size=all"),
+  getMenus: () => fetchList<MenuTemplate>("/menus/?page_size=all"),
   getMenu: (id: number) => fetchApi<MenuTemplateDetail>(`/menus/${id}/`),
   getMenuPreview: (id: number) => fetchApi<CalculationResult>(`/menus/${id}/preview/`),
   menuPriceCheck: (templateId: number, data: { guest_count: number; dish_ids: number[] }) =>
@@ -772,13 +848,14 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  getEvents: (params?: { status?: string; date_from?: string; date_to?: string }) => {
+  getEvents: (params?: { status?: string; date_from?: string; date_to?: string; page_size?: number }) => {
     const searchParams = new URLSearchParams();
     if (params?.status) searchParams.set("status", params.status);
     if (params?.date_from) searchParams.set("date_from", params.date_from);
     if (params?.date_to) searchParams.set("date_to", params.date_to);
+    if (params?.page_size) searchParams.set("page_size", params.page_size.toString());
     const qs = searchParams.toString();
-    return fetchApi<EventData[]>(`/events/${qs ? `?${qs}` : ""}`);
+    return fetchList<EventData>(`/events/${qs ? `?${qs}` : ""}`);
   },
   createEvent: (data: Partial<EventData> & { dish_ids?: number[]; dish_comments?: EventDishComment[] }) =>
     fetchApi<EventData>("/events/", {
@@ -818,7 +895,7 @@ export const api = {
   },
 
   // Bookings: Accounts
-  getAccounts: () => fetchApi<Account[]>("/bookings/accounts/"),
+  getAccounts: () => fetchList<Account>("/bookings/accounts/?page_size=all"),
   getAccount: (id: number) => fetchApi<Account>(`/bookings/accounts/${id}/`),
   createAccount: (data: Partial<Account>) =>
     fetchApi<Account>("/bookings/accounts/", { method: "POST", body: JSON.stringify(data) }),
@@ -834,7 +911,7 @@ export const api = {
     fetchApi<void>(`/bookings/accounts/${accountId}/contacts/${contactId}/`, { method: "DELETE" }),
 
   // Bookings: Venues
-  getVenues: () => fetchApi<Venue[]>("/bookings/venues/"),
+  getVenues: () => fetchList<Venue>("/bookings/venues/?page_size=all"),
   getVenue: (id: number) => fetchApi<Venue>(`/bookings/venues/${id}/`),
   createVenue: (data: Partial<Venue>) =>
     fetchApi<Venue>("/bookings/venues/", { method: "POST", body: JSON.stringify(data) }),
@@ -842,19 +919,38 @@ export const api = {
     fetchApi<Venue>(`/bookings/venues/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
 
   // Bookings: Product Lines & Users
-  getProductLines: () => fetchApi<ProductLine[]>("/bookings/product-lines/"),
-  getUsers: () => fetchApi<AuthUser[]>("/bookings/users/"),
+  getProductLines: () => fetchList<ProductLine>("/bookings/product-lines/?page_size=all"),
+  getUsers: () => fetchList<AuthUser>("/bookings/users/?page_size=all"),
 
   // Bookings: Leads
   getLeads: (filters?: LeadFilters) => {
     const params = new URLSearchParams();
     if (filters) {
       Object.entries(filters).forEach(([key, val]) => {
-        if (val) params.set(key, val);
+        if (val != null && val !== "") params.set(key, String(val));
       });
     }
     const qs = params.toString();
-    return fetchApi<Lead[]>(`/bookings/leads/${qs ? `?${qs}` : ""}`);
+    return fetchList<Lead>(`/bookings/leads/${qs ? `?${qs}` : ""}`);
+  },
+  getLeadsPaginated: (filters?: LeadFilters) => {
+    const params = new URLSearchParams();
+    if (filters) {
+      Object.entries(filters).forEach(([key, val]) => {
+        if (val != null && val !== "") params.set(key, String(val));
+      });
+    }
+    const qs = params.toString();
+    return fetchApi<PaginatedResponse<Lead>>(`/bookings/leads/${qs ? `?${qs}` : ""}`);
+  },
+  getAllLeads: (filters?: LeadFilters) => {
+    const params = new URLSearchParams({ page_size: "all" });
+    if (filters) {
+      Object.entries(filters).forEach(([key, val]) => {
+        if (val) params.set(key, val);
+      });
+    }
+    return fetchList<Lead>(`/bookings/leads/?${params.toString()}`);
   },
   bulkUpdateLeads: (ids: number[], action: string, value?: string | number | null) =>
     fetchApi<{ updated: number }>("/bookings/leads/bulk/", {
@@ -877,7 +973,7 @@ export const api = {
   createEventFromLead: (id: number, data?: { quote_id?: number }) =>
     fetchApi<EventData>(`/bookings/leads/${id}/create-event/`, { method: "POST", body: JSON.stringify(data || {}) }),
   getLeadActivity: (id: number) =>
-    fetchApi<ActivityLogEntry[]>(`/bookings/leads/${id}/activity/`),
+    fetchList<ActivityLogEntry>(`/bookings/leads/${id}/activity/?page_size=all`),
 
   // Dashboard
   getDashboardStats: (period: string = "today", dateFrom?: string, dateTo?: string) => {
@@ -886,11 +982,27 @@ export const api = {
     if (dateTo) params.set("date_to", dateTo);
     return fetchApi<DashboardStats>(`/bookings/dashboard/stats/?${params.toString()}`);
   },
+  getLeadsKanban: (filters?: LeadFilters) => {
+    const params = new URLSearchParams();
+    if (filters) {
+      Object.entries(filters).forEach(([key, val]) => {
+        if (val != null && val !== "") params.set(key, String(val));
+      });
+    }
+    const qs = params.toString();
+    return fetchApi<KanbanResponse>(`/bookings/leads/kanban/${qs ? `?${qs}` : ""}`);
+  },
   autoAssignLeads: () =>
     fetchApi<AutoAssignResult>("/bookings/leads/auto-assign/", { method: "POST" }),
 
   // Bookings: Quotes
-  getQuotes: (status?: string) => fetchApi<Quote[]>(`/bookings/quotes/${status ? `?status=${status}` : ""}`),
+  getQuotes: (status?: string, pageSize?: number) => {
+    const params = new URLSearchParams();
+    if (status) params.set("status", status);
+    if (pageSize) params.set("page_size", pageSize.toString());
+    const qs = params.toString();
+    return fetchList<Quote>(`/bookings/quotes/${qs ? `?${qs}` : ""}`);
+  },
   getQuote: (id: number) => fetchApi<Quote>(`/bookings/quotes/${id}/`),
   createQuote: (data: Partial<Quote> & { dish_ids?: number[] }) =>
     fetchApi<Quote>("/bookings/quotes/", { method: "POST", body: JSON.stringify(data) }),
@@ -910,7 +1022,7 @@ export const api = {
     return res.blob();
   },
   getQuoteLineItems: (quoteId: number) =>
-    fetchApi<QuoteLineItem[]>(`/bookings/quotes/${quoteId}/items/`),
+    fetchList<QuoteLineItem>(`/bookings/quotes/${quoteId}/items/?page_size=all`),
   createQuoteLineItem: (quoteId: number, data: Partial<QuoteLineItem>) =>
     fetchApi<QuoteLineItem>(`/bookings/quotes/${quoteId}/items/`, { method: "POST", body: JSON.stringify(data) }),
   updateQuoteLineItem: (quoteId: number, itemId: number, data: Partial<QuoteLineItem>) =>
@@ -919,14 +1031,14 @@ export const api = {
     fetchApi<void>(`/bookings/quotes/${quoteId}/items/${itemId}/`, { method: "DELETE" }),
 
   // Staff & Labor
-  getLaborRoles: () => fetchApi<LaborRole[]>("/staff/labor-roles/"),
+  getLaborRoles: () => fetchList<LaborRole>("/staff/labor-roles/?page_size=all"),
   createLaborRole: (data: Partial<LaborRole>) =>
     fetchApi<LaborRole>("/staff/labor-roles/", { method: "POST", body: JSON.stringify(data) }),
   updateLaborRole: (id: number, data: Partial<LaborRole>) =>
     fetchApi<LaborRole>(`/staff/labor-roles/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
   deleteLaborRole: (id: number) =>
     fetchApi<void>(`/staff/labor-roles/${id}/`, { method: "DELETE" }),
-  getStaff: () => fetchApi<StaffMember[]>("/staff/members/"),
+  getStaff: () => fetchList<StaffMember>("/staff/members/?page_size=all"),
   getStaffMember: (id: number) => fetchApi<StaffMember>(`/staff/members/${id}/`),
   createStaffMember: (data: Partial<StaffMember>) =>
     fetchApi<StaffMember>("/staff/members/", { method: "POST", body: JSON.stringify(data) }),
@@ -935,7 +1047,7 @@ export const api = {
 
   // Shifts
   getShifts: (eventId?: number) =>
-    fetchApi<Shift[]>(`/staff/shifts/${eventId ? `?event=${eventId}` : ""}`),
+    fetchList<Shift>(`/staff/shifts/${eventId ? `?event=${eventId}` : ""}${eventId ? "&" : "?"}page_size=all`),
   createShift: (data: Partial<Shift>) =>
     fetchApi<Shift>("/staff/shifts/", { method: "POST", body: JSON.stringify(data) }),
   updateShift: (id: number, data: Partial<Shift>) =>
@@ -944,7 +1056,7 @@ export const api = {
     fetchApi<void>(`/staff/shifts/${id}/`, { method: "DELETE" }),
 
   // Allocation Rules
-  getAllocationRules: () => fetchApi<AllocationRule[]>("/staff/allocation-rules/"),
+  getAllocationRules: () => fetchList<AllocationRule>("/staff/allocation-rules/?page_size=all"),
   createAllocationRule: (data: Partial<AllocationRule>) =>
     fetchApi<AllocationRule>("/staff/allocation-rules/", { method: "POST", body: JSON.stringify(data) }),
   updateAllocationRule: (id: number, data: Partial<AllocationRule>) =>
@@ -954,15 +1066,14 @@ export const api = {
 
   // Staff Reports
   getStaffReport: (params?: { date_from?: string; date_to?: string }) => {
-    const searchParams = new URLSearchParams();
+    const searchParams = new URLSearchParams({ page_size: "all" });
     if (params?.date_from) searchParams.set("date_from", params.date_from);
     if (params?.date_to) searchParams.set("date_to", params.date_to);
-    const qs = searchParams.toString();
-    return fetchApi<StaffReportEntry[]>(`/staff/reports/${qs ? `?${qs}` : ""}`);
+    return fetchList<StaffReportEntry>(`/staff/reports/?${searchParams.toString()}`);
   },
 
   // Equipment
-  getEquipment: () => fetchApi<EquipmentItem[]>("/equipment/items/"),
+  getEquipment: () => fetchList<EquipmentItem>("/equipment/items/?page_size=all"),
   createEquipmentItem: (data: Partial<EquipmentItem>) =>
     fetchApi<EquipmentItem>("/equipment/items/", { method: "POST", body: JSON.stringify(data) }),
   updateEquipmentItem: (id: number, data: Partial<EquipmentItem>) =>
@@ -970,7 +1081,7 @@ export const api = {
 
   // Equipment Reservations
   getReservations: (eventId?: number) =>
-    fetchApi<EquipmentReservation[]>(`/equipment/reservations/${eventId ? `?event=${eventId}` : ""}`),
+    fetchList<EquipmentReservation>(`/equipment/reservations/${eventId ? `?event=${eventId}` : ""}${eventId ? "&" : "?"}page_size=all`),
   createReservation: (data: Partial<EquipmentReservation>) =>
     fetchApi<EquipmentReservation>("/equipment/reservations/", { method: "POST", body: JSON.stringify(data) }),
   updateReservation: (id: number, data: Partial<EquipmentReservation>) =>
@@ -980,11 +1091,10 @@ export const api = {
 
   // Bookings: Invoices
   getInvoices: (params?: { event?: number; status?: string }) => {
-    const searchParams = new URLSearchParams();
+    const searchParams = new URLSearchParams({ page_size: "all" });
     if (params?.event) searchParams.set("event", params.event.toString());
     if (params?.status) searchParams.set("status", params.status);
-    const qs = searchParams.toString();
-    return fetchApi<Invoice[]>(`/bookings/invoices/${qs ? `?${qs}` : ""}`);
+    return fetchList<Invoice>(`/bookings/invoices/?${searchParams.toString()}`);
   },
   getInvoice: (id: number) => fetchApi<Invoice>(`/bookings/invoices/${id}/`),
   createInvoice: (data: Partial<Invoice>) =>
@@ -999,11 +1109,14 @@ export const api = {
     fetchApi<Payment>(`/bookings/invoices/${invoiceId}/payments/`, { method: "POST", body: JSON.stringify(data) }),
 
   // Choice Options
-  getEventTypes: () => fetchApi<ChoiceOption[]>("/bookings/event-types/"),
-  getServiceStyles: () => fetchApi<ChoiceOption[]>("/bookings/service-styles/"),
-  getSources: () => fetchApi<ChoiceOption[]>("/bookings/sources/"),
-  getLeadStatuses: () => fetchApi<ChoiceOption[]>("/bookings/lead-statuses/"),
-  getLostReasons: () => fetchApi<ChoiceOption[]>("/bookings/lost-reasons/"),
+  getEventTypes: () => fetchList<ChoiceOption>("/bookings/event-types/?page_size=all"),
+  getServiceStyles: () => fetchList<ChoiceOption>("/bookings/service-styles/?page_size=all"),
+  getSources: () => fetchList<ChoiceOption>("/bookings/sources/?page_size=all"),
+  getLeadStatuses: () => fetchList<ChoiceOption>("/bookings/lead-statuses/?page_size=all"),
+  getLostReasons: () => fetchList<ChoiceOption>("/bookings/lost-reasons/?page_size=all"),
+  getMealTypes: () => fetchList<ChoiceOption>("/bookings/meal-types/?page_size=all"),
+  getArrangementTypes: () => fetchList<ChoiceOption>("/bookings/arrangement-types/?page_size=all"),
+  getBeverageTypes: () => fetchList<ChoiceOption>("/bookings/beverage-types/?page_size=all"),
 
   // Settings
   getSiteSettings: () => fetchApi<SiteSettingsData>("/bookings/settings/"),
@@ -1012,17 +1125,16 @@ export const api = {
 
   // Reminders
   getReminders: (params?: { status?: string; due_before?: string; due_after?: string; lead?: number }) => {
-    const searchParams = new URLSearchParams();
+    const searchParams = new URLSearchParams({ page_size: "all" });
     if (params?.status) searchParams.set("status", params.status);
     if (params?.due_before) searchParams.set("due_before", params.due_before);
     if (params?.due_after) searchParams.set("due_after", params.due_after);
     if (params?.lead) searchParams.set("lead", params.lead.toString());
-    const qs = searchParams.toString();
-    return fetchApi<Reminder[]>(`/bookings/reminders/${qs ? `?${qs}` : ""}`);
+    return fetchList<Reminder>(`/bookings/reminders/?${searchParams.toString()}`);
   },
   getReminderCounts: () => fetchApi<ReminderCounts>("/bookings/reminders/counts/"),
   getLeadReminders: (leadId: number) =>
-    fetchApi<Reminder[]>(`/bookings/leads/${leadId}/reminders/`),
+    fetchList<Reminder>(`/bookings/leads/${leadId}/reminders/?page_size=all`),
   createReminder: (leadId: number, data: Partial<Reminder>) =>
     fetchApi<Reminder>(`/bookings/leads/${leadId}/reminders/`, { method: "POST", body: JSON.stringify(data) }),
   updateReminder: (id: number, data: Partial<Reminder>) =>

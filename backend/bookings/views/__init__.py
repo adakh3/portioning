@@ -1,6 +1,6 @@
 from .accounts import AccountListCreateView, AccountDetailView, ContactListCreateView, ContactDetailView
 from .venues import VenueListCreateView, VenueDetailView
-from .leads import UserListView, ProductLineListView, LeadListCreateView, LeadDetailView, LeadTransitionView, LeadConvertView, LeadCreateQuoteView, LeadWonView, LeadCreateEventView, LeadBulkUpdateView, LeadActivityView, LeadAutoAssignView
+from .leads import UserListView, ProductLineListView, LeadListCreateView, LeadDetailView, LeadTransitionView, LeadConvertView, LeadCreateQuoteView, LeadWonView, LeadCreateEventView, LeadBulkUpdateView, LeadActivityView, LeadAutoAssignView, LeadKanbanView
 from .dashboard import DashboardStatsView
 from .quotes import (
     QuoteListCreateView, QuoteDetailView, QuoteTransitionView,
@@ -15,7 +15,9 @@ from .settings import SiteSettingsView
 from .choices import (
     EventTypeOptionListView, SourceOptionListView,
     ServiceStyleOptionListView, LeadStatusOptionListView,
-    LostReasonOptionListView,
+    LostReasonOptionListView, MealTypeOptionListView,
+    ArrangementTypeOptionListView,
+    BeverageTypeOptionListView,
 )
 from .reminders import (
     ReminderListCreateView, ReminderDetailView,

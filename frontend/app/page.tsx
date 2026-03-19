@@ -3,7 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth";
-import { useEvents, useQuotes, useLeads, useDashboardStats, useSiteSettings, useReminderCounts } from "@/lib/hooks";
+import { useEvents, useQuotes, useLeads, useDashboardStats, useSiteSettings, useReminderCounts, useDateFormat } from "@/lib/hooks";
+import { formatDate } from "@/lib/dateFormat";
 import { api, AutoAssignResult } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -45,15 +46,16 @@ export default function Dashboard() {
   );
   const { data: rawSettings } = useSiteSettings();
   const cs = rawSettings?.currency_symbol || "\u00a3";
+  const dateFormat = useDateFormat();
 
   const { data: reminderCounts } = useReminderCounts();
-  const { data: allEvents } = useEvents({ date_from: new Date().toISOString().split("T")[0] });
-  const { data: allQuotes } = useQuotes();
-  const { data: allLeads } = useLeads();
+  const { data: allEvents } = useEvents({ date_from: new Date().toISOString().split("T")[0], page_size: 5 });
+  const { data: allQuotes } = useQuotes("draft", 5);
+  const { data: allLeads } = useLeads({ page_size: 5 });
 
-  const events = (allEvents || []).slice(0, 5);
-  const quotes = (allQuotes || []).filter((q) => q.status === "draft" || q.status === "sent").slice(0, 5);
-  const leads = (allLeads || []).slice(0, 5);
+  const events = allEvents || [];
+  const quotes = allQuotes || [];
+  const leads = allLeads || [];
 
   const summary = stats?.lead_summary;
   const kpis = stats?.kpis;
@@ -193,21 +195,19 @@ export default function Dashboard() {
                 <h2 className="text-sm font-semibold text-foreground">Lost Reasons</h2>
                 <span className="text-xs text-muted-foreground">{totalLost} lost lead{totalLost !== 1 ? "s" : ""}</span>
               </div>
-              <div className="space-y-3">
+              <div className="flex items-end gap-3 h-48">
                 {lostReasons.map((r) => {
-                  const pct = totalLost > 0 ? Math.round((r.count / totalLost) * 100) : 0;
-                  const barWidth = maxCount > 0 ? (r.count / maxCount) * 100 : 0;
+                  const barHeight = maxCount > 0 ? (r.count / maxCount) * 100 : 0;
                   return (
-                    <div key={r.reason} className="flex items-center gap-3">
-                      <span className="text-sm text-foreground w-40 shrink-0 truncate" title={r.reason}>{r.reason}</span>
-                      <div className="flex-1 h-6 bg-muted rounded overflow-hidden">
+                    <div key={r.reason} className="flex-1 flex flex-col items-center gap-1 h-full justify-end min-w-0">
+                      <span className="text-xs font-medium text-foreground">{r.count}</span>
+                      <div className="w-full flex items-end justify-center" style={{ height: "calc(100% - 2rem)" }}>
                         <div
-                          className="h-full bg-red-500/70 rounded transition-all duration-500"
-                          style={{ width: `${barWidth}%`, minWidth: r.count > 0 ? "4px" : "0" }}
+                          className="w-full max-w-14 bg-red-500/70 rounded-t transition-all duration-500"
+                          style={{ height: `${barHeight}%`, minHeight: r.count > 0 ? "4px" : "0" }}
                         />
                       </div>
-                      <span className="text-sm font-medium text-foreground w-8 text-right">{r.count}</span>
-                      <span className="text-xs text-muted-foreground w-10 text-right">{pct}%</span>
+                      <span className="text-[10px] text-muted-foreground text-center leading-tight truncate w-full" title={r.reason}>{r.reason}</span>
                     </div>
                   );
                 })}
@@ -346,7 +346,7 @@ export default function Dashboard() {
                   <Link href={`/events/${ev.id}`} className="block hover:bg-muted -mx-1 px-1 py-1 rounded transition-colors">
                     <p className="text-sm font-medium text-foreground truncate">{ev.name}</p>
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <span>{ev.date}</span>
+                      <span>{formatDate(ev.date, dateFormat)}</span>
                       <span className="text-border">|</span>
                       <span>{ev.gents + ev.ladies} guests</span>
                       <Badge variant="secondary" className="text-[10px] px-1.5 py-0.5">{ev.status_display}</Badge>
@@ -371,7 +371,7 @@ export default function Dashboard() {
                       {q.account_name || "No account"}
                     </p>
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <span>{q.event_date}</span>
+                      <span>{formatDate(q.event_date, dateFormat)}</span>
                       <span className="text-border">|</span>
                       <span>{q.guest_count} guests</span>
                       <Badge variant="secondary" className="text-[10px] px-1.5 py-0.5">{q.status_display}</Badge>
@@ -398,7 +398,7 @@ export default function Dashboard() {
                       {l.event_date && (
                         <>
                           <span className="text-border">|</span>
-                          <span>{l.event_date}</span>
+                          <span>{formatDate(l.event_date, dateFormat)}</span>
                         </>
                       )}
                       <Badge variant="secondary" className="text-[10px] px-1.5 py-0.5">{l.status_display}</Badge>

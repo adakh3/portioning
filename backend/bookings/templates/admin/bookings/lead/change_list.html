@@ -6,3 +6,15 @@
   </li>
   {{ block.super }}
 {% endblock %}
+
+{% block content %}
+<div style="background: #edf6ff; border: 1px solid #79aec8; border-radius: 6px; padding: 0.75em 1.25em; margin-bottom: 1.5em;">
+  <strong>Bulk import:</strong> <a href="{% url 'admin:bookings_lead_import' %}">Import from Excel / CSV</a> &mdash;
+  <a href="{% url 'admin:bookings_lead_import_template' %}">download the CSV template</a> to get started.<br>
+  <span style="color: #555;">
+    <strong>Required:</strong> full_name, phone_number, event_type, product &nbsp;|&nbsp;
+    <strong>Optional:</strong> email, event date, guests, source, status, assigned_to
+  </span>
+</div>
+{{ block.super }}
+{% endblock %}

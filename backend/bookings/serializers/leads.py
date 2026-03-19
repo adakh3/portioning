@@ -63,7 +63,7 @@ class LeadSerializer(serializers.ModelSerializer):
             'source', 'event_date', 'lead_date', 'guest_estimate',
             'budget',
             'event_type', 'event_type_display',
-            'service_style', 'notes',
+            'meal_type', 'service_style', 'notes',
             'product', 'product_name',
             'assigned_to', 'assigned_to_name',
             'created_by', 'created_by_name',
@@ -104,3 +104,10 @@ class LeadSerializer(serializers.ModelSerializer):
         if obj.assigned_to:
             return f"{obj.assigned_to.first_name} {obj.assigned_to.last_name}".strip() or obj.assigned_to.email
         return None
+
+
+class LeadListSerializer(LeadSerializer):
+    """Lighter serializer for list/Kanban views — excludes nested quotes."""
+
+    class Meta(LeadSerializer.Meta):
+        fields = [f for f in LeadSerializer.Meta.fields if f != 'quotes']

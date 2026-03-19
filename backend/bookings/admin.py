@@ -5,6 +5,8 @@ from django.contrib import admin
 from django.shortcuts import render, redirect
 from django.urls import path, reverse
 from django.contrib import messages
+from django.http import FileResponse
+from django.contrib.staticfiles import finders
 
 from users.models import User
 from .models import (
@@ -12,13 +14,13 @@ from .models import (
     Invoice, Payment,
     SiteSettings,
     EventTypeOption, SourceOption, ServiceStyleOption, LeadStatusOption,
-    LostReasonOption,
+    LostReasonOption, MealTypeOption, ArrangementTypeOption, BeverageTypeOption,
     ActivityLog,
     Reminder,
     WhatsAppMessage,
 )
 from .services.lead_import import (
-    load_xlsx, load_csv, parse_rows, flag_duplicates, commit_rows, ImportRow,
+    load_xlsx, load_csv, parse_rows, validate_rows, flag_duplicates, commit_rows, ImportRow,
 )
 
 
@@ -65,6 +67,7 @@ class ProductLineAdmin(admin.ModelAdmin):
 @admin.register(Lead)
 class LeadAdmin(admin.ModelAdmin):
     list_display = ['contact_name', 'event_type', 'event_date', 'lead_date', 'status', 'product', 'assigned_to', 'source', 'guest_estimate', 'created_at']
+    list_select_related = ['product', 'assigned_to', 'organisation']
     list_filter = ['status', 'source', 'event_type', 'product']
     search_fields = ['contact_name', 'contact_email', 'account__name']
     readonly_fields = ['won_quote', 'won_event', 'contacted_at', 'qualified_at', 'proposal_sent_at', 'won_at', 'lost_at']
@@ -78,6 +81,11 @@ class LeadAdmin(admin.ModelAdmin):
                 name="bookings_lead_import",
             ),
             path(
+                "import/template/",
+                self.admin_site.admin_view(self.download_template),
+                name="bookings_lead_import_template",
+            ),
+            path(
                 "import/confirm/",
                 self.admin_site.admin_view(self.import_confirm_view),
                 name="bookings_lead_import_confirm",
@@ -87,10 +95,16 @@ class LeadAdmin(admin.ModelAdmin):
 
     def import_view(self, request):
         """GET: show upload form. POST: parse file and show preview."""
+        org = request.user.organisation
         context = {
             **self.admin_site.each_context(request),
-            "products": ProductLine.objects.filter(is_active=True),
-            "users": User.objects.filter(is_active=True),
+            "products": list(ProductLine.objects.filter(organisation=org, is_active=True).values_list('name', flat=True)),
+            "event_types": EventTypeOption.objects.filter(organisation=org, is_active=True).order_by('sort_order').values_list('value', flat=True),
+            "sources": SourceOption.objects.filter(organisation=org, is_active=True).order_by('sort_order').values_list('value', flat=True),
+            "service_styles": ServiceStyleOption.objects.filter(organisation=org, is_active=True).order_by('sort_order').values_list('value', flat=True),
+            "lead_statuses": LeadStatusOption.objects.filter(organisation=org, is_active=True).order_by('sort_order').values_list('value', flat=True),
+            "meal_types": MealTypeOption.objects.filter(organisation=org, is_active=True).order_by('sort_order').values_list('value', flat=True),
+            "date_format": org.settings.date_format if hasattr(org, 'settings') else 'DD/MM/YYYY',
         }
 
         if request.method != "POST":
@@ -125,6 +139,7 @@ class LeadAdmin(admin.ModelAdmin):
                 return render(request, "admin/bookings/lead/import_form.html", context)
 
             import_rows = parse_rows(data_rows, header)
+            validate_rows(import_rows, org)
             flag_duplicates(import_rows)
         except ValueError as e:
             context["errors"] = [str(e)]
@@ -186,8 +201,9 @@ class LeadAdmin(admin.ModelAdmin):
             return redirect(reverse("admin:bookings_lead_import"))
 
         rows_json = request.session.pop("import_rows", None)
-        product_id = request.session.pop("import_product_id", None)
-        assigned_to_id = request.session.pop("import_assigned_to_id", None)
+        # Clear legacy session keys if present
+        request.session.pop("import_product_id", None)
+        request.session.pop("import_assigned_to_id", None)
 
         if not rows_json:
             messages.error(request, "No import data found. Please upload a file again.")
@@ -206,21 +222,8 @@ class LeadAdmin(admin.ModelAdmin):
                 d["lead_date"] = date(int(parts[0]), int(parts[1]), int(parts[2]))
             import_rows.append(ImportRow(**d))
 
-        product = None
-        if product_id:
-            try:
-                product = ProductLine.objects.get(pk=product_id)
-            except ProductLine.DoesNotExist:
-                pass
-
-        assigned_to = None
-        if assigned_to_id:
-            try:
-                assigned_to = User.objects.get(pk=assigned_to_id)
-            except User.DoesNotExist:
-                pass
-
-        created_count, errors = commit_rows(import_rows, product, assigned_to)
+        org = request.user.organisation
+        created_count, errors = commit_rows(import_rows, org)
         skipped_count = sum(1 for r in import_rows if r.skipped)
         error_count = len(errors)
 
@@ -232,6 +235,16 @@ class LeadAdmin(admin.ModelAdmin):
             "errors": errors,
         }
         return render(request, "admin/bookings/lead/import_results.html", context)
+
+    def download_template(self, request):
+        """Serve the CSV template file as a download."""
+        file_path = finders.find("bookings/leads_import_template.csv")
+        return FileResponse(
+            open(file_path, "rb"),
+            content_type="text/csv",
+            as_attachment=True,
+            filename="leads_import_template.csv",
+        )
 
 
 # --- Quotes ---
@@ -307,6 +320,27 @@ class LeadStatusOptionAdmin(admin.ModelAdmin):
 
 @admin.register(LostReasonOption)
 class LostReasonOptionAdmin(admin.ModelAdmin):
+    list_display = ['value', 'label', 'sort_order', 'is_active']
+    list_editable = ['label', 'sort_order', 'is_active']
+    ordering = ['sort_order']
+
+
+@admin.register(MealTypeOption)
+class MealTypeOptionAdmin(admin.ModelAdmin):
+    list_display = ['value', 'label', 'sort_order', 'is_active']
+    list_editable = ['label', 'sort_order', 'is_active']
+    ordering = ['sort_order']
+
+
+@admin.register(ArrangementTypeOption)
+class ArrangementTypeOptionAdmin(admin.ModelAdmin):
+    list_display = ['value', 'label', 'sort_order', 'is_active']
+    list_editable = ['label', 'sort_order', 'is_active']
+    ordering = ['sort_order']
+
+
+@admin.register(BeverageTypeOption)
+class BeverageTypeOptionAdmin(admin.ModelAdmin):
     list_display = ['value', 'label', 'sort_order', 'is_active']
     list_editable = ['label', 'sort_order', 'is_active']
     ordering = ['sort_order']

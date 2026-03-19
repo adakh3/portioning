@@ -1,5 +1,4 @@
 from django.contrib.contenttypes.models import ContentType
-from django.db.models import Count, Q
 
 from bookings.models import Lead, ProductLine
 from bookings.models.activity import ActivityLog
@@ -8,8 +7,8 @@ from bookings.models.activity import ActivityLog
 def run_round_robin(triggered_by_user, org=None):
     """
     Auto-assign unassigned, non-terminal leads to salespeople by product line.
-    Uses count-based fairness: the salesperson with the fewest active leads
-    in that product line gets the next lead.
+    Uses strict round-robin: a persistent index on each ProductLine tracks
+    whose turn is next, regardless of current load.
 
     Returns dict with assigned, skipped_no_product, skipped_no_staff counts.
     """
@@ -40,30 +39,27 @@ def run_round_robin(triggered_by_user, org=None):
         leads_by_product.setdefault(lead.product_id, []).append(lead)
 
     for product_id, leads in leads_by_product.items():
-        # Get active salespeople for this product line
+        product_line = ProductLine.objects.get(pk=product_id, organisation=org)
+
+        # Get active salespeople for this product line, ordered by pk for stable ordering
         salespeople = list(
-            ProductLine.objects.get(pk=product_id, organisation=org)
-            .salespeople
+            product_line.salespeople
             .filter(is_active=True)
-            .annotate(
-                active_lead_count=Count(
-                    'assigned_leads',
-                    filter=Q(assigned_leads__product_id=product_id)
-                    & ~Q(assigned_leads__status__in=terminal_statuses),
-                )
-            )
-            .order_by('active_lead_count', 'pk')
+            .order_by('pk')
         )
 
         if not salespeople:
             skipped_no_staff += len(leads)
             continue
 
-        for i, lead in enumerate(leads):
-            sp = salespeople[i % len(salespeople)]
+        idx = product_line.round_robin_index
+
+        for lead in leads:
+            sp = salespeople[idx % len(salespeople)]
             lead.assigned_to = sp
             lead.save(update_fields=['assigned_to'])
             assigned_count += 1
+            idx += 1
 
             sp_name = f"{sp.first_name} {sp.last_name}".strip() or sp.email
             activity_logs.append(ActivityLog(
@@ -76,6 +72,10 @@ def run_round_robin(triggered_by_user, org=None):
                 description=f"Auto-assigned to {sp_name} via round-robin",
                 user=triggered_by_user,
             ))
+
+        # Persist the updated index
+        product_line.round_robin_index = idx
+        product_line.save(update_fields=['round_robin_index'])
 
     if activity_logs:
         ActivityLog.objects.bulk_create(activity_logs)

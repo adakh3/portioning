@@ -1,4 +1,5 @@
 import useSWR, { mutate } from "swr";
+import { useCallback, useRef, useState } from "react";
 import {
   api,
   Account,
@@ -6,6 +7,8 @@ import {
   Venue,
   Lead,
   LeadFilters,
+  PaginatedResponse,
+  KanbanResponse,
   Quote,
   EventData,
   Dish,
@@ -103,6 +106,27 @@ export function useLostReasons() {
   });
 }
 
+export function useMealTypes() {
+  return useSWR<ChoiceOption[]>("meal-types", () => api.getMealTypes(), {
+    dedupingInterval: 300000,
+    revalidateOnFocus: false,
+  });
+}
+
+export function useArrangementTypes() {
+  return useSWR<ChoiceOption[]>("arrangement-types", () => api.getArrangementTypes(), {
+    dedupingInterval: 300000,
+    revalidateOnFocus: false,
+  });
+}
+
+export function useBeverageTypes() {
+  return useSWR<ChoiceOption[]>("beverage-types", () => api.getBeverageTypes(), {
+    dedupingInterval: 300000,
+    revalidateOnFocus: false,
+  });
+}
+
 export function useUsers() {
   return useSWR<AuthUser[]>("users", () => api.getUsers(), {
     dedupingInterval: 60000,
@@ -140,11 +164,12 @@ export function useEvents(params?: {
   status?: string;
   date_from?: string;
   date_to?: string;
+  page_size?: number;
 }) {
   const key = params?.status
     ? `events-status-${params.status}`
     : params?.date_from
-      ? `events-from-${params.date_from}`
+      ? `events-from-${params.date_from}${params.page_size ? `-ps${params.page_size}` : ""}`
       : "events";
   return useSWR<EventData[]>(key, () => api.getEvents(params));
 }
@@ -163,7 +188,7 @@ export function useLead(id: number | null) {
 export function useLeads(filters?: LeadFilters) {
   const qs = filters
     ? Object.entries(filters)
-        .filter(([, v]) => v)
+        .filter(([, v]) => v != null && v !== "")
         .map(([k, v]) => `${k}=${v}`)
         .sort()
         .join("&")
@@ -172,14 +197,127 @@ export function useLeads(filters?: LeadFilters) {
   return useSWR<Lead[]>(key, () => api.getLeads(filters));
 }
 
+/** Paginated leads — returns { data, count, hasMore } for a specific page. */
+export function useLeadsPaginated(filters?: LeadFilters, paused?: boolean) {
+  const qs = filters
+    ? Object.entries(filters)
+        .filter(([, v]) => v != null && v !== "")
+        .map(([k, v]) => `${k}=${v}`)
+        .sort()
+        .join("&")
+    : "";
+  const key = paused ? null : (qs ? `leads-paginated?${qs}` : "leads-paginated");
+  return useSWR<PaginatedResponse<Lead>>(key, () => api.getLeadsPaginated(filters));
+}
+
+/** Fetch leads for a single Kanban column with lazy "Load more". */
+export function useLeadsByStatus(
+  status: string,
+  filters?: LeadFilters,
+  pageSize: number = 20,
+  paused?: boolean,
+) {
+  const qs = filters
+    ? Object.entries(filters)
+        .filter(([, v]) => v != null && v !== "")
+        .map(([k, v]) => `${k}=${v}`)
+        .sort()
+        .join("&")
+    : "";
+  const activeKey = `leads-col-${status}${qs ? `?${qs}` : ""}-ps${pageSize}`;
+  const key = paused ? null : activeKey;
+
+  // SWR fetches page 1
+  const { data, error, isLoading, mutate: mutateSWR } = useSWR<PaginatedResponse<Lead>>(
+    key,
+    () => api.getLeadsPaginated({ ...filters, status, page_size: pageSize, page: 1 }),
+  );
+
+  // Extra pages accumulated locally
+  const [extraLeads, setExtraLeads] = useState<Lead[]>([]);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const pageRef = useRef(1);
+
+  // Reset extras when SWR data changes (filters changed, revalidation, etc.)
+  const prevKeyRef = useRef(key);
+  if (prevKeyRef.current !== key) {
+    prevKeyRef.current = key;
+    setExtraLeads([]);
+    pageRef.current = 1;
+  }
+
+  const allLeads = [...(data?.results || []), ...extraLeads];
+  const count = data?.count ?? 0;
+  const hasMore = allLeads.length < count;
+
+  const loadMore = useCallback(async () => {
+    if (loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    try {
+      const nextPage = pageRef.current + 1;
+      const resp = await api.getLeadsPaginated({ ...filters, status, page_size: pageSize, page: nextPage });
+      pageRef.current = nextPage;
+      setExtraLeads((prev) => [...prev, ...resp.results]);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [loadingMore, hasMore, filters, status, pageSize]);
+
+  const revalidateColumn = useCallback(() => {
+    setExtraLeads([]);
+    pageRef.current = 1;
+    mutateSWR();
+  }, [mutateSWR]);
+
+  return { leads: allLeads, count, hasMore, loadMore, loadingMore, isLoading, error, revalidateColumn };
+}
+
+/** Single-endpoint Kanban data — returns all columns in one API call. */
+export function useKanbanData(filters?: LeadFilters, paused?: boolean) {
+  const qs = filters
+    ? Object.entries(filters)
+        .filter(([, v]) => v != null && v !== "")
+        .map(([k, v]) => `${k}=${v}`)
+        .sort()
+        .join("&")
+    : "";
+  const key = paused ? null : (qs ? `leads-kanban?${qs}` : "leads-kanban");
+
+  const { data, error, isLoading, mutate: mutateSWR } = useSWR<KanbanResponse>(
+    key,
+    () => api.getLeadsKanban(filters),
+  );
+
+  const revalidate = useCallback(() => {
+    mutateSWR();
+  }, [mutateSWR]);
+
+  return { data, error, isLoading, revalidate, swrKey: key };
+}
+
+/** Fetch ALL leads (page_size=all) — used by Kanban view. */
+export function useAllLeads(filters?: LeadFilters) {
+  const qs = filters
+    ? Object.entries(filters)
+        .filter(([, v]) => v)
+        .map(([k, v]) => `${k}=${v}`)
+        .sort()
+        .join("&")
+    : "";
+  const key = qs ? `all-leads?${qs}` : "all-leads";
+  return useSWR<Lead[]>(key, () => api.getAllLeads(filters));
+}
+
 export function useQuote(id: number | null) {
   return useSWR<Quote>(id ? `quote-${id}` : null, () => api.getQuote(id!));
 }
 
-export function useQuotes(status?: string) {
-  const key = status ? `quotes-${status}` : "quotes";
+export function useQuotes(status?: string, pageSize?: number) {
+  const key = status
+    ? `quotes-${status}${pageSize ? `-ps${pageSize}` : ""}`
+    : `quotes${pageSize ? `-ps${pageSize}` : ""}`;
   return useSWR<Quote[]>(key, () =>
-    api.getQuotes(status === "all" ? undefined : status)
+    api.getQuotes(status === "all" ? undefined : status, pageSize)
   );
 }
 

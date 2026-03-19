@@ -12,6 +12,7 @@ class ProductLine(models.Model):
         on_delete=models.CASCADE, related_name='product_lines',
     )
     is_active = models.BooleanField(default=True)
+    round_robin_index = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -40,6 +41,7 @@ class Lead(models.Model):
     guest_estimate = models.IntegerField(null=True, blank=True)
     budget = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     event_type = models.CharField(max_length=50, default='other')
+    meal_type = models.CharField(max_length=50, blank=True)
     service_style = models.CharField(max_length=50, blank=True)
     notes = models.TextField(blank=True)
     status = models.CharField(max_length=50, default='new')
@@ -84,10 +86,7 @@ class Lead(models.Model):
         ordering = ['-created_at']
 
     def __str__(self):
-        from bookings.models.choices import EventTypeOption, LeadStatusOption
-        et_label = EventTypeOption.objects.filter(value=self.event_type, organisation=self.organisation).values_list('label', flat=True).first() or self.event_type
-        st_label = LeadStatusOption.objects.filter(value=self.status, organisation=self.organisation).values_list('label', flat=True).first() or self.status
-        return f"{self.contact_name} — {et_label} ({st_label})"
+        return f"{self.contact_name} — {self.event_type} ({self.status})"
 
     def can_transition_to(self, new_status):
         from bookings.models.choices import LeadStatusOption

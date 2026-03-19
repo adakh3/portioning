@@ -16,8 +16,8 @@ source venv/bin/activate
 cd backend
 pip install -r requirements.txt
 python manage.py migrate
-python manage.py loaddata seed.json           # Reference data (also runs in prod)
-python manage.py loaddata test_fixtures.json  # Demo data (local dev only — never deployed)
+python manage.py loaddata seed.json           # Reference data (dev only — not deployed to prod)
+python manage.py loaddata test_fixtures.json  # Demo data (dev only — never deployed)
 python manage.py runserver
 ```
 
@@ -41,8 +41,10 @@ npm run dev
 
 - **Any change to calculation logic** (engine, pools, categories, baselines, ceilings) **must also update PORTIONING_LOGIC.md** to keep documentation in sync with the code.
 - **Any change to PORTIONING_LOGIC.md** must also update **`frontend/app/help/page.tsx`** — the help page is static content distilled from the logic doc.
-- **Any change to seed data** (new dishes, menus, categories, rules, cost data, surcharges, etc.) **must regenerate `backend/seed.json`** by running: `cd backend && python manage.py dumpdata users.Organisation dishes menus rules bookings.OrgSettings bookings.ProductLine bookings.EventTypeOption bookings.SourceOption bookings.ServiceStyleOption bookings.LeadStatusOption bookings.LostReasonOption staff.LaborRole staff.AllocationRule equipment.EquipmentItem --indent 2 -o seed.json`
-- **`seed.json`** contains only production reference/config data. **`test_fixtures.json`** contains demo transactional data (accounts, leads, quotes, events) and must NEVER be deployed to prod.
+- **Any change to seed data** (new dishes, menus, categories, rules, cost data, surcharges, etc.) **must regenerate `backend/seed.json`** by running: `cd backend && python manage.py dumpdata users.Organisation dishes menus rules bookings.OrgSettings bookings.ProductLine staff.LaborRole staff.AllocationRule equipment.EquipmentItem --indent 2 -o seed.json`
+- **Seeding strategy**: All choice options (including workflow states like LeadStatusOption and LostReasonOption) are seeded **only when a new org is created**, via the `post_save` signal in `users/signals.py`. No data migrations should bulk-seed choice options. Non-workflow choice options (event types, sources, service styles, meal types, arrangements, beverages) are org-specific and configured via admin UI only.
+- **`seed.json`** contains dev reference/config data (dishes, menus, rules, settings, labor roles, equipment) and is **not deployed to prod**. **`test_fixtures.json`** contains demo transactional data (accounts, leads, quotes, events) and must NEVER be deployed to prod.
+- **New org setup**: A `post_save` signal on `Organisation` (`users/signals.py`) auto-creates `OrgSettings` with defaults and seeds workflow options (lead statuses + lost reasons). No manual setup needed for new orgs.
 - **Any new npm package** must be committed with both `frontend/package.json` and `frontend/package-lock.json` so deployments can install it.
 
 ## Running Tests

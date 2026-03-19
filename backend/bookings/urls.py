@@ -4,7 +4,7 @@ from bookings.views import (
     AccountListCreateView, AccountDetailView,
     ContactListCreateView, ContactDetailView,
     VenueListCreateView, VenueDetailView,
-    UserListView, ProductLineListView, LeadListCreateView, LeadDetailView, LeadTransitionView, LeadCreateQuoteView, LeadWonView, LeadCreateEventView, LeadBulkUpdateView, LeadActivityView, LeadAutoAssignView,
+    UserListView, ProductLineListView, LeadListCreateView, LeadDetailView, LeadTransitionView, LeadCreateQuoteView, LeadWonView, LeadCreateEventView, LeadBulkUpdateView, LeadActivityView, LeadAutoAssignView, LeadKanbanView,
     DashboardStatsView,
     QuoteListCreateView, QuoteDetailView, QuoteTransitionView,
     QuoteLineItemListCreateView, QuoteLineItemDetailView,
@@ -14,7 +14,9 @@ from bookings.views import (
     SiteSettingsView,
     EventTypeOptionListView, SourceOptionListView,
     ServiceStyleOptionListView, LeadStatusOptionListView,
-    LostReasonOptionListView,
+    LostReasonOptionListView, MealTypeOptionListView,
+    ArrangementTypeOptionListView,
+    BeverageTypeOptionListView,
     ReminderListCreateView, ReminderDetailView,
     LeadReminderListCreateView, ReminderCountsView,
     WhatsAppMessageListView, WhatsAppSendView, TwilioWebhookView,
@@ -37,6 +39,7 @@ urlpatterns = [
     # Product Lines & Leads
     path('bookings/product-lines/', ProductLineListView.as_view(), name='product-line-list'),
     path('bookings/leads/', LeadListCreateView.as_view(), name='lead-list'),
+    path('bookings/leads/kanban/', LeadKanbanView.as_view(), name='lead-kanban'),
     path('bookings/leads/auto-assign/', LeadAutoAssignView.as_view(), name='lead-auto-assign'),
     path('bookings/leads/bulk/', LeadBulkUpdateView.as_view(), name='lead-bulk-update'),
     path('bookings/leads/<int:pk>/', LeadDetailView.as_view(), name='lead-detail'),
@@ -76,6 +79,9 @@ urlpatterns = [
     path('bookings/service-styles/', ServiceStyleOptionListView.as_view(), name='service-style-list'),
     path('bookings/lead-statuses/', LeadStatusOptionListView.as_view(), name='lead-status-list'),
     path('bookings/lost-reasons/', LostReasonOptionListView.as_view(), name='lost-reason-list'),
+    path('bookings/meal-types/', MealTypeOptionListView.as_view(), name='meal-type-list'),
+    path('bookings/arrangement-types/', ArrangementTypeOptionListView.as_view(), name='arrangement-type-list'),
+    path('bookings/beverage-types/', BeverageTypeOptionListView.as_view(), name='beverage-type-list'),
 
     # WhatsApp
     path('bookings/leads/<int:lead_pk>/whatsapp/', WhatsAppMessageListView.as_view(), name='whatsapp-message-list'),

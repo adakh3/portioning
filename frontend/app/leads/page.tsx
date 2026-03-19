@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -18,7 +18,7 @@ import {
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { api, Lead, LeadFilters, AuthUser, ProductLine, ChoiceOption } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { useLeads, useUsers, useProductLines, useEventTypes, useLeadStatuses, useLostReasons, useDateFormat, revalidate } from "@/lib/hooks";
+import { useKanbanData, useLeadsPaginated, useUsers, useProductLines, useEventTypes, useLeadStatuses, useLostReasons, useDateFormat, revalidate } from "@/lib/hooks";
 import { formatDate } from "@/lib/dateFormat";
 import { Button } from "@/components/ui/button";
 import { ValidatedInput } from "@/components/ui/validated-input";
@@ -99,6 +99,7 @@ const columnFirstCollision: CollisionDetection = (args) => {
 
 function LeadCard({ lead, isDragging }: { lead: Lead; isDragging?: boolean }) {
   const router = useRouter();
+  const dateFormat = useDateFormat();
 
   return (
     <div
@@ -111,7 +112,7 @@ function LeadCard({ lead, isDragging }: { lead: Lead; isDragging?: boolean }) {
       <p className="font-medium text-sm text-foreground truncate">{lead.contact_name}</p>
       <p className="text-xs text-muted-foreground mt-1">
         {lead.event_type_display}
-        {lead.event_date && ` · ${lead.event_date}`}
+        {lead.event_date && ` · ${formatDate(lead.event_date, dateFormat)}`}
       </p>
       {lead.guest_estimate && (
         <p className="text-xs text-muted-foreground mt-0.5">{lead.guest_estimate} guests</p>
@@ -157,21 +158,35 @@ function KanbanColumn({
   color,
   badge,
   leads,
+  count,
+  hasMore,
+  loadMore,
+  loadingMore,
+  optimisticLeads,
 }: {
   status: string;
   label: string;
   color: string;
   badge: string;
   leads: Lead[];
+  count: number;
+  hasMore?: boolean;
+  loadMore?: () => void;
+  loadingMore?: boolean;
+  optimisticLeads?: Lead[];
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: status });
+  // Merge optimistic leads (dropped into this column) with server leads
+  const allLeads = optimisticLeads
+    ? [...optimisticLeads.filter((ol) => !leads.some((l) => l.id === ol.id)), ...leads]
+    : leads;
 
   return (
-    <div className="flex flex-col min-w-[260px] w-[260px] flex-shrink-0">
+    <div className="flex flex-col min-w-[200px] flex-1">
       <div className={cn(color, "rounded-t-lg px-3 py-2 flex items-center justify-between")}>
         <span className={cn("text-sm font-semibold", color === "bg-muted" ? "text-muted-foreground" : "text-white")}>{label}</span>
         <span className={cn("text-xs font-medium px-1.5 py-0.5 rounded-full", badge)}>
-          {leads.length}
+          {count}
         </span>
       </div>
       <div
@@ -181,11 +196,20 @@ function KanbanColumn({
           isOver && "bg-accent ring-2 ring-ring ring-inset"
         )}
       >
-        {leads.map((lead) => (
+        {allLeads.map((lead) => (
           <DraggableCard key={lead.id} lead={lead} />
         ))}
-        {leads.length === 0 && (
+        {allLeads.length === 0 && (
           <p className="text-xs text-muted-foreground text-center py-8">No leads</p>
+        )}
+        {hasMore && loadMore && (
+          <button
+            onClick={loadMore}
+            disabled={loadingMore}
+            className="w-full text-xs text-primary hover:text-primary/80 py-2 text-center disabled:opacity-50"
+          >
+            {loadingMore ? "Loading..." : `Load more (${count - allLeads.length} remaining)`}
+          </button>
         )}
       </div>
     </div>
@@ -220,6 +244,7 @@ function LeadsContent() {
   const viewMode = (viewModeRaw === "table" ? "table" : "kanban") as "kanban" | "table";
   const [search, setSearch] = useState("");
   const [filterAssigned, setFilterAssigned] = useQueryState("assigned", "");
+  const [filterStatus, setFilterStatus] = useQueryState("status", "");
   const [filterProduct, setFilterProduct] = useQueryState("product", "");
   const [filterEventType, setFilterEventType] = useQueryState("eventType", "");
   const [filterDateFrom, setFilterDateFrom] = useQueryState("dateFrom", "");
@@ -236,9 +261,13 @@ function LeadsContent() {
   const [bulkLoading, setBulkLoading] = useState(false);
 
   // Kanban state
-  const [leads, setLeads] = useState<Lead[]>([]);
   const [activeLead, setActiveLead] = useState<Lead | null>(null);
   const [toast, setToast] = useState("");
+  // Optimistic moves: leads temporarily added to a column after drag
+  const [optimisticMoves, setOptimisticMoves] = useState<Record<string, Lead[]>>({});
+
+  // Table pagination
+  const [tablePage, setTablePage] = useState(1);
 
   // Lost reason dialog state
   const [pendingLostLeadId, setPendingLostLeadId] = useState<number | null>(null);
@@ -250,10 +279,11 @@ function LeadsContent() {
   const [pendingWonLeadId, setPendingWonLeadId] = useState<number | null>(null);
   const [wonSaving, setWonSaving] = useState(false);
 
-  // Build filters for API
-  const filters: LeadFilters = useMemo(() => {
+  // Build filters for API (without status — Kanban columns add their own)
+  const baseFilters: LeadFilters = useMemo(() => {
     const f: LeadFilters = {};
     if (filterAssigned) f.assigned_to = filterAssigned;
+    if (filterStatus) f.status = filterStatus;
     if (filterProduct) f.product = filterProduct;
     if (filterEventType) f.event_type = filterEventType;
     if (filterDateFrom) f.date_from = filterDateFrom;
@@ -262,9 +292,80 @@ function LeadsContent() {
     if (filterLeadDateTo) f.lead_date_to = filterLeadDateTo;
     if (ordering) f.ordering = ordering;
     return f;
-  }, [filterAssigned, filterProduct, filterEventType, filterDateFrom, filterDateTo, filterLeadDateFrom, filterLeadDateTo, ordering]);
+  }, [filterAssigned, filterStatus, filterProduct, filterEventType, filterDateFrom, filterDateTo, filterLeadDateFrom, filterLeadDateTo, ordering]);
 
-  const { data: fetchedLeads, error: loadError, isLoading: loading } = useLeads(filters);
+  // Alias for table use
+  const filters = baseFilters;
+
+  // ── Single-endpoint Kanban data (paused when in table view) ──
+  const kanbanPaused = viewMode !== "kanban";
+  const { data: kanbanData, isLoading: kanbanIsLoading, revalidate: revalidateKanban } = useKanbanData(baseFilters, kanbanPaused);
+
+  // Per-column "Load more" extra leads state
+  const [extraLeads, setExtraLeads] = useState<Record<string, Lead[]>>({});
+  const [loadingMoreCol, setLoadingMoreCol] = useState<Record<string, boolean>>({});
+  const pageRefs = useRef<Record<string, number>>({});
+
+  // Reset extras when kanban data changes (filters changed, revalidation)
+  const prevKanbanKeyRef = useRef<string | null>(null);
+  const kanbanKeyStr = JSON.stringify(baseFilters);
+  if (prevKanbanKeyRef.current !== kanbanKeyStr) {
+    prevKanbanKeyRef.current = kanbanKeyStr;
+    setExtraLeads({});
+    pageRefs.current = {};
+  }
+
+  const loadMoreForColumn = useCallback(async (colStatus: string) => {
+    if (loadingMoreCol[colStatus]) return;
+    setLoadingMoreCol((prev) => ({ ...prev, [colStatus]: true }));
+    try {
+      const nextPage = (pageRefs.current[colStatus] || 1) + 1;
+      const resp = await api.getLeadsPaginated({ ...baseFilters, status: colStatus, page_size: 20, page: nextPage });
+      pageRefs.current[colStatus] = nextPage;
+      setExtraLeads((prev) => ({
+        ...prev,
+        [colStatus]: [...(prev[colStatus] || []), ...resp.results],
+      }));
+    } finally {
+      setLoadingMoreCol((prev) => ({ ...prev, [colStatus]: false }));
+    }
+  }, [loadingMoreCol, baseFilters]);
+
+  // Build columnData from kanban response + extra leads
+  const columnData = useMemo(() => {
+    const result: Record<string, { leads: Lead[]; count: number; hasMore: boolean; loadMore: () => void; loadingMore: boolean }> = {};
+    for (const col of COLUMNS) {
+      const colInfo = kanbanData?.columns[col.status];
+      const serverLeads = colInfo?.results || [];
+      const extras = extraLeads[col.status] || [];
+      const allLeads = [...serverLeads, ...extras];
+      const count = colInfo?.count ?? 0;
+      result[col.status] = {
+        leads: allLeads,
+        count,
+        hasMore: allLeads.length < count,
+        loadMore: () => loadMoreForColumn(col.status),
+        loadingMore: !!loadingMoreCol[col.status],
+      };
+    }
+    return result;
+  }, [kanbanData, extraLeads, loadingMoreCol, loadMoreForColumn]);
+
+  // ── Table data (paginated) ──
+  const tableFilters: LeadFilters = useMemo(
+    () => ({ ...baseFilters, page_size: 50, page: tablePage }),
+    [baseFilters, tablePage],
+  );
+  const { data: tableData, error: tableError, isLoading: tableLoading } = useLeadsPaginated(tableFilters, viewMode !== "table");
+  const tableLeads = tableData?.results || [];
+  const tableCount = tableData?.count ?? 0;
+  const tableTotalPages = Math.max(1, Math.ceil(tableCount / 50));
+
+  // Reset table page when filters change
+  useEffect(() => {
+    setTablePage(1);
+  }, [filterAssigned, filterStatus, filterProduct, filterEventType, filterDateFrom, filterDateTo, filterLeadDateFrom, filterLeadDateTo, ordering]);
+
   const { data: users } = useUsers();
   const { data: productLines } = useProductLines();
   const { data: eventTypes = [] } = useEventTypes();
@@ -276,39 +377,49 @@ function LeadsContent() {
   );
 
   useEffect(() => {
-    if (fetchedLeads) setLeads(fetchedLeads);
-  }, [fetchedLeads]);
-
-  useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(""), 3000);
     return () => clearTimeout(t);
   }, [toast]);
 
-  // Clear selection when data changes
+  // Clear selection when table data changes
   useEffect(() => {
     setSelectedIds(new Set());
-  }, [fetchedLeads]);
+  }, [tableData]);
 
-  // Client-side text search filter (applied on top of server filters)
+  // Client-side text search filter for table
   const filtered = search
-    ? leads.filter((l) =>
+    ? tableLeads.filter((l) =>
         l.contact_name.toLowerCase().includes(search.toLowerCase()) ||
         l.event_type_display.toLowerCase().includes(search.toLowerCase()) ||
         l.contact_email.toLowerCase().includes(search.toLowerCase()) ||
         l.contact_phone?.toLowerCase().includes(search.toLowerCase()) ||
         l.account_name?.toLowerCase().includes(search.toLowerCase())
       )
-    : leads;
+    : tableLeads;
 
-  const leadsByStatus = COLUMNS.reduce<Record<string, Lead[]>>((acc, col) => {
-    acc[col.status] = filtered.filter((l) => l.status === col.status);
-    return acc;
-  }, {});
+  // Kanban loading state
+  const kanbanLoading = viewMode === "kanban" && kanbanIsLoading;
+  const loadError = viewMode === "kanban" ? undefined : tableError;
+  const loading = viewMode === "kanban" ? kanbanLoading : tableLoading;
 
-  const hasFilters = filterAssigned || filterProduct || filterEventType || filterDateFrom || filterDateTo || filterLeadDateFrom || filterLeadDateTo;
+  function revalidateAllLeads() {
+    // Revalidate kanban (single key) + table
+    revalidateKanban();
+    setExtraLeads({});
+    pageRefs.current = {};
+    revalidate("leads-paginated");
+    const qs = Object.entries(baseFilters)
+      .filter(([, v]) => v != null && v !== "")
+      .map(([k, v]) => `${k}=${v}`)
+      .sort()
+      .join("&");
+    if (qs) revalidate(`leads-paginated?${qs}`);
+  }
 
-  const clearQueryFilters = useClearQueryState(["assigned", "product", "eventType", "dateFrom", "dateTo", "leadDateFrom", "leadDateTo"]);
+  const hasFilters = filterAssigned || filterStatus || filterProduct || filterEventType || filterDateFrom || filterDateTo || filterLeadDateFrom || filterLeadDateTo;
+
+  const clearQueryFilters = useClearQueryState(["assigned", "status", "product", "eventType", "dateFrom", "dateTo", "leadDateFrom", "leadDateTo"]);
   function clearFilters() {
     clearQueryFilters();
     setSearch("");
@@ -354,14 +465,7 @@ function LeadsContent() {
       setSelectedIds(new Set());
       setBulkAction("");
       setBulkValue("");
-      revalidate("leads");
-      // Revalidate all filtered lead keys
-      const qs = Object.entries(filters)
-        .filter(([, v]) => v)
-        .map(([k, v]) => `${k}=${v}`)
-        .sort()
-        .join("&");
-      if (qs) revalidate(`leads?${qs}`);
+      revalidateAllLeads();
       setToast(`${action === "delete" ? "Deleted" : "Updated"} ${selectedIds.size} lead(s)`);
     } catch (e) {
       setToast(e instanceof Error ? e.message : "Bulk action failed");
@@ -373,8 +477,16 @@ function LeadsContent() {
 
   // ── Kanban drag ──
 
+  function findLeadById(id: string): Lead | undefined {
+    for (const col of Object.values(columnData)) {
+      const found = col.leads.find((l) => l.id.toString() === id);
+      if (found) return found;
+    }
+    return undefined;
+  }
+
   function handleDragStart(event: DragStartEvent) {
-    const lead = leads.find((l) => l.id.toString() === event.active.id);
+    const lead = findLeadById(event.active.id as string);
     setActiveLead(lead || null);
   }
 
@@ -383,7 +495,7 @@ function LeadsContent() {
     const { active, over } = event;
     if (!over) return;
 
-    const lead = leads.find((l) => l.id.toString() === active.id);
+    const lead = findLeadById(active.id as string);
     if (!lead) return;
 
     const targetStatus = over.id as string;
@@ -401,27 +513,35 @@ function LeadsContent() {
       return;
     }
 
-    setLeads((prev) =>
-      prev.map((l) =>
-        l.id === lead.id ? { ...l, status: targetStatus } : l
-      )
-    );
+    // Optimistic: show lead in target column immediately
+    const movedLead = { ...lead, status: targetStatus };
+    setOptimisticMoves((prev) => ({
+      ...prev,
+      [targetStatus]: [...(prev[targetStatus] || []), movedLead],
+    }));
 
     try {
       await api.transitionLead(lead.id, targetStatus);
-      revalidate("leads");
-      const qs = Object.entries(filters)
-        .filter(([, v]) => v)
-        .map(([k, v]) => `${k}=${v}`)
-        .sort()
-        .join("&");
-      if (qs) revalidate(`leads?${qs}`);
+      // Clear optimistic state and revalidate both source + target columns
+      setOptimisticMoves((prev) => {
+        const next = { ...prev };
+        if (next[targetStatus]) {
+          next[targetStatus] = next[targetStatus].filter((l) => l.id !== lead.id);
+          if (next[targetStatus].length === 0) delete next[targetStatus];
+        }
+        return next;
+      });
+      revalidateAllLeads();
     } catch (e: unknown) {
-      setLeads((prev) =>
-        prev.map((l) =>
-          l.id === lead.id ? { ...l, status: lead.status } : l
-        )
-      );
+      // Revert optimistic move
+      setOptimisticMoves((prev) => {
+        const next = { ...prev };
+        if (next[targetStatus]) {
+          next[targetStatus] = next[targetStatus].filter((l) => l.id !== lead.id);
+          if (next[targetStatus].length === 0) delete next[targetStatus];
+        }
+        return next;
+      });
       const msg = e instanceof Error ? e.message : "Transition failed";
       setToast(msg);
     }
@@ -430,30 +550,13 @@ function LeadsContent() {
   async function handleConfirmLost() {
     if (!pendingLostLeadId || !lostReasonId) return;
     setLostSaving(true);
-    setLeads((prev) =>
-      prev.map((l) =>
-        l.id === pendingLostLeadId ? { ...l, status: "lost" } : l
-      )
-    );
     try {
       await api.transitionLead(pendingLostLeadId, "lost", {
         lost_reason_option: lostReasonId,
         lost_notes: lostNotesInput,
       });
-      revalidate("leads");
-      const qs = Object.entries(filters)
-        .filter(([, v]) => v)
-        .map(([k, v]) => `${k}=${v}`)
-        .sort()
-        .join("&");
-      if (qs) revalidate(`leads?${qs}`);
+      revalidateAllLeads();
     } catch (e: unknown) {
-      setLeads((prev) =>
-        prev.map((l) => {
-          const original = fetchedLeads?.find((fl) => fl.id === l.id);
-          return l.id === pendingLostLeadId && original ? { ...l, status: original.status } : l;
-        })
-      );
       setToast(e instanceof Error ? e.message : "Failed to mark lost");
     } finally {
       setPendingLostLeadId(null);
@@ -466,30 +569,13 @@ function LeadsContent() {
   async function handleConfirmWon(createEvent: boolean) {
     if (!pendingWonLeadId) return;
     setWonSaving(true);
-    setLeads((prev) =>
-      prev.map((l) =>
-        l.id === pendingWonLeadId ? { ...l, status: "won" } : l
-      )
-    );
     try {
       const updated = await api.markLeadWon(pendingWonLeadId, { create_event: createEvent });
-      revalidate("leads");
-      const qs = Object.entries(filters)
-        .filter(([, v]) => v)
-        .map(([k, v]) => `${k}=${v}`)
-        .sort()
-        .join("&");
-      if (qs) revalidate(`leads?${qs}`);
+      revalidateAllLeads();
       if (createEvent && updated.won_event) {
         router.push(`/events/${updated.won_event}`);
       }
     } catch (e: unknown) {
-      setLeads((prev) =>
-        prev.map((l) => {
-          const original = fetchedLeads?.find((fl) => fl.id === l.id);
-          return l.id === pendingWonLeadId && original ? { ...l, status: original.status } : l;
-        })
-      );
       setToast(e instanceof Error ? e.message : "Failed to mark won");
     } finally {
       setPendingWonLeadId(null);
@@ -497,7 +583,7 @@ function LeadsContent() {
     }
   }
 
-  if (loadError && !leads.length) return <p className="text-destructive">Error: {loadError.message}</p>;
+  if (loadError) return <p className="text-destructive">Error: {loadError.message}</p>;
 
   return (
     <div className="flex flex-col h-full">
@@ -565,6 +651,7 @@ function LeadsContent() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="__all__">All Users</SelectItem>
+                <SelectItem value="unassigned">Unassigned</SelectItem>
                 {users?.map((u) => (
                   <SelectItem key={u.id} value={u.id.toString()}>
                     {u.first_name} {u.last_name}
@@ -573,6 +660,19 @@ function LeadsContent() {
               </SelectContent>
             </Select>
           )}
+          <Select value={filterStatus || "__all__"} onValueChange={(v) => setFilterStatus(v === "__all__" ? "" : v)}>
+            <SelectTrigger className="w-40">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">All Statuses</SelectItem>
+              {leadStatuses.map((s) => (
+                <SelectItem key={s.value} value={s.value}>
+                  {s.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Select value={filterProduct || "__all__"} onValueChange={(v) => setFilterProduct(v === "__all__" ? "" : v)}>
             <SelectTrigger className="w-40">
               <SelectValue placeholder="Product" />
@@ -750,16 +850,24 @@ function LeadsContent() {
           onDragEnd={handleDragEnd}
         >
           <div className="flex gap-3 overflow-x-auto pb-4 flex-1">
-            {COLUMNS.map((col) => (
-              <KanbanColumn
-                key={col.status}
-                status={col.status}
-                label={col.label}
-                color={col.color}
-                badge={col.badge}
-                leads={leadsByStatus[col.status] || []}
-              />
-            ))}
+            {COLUMNS.map((col) => {
+              const cd = columnData[col.status];
+              return (
+                <KanbanColumn
+                  key={col.status}
+                  status={col.status}
+                  label={col.label}
+                  color={col.color}
+                  badge={col.badge}
+                  leads={cd?.leads || []}
+                  count={cd?.count ?? 0}
+                  hasMore={cd?.hasMore}
+                  loadMore={cd?.loadMore}
+                  loadingMore={cd?.loadingMore}
+                  optimisticLeads={optimisticMoves[col.status]}
+                />
+              );
+            })}
           </div>
 
           <DragOverlay>
@@ -767,23 +875,52 @@ function LeadsContent() {
           </DragOverlay>
         </DndContext>
       ) : (
-        <LeadsTable
-          leads={filtered}
-          selectedIds={selectedIds}
-          ordering={ordering}
-          onToggleSelect={toggleSelect}
-          onToggleSelectAll={toggleSelectAll}
-          onToggleSort={toggleSort}
-          users={users || []}
-          productLines={productLines || []}
-          filters={filters}
-          onToast={setToast}
-          onOptimisticUpdate={(leadId, patch) =>
-            setLeads((prev) => prev.map((l) => l.id === leadId ? { ...l, ...patch } : l))
-          }
-          onMarkLost={(leadId) => setPendingLostLeadId(leadId)}
-          onMarkWon={(leadId) => setPendingWonLeadId(leadId)}
-        />
+        <>
+          <LeadsTable
+            leads={filtered}
+            selectedIds={selectedIds}
+            ordering={ordering}
+            onToggleSelect={toggleSelect}
+            onToggleSelectAll={toggleSelectAll}
+            onToggleSort={toggleSort}
+            users={users || []}
+            productLines={productLines || []}
+            filters={filters}
+            onToast={setToast}
+            onRevalidate={revalidateAllLeads}
+            onMarkLost={(leadId) => setPendingLostLeadId(leadId)}
+            onMarkWon={(leadId) => setPendingWonLeadId(leadId)}
+          />
+          {/* Pagination controls */}
+          {tableTotalPages > 1 && (
+            <div className="flex items-center justify-between mt-3 px-2">
+              <p className="text-sm text-muted-foreground">
+                {tableCount} lead{tableCount !== 1 ? "s" : ""} total
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={tablePage <= 1}
+                  onClick={() => setTablePage((p) => Math.max(1, p - 1))}
+                >
+                  Previous
+                </Button>
+                <span className="text-sm text-muted-foreground">
+                  Page {tablePage} of {tableTotalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={tablePage >= tableTotalPages}
+                  onClick={() => setTablePage((p) => Math.min(tableTotalPages, p + 1))}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       {/* Delete confirmation dialog */}
@@ -933,7 +1070,7 @@ function LeadsTable({
   productLines,
   filters,
   onToast,
-  onOptimisticUpdate,
+  onRevalidate,
   onMarkLost,
   onMarkWon,
 }: {
@@ -947,7 +1084,7 @@ function LeadsTable({
   productLines: ProductLine[];
   filters: LeadFilters;
   onToast: (msg: string) => void;
-  onOptimisticUpdate: (leadId: number, patch: Partial<Lead>) => void;
+  onRevalidate: () => void;
   onMarkLost: (leadId: number) => void;
   onMarkWon: (leadId: number) => void;
 }) {
@@ -973,13 +1110,7 @@ function LeadsTable({
     saving?.leadId === leadId && saving?.field === field;
 
   function revalidateLeads() {
-    revalidate("leads");
-    const qs = Object.entries(filters)
-      .filter(([, v]) => v)
-      .map(([k, v]) => `${k}=${v}`)
-      .sort()
-      .join("&");
-    if (qs) revalidate(`leads?${qs}`);
+    onRevalidate();
   }
 
   async function saveQuickAdd() {
@@ -1033,7 +1164,6 @@ function LeadsTable({
           onMarkWon(leadId);
           return;
         }
-        onOptimisticUpdate(leadId, { status: value });
         await api.transitionLead(leadId, value);
       } else if (field === "guest_estimate") {
         const parsed = value === "" ? null : parseInt(value, 10);
@@ -1041,33 +1171,18 @@ function LeadsTable({
           onToast("Invalid guest count");
           return;
         }
-        onOptimisticUpdate(leadId, { guest_estimate: parsed });
         await api.updateLead(leadId, { guest_estimate: parsed });
       } else if (field === "assigned_to") {
         const numVal = value === "" ? null : parseInt(value, 10);
-        const userName = users.find((u) => u.id === numVal);
-        onOptimisticUpdate(leadId, {
-          assigned_to: numVal,
-          assigned_to_name: userName ? `${userName.first_name} ${userName.last_name}` : null,
-        });
         await api.updateLead(leadId, { assigned_to: numVal } as Partial<Lead>);
       } else if (field === "product") {
         const numVal = value === "" ? null : parseInt(value, 10);
-        const prod = productLines.find((p) => p.id === numVal);
-        onOptimisticUpdate(leadId, {
-          product: numVal,
-          product_name: prod ? prod.name : null,
-        });
         await api.updateLead(leadId, { product: numVal } as Partial<Lead>);
       } else if (field === "event_type") {
-        const display = eventTypes.find((et) => et.value === value)?.label || value;
-        onOptimisticUpdate(leadId, { event_type: value, event_type_display: display });
         await api.updateLead(leadId, { event_type: value });
       } else if (field === "event_date") {
-        onOptimisticUpdate(leadId, { event_date: value || null });
         await api.updateLead(leadId, { event_date: value || null });
       } else {
-        onOptimisticUpdate(leadId, { [field]: value });
         await api.updateLead(leadId, { [field]: value });
       }
       revalidateLeads();
@@ -1451,13 +1566,12 @@ function LeadsTable({
                   />
                 </TableCell>
 
-                {/* Name - editable text */}
-                <EditableTextCell
-                  lead={lead}
-                  field="contact_name"
-                  display={lead.contact_name}
-                  className="font-medium"
-                />
+                {/* Name - links to lead detail */}
+                <TableCell className="font-medium">
+                  <Link href={`/leads/${lead.id}`} className="text-primary hover:underline" onClick={(e) => e.stopPropagation()}>
+                    {lead.contact_name}
+                  </Link>
+                </TableCell>
 
                 {/* Email - editable text */}
                 <EditableTextCell
@@ -1481,7 +1595,7 @@ function LeadsTable({
                 <EditableTextCell
                   lead={lead}
                   field="event_date"
-                  display={lead.event_date || "-"}
+                  display={lead.event_date ? formatDate(lead.event_date, dateFormat) : "-"}
                   type="date"
                 />
 
@@ -1490,7 +1604,7 @@ function LeadsTable({
                   className="hidden lg:table-cell"
                   onClick={() => router.push(`/leads/${lead.id}`)}
                 >
-                  {lead.lead_date || "-"}
+                  {lead.lead_date ? formatDate(lead.lead_date, dateFormat) : "-"}
                 </TableCell>
 
                 {/* Guests - editable number */}

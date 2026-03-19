@@ -7,7 +7,7 @@ from rest_framework.response import Response
 from bookings.permissions import is_salesperson
 from .models import Event, EventStatus
 from users.mixins import get_request_org, apply_org_filter, get_org_object_or_404
-from .serializers import EventSerializer
+from .serializers import EventSerializer, EventListSerializer
 
 
 def _auto_advance_event_statuses(org=None):
@@ -29,6 +29,11 @@ def _auto_advance_event_statuses(org=None):
 class EventListCreateView(generics.ListCreateAPIView):
     serializer_class = EventSerializer
 
+    def get_serializer_class(self):
+        if self.request.method == 'GET':
+            return EventListSerializer
+        return EventSerializer
+
     def perform_create(self, serializer):
         user = self.request.user if self.request.user.is_authenticated else None
         serializer.save(created_by=user, organisation=get_request_org(self.request))
@@ -36,12 +41,9 @@ class EventListCreateView(generics.ListCreateAPIView):
     def get_queryset(self):
         _auto_advance_event_statuses(org=get_request_org(self.request))
         qs = Event.objects.select_related(
-            'account', 'primary_contact', 'venue', 'based_on_template',
+            'account', 'primary_contact', 'venue', 'based_on_template', 'source_quote',
         ).prefetch_related(
-            'dishes', 'dish_comments', 'dish_comments__dish',
-            'shifts', 'shifts__staff_member', 'shifts__role',
-            'equipment_reservations', 'equipment_reservations__equipment',
-            'invoices', 'invoices__payments',
+            'dishes',
         )
         qs = apply_org_filter(qs, self.request)
 
@@ -68,7 +70,7 @@ class EventDetailView(generics.RetrieveUpdateDestroyAPIView):
     def get_queryset(self):
         _auto_advance_event_statuses(org=get_request_org(self.request))
         qs = Event.objects.select_related(
-            'account', 'primary_contact', 'venue', 'based_on_template',
+            'account', 'primary_contact', 'venue', 'based_on_template', 'source_quote',
         ).prefetch_related(
             'dishes', 'dish_comments', 'dish_comments__dish',
             'shifts', 'shifts__staff_member', 'shifts__role',
