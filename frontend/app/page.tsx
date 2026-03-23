@@ -407,11 +407,14 @@ export default function Dashboard() {
         return (
           <>
             {/* My Pipeline KPIs */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
               <StatCard label="Active Leads" value={myStats.kpis.total_active} />
               <StatCard label="Pipeline Value" value={pvDisplay} />
               <StatCard label="Conversion Rate" value={`${myStats.kpis.conversion_rate}%`} />
               <StatCard label="Avg Days to Convert" value={myStats.kpis.avg_days_to_convert ?? "-"} />
+              {(myStats.kpis.unread_whatsapp_leads ?? 0) > 0 && (
+                <StatCard label="Unread WhatsApp" value={myStats.kpis.unread_whatsapp_leads} />
+              )}
             </div>
 
             {/* My Leads by Status */}
@@ -532,7 +535,12 @@ export default function Dashboard() {
               {leads.map((l) => (
                 <li key={l.id}>
                   <Link href={`/leads/${l.id}`} className="block hover:bg-muted -mx-1 px-1 py-1 rounded transition-colors">
-                    <p className="text-sm font-medium text-foreground truncate">{l.contact_name}</p>
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-sm font-medium text-foreground truncate">{l.contact_name}</p>
+                      {l.has_unread_whatsapp && (
+                        <span className="flex-shrink-0 w-2 h-2 rounded-full bg-green-500" title="Unread WhatsApp message" />
+                      )}
+                    </div>
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                       <span>{l.event_type_display}</span>
                       {l.event_date && (

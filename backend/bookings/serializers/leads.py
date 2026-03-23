@@ -54,6 +54,8 @@ class LeadSerializer(serializers.ModelSerializer):
     won_event_name = serializers.SerializerMethodField()
     quotes = LeadQuoteSummarySerializer(many=True, read_only=True)
     created_by_name = serializers.SerializerMethodField()
+    unread_whatsapp_count = serializers.IntegerField(read_only=True, default=0)
+    has_unread_whatsapp = serializers.SerializerMethodField()
 
     class Meta:
         model = Lead
@@ -73,6 +75,7 @@ class LeadSerializer(serializers.ModelSerializer):
             'contacted_at', 'qualified_at', 'proposal_sent_at', 'won_at', 'lost_at',
             'created_at', 'updated_at',
             'quotes',
+            'unread_whatsapp_count', 'has_unread_whatsapp',
         ]
         read_only_fields = [
             'status', 'won_quote', 'won_event', 'created_by',
@@ -104,6 +107,9 @@ class LeadSerializer(serializers.ModelSerializer):
         if obj.assigned_to:
             return f"{obj.assigned_to.first_name} {obj.assigned_to.last_name}".strip() or obj.assigned_to.email
         return None
+
+    def get_has_unread_whatsapp(self, obj):
+        return getattr(obj, 'unread_whatsapp_count', 0) > 0
 
 
 class LeadListSerializer(LeadSerializer):

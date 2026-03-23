@@ -1063,6 +1063,13 @@ function LeadWhatsApp({ leadId, contactPhone, contactName, eventType, eventDate 
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
 
+  // Auto mark-as-read when this section is visible
+  useEffect(() => {
+    api.markWhatsAppRead(leadId).then(() => {
+      revalidate("leads");
+    }).catch(() => {});
+  }, [leadId]);
+
   const handleTemplateChange = (template: string) => {
     setSelectedTemplate(template);
     if (!template) { setBody(""); return; }

@@ -117,9 +117,15 @@ class LeadListCreateView(generics.ListCreateAPIView):
         log_activity(lead, 'created', user=user, description=f"Created lead \"{lead.contact_name}\"")
 
     def get_queryset(self):
+        from django.db.models import Count, Q
         qs = Lead.objects.select_related(
             'account', 'won_quote', 'won_event', 'product', 'assigned_to',
             'lost_reason_option',
+        ).annotate(
+            unread_whatsapp_count=Count(
+                'whatsapp_messages',
+                filter=Q(whatsapp_messages__direction='inbound', whatsapp_messages__read_at__isnull=True),
+            ),
         )
         qs = apply_org_filter(qs, self.request)
         return _apply_lead_filters(qs, self.request)
@@ -525,11 +531,17 @@ class LeadKanbanView(APIView):
     """GET /api/bookings/leads/kanban/ — All columns in a single response."""
 
     def get(self, request):
+        from django.db.models import Count, Q
         page_size = int(request.query_params.get('page_size', 20))
 
         qs = Lead.objects.select_related(
             'account', 'won_quote', 'won_event', 'product', 'assigned_to',
             'lost_reason_option',
+        ).annotate(
+            unread_whatsapp_count=Count(
+                'whatsapp_messages',
+                filter=Q(whatsapp_messages__direction='inbound', whatsapp_messages__read_at__isnull=True),
+            ),
         )
         qs = apply_org_filter(qs, request)
         qs = _apply_lead_filters(qs, request)

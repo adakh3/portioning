@@ -1,19 +1,10 @@
 import logging
 
-from django.conf import settings as django_settings
 from django.contrib.contenttypes.models import ContentType
 
 from bookings.models import OrgSettings, WhatsAppMessage, ActivityLog
 
 logger = logging.getLogger(__name__)
-
-
-def _get_twilio_credentials():
-    """Read Twilio credentials from platform-level Django settings / env vars."""
-    sid = getattr(django_settings, 'TWILIO_ACCOUNT_SID', '')
-    token = getattr(django_settings, 'TWILIO_AUTH_TOKEN', '')
-    number = getattr(django_settings, 'TWILIO_WHATSAPP_NUMBER', '')
-    return sid, token, number
 
 
 class WhatsAppService:
@@ -26,14 +17,14 @@ class WhatsAppService:
 
         Returns the WhatsAppMessage record.
         """
-        sid, token, whatsapp_number = _get_twilio_credentials()
-        if not (sid and token and whatsapp_number) or not self.org_settings.whatsapp_enabled:
+        s = self.org_settings
+        if not s.twilio_configured or not s.whatsapp_enabled:
             raise ValueError('WhatsApp is not configured for this organisation.')
 
         if not lead.contact_phone:
             raise ValueError('Lead has no contact phone number.')
 
-        from_phone = f'whatsapp:{whatsapp_number}'
+        from_phone = f'whatsapp:{s.twilio_whatsapp_number}'
         to_phone = lead.contact_phone
         if not to_phone.startswith('whatsapp:'):
             to_phone = f'whatsapp:{to_phone}'
@@ -52,7 +43,7 @@ class WhatsAppService:
 
         try:
             from twilio.rest import Client
-            client = Client(sid, token)
+            client = Client(s.twilio_account_sid, s.twilio_auth_token_encrypted)
             twilio_msg = client.messages.create(
                 body=body,
                 from_=from_phone,

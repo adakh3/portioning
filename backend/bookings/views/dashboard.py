@@ -68,6 +68,15 @@ class MyDashboardStatsView(APIView):
             for v in status_values
         ]
 
+        # Unread WhatsApp messages count (leads with at least one unread inbound message)
+        from bookings.models import WhatsAppMessage
+        unread_whatsapp_leads = WhatsAppMessage.objects.filter(
+            organisation=org,
+            lead__assigned_to=request.user,
+            direction='inbound',
+            read_at__isnull=True,
+        ).values('lead').distinct().count()
+
         return Response({
             'pipeline': pipeline,
             'pipeline_value': str(agg['pipeline_value'] or 0),
@@ -75,6 +84,7 @@ class MyDashboardStatsView(APIView):
                 'conversion_rate': conversion_rate,
                 'avg_days_to_convert': avg_days,
                 'total_active': total_active,
+                'unread_whatsapp_leads': unread_whatsapp_leads,
             },
             'status_columns': [{'value': v, 'label': status_labels[v]} for v in status_values],
             'status_distribution': status_distribution,
