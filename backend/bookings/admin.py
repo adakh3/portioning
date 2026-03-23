@@ -12,7 +12,7 @@ from users.models import User
 from .models import (
     Account, Contact, Venue, Lead, ProductLine, Quote, QuoteLineItem,
     Invoice, Payment,
-    SiteSettings,
+    SiteSettings, OrgSettings,
     EventTypeOption, SourceOption, ServiceStyleOption, LeadStatusOption,
     LostReasonOption, MealTypeOption, ArrangementTypeOption, BeverageTypeOption,
     ActivityLog,
@@ -385,6 +385,28 @@ class SiteSettingsAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+
+@admin.register(OrgSettings)
+class OrgSettingsAdmin(admin.ModelAdmin):
+    list_display = ['organisation', 'whatsapp_enabled', 'twilio_whatsapp_number', 'twilio_configured']
+    readonly_fields = ['twilio_configured']
+    fieldsets = (
+        (None, {
+            'fields': ('organisation', 'currency_symbol', 'currency_code', 'date_format', 'timezone'),
+        }),
+        ('Pricing', {
+            'fields': ('tax_label', 'default_tax_rate', 'default_price_per_head', 'target_food_cost_percentage', 'price_rounding_step'),
+        }),
+        ('WhatsApp / Twilio', {
+            'fields': ('whatsapp_enabled', 'twilio_account_sid', 'twilio_auth_token_encrypted', 'twilio_whatsapp_number', 'twilio_configured'),
+            'description': 'Configure Twilio credentials to enable WhatsApp for this organisation.',
+        }),
+    )
+
+    def twilio_configured(self, obj):
+        return obj.twilio_configured
+    twilio_configured.boolean = True
 
 
 # --- WhatsApp Messages ---
