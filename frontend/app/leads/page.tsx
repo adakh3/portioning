@@ -109,7 +109,12 @@ function LeadCard({ lead, isDragging }: { lead: Lead; isDragging?: boolean }) {
         isDragging && "shadow-lg ring-2 ring-ring opacity-90"
       )}
     >
-      <p className="font-medium text-sm text-foreground truncate">{lead.contact_name}</p>
+      <div className="flex items-center gap-1.5">
+        <p className="font-medium text-sm text-foreground truncate">{lead.contact_name}</p>
+        {lead.has_unread_whatsapp && (
+          <span className="flex-shrink-0 w-2 h-2 rounded-full bg-green-500" title="Unread WhatsApp message" />
+        )}
+      </div>
       <p className="text-xs text-muted-foreground mt-1">
         {lead.event_type_display}
         {lead.event_date && ` · ${formatDate(lead.event_date, dateFormat)}`}
@@ -1568,9 +1573,14 @@ function LeadsTable({
 
                 {/* Name - links to lead detail */}
                 <TableCell className="font-medium">
-                  <Link href={`/leads/${lead.id}`} className="text-primary hover:underline" onClick={(e) => e.stopPropagation()}>
-                    {lead.contact_name}
-                  </Link>
+                  <div className="flex items-center gap-1.5">
+                    <Link href={`/leads/${lead.id}`} className="text-primary hover:underline" onClick={(e) => e.stopPropagation()}>
+                      {lead.contact_name}
+                    </Link>
+                    {lead.has_unread_whatsapp && (
+                      <span className="flex-shrink-0 w-2 h-2 rounded-full bg-green-500" title="Unread WhatsApp message" />
+                    )}
+                  </div>
                 </TableCell>
 
                 {/* Email - editable text */}

@@ -8,6 +8,7 @@ class WhatsAppMessage(models.Model):
         ('sent', 'Sent'),
         ('delivered', 'Delivered'),
         ('read', 'Read'),
+        ('received', 'Received'),
         ('failed', 'Failed'),
         ('undelivered', 'Undelivered'),
     ]
@@ -46,6 +47,7 @@ class WhatsAppMessage(models.Model):
         on_delete=models.SET_NULL, related_name='whatsapp_messages_sent',
     )
 
+    read_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     updated_at = models.DateTimeField(auto_now=True)
 

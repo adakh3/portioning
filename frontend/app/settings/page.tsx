@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { api, ProductLine } from "@/lib/api";
+import { api, ProductLine, SiteSettingsData } from "@/lib/api";
 import { useSiteSettings, useProductLines, revalidate } from "@/lib/hooks";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -213,51 +213,132 @@ export default function SettingsPage() {
 
       {/* WhatsApp Integration */}
       <div className="space-y-6 max-w-2xl mt-8">
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>WhatsApp</CardTitle>
-              {settings?.twilio_configured ? (
-                <Badge variant="success">Available</Badge>
-              ) : (
-                <Badge variant="secondary">Not available</Badge>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent>
-            {waError && <p className="text-destructive mb-3 text-sm">{waError}</p>}
-            {waSuccess && <p className="text-success mb-3 text-sm">{waSuccess}</p>}
-            {settings?.twilio_configured ? (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-foreground">WhatsApp Messaging</p>
-                    <p className="text-xs text-muted-foreground">
-                      Send messages to leads directly via WhatsApp.
-                    </p>
-                  </div>
-                  <Button
-                    variant={waEnabled ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => handleWhatsAppToggle(!waEnabled)}
-                    disabled={waSaving}
-                  >
-                    {waSaving ? "Saving..." : waEnabled ? "Enabled" : "Disabled"}
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                WhatsApp messaging is not available. Contact your platform administrator to configure the messaging service.
-              </p>
-            )}
-          </CardContent>
-        </Card>
+        <WhatsAppSettings settings={settings} onSave={() => mutateSettings()} />
       </div>
     </div>
   );
 }
 
+
+function WhatsAppSettings({ settings, onSave }: { settings: SiteSettingsData | undefined; onSave: () => void }) {
+  const [sid, setSid] = useState("");
+  const [token, setToken] = useState("");
+  const [number, setNumber] = useState("");
+  const [enabled, setEnabled] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  useEffect(() => {
+    if (settings) {
+      setSid(settings.twilio_account_sid || "");
+      setNumber(settings.twilio_whatsapp_number || "");
+      setEnabled(settings.whatsapp_enabled || false);
+    }
+  }, [settings]);
+
+  async function handleSaveCredentials() {
+    setSaving(true);
+    setError("");
+    setSuccess("");
+    try {
+      const payload: Record<string, string> = {
+        twilio_account_sid: sid,
+        twilio_whatsapp_number: number,
+      };
+      if (token) payload.twilio_auth_token = token;
+      await api.updateSiteSettings(payload);
+      setToken("");
+      onSave();
+      setSuccess("WhatsApp connection saved.");
+      setTimeout(() => setSuccess(""), 3000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleToggle(val: boolean) {
+    setSaving(true);
+    setError("");
+    setSuccess("");
+    try {
+      await api.updateSiteSettings({ whatsapp_enabled: val });
+      setEnabled(val);
+      onSave();
+      setSuccess(val ? "WhatsApp enabled." : "WhatsApp disabled.");
+      setTimeout(() => setSuccess(""), 3000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <CardTitle>WhatsApp</CardTitle>
+          {settings?.twilio_configured ? (
+            <Badge variant="success">Configured</Badge>
+          ) : (
+            <Badge variant="secondary">Not configured</Badge>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {error && <p className="text-destructive text-sm">{error}</p>}
+        {success && <p className="text-success text-sm">{success}</p>}
+
+        <div className="space-y-3">
+          <p className="text-xs text-muted-foreground">
+            Connect your WhatsApp Business number to send and receive messages from leads.
+          </p>
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1">Account SID</label>
+            <Input value={sid} onChange={(e) => setSid(e.target.value)} placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1">Auth Token</label>
+            <Input
+              type="password"
+              value={token}
+              onChange={(e) => setToken(e.target.value)}
+              placeholder={settings?.twilio_configured ? "Leave blank to keep current" : "Enter auth token"}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1">WhatsApp Number</label>
+            <Input value={number} onChange={(e) => setNumber(e.target.value)} placeholder="+44 7700 900000" />
+            <p className="text-xs text-muted-foreground mt-1">The phone number linked to your WhatsApp Business account.</p>
+          </div>
+          <Button size="sm" onClick={handleSaveCredentials} disabled={saving || !sid || !number}>
+            {saving ? "Saving..." : "Save Connection"}
+          </Button>
+        </div>
+
+        {settings?.twilio_configured && (
+          <div className="flex items-center justify-between pt-3 border-t">
+            <div>
+              <p className="text-sm font-medium text-foreground">WhatsApp Messaging</p>
+              <p className="text-xs text-muted-foreground">Send messages to leads directly via WhatsApp.</p>
+            </div>
+            <Button
+              variant={enabled ? "default" : "outline"}
+              size="sm"
+              onClick={() => handleToggle(!enabled)}
+              disabled={saving}
+            >
+              {saving ? "Saving..." : enabled ? "Enabled" : "Disabled"}
+            </Button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 const DEFAULT_PALETTE = ["#EF4444", "#F59E0B", "#10B981", "#3B82F6", "#8B5CF6", "#EC4899", "#6366F1", "#14B8A6"];
 

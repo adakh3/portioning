@@ -23,5 +23,5 @@ from .reminders import (
     ReminderListCreateView, ReminderDetailView,
     LeadReminderListCreateView, ReminderCountsView,
 )
-from .whatsapp import WhatsAppMessageListView, WhatsAppSendView, TwilioWebhookView
+from .whatsapp import WhatsAppMessageListView, WhatsAppSendView, WhatsAppMarkReadView, TwilioWebhookView
 from .locked_dates import LockedDateListCreateView, LockedDateDeleteView

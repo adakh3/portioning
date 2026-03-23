@@ -19,7 +19,7 @@ from bookings.views import (
     BeverageTypeOptionListView,
     ReminderListCreateView, ReminderDetailView,
     LeadReminderListCreateView, ReminderCountsView,
-    WhatsAppMessageListView, WhatsAppSendView, TwilioWebhookView,
+    WhatsAppMessageListView, WhatsAppSendView, WhatsAppMarkReadView, TwilioWebhookView,
     LockedDateListCreateView, LockedDateDeleteView,
 )
 
@@ -89,6 +89,7 @@ urlpatterns = [
     # WhatsApp
     path('bookings/leads/<int:lead_pk>/whatsapp/', WhatsAppMessageListView.as_view(), name='whatsapp-message-list'),
     path('bookings/leads/<int:lead_pk>/whatsapp/send/', WhatsAppSendView.as_view(), name='whatsapp-send'),
+    path('bookings/leads/<int:lead_pk>/whatsapp/mark-read/', WhatsAppMarkReadView.as_view(), name='whatsapp-mark-read'),
     path('bookings/whatsapp/webhook/', TwilioWebhookView.as_view(), name='twilio-webhook'),
 
     # Locked Dates

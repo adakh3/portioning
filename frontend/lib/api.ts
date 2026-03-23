@@ -307,6 +307,8 @@ export interface Lead {
   created_at: string;
   updated_at: string;
   quotes: LeadQuoteSummary[];
+  unread_whatsapp_count: number;
+  has_unread_whatsapp: boolean;
 }
 
 export interface QuoteLineItem {
@@ -522,9 +524,11 @@ export interface SiteSettingsData {
   price_rounding_step: string;
   tax_label: string;
   default_tax_rate: string;
-  // WhatsApp
+  // WhatsApp / Twilio (per-org)
   whatsapp_enabled?: boolean;
   twilio_configured?: boolean;
+  twilio_account_sid?: string;
+  twilio_whatsapp_number?: string;
 }
 
 // Event type (updated with booking fields)
@@ -765,10 +769,17 @@ export interface LockedDate {
   created_at: string;
 }
 
+export interface AutoAssignAssignment {
+  salesperson: string;
+  product_line: string;
+  count: number;
+}
+
 export interface AutoAssignResult {
   assigned: number;
   skipped_no_product: number;
   skipped_no_staff: number;
+  assignments: AutoAssignAssignment[];
 }
 
 export interface KanbanColumn {
@@ -830,6 +841,7 @@ export interface MyDashboardStats {
     conversion_rate: number;
     avg_days_to_convert: number | null;
     total_active: number;
+    unread_whatsapp_leads: number;
   };
   status_columns: { value: string; label: string }[];
   status_distribution: { status: string; label: string; count: number }[];
@@ -1040,6 +1052,11 @@ export const api = {
     const qs = params.toString();
     return fetchApi<KanbanResponse>(`/bookings/leads/kanban/${qs ? `?${qs}` : ""}`);
   },
+  previewAutoAssign: () =>
+    fetchApi<AutoAssignResult>("/bookings/leads/auto-assign/", {
+      method: "POST",
+      body: JSON.stringify({ dry_run: true }),
+    }),
   autoAssignLeads: () =>
     fetchApi<AutoAssignResult>("/bookings/leads/auto-assign/", { method: "POST" }),
 
@@ -1195,6 +1212,8 @@ export const api = {
     fetchApi<WhatsAppMessage[]>(`/bookings/leads/${leadId}/whatsapp/`),
   sendWhatsAppMessage: (leadId: number, data: { body?: string; template?: string; template_context?: Record<string, string> }) =>
     fetchApi<WhatsAppMessage>(`/bookings/leads/${leadId}/whatsapp/send/`, { method: "POST", body: JSON.stringify(data) }),
+  markWhatsAppRead: (leadId: number) =>
+    fetchApi<{ marked_read: number }>(`/bookings/leads/${leadId}/whatsapp/mark-read/`, { method: "POST" }),
 
   // Calendar
   getEventCalendar: (month: string, status?: string, product?: string) => {
