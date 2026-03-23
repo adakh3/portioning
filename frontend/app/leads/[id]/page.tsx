@@ -775,8 +775,10 @@ export default function LeadDetailPage() {
       {/* Reminders */}
       <LeadReminders leadId={l.id} />
 
-      {/* WhatsApp Messages */}
-      <LeadWhatsApp leadId={l.id} contactPhone={l.contact_phone} contactName={l.contact_name} eventType={l.event_type} eventDate={l.event_date} />
+      {/* WhatsApp Messages — only show when Twilio is configured */}
+      {rawSettings?.twilio_configured && (
+        <LeadWhatsApp leadId={l.id} contactPhone={l.contact_phone} contactName={l.contact_name} eventType={l.event_type} eventDate={l.event_date} />
+      )}
 
       {/* Activity Log */}
       <Card>
