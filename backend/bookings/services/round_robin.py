@@ -4,13 +4,16 @@ from bookings.models import Lead, ProductLine
 from bookings.models.activity import ActivityLog
 
 
-def run_round_robin(triggered_by_user, org=None):
+def run_round_robin(triggered_by_user, org=None, dry_run=False):
     """
     Auto-assign unassigned, non-terminal leads to salespeople by product line.
     Uses strict round-robin: a persistent index on each ProductLine tracks
     whose turn is next, regardless of current load.
 
-    Returns dict with assigned, skipped_no_product, skipped_no_staff counts.
+    When dry_run=True, computes assignments without saving anything.
+
+    Returns dict with assigned, skipped_no_product, skipped_no_staff counts
+    and an assignments list grouped by salesperson + product line.
     """
     terminal_statuses = ['won', 'lost']
     if org is None:
@@ -29,6 +32,9 @@ def run_round_robin(triggered_by_user, org=None):
     skipped_no_staff = 0
     activity_logs = []
     ct = ContentType.objects.get_for_model(Lead)
+
+    # Track assignments per (salesperson, product_line) for preview
+    assignment_counts = {}
 
     # Group leads by product line
     leads_by_product = {}
@@ -56,32 +62,47 @@ def run_round_robin(triggered_by_user, org=None):
 
         for lead in leads:
             sp = salespeople[idx % len(salespeople)]
-            lead.assigned_to = sp
-            lead.save(update_fields=['assigned_to'])
+            sp_name = f"{sp.first_name} {sp.last_name}".strip() or sp.email
+
+            # Track assignment counts
+            key = (sp_name, product_line.name)
+            assignment_counts[key] = assignment_counts.get(key, 0) + 1
+
+            if not dry_run:
+                lead.assigned_to = sp
+                lead.save(update_fields=['assigned_to'])
+
+                activity_logs.append(ActivityLog(
+                    content_type=ct,
+                    object_id=lead.pk,
+                    action='updated',
+                    field_name='assigned_to',
+                    old_value='',
+                    new_value=str(sp.pk),
+                    description=f"Auto-assigned to {sp_name} via round-robin",
+                    user=triggered_by_user,
+                ))
+
             assigned_count += 1
             idx += 1
 
-            sp_name = f"{sp.first_name} {sp.last_name}".strip() or sp.email
-            activity_logs.append(ActivityLog(
-                content_type=ct,
-                object_id=lead.pk,
-                action='updated',
-                field_name='assigned_to',
-                old_value='',
-                new_value=str(sp.pk),
-                description=f"Auto-assigned to {sp_name} via round-robin",
-                user=triggered_by_user,
-            ))
+        if not dry_run:
+            # Persist the updated index
+            product_line.round_robin_index = idx
+            product_line.save(update_fields=['round_robin_index'])
 
-        # Persist the updated index
-        product_line.round_robin_index = idx
-        product_line.save(update_fields=['round_robin_index'])
-
-    if activity_logs:
+    if not dry_run and activity_logs:
         ActivityLog.objects.bulk_create(activity_logs)
+
+    # Build assignments list grouped by salesperson + product line
+    assignments = [
+        {'salesperson': sp_name, 'product_line': pl_name, 'count': count}
+        for (sp_name, pl_name), count in sorted(assignment_counts.items())
+    ]
 
     return {
         'assigned': assigned_count,
         'skipped_no_product': skipped_no_product,
         'skipped_no_staff': skipped_no_staff,
+        'assignments': assignments,
     }

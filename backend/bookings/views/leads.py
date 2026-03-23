@@ -513,7 +513,8 @@ class LeadAutoAssignView(APIView):
 
     def post(self, request):
         from bookings.services.round_robin import run_round_robin
-        result = run_round_robin(request.user, org=get_request_org(request))
+        dry_run = request.data.get('dry_run', False)
+        result = run_round_robin(request.user, org=get_request_org(request), dry_run=dry_run)
         return Response(result)
 
 

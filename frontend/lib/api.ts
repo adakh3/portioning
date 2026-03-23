@@ -763,12 +763,17 @@ export interface LockedDate {
   locked_by: number | null;
   locked_by_name: string | null;
   created_at: string;
+export interface AutoAssignAssignment {
+  salesperson: string;
+  product_line: string;
+  count: number;
 }
 
 export interface AutoAssignResult {
   assigned: number;
   skipped_no_product: number;
   skipped_no_staff: number;
+  assignments: AutoAssignAssignment[];
 }
 
 export interface KanbanColumn {
@@ -1040,6 +1045,11 @@ export const api = {
     const qs = params.toString();
     return fetchApi<KanbanResponse>(`/bookings/leads/kanban/${qs ? `?${qs}` : ""}`);
   },
+  previewAutoAssign: () =>
+    fetchApi<AutoAssignResult>("/bookings/leads/auto-assign/", {
+      method: "POST",
+      body: JSON.stringify({ dry_run: true }),
+    }),
   autoAssignLeads: () =>
     fetchApi<AutoAssignResult>("/bookings/leads/auto-assign/", { method: "POST" }),
 

@@ -9,6 +9,14 @@ import { api, AutoAssignResult } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { mutate } from "swr";
 
 const PERIODS = [
@@ -39,6 +47,9 @@ export default function Dashboard() {
   const [customTo, setCustomTo] = useState("");
   const [autoAssigning, setAutoAssigning] = useState(false);
   const [autoAssignResult, setAutoAssignResult] = useState<AutoAssignResult | null>(null);
+  const [autoAssignPreview, setAutoAssignPreview] = useState<AutoAssignResult | null>(null);
+  const [showAutoAssignDialog, setShowAutoAssignDialog] = useState(false);
+  const [previewLoading, setPreviewLoading] = useState(false);
   const { data: stats } = useDashboardStats(
     isManager ? period : null,
     period === "custom" ? customFrom || undefined : undefined,
@@ -63,6 +74,8 @@ export default function Dashboard() {
   const kpis = stats?.kpis;
   const team = stats?.team_activity || [];
   const salespeople = stats?.salesperson_performance || [];
+  const unassignedRow = salespeople.find((sp) => sp.user_id === null);
+  const hasUnassigned = (unassignedRow?.total_assigned ?? 0) > 0;
   const statusCols = stats?.status_columns || [];
   const statusDist = stats?.status_distribution || [];
   const lostReasons = stats?.lost_reasons || [];
@@ -228,24 +241,22 @@ export default function Dashboard() {
               <Button
                 size="sm"
                 variant="outline"
-                disabled={autoAssigning}
+                disabled={previewLoading || autoAssigning || !hasUnassigned}
                 onClick={async () => {
-                  setAutoAssigning(true);
+                  setPreviewLoading(true);
                   setAutoAssignResult(null);
                   try {
-                    const result = await api.autoAssignLeads();
-                    setAutoAssignResult(result);
-                    mutate(period === "custom"
-                      ? `dashboard-stats-custom-${customFrom}-${customTo}`
-                      : `dashboard-stats-${period}`);
+                    const preview = await api.previewAutoAssign();
+                    setAutoAssignPreview(preview);
+                    setShowAutoAssignDialog(true);
                   } catch {
-                    setAutoAssignResult({ assigned: -1, skipped_no_product: 0, skipped_no_staff: 0 });
+                    setAutoAssignResult({ assigned: -1, skipped_no_product: 0, skipped_no_staff: 0, assignments: [] });
                   } finally {
-                    setAutoAssigning(false);
+                    setPreviewLoading(false);
                   }
                 }}
               >
-                {autoAssigning ? "Assigning…" : "Auto-Assign"}
+                {previewLoading ? "Loading…" : autoAssigning ? "Assigning…" : "Auto-Assign"}
               </Button>
             </div>
             {autoAssignResult && (
@@ -305,6 +316,82 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       )}
+      {/* Auto-Assign Preview Dialog */}
+      <Dialog open={showAutoAssignDialog} onOpenChange={setShowAutoAssignDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Auto-Assign Preview</DialogTitle>
+            <DialogDescription>
+              {autoAssignPreview && autoAssignPreview.assigned === 0
+                ? "No unassigned leads to process."
+                : "Review the assignments below before confirming."}
+            </DialogDescription>
+          </DialogHeader>
+
+          {autoAssignPreview && autoAssignPreview.assigned > 0 && (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border text-left">
+                    <th className="pb-2 pr-4 font-medium text-muted-foreground">Salesperson</th>
+                    <th className="pb-2 px-2 font-medium text-muted-foreground">Product Line</th>
+                    <th className="pb-2 pl-2 font-medium text-muted-foreground text-right">Leads</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {autoAssignPreview.assignments.map((a) => (
+                    <tr key={`${a.salesperson}-${a.product_line}`} className="border-b border-border last:border-0">
+                      <td className="py-2 pr-4">{a.salesperson}</td>
+                      <td className="py-2 px-2 text-muted-foreground">{a.product_line}</td>
+                      <td className="py-2 pl-2 text-right font-medium">{a.count}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {autoAssignPreview && (autoAssignPreview.skipped_no_product > 0 || autoAssignPreview.skipped_no_staff > 0) && (
+            <div className="text-xs text-amber-600 space-y-1">
+              {autoAssignPreview.skipped_no_product > 0 && (
+                <p>{autoAssignPreview.skipped_no_product} lead{autoAssignPreview.skipped_no_product !== 1 ? "s" : ""} skipped (no product line)</p>
+              )}
+              {autoAssignPreview.skipped_no_staff > 0 && (
+                <p>{autoAssignPreview.skipped_no_staff} lead{autoAssignPreview.skipped_no_staff !== 1 ? "s" : ""} skipped (no staff on product line)</p>
+              )}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAutoAssignDialog(false)}>
+              {autoAssignPreview?.assigned === 0 ? "Close" : "Cancel"}
+            </Button>
+            {autoAssignPreview && autoAssignPreview.assigned > 0 && (
+              <Button
+                disabled={autoAssigning}
+                onClick={async () => {
+                  setAutoAssigning(true);
+                  try {
+                    const result = await api.autoAssignLeads();
+                    setAutoAssignResult(result);
+                    setShowAutoAssignDialog(false);
+                    mutate(period === "custom"
+                      ? `dashboard-stats-custom-${customFrom}-${customTo}`
+                      : `dashboard-stats-${period}`);
+                  } catch {
+                    setAutoAssignResult({ assigned: -1, skipped_no_product: 0, skipped_no_staff: 0, assignments: [] });
+                    setShowAutoAssignDialog(false);
+                  } finally {
+                    setAutoAssigning(false);
+                  }
+                }}
+              >
+                {autoAssigning ? "Assigning…" : `Assign ${autoAssignPreview.assigned} Lead${autoAssignPreview.assigned !== 1 ? "s" : ""}`}
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       </>
       )}
 
