@@ -767,6 +767,10 @@ export interface LockedDate {
   locked_by: number | null;
   locked_by_name: string | null;
   created_at: string;
+export interface AutoAssignAssignment {
+  salesperson: string;
+  product_line: string;
+  count: number;
 }
 
 export interface AutoAssignAssignment {
