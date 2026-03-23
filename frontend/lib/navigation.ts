@@ -21,6 +21,7 @@ export const departments: Department[] = [
       { label: "Follow-ups", href: "/follow-ups" },
       { label: "Quotes", href: "/quotes" },
       { label: "Events", href: "/events" },
+      { label: "Calendar", href: "/calendar" },
       { label: "Menu Pricing", href: "/pricing" },
       { label: "Accounts", href: "/accounts" },
       { label: "Venues", href: "/venues" },

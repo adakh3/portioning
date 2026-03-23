@@ -550,6 +550,32 @@ export default function QuoteDetailPage() {
             >
               Download PDF
             </Button>
+            <Button
+              variant="outline"
+              onClick={async () => {
+                try {
+                  const blob = await api.downloadQuotePDF(q.id);
+                  const file = new File([blob], `Quote-${q.id}-v${q.version}.pdf`, { type: "application/pdf" });
+                  const message = `Hi${q.contact_name ? ` ${q.contact_name.split(" ")[0]}` : ""}, please find attached your quotation (Quote #${q.id}, v${q.version}) for ${q.guest_count} guests on ${q.event_date ? formatDate(q.event_date, dateFormat) : "TBC"}. Total: ${formatCurrency(q.total, cs)}. Please don't hesitate to reach out if you have any questions.`;
+
+                  if (navigator.share && navigator.canShare?.({ files: [file] })) {
+                    await navigator.share({ text: message, files: [file] });
+                  } else {
+                    // Fallback: open WhatsApp Web with text only
+                    const phone = q.contact_phone?.replace(/\D/g, "") || "";
+                    const waUrl = phone
+                      ? `https://wa.me/${phone}?text=${encodeURIComponent(message)}`
+                      : `https://wa.me/?text=${encodeURIComponent(message)}`;
+                    window.open(waUrl, "_blank");
+                  }
+                } catch (err) {
+                  if (err instanceof Error && err.name === "AbortError") return; // user cancelled share
+                  setError(err instanceof Error ? err.message : "Failed to share via WhatsApp");
+                }
+              }}
+            >
+              Share via WhatsApp
+            </Button>
             {q.status === "draft" && (
               <>
                 <Button onClick={() => handleTransition("sent")} disabled={saving}>

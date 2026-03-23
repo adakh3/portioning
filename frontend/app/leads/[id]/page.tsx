@@ -3,8 +3,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { api, Lead, Account, AuthUser, ProductLine, Reminder } from "@/lib/api";
-import { useAccounts, useLead, useSiteSettings, useDateFormat, useProductLines, useUsers, useSources, useEventTypes, useServiceStyles, useMealTypes, useLeadStatuses, useLostReasons, useLeadReminders, revalidate } from "@/lib/hooks";
+import { api, Lead, Account, AuthUser, ProductLine, Reminder, WhatsAppMessage } from "@/lib/api";
+import { useAccounts, useLead, useSiteSettings, useDateFormat, useProductLines, useUsers, useSources, useEventTypes, useServiceStyles, useMealTypes, useLeadStatuses, useLostReasons, useLeadReminders, useLeadWhatsAppMessages, revalidate } from "@/lib/hooks";
 import { formatDate, formatDateTime } from "@/lib/dateFormat";
 import { formatCurrency } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -775,6 +775,11 @@ export default function LeadDetailPage() {
       {/* Reminders */}
       <LeadReminders leadId={l.id} />
 
+      {/* WhatsApp Messages — only show when Twilio is configured */}
+      {rawSettings?.twilio_configured && (
+        <LeadWhatsApp leadId={l.id} contactPhone={l.contact_phone} contactName={l.contact_name} eventType={l.event_type} eventDate={l.event_date} />
+      )}
+
       {/* Activity Log */}
       <Card>
         <CardContent className="p-6">
@@ -1031,6 +1036,149 @@ function LeadReminders({ leadId }: { leadId: number }) {
                 </div>
               );
             })}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+const WHATSAPP_TEMPLATES = [
+  { value: "reminder", label: "Event Reminder" },
+  { value: "follow_up", label: "Follow Up" },
+];
+
+function LeadWhatsApp({ leadId, contactPhone, contactName, eventType, eventDate }: {
+  leadId: number;
+  contactPhone: string;
+  contactName: string;
+  eventType: string;
+  eventDate: string | null;
+}) {
+  const dateFormat = useDateFormat();
+  const { data: messages = [], mutate } = useLeadWhatsAppMessages(leadId);
+  const [showForm, setShowForm] = useState(false);
+  const [body, setBody] = useState("");
+  const [selectedTemplate, setSelectedTemplate] = useState("");
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleTemplateChange = (template: string) => {
+    setSelectedTemplate(template);
+    if (!template) { setBody(""); return; }
+    // Preview template text client-side
+    const previews: Record<string, string> = {
+      reminder: `Hi ${contactName}, this is a friendly reminder about your upcoming ${eventType} on ${eventDate || "TBD"}. Please let us know if you have any questions!`,
+      follow_up: `Hi ${contactName}, thank you for your interest in our catering services. We wanted to follow up on your enquiry for ${eventType}. Would you like to discuss your requirements?`,
+    };
+    setBody(previews[template] || "");
+  };
+
+  const handleSend = async () => {
+    if (!body.trim()) return;
+    setSending(true);
+    setError("");
+    try {
+      if (selectedTemplate) {
+        await api.sendWhatsAppMessage(leadId, {
+          template: selectedTemplate,
+          template_context: { contact_name: contactName, event_type: eventType, event_date: eventDate || "TBD" },
+        });
+      } else {
+        await api.sendWhatsAppMessage(leadId, { body });
+      }
+      setBody("");
+      setSelectedTemplate("");
+      setShowForm(false);
+      mutate();
+      revalidate(`lead-activity-${leadId}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to send");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  if (!contactPhone) return null;
+
+  const statusColor: Record<string, string> = {
+    sent: "text-blue-600",
+    delivered: "text-green-600",
+    read: "text-green-700",
+    failed: "text-red-600",
+    undelivered: "text-red-500",
+    queued: "text-muted-foreground",
+  };
+
+  return (
+    <Card>
+      <CardContent className="p-6">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">WhatsApp Messages</h2>
+          <Button size="sm" variant="outline" onClick={() => setShowForm(!showForm)}>
+            {showForm ? "Cancel" : "Send Message"}
+          </Button>
+        </div>
+
+        {showForm && (
+          <div className="space-y-3 mb-4 p-3 border rounded-lg bg-muted/30">
+            {error && <p className="text-sm text-destructive">{error}</p>}
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Template (optional)</label>
+              <select
+                value={selectedTemplate}
+                onChange={(e) => handleTemplateChange(e.target.value)}
+                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              >
+                <option value="">Custom message</option>
+                {WHATSAPP_TEMPLATES.map((t) => (
+                  <option key={t.value} value={t.value}>{t.label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Message</label>
+              <Textarea
+                value={body}
+                onChange={(e) => { setBody(e.target.value); setSelectedTemplate(""); }}
+                rows={3}
+                placeholder="Type your message..."
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <Button size="sm" onClick={handleSend} disabled={sending || !body.trim()}>
+                {sending ? "Sending..." : "Send WhatsApp"}
+              </Button>
+              <span className="text-xs text-muted-foreground">To: {contactPhone}</span>
+            </div>
+          </div>
+        )}
+
+        {messages.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No WhatsApp messages yet.</p>
+        ) : (
+          <div className="space-y-2">
+            {messages.map((m) => (
+              <div key={m.id} className="p-3 border rounded-lg">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-sm text-foreground whitespace-pre-wrap flex-1">{m.body}</p>
+                  <span className={`text-xs font-medium shrink-0 ${statusColor[m.status] || "text-muted-foreground"}`}>
+                    {m.status}
+                  </span>
+                </div>
+                <div className="flex items-center gap-3 mt-1">
+                  <span className="text-xs text-muted-foreground">
+                    {formatDateTime(m.created_at, dateFormat)}
+                  </span>
+                  {m.sent_by_name && (
+                    <span className="text-xs text-muted-foreground">by {m.sent_by_name}</span>
+                  )}
+                  {m.error_message && (
+                    <span className="text-xs text-destructive">{m.error_message}</span>
+                  )}
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </CardContent>

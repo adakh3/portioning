@@ -266,6 +266,7 @@ export interface LeadQuoteSummary {
 export interface ProductLine {
   id: number;
   name: string;
+  colour: string;
   is_active: boolean;
 }
 
@@ -343,6 +344,8 @@ export interface Quote {
   venue: number | null;
   venue_name: string | null;
   venue_address: string;
+  product: number | null;
+  product_name: string | null;
   guest_count: number;
   price_per_head: string | null;
   food_total: string;
@@ -519,6 +522,9 @@ export interface SiteSettingsData {
   price_rounding_step: string;
   tax_label: string;
   default_tax_rate: string;
+  // WhatsApp
+  whatsapp_enabled?: boolean;
+  twilio_configured?: boolean;
 }
 
 // Event type (updated with booking fields)
@@ -545,6 +551,8 @@ export interface EventData {
   // Booking fields
   account: number | null;
   account_name: string | null;
+  product: number | null;
+  product_name: string | null;
   primary_contact: number | null;
   contact_name: string | null;
   venue: number | null;
@@ -709,6 +717,52 @@ export interface ReminderCounts {
   due_today: number;
 }
 
+// WhatsApp
+export interface WhatsAppMessage {
+  id: number;
+  lead: number;
+  reminder: number | null;
+  to_phone: string;
+  from_phone: string;
+  body: string;
+  direction: string;
+  status: string;
+  twilio_sid: string;
+  error_code: string;
+  error_message: string;
+  sent_by: number | null;
+  sent_by_name: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// Calendar types
+export interface CalendarEvent {
+  id: number;
+  name: string;
+  status: string;
+  guest_count: number;
+  account_name: string | null;
+  product_name: string | null;
+  product_colour: string | null;
+}
+
+export interface CalendarDay {
+  date: string;
+  org_event_count: number;
+  org_total_guests: number;
+  my_event_count: number;
+  my_total_guests: number;
+  my_events: CalendarEvent[];
+}
+
+export interface LockedDate {
+  id: number;
+  date: string;
+  reason: string;
+  locked_by: number | null;
+  locked_by_name: string | null;
+  created_at: string;
 export interface AutoAssignAssignment {
   salesperson: string;
   product_line: string;
@@ -771,6 +825,19 @@ export interface DashboardStats {
     pipeline_value: string;
     pipeline_count: number;
   };
+}
+
+// My dashboard stats (salesperson)
+export interface MyDashboardStats {
+  pipeline: Record<string, number>;
+  pipeline_value: string;
+  kpis: {
+    conversion_rate: number;
+    avg_days_to_convert: number | null;
+    total_active: number;
+  };
+  status_columns: { value: string; label: string }[];
+  status_distribution: { status: string; label: string; count: number }[];
 }
 
 // Lead filter params
@@ -903,6 +970,8 @@ export const api = {
 
   // Bookings: Product Lines & Users
   getProductLines: () => fetchList<ProductLine>("/bookings/product-lines/?page_size=all"),
+  updateProductLine: (id: number, data: Partial<ProductLine>) =>
+    fetchApi<ProductLine>(`/bookings/product-lines/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
   getUsers: () => fetchList<AuthUser>("/bookings/users/?page_size=all"),
 
   // Bookings: Leads
@@ -965,6 +1034,7 @@ export const api = {
     if (dateTo) params.set("date_to", dateTo);
     return fetchApi<DashboardStats>(`/bookings/dashboard/stats/?${params.toString()}`);
   },
+  getMyDashboardStats: () => fetchApi<MyDashboardStats>("/bookings/dashboard/my-stats/"),
   getLeadsKanban: (filters?: LeadFilters) => {
     const params = new URLSearchParams();
     if (filters) {
@@ -1129,4 +1199,26 @@ export const api = {
     fetchApi<Reminder>(`/bookings/reminders/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
   deleteReminder: (id: number) =>
     fetchApi<void>(`/bookings/reminders/${id}/`, { method: "DELETE" }),
+
+  // WhatsApp
+  getLeadWhatsAppMessages: (leadId: number) =>
+    fetchApi<WhatsAppMessage[]>(`/bookings/leads/${leadId}/whatsapp/`),
+  sendWhatsAppMessage: (leadId: number, data: { body?: string; template?: string; template_context?: Record<string, string> }) =>
+    fetchApi<WhatsAppMessage>(`/bookings/leads/${leadId}/whatsapp/send/`, { method: "POST", body: JSON.stringify(data) }),
+
+  // Calendar
+  getEventCalendar: (month: string, status?: string, product?: string) => {
+    const params = new URLSearchParams({ month });
+    if (status) params.set("status", status);
+    if (product) params.set("product", product);
+    return fetchApi<CalendarDay[]>(`/events/calendar/?${params.toString()}`);
+  },
+
+  // Locked Dates
+  getLockedDates: (dateFrom: string, dateTo: string) =>
+    fetchList<LockedDate>(`/bookings/locked-dates/?date_from=${dateFrom}&date_to=${dateTo}`),
+  lockDate: (data: { date: string; reason?: string }) =>
+    fetchApi<LockedDate>("/bookings/locked-dates/", { method: "POST", body: JSON.stringify(data) }),
+  unlockDate: (id: number) =>
+    fetchApi<void>(`/bookings/locked-dates/${id}/`, { method: "DELETE" }),
 };

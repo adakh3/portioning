@@ -17,6 +17,8 @@ from .models import (
     LostReasonOption, MealTypeOption, ArrangementTypeOption, BeverageTypeOption,
     ActivityLog,
     Reminder,
+    WhatsAppMessage,
+    LockedDate,
 )
 from .services.lead_import import (
     load_xlsx, load_csv, parse_rows, validate_rows, flag_duplicates, commit_rows, ImportRow,
@@ -383,3 +385,23 @@ class SiteSettingsAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+
+# --- WhatsApp Messages ---
+
+@admin.register(WhatsAppMessage)
+class WhatsAppMessageAdmin(admin.ModelAdmin):
+    list_display = ['to_phone', 'lead', 'direction', 'status', 'sent_by', 'created_at']
+    list_filter = ['status', 'direction']
+    search_fields = ['to_phone', 'body', 'twilio_sid', 'lead__contact_name']
+    readonly_fields = ['twilio_sid', 'created_at', 'updated_at']
+
+
+# --- Locked Dates ---
+
+@admin.register(LockedDate)
+class LockedDateAdmin(admin.ModelAdmin):
+    list_display = ['date', 'reason', 'locked_by', 'organisation', 'created_at']
+    list_filter = ['organisation']
+    search_fields = ['reason']
+    readonly_fields = ['created_at']

@@ -2,12 +2,13 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { api } from "@/lib/api";
-import { useSiteSettings } from "@/lib/hooks";
+import { api, ProductLine } from "@/lib/api";
+import { useSiteSettings, useProductLines, revalidate } from "@/lib/hooks";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ValidatedInput } from "@/components/ui/validated-input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 
 export default function SettingsPage() {
   const { data: settings, isLoading: loading, mutate: mutateSettings } = useSiteSettings();
@@ -24,6 +25,12 @@ export default function SettingsPage() {
     price_rounding_step: "50",
   });
 
+  // WhatsApp toggle state (separate save)
+  const [waEnabled, setWaEnabled] = useState(false);
+  const [waSaving, setWaSaving] = useState(false);
+  const [waError, setWaError] = useState("");
+  const [waSuccess, setWaSuccess] = useState("");
+
   useEffect(() => {
     if (settings) {
       setFormData({
@@ -34,6 +41,7 @@ export default function SettingsPage() {
         target_food_cost_percentage: settings.target_food_cost_percentage,
         price_rounding_step: settings.price_rounding_step || "50",
       });
+      setWaEnabled(settings.whatsapp_enabled || false);
     }
   }, [settings]);
 
@@ -51,6 +59,23 @@ export default function SettingsPage() {
       setError(err instanceof Error ? err.message : "Failed to save settings");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleWhatsAppToggle(enabled: boolean) {
+    setWaSaving(true);
+    setWaError("");
+    setWaSuccess("");
+    try {
+      await api.updateSiteSettings({ whatsapp_enabled: enabled });
+      setWaEnabled(enabled);
+      mutateSettings();
+      setWaSuccess(enabled ? "WhatsApp enabled." : "WhatsApp disabled.");
+      setTimeout(() => setWaSuccess(""), 3000);
+    } catch (err) {
+      setWaError(err instanceof Error ? err.message : "Failed to save");
+    } finally {
+      setWaSaving(false);
     }
   }
 
@@ -180,6 +205,116 @@ export default function SettingsPage() {
           {saving ? "Saving..." : "Save Settings"}
         </Button>
       </form>
+
+      {/* Product Line Colours */}
+      <div className="space-y-6 max-w-2xl mt-8">
+        <ProductLineColours />
+      </div>
+
+      {/* WhatsApp Integration */}
+      <div className="space-y-6 max-w-2xl mt-8">
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle>WhatsApp</CardTitle>
+              {settings?.twilio_configured ? (
+                <Badge variant="success">Available</Badge>
+              ) : (
+                <Badge variant="secondary">Not available</Badge>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent>
+            {waError && <p className="text-destructive mb-3 text-sm">{waError}</p>}
+            {waSuccess && <p className="text-success mb-3 text-sm">{waSuccess}</p>}
+            {settings?.twilio_configured ? (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-foreground">WhatsApp Messaging</p>
+                    <p className="text-xs text-muted-foreground">
+                      Send messages to leads directly via WhatsApp.
+                    </p>
+                  </div>
+                  <Button
+                    variant={waEnabled ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => handleWhatsAppToggle(!waEnabled)}
+                    disabled={waSaving}
+                  >
+                    {waSaving ? "Saving..." : waEnabled ? "Enabled" : "Disabled"}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                WhatsApp messaging is not available. Contact your platform administrator to configure the messaging service.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
+  );
+}
+
+
+const DEFAULT_PALETTE = ["#EF4444", "#F59E0B", "#10B981", "#3B82F6", "#8B5CF6", "#EC4899", "#6366F1", "#14B8A6"];
+
+function ProductLineColours() {
+  const { data: productLines = [], mutate } = useProductLines();
+  const [saving, setSaving] = useState<number | null>(null);
+
+  async function handleColourChange(pl: ProductLine, colour: string) {
+    setSaving(pl.id);
+    try {
+      await api.updateProductLine(pl.id, { colour });
+      revalidate("product-lines");
+      mutate();
+    } catch { /* silently fail */ }
+    finally { setSaving(null); }
+  }
+
+  if (productLines.length === 0) return null;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Product Line Colours</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <p className="text-xs text-muted-foreground mb-4">
+          Colours are used on the calendar and lead kanban to visually distinguish products.
+        </p>
+        <div className="space-y-3">
+          {productLines.map((pl) => (
+            <div key={pl.id} className="flex items-center gap-3">
+              <input
+                type="color"
+                value={pl.colour || "#6B7280"}
+                onChange={(e) => handleColourChange(pl, e.target.value)}
+                disabled={saving === pl.id}
+                className="h-9 w-9 rounded-md border border-input cursor-pointer p-0.5"
+              />
+              <span className="text-sm text-foreground">{pl.name}</span>
+              {saving === pl.id && (
+                <span className="text-xs text-muted-foreground">Saving...</span>
+              )}
+              <div className="flex gap-1 ml-auto">
+                {DEFAULT_PALETTE.map((c) => (
+                  <button
+                    key={c}
+                    onClick={() => handleColourChange(pl, c)}
+                    className="h-5 w-5 rounded-full border border-border hover:ring-2 hover:ring-ring transition-shadow"
+                    style={{ backgroundColor: c }}
+                    title={c}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
   );
 }

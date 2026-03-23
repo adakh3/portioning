@@ -17,7 +17,7 @@ class LeadQuoteSummarySerializer(serializers.ModelSerializer):
 class ProductLineSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProductLine
-        fields = ['id', 'name', 'is_active']
+        fields = ['id', 'name', 'colour', 'is_active']
         read_only_fields = ['id']
 
 

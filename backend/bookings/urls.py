@@ -4,8 +4,8 @@ from bookings.views import (
     AccountListCreateView, AccountDetailView,
     ContactListCreateView, ContactDetailView,
     VenueListCreateView, VenueDetailView,
-    UserListView, ProductLineListView, LeadListCreateView, LeadDetailView, LeadTransitionView, LeadCreateQuoteView, LeadWonView, LeadCreateEventView, LeadBulkUpdateView, LeadActivityView, LeadAutoAssignView, LeadKanbanView,
-    DashboardStatsView,
+    UserListView, ProductLineListView, ProductLineDetailView, LeadListCreateView, LeadDetailView, LeadTransitionView, LeadCreateQuoteView, LeadWonView, LeadCreateEventView, LeadBulkUpdateView, LeadActivityView, LeadAutoAssignView, LeadKanbanView,
+    DashboardStatsView, MyDashboardStatsView,
     QuoteListCreateView, QuoteDetailView, QuoteTransitionView,
     QuoteLineItemListCreateView, QuoteLineItemDetailView,
     QuotePDFView,
@@ -19,6 +19,8 @@ from bookings.views import (
     BeverageTypeOptionListView,
     ReminderListCreateView, ReminderDetailView,
     LeadReminderListCreateView, ReminderCountsView,
+    WhatsAppMessageListView, WhatsAppSendView, TwilioWebhookView,
+    LockedDateListCreateView, LockedDateDeleteView,
 )
 
 urlpatterns = [
@@ -37,6 +39,7 @@ urlpatterns = [
 
     # Product Lines & Leads
     path('bookings/product-lines/', ProductLineListView.as_view(), name='product-line-list'),
+    path('bookings/product-lines/<int:pk>/', ProductLineDetailView.as_view(), name='product-line-detail'),
     path('bookings/leads/', LeadListCreateView.as_view(), name='lead-list'),
     path('bookings/leads/kanban/', LeadKanbanView.as_view(), name='lead-kanban'),
     path('bookings/leads/auto-assign/', LeadAutoAssignView.as_view(), name='lead-auto-assign'),
@@ -57,6 +60,7 @@ urlpatterns = [
 
     # Dashboard
     path('bookings/dashboard/stats/', DashboardStatsView.as_view(), name='dashboard-stats'),
+    path('bookings/dashboard/my-stats/', MyDashboardStatsView.as_view(), name='my-dashboard-stats'),
 
     # Quotes & Line Items
     path('bookings/quotes/', QuoteListCreateView.as_view(), name='quote-list'),
@@ -81,6 +85,15 @@ urlpatterns = [
     path('bookings/meal-types/', MealTypeOptionListView.as_view(), name='meal-type-list'),
     path('bookings/arrangement-types/', ArrangementTypeOptionListView.as_view(), name='arrangement-type-list'),
     path('bookings/beverage-types/', BeverageTypeOptionListView.as_view(), name='beverage-type-list'),
+
+    # WhatsApp
+    path('bookings/leads/<int:lead_pk>/whatsapp/', WhatsAppMessageListView.as_view(), name='whatsapp-message-list'),
+    path('bookings/leads/<int:lead_pk>/whatsapp/send/', WhatsAppSendView.as_view(), name='whatsapp-send'),
+    path('bookings/whatsapp/webhook/', TwilioWebhookView.as_view(), name='twilio-webhook'),
+
+    # Locked Dates
+    path('bookings/locked-dates/', LockedDateListCreateView.as_view(), name='locked-date-list'),
+    path('bookings/locked-dates/<int:pk>/', LockedDateDeleteView.as_view(), name='locked-date-detail'),
 
     # Settings
     path('bookings/settings/', SiteSettingsView.as_view(), name='site-settings'),

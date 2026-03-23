@@ -103,12 +103,25 @@ class OrgSettings(models.Model):
         help_text='Terms & Conditions text printed on quotation PDFs.',
     )
 
+    # WhatsApp integration
+    whatsapp_enabled = models.BooleanField(default=False)
+
     class Meta:
         verbose_name = 'Organisation Settings'
         verbose_name_plural = 'Organisation Settings'
 
     def __str__(self):
         return f"Settings for {self.organisation.name}"
+
+    @property
+    def twilio_configured(self):
+        """Check whether platform-level Twilio env vars are set."""
+        from django.conf import settings as django_settings
+        return bool(
+            getattr(django_settings, 'TWILIO_ACCOUNT_SID', '') and
+            getattr(django_settings, 'TWILIO_AUTH_TOKEN', '') and
+            getattr(django_settings, 'TWILIO_WHATSAPP_NUMBER', '')
+        )
 
     @classmethod
     def for_org(cls, org):

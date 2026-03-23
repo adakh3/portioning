@@ -31,6 +31,7 @@ class QuoteSerializer(serializers.ModelSerializer):
     contact_phone = serializers.SerializerMethodField()
     venue_name = serializers.SerializerMethodField()
     status_display = serializers.CharField(source='get_status_display', read_only=True)
+    product_name = serializers.CharField(source='product.name', read_only=True, default=None)
     is_editable = serializers.BooleanField(read_only=True)
     lead_name = serializers.SerializerMethodField()
     event_id = serializers.SerializerMethodField()
@@ -60,7 +61,8 @@ class QuoteSerializer(serializers.ModelSerializer):
             'id', 'lead', 'lead_name', 'account', 'account_name',
             'primary_contact', 'contact_name', 'contact_email', 'contact_phone',
             'version', 'status', 'status_display', 'is_editable',
-            'event_date', 'venue', 'venue_name', 'venue_address', 'guest_count',
+            'event_date', 'venue', 'venue_name', 'venue_address',
+            'product', 'product_name', 'guest_count',
             'price_per_head', 'food_total',
             'event_type', 'meal_type', 'booking_date', 'service_style', 'valid_until',
             'subtotal', 'tax_rate', 'tax_amount', 'total',

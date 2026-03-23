@@ -14,6 +14,73 @@ from bookings.permissions import IsManagerOrOwner
 from users.mixins import get_request_org, apply_org_filter
 
 
+class MyDashboardStatsView(APIView):
+    """GET /api/bookings/dashboard/my-stats/ — personal pipeline for salespeople."""
+
+    def get(self, request):
+        org = get_request_org(request)
+        my_leads = apply_org_filter(Lead.objects.filter(assigned_to=request.user), request)
+
+        # Status options
+        statuses = list(
+            apply_org_filter(LeadStatusOption.objects.filter(is_active=True), request)
+            .order_by('sort_order')
+            .values_list('value', 'label')
+        )
+        status_values = [s[0] for s in statuses]
+        status_labels = {s[0]: s[1] for s in statuses}
+
+        # Pipeline: count per status
+        pipeline_qs = (
+            my_leads.exclude(status__in=['won', 'lost'])
+            .values('status')
+            .annotate(count=Count('id'))
+        )
+        pipeline = {sv: 0 for sv in status_values if sv not in ('won', 'lost')}
+        for row in pipeline_qs:
+            if row['status'] in pipeline:
+                pipeline[row['status']] = row['count']
+
+        # Pipeline value
+        agg = my_leads.exclude(status__in=['won', 'lost']).aggregate(
+            pipeline_value=Sum('budget'),
+            pipeline_count=Count('id'),
+        )
+
+        # KPIs
+        total_active = agg['pipeline_count']
+        won_count = my_leads.filter(status='won').count()
+        total_decided = won_count + my_leads.filter(status='lost').count()
+        conversion_rate = round(won_count / total_decided * 100, 1) if total_decided > 0 else 0
+
+        avg_days = None
+        won_leads = my_leads.filter(status='won', won_at__isnull=False)
+        if won_leads.exists():
+            result = won_leads.annotate(days=F('won_at') - F('created_at')).aggregate(avg_days=Avg('days'))
+            if result['avg_days']:
+                avg_days = round(result['avg_days'].total_seconds() / 86400, 1)
+
+        # Status distribution (for bar chart — all statuses including won/lost)
+        dist_qs = my_leads.values('status').annotate(count=Count('id'))
+        dist_map = {row['status']: row['count'] for row in dist_qs}
+        status_distribution = [
+            {'status': v, 'label': status_labels[v], 'count': dist_map.get(v, 0)}
+            for v in status_values
+        ]
+
+        return Response({
+            'pipeline': pipeline,
+            'pipeline_value': str(agg['pipeline_value'] or 0),
+            'kpis': {
+                'conversion_rate': conversion_rate,
+                'avg_days_to_convert': avg_days,
+                'total_active': total_active,
+            },
+            'status_columns': [{'value': v, 'label': status_labels[v]} for v in status_values],
+            'status_distribution': status_distribution,
+        })
+
+
 class DashboardStatsView(APIView):
     """GET /api/bookings/dashboard/stats/?period=all|today|week|month|custom"""
     permission_classes = [IsManagerOrOwner]
