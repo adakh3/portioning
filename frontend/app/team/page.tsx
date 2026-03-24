@@ -212,7 +212,7 @@ export default function TeamPage() {
                 <label className="block text-sm font-medium text-foreground mb-1">First Name *</label>
                 <Input
                   value={form.first_name}
-                  onChange={(e) => setForm({ ...form, first_name: e.target.value })}
+                  onChange={(e) => { const v = e.target.value; setForm((f) => ({ ...f, first_name: v })); }}
                   required
                 />
               </div>
@@ -220,7 +220,7 @@ export default function TeamPage() {
                 <label className="block text-sm font-medium text-foreground mb-1">Last Name *</label>
                 <Input
                   value={form.last_name}
-                  onChange={(e) => setForm({ ...form, last_name: e.target.value })}
+                  onChange={(e) => { const v = e.target.value; setForm((f) => ({ ...f, last_name: v })); }}
                   required
                 />
               </div>
@@ -230,7 +230,7 @@ export default function TeamPage() {
               <Input
                 type="email"
                 value={form.email}
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
+                onChange={(e) => { const v = e.target.value; setForm((f) => ({ ...f, email: v })); }}
                 required
               />
             </div>
@@ -238,7 +238,7 @@ export default function TeamPage() {
               <label className="block text-sm font-medium text-foreground mb-1">Role *</label>
               <select
                 value={form.role}
-                onChange={(e) => setForm({ ...form, role: e.target.value })}
+                onChange={(e) => { const v = e.target.value; setForm((f) => ({ ...f, role: v })); }}
                 className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               >
                 {ROLES.map((r) => (
@@ -256,12 +256,12 @@ export default function TeamPage() {
                       <button
                         key={pl.id}
                         type="button"
-                        onClick={() => setForm({
-                          ...form,
-                          product_lines: selected
-                            ? form.product_lines.filter((id) => id !== pl.id)
-                            : [...form.product_lines, pl.id],
-                        })}
+                        onClick={() => setForm((f) => ({
+                          ...f,
+                          product_lines: f.product_lines.includes(pl.id)
+                            ? f.product_lines.filter((id) => id !== pl.id)
+                            : [...f.product_lines, pl.id],
+                        }))}
                         className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
                           selected
                             ? "bg-primary text-primary-foreground border-primary"
@@ -283,7 +283,7 @@ export default function TeamPage() {
               <Input
                 type="password"
                 value={form.password}
-                onChange={(e) => setForm({ ...form, password: e.target.value })}
+                onChange={(e) => { const v = e.target.value; setForm((f) => ({ ...f, password: v })); }}
               />
             </div>
           </div>
