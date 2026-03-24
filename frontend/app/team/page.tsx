@@ -51,6 +51,7 @@ export default function TeamPage() {
   const [form, setForm] = useState({ first_name: "", last_name: "", email: "", role: "salesperson", password: "", product_lines: [] as number[] });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [initialForm, setInitialForm] = useState({ first_name: "", last_name: "", email: "", role: "salesperson", password: "", product_lines: [] as number[] });
 
   // Redirect non-owners
   useEffect(() => {
@@ -78,7 +79,9 @@ export default function TeamPage() {
 
   function openEdit(u: ManagedUser) {
     setEditingUser(u);
-    setForm({ first_name: u.first_name, last_name: u.last_name, email: u.email, role: u.role, password: "", product_lines: u.product_lines || [] });
+    const formData = { first_name: u.first_name, last_name: u.last_name, email: u.email, role: u.role, password: "", product_lines: u.product_lines || [] };
+    setForm(formData);
+    setInitialForm(formData);
     setError("");
     setDialogOpen(true);
   }
@@ -212,7 +215,7 @@ export default function TeamPage() {
                 <label className="block text-sm font-medium text-foreground mb-1">First Name *</label>
                 <Input
                   value={form.first_name}
-                  onChange={(e) => setForm({ ...form, first_name: e.target.value })}
+                  onChange={(e) => { const v = e.target.value; setForm((f) => ({ ...f, first_name: v })); }}
                   required
                 />
               </div>
@@ -220,7 +223,7 @@ export default function TeamPage() {
                 <label className="block text-sm font-medium text-foreground mb-1">Last Name *</label>
                 <Input
                   value={form.last_name}
-                  onChange={(e) => setForm({ ...form, last_name: e.target.value })}
+                  onChange={(e) => { const v = e.target.value; setForm((f) => ({ ...f, last_name: v })); }}
                   required
                 />
               </div>
@@ -230,7 +233,7 @@ export default function TeamPage() {
               <Input
                 type="email"
                 value={form.email}
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
+                onChange={(e) => { const v = e.target.value; setForm((f) => ({ ...f, email: v })); }}
                 required
               />
             </div>
@@ -238,7 +241,7 @@ export default function TeamPage() {
               <label className="block text-sm font-medium text-foreground mb-1">Role *</label>
               <select
                 value={form.role}
-                onChange={(e) => setForm({ ...form, role: e.target.value })}
+                onChange={(e) => { const v = e.target.value; setForm((f) => ({ ...f, role: v })); }}
                 className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               >
                 {ROLES.map((r) => (
@@ -256,12 +259,12 @@ export default function TeamPage() {
                       <button
                         key={pl.id}
                         type="button"
-                        onClick={() => setForm({
-                          ...form,
-                          product_lines: selected
-                            ? form.product_lines.filter((id) => id !== pl.id)
-                            : [...form.product_lines, pl.id],
-                        })}
+                        onClick={() => setForm((f) => ({
+                          ...f,
+                          product_lines: f.product_lines.includes(pl.id)
+                            ? f.product_lines.filter((id) => id !== pl.id)
+                            : [...f.product_lines, pl.id],
+                        }))}
                         className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
                           selected
                             ? "bg-primary text-primary-foreground border-primary"
@@ -283,7 +286,7 @@ export default function TeamPage() {
               <Input
                 type="password"
                 value={form.password}
-                onChange={(e) => setForm({ ...form, password: e.target.value })}
+                onChange={(e) => { const v = e.target.value; setForm((f) => ({ ...f, password: v })); }}
               />
             </div>
           </div>
@@ -291,7 +294,7 @@ export default function TeamPage() {
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
             <Button
               onClick={handleSave}
-              disabled={saving || !form.first_name || !form.last_name || !form.email}
+              disabled={saving || !form.first_name || !form.last_name || !form.email || (editingUser && JSON.stringify(form) === JSON.stringify(initialForm))}
             >
               {saving ? "Saving..." : editingUser ? "Save Changes" : "Create User"}
             </Button>
