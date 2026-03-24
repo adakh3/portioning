@@ -996,7 +996,7 @@ export const api = {
   getUsers: () => fetchList<AuthUser>("/bookings/users/?page_size=all"),
 
   // User management (owner-only)
-  getOrgUsers: () => fetchApi<ManagedUser[]>("/auth/users/"),
+  getOrgUsers: () => fetchList<ManagedUser>("/auth/users/?page_size=all"),
   createUser: (data: { email: string; first_name: string; last_name: string; role: string; password: string }) =>
     fetchApi<ManagedUser>("/auth/users/", { method: "POST", body: JSON.stringify(data) }),
   updateUser: (id: number, data: Partial<ManagedUser & { password?: string }>) =>
