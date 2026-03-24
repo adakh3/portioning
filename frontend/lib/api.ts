@@ -16,6 +16,8 @@ export interface ManagedUser {
   last_name: string;
   role: string;
   is_active: boolean;
+  product_lines: number[];
+  product_line_names: string[];
 }
 
 // ── CSRF token helper ──
@@ -997,7 +999,7 @@ export const api = {
 
   // User management (owner-only)
   getOrgUsers: () => fetchList<ManagedUser>("/auth/users/?page_size=all"),
-  createUser: (data: { email: string; first_name: string; last_name: string; role: string; password: string }) =>
+  createUser: (data: { email: string; first_name: string; last_name: string; role: string; password: string; product_lines?: number[] }) =>
     fetchApi<ManagedUser>("/auth/users/", { method: "POST", body: JSON.stringify(data) }),
   updateUser: (id: number, data: Partial<ManagedUser & { password?: string }>) =>
     fetchApi<ManagedUser>(`/auth/users/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),

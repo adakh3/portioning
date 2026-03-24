@@ -3,8 +3,9 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { api, ManagedUser } from "@/lib/api";
+import { api, ManagedUser, ProductLine } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { useProductLines } from "@/lib/hooks";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -44,9 +45,10 @@ export default function TeamPage() {
   const router = useRouter();
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const [loading, setLoading] = useState(true);
+  const { data: productLines = [] } = useProductLines();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<ManagedUser | null>(null);
-  const [form, setForm] = useState({ first_name: "", last_name: "", email: "", role: "salesperson", password: "" });
+  const [form, setForm] = useState({ first_name: "", last_name: "", email: "", role: "salesperson", password: "", product_lines: [] as number[] });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -69,14 +71,14 @@ export default function TeamPage() {
 
   function openCreate() {
     setEditingUser(null);
-    setForm({ first_name: "", last_name: "", email: "", role: "salesperson", password: "" });
+    setForm({ first_name: "", last_name: "", email: "", role: "salesperson", password: "", product_lines: [] });
     setError("");
     setDialogOpen(true);
   }
 
   function openEdit(u: ManagedUser) {
     setEditingUser(u);
-    setForm({ first_name: u.first_name, last_name: u.last_name, email: u.email, role: u.role, password: "" });
+    setForm({ first_name: u.first_name, last_name: u.last_name, email: u.email, role: u.role, password: "", product_lines: u.product_lines || [] });
     setError("");
     setDialogOpen(true);
   }
@@ -86,14 +88,15 @@ export default function TeamPage() {
     setError("");
     try {
       if (editingUser) {
-        const payload: Record<string, string> = {
+        const payload: Record<string, unknown> = {
           first_name: form.first_name,
           last_name: form.last_name,
           email: form.email,
           role: form.role,
+          product_lines: form.product_lines,
         };
         if (form.password) payload.password = form.password;
-        await api.updateUser(editingUser.id, payload);
+        await api.updateUser(editingUser.id, payload as Partial<ManagedUser & { password?: string }>);
       } else {
         if (!form.password) { setError("Password is required for new users."); setSaving(false); return; }
         await api.createUser(form);
@@ -139,6 +142,7 @@ export default function TeamPage() {
                   <TableHead>Name</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Role</TableHead>
+                  <TableHead>Products</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -154,6 +158,16 @@ export default function TeamPage() {
                       <Badge variant={roleBadgeVariant[u.role] || "secondary"} className="text-xs">
                         {ROLES.find((r) => r.value === u.role)?.label || u.role}
                       </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1">
+                        {(u.product_line_names || []).map((name) => (
+                          <span key={name} className="text-[10px] font-medium bg-primary/10 text-primary px-1.5 py-0.5 rounded">{name}</span>
+                        ))}
+                        {(!u.product_line_names || u.product_line_names.length === 0) && (
+                          <span className="text-xs text-muted-foreground">-</span>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell>
                       {u.is_active ? (
@@ -232,6 +246,36 @@ export default function TeamPage() {
                 ))}
               </select>
             </div>
+            {productLines.length > 0 && (
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Product Lines</label>
+                <div className="flex flex-wrap gap-2">
+                  {productLines.map((pl) => {
+                    const selected = form.product_lines.includes(pl.id);
+                    return (
+                      <button
+                        key={pl.id}
+                        type="button"
+                        onClick={() => setForm({
+                          ...form,
+                          product_lines: selected
+                            ? form.product_lines.filter((id) => id !== pl.id)
+                            : [...form.product_lines, pl.id],
+                        })}
+                        className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                          selected
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "bg-transparent text-muted-foreground border-border hover:border-primary/50"
+                        }`}
+                      >
+                        {pl.name}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">Click to toggle. Used for lead assignment and filtering.</p>
+              </div>
+            )}
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">
                 Password {editingUser ? "(leave blank to keep current)" : "*"}
