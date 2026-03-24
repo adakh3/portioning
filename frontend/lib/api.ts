@@ -9,6 +9,17 @@ export interface AuthUser {
   organisation: { id: number; name: string } | null;
 }
 
+export interface ManagedUser {
+  id: number;
+  email: string;
+  first_name: string;
+  last_name: string;
+  role: string;
+  is_active: boolean;
+  product_lines: number[];
+  product_line_names: string[];
+}
+
 // ── CSRF token helper ──
 function getCsrfToken(): string | null {
   if (typeof document === "undefined") return null;
@@ -985,6 +996,13 @@ export const api = {
   updateProductLine: (id: number, data: Partial<ProductLine>) =>
     fetchApi<ProductLine>(`/bookings/product-lines/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
   getUsers: () => fetchList<AuthUser>("/bookings/users/?page_size=all"),
+
+  // User management (owner-only)
+  getOrgUsers: () => fetchList<ManagedUser>("/auth/users/?page_size=all"),
+  createUser: (data: { email: string; first_name: string; last_name: string; role: string; password: string; product_lines?: number[] }) =>
+    fetchApi<ManagedUser>("/auth/users/", { method: "POST", body: JSON.stringify(data) }),
+  updateUser: (id: number, data: Partial<ManagedUser & { password?: string }>) =>
+    fetchApi<ManagedUser>(`/auth/users/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
 
   // Bookings: Leads
   getLeads: (filters?: LeadFilters) => {

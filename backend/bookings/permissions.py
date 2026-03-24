@@ -12,6 +12,17 @@ class IsManagerOrOwner(permissions.BasePermission):
         )
 
 
+class IsOwner(permissions.BasePermission):
+    """Only allow users with role 'owner'."""
+
+    def has_permission(self, request, view):
+        return (
+            request.user
+            and request.user.is_authenticated
+            and getattr(request.user, 'role', '') == 'owner'
+        )
+
+
 def is_salesperson(user):
     """Return True if the authenticated user has the salesperson role."""
     return (
