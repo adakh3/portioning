@@ -294,7 +294,7 @@ export default function TeamPage() {
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
             <Button
               onClick={handleSave}
-              disabled={saving || !form.first_name || !form.last_name || !form.email || (editingUser && JSON.stringify(form) === JSON.stringify(initialForm))}
+              disabled={saving || !form.first_name || !form.last_name || !form.email || (!!editingUser && JSON.stringify(form) === JSON.stringify(initialForm))}
             >
               {saving ? "Saving..." : editingUser ? "Save Changes" : "Create User"}
             </Button>
