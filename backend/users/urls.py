@@ -9,4 +9,6 @@ urlpatterns = [
     path("me/", views.MeView.as_view(), name="auth-me"),
     path("switch-org/", views.SwitchOrgView.as_view(), name="auth-switch-org"),
     path("organisations/", views.OrganisationListView.as_view(), name="auth-organisations"),
+    path("users/", views.UserManageListCreateView.as_view(), name="user-manage-list"),
+    path("users/<int:pk>/", views.UserManageDetailView.as_view(), name="user-manage-detail"),
 ]

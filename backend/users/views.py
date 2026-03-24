@@ -11,8 +11,10 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from rest_framework import generics
+
 from .models import Organisation, User
-from .serializers import LoginSerializer, UserSerializer
+from .serializers import LoginSerializer, UserSerializer, UserManageSerializer
 
 logger = logging.getLogger(__name__)
 
@@ -226,3 +228,33 @@ class OrganisationListView(APIView):
             )
         orgs = Organisation.objects.filter(is_active=True).order_by('name').values('id', 'name')
         return Response(list(orgs))
+
+
+class UserManageListCreateView(generics.ListCreateAPIView):
+    """GET/POST /api/auth/users/ — owner-only user management."""
+    serializer_class = UserManageSerializer
+
+    def get_permissions(self):
+        from bookings.permissions import IsOwner
+        return [IsOwner()]
+
+    def get_queryset(self):
+        org = getattr(self.request, 'organisation', None) or self.request.user.organisation
+        return User.objects.filter(organisation=org).order_by('first_name', 'last_name')
+
+    def perform_create(self, serializer):
+        org = getattr(self.request, 'organisation', None) or self.request.user.organisation
+        serializer.save(organisation=org)
+
+
+class UserManageDetailView(generics.RetrieveUpdateAPIView):
+    """GET/PATCH /api/auth/users/<pk>/ — owner-only user management."""
+    serializer_class = UserManageSerializer
+
+    def get_permissions(self):
+        from bookings.permissions import IsOwner
+        return [IsOwner()]
+
+    def get_queryset(self):
+        org = getattr(self.request, 'organisation', None) or self.request.user.organisation
+        return User.objects.filter(organisation=org)
