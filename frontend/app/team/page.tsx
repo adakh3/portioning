@@ -51,6 +51,7 @@ export default function TeamPage() {
   const [form, setForm] = useState({ first_name: "", last_name: "", email: "", role: "salesperson", password: "", product_lines: [] as number[] });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [initialForm, setInitialForm] = useState({ first_name: "", last_name: "", email: "", role: "salesperson", password: "", product_lines: [] as number[] });
 
   // Redirect non-owners
   useEffect(() => {
@@ -78,7 +79,9 @@ export default function TeamPage() {
 
   function openEdit(u: ManagedUser) {
     setEditingUser(u);
-    setForm({ first_name: u.first_name, last_name: u.last_name, email: u.email, role: u.role, password: "", product_lines: u.product_lines || [] });
+    const formData = { first_name: u.first_name, last_name: u.last_name, email: u.email, role: u.role, password: "", product_lines: u.product_lines || [] };
+    setForm(formData);
+    setInitialForm(formData);
     setError("");
     setDialogOpen(true);
   }
@@ -291,7 +294,7 @@ export default function TeamPage() {
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
             <Button
               onClick={handleSave}
-              disabled={saving || !form.first_name || !form.last_name || !form.email}
+              disabled={saving || !form.first_name || !form.last_name || !form.email || (editingUser && JSON.stringify(form) === JSON.stringify(initialForm))}
             >
               {saving ? "Saving..." : editingUser ? "Save Changes" : "Create User"}
             </Button>
