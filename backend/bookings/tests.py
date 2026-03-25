@@ -505,6 +505,60 @@ class TestLeadAPI(TestCase):
         self.assertEqual(lead.won_quote, quote)
 
 
+class TestLeadSearch(TestCase):
+    def setUp(self):
+        self.org = _make_org()
+        self.client = _authenticated_client()
+        self.acct = make_account(org=self.org, name="Sunrise Catering")
+        make_lead(org=self.org, contact_name="Alice Johnson", contact_email="alice@example.com", contact_phone="555-1234")
+        make_lead(org=self.org, contact_name="Bob Williams", contact_email="bob@corp.com", account=self.acct)
+        make_lead(org=self.org, contact_name="Charlie Brown", contact_email="charlie@test.com", contact_phone="555-9999")
+
+    def _search(self, term):
+        return self.client.get(f"/api/bookings/leads/?search={term}&page_size=all")
+
+    def test_search_by_contact_name(self):
+        res = self._search("alice")
+        data = res.json()
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0]["contact_name"], "Alice Johnson")
+
+    def test_search_is_case_insensitive(self):
+        res = self._search("ALICE")
+        self.assertEqual(len(res.json()), 1)
+
+    def test_search_partial_match(self):
+        res = self._search("lic")
+        self.assertEqual(len(res.json()), 1)
+        self.assertEqual(res.json()[0]["contact_name"], "Alice Johnson")
+
+    def test_search_by_email(self):
+        res = self._search("bob@corp")
+        self.assertEqual(len(res.json()), 1)
+        self.assertEqual(res.json()[0]["contact_name"], "Bob Williams")
+
+    def test_search_by_phone(self):
+        res = self._search("555-9999")
+        self.assertEqual(len(res.json()), 1)
+        self.assertEqual(res.json()[0]["contact_name"], "Charlie Brown")
+
+    def test_search_by_account_name(self):
+        res = self._search("sunrise")
+        self.assertEqual(len(res.json()), 1)
+        self.assertEqual(res.json()[0]["contact_name"], "Bob Williams")
+
+    def test_search_no_match(self):
+        res = self._search("nonexistent")
+        self.assertEqual(len(res.json()), 0)
+
+    def test_search_combined_with_status_filter(self):
+        """Search respects other filters too."""
+        lead = Lead.objects.get(contact_name="Alice Johnson")
+        lead.transition_to("contacted")
+        res = self.client.get("/api/bookings/leads/?search=alice&status=new&page_size=all")
+        self.assertEqual(len(res.json()), 0)  # Alice is now 'contacted', not 'new'
+
+
 class TestQuoteAPI(TestCase):
     def setUp(self):
         self.org = _make_org()

@@ -248,6 +248,13 @@ function LeadsContent() {
   const [viewModeRaw, setViewMode] = useQueryState("view", "kanban");
   const viewMode = (viewModeRaw === "table" ? "table" : "kanban") as "kanban" | "table";
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+
+  // Debounce search input for server-side filtering
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(t);
+  }, [search]);
   const [filterAssigned, setFilterAssigned] = useQueryState("assigned", "");
   const [filterStatus, setFilterStatus] = useQueryState("status", "");
   const [filterProduct, setFilterProduct] = useQueryState("product", "");
@@ -296,8 +303,9 @@ function LeadsContent() {
     if (filterLeadDateFrom) f.lead_date_from = filterLeadDateFrom;
     if (filterLeadDateTo) f.lead_date_to = filterLeadDateTo;
     if (ordering) f.ordering = ordering;
+    if (debouncedSearch) f.search = debouncedSearch;
     return f;
-  }, [filterAssigned, filterStatus, filterProduct, filterEventType, filterDateFrom, filterDateTo, filterLeadDateFrom, filterLeadDateTo, ordering]);
+  }, [filterAssigned, filterStatus, filterProduct, filterEventType, filterDateFrom, filterDateTo, filterLeadDateFrom, filterLeadDateTo, ordering, debouncedSearch]);
 
   // Alias for table use
   const filters = baseFilters;
@@ -369,7 +377,7 @@ function LeadsContent() {
   // Reset table page when filters change
   useEffect(() => {
     setTablePage(1);
-  }, [filterAssigned, filterStatus, filterProduct, filterEventType, filterDateFrom, filterDateTo, filterLeadDateFrom, filterLeadDateTo, ordering]);
+  }, [filterAssigned, filterStatus, filterProduct, filterEventType, filterDateFrom, filterDateTo, filterLeadDateFrom, filterLeadDateTo, ordering, debouncedSearch]);
 
   const { data: users } = useUsers();
   const { data: productLines } = useProductLines();
@@ -392,17 +400,6 @@ function LeadsContent() {
     setSelectedIds(new Set());
   }, [tableData]);
 
-  // Client-side text search filter for table
-  const filtered = search
-    ? tableLeads.filter((l) =>
-        l.contact_name.toLowerCase().includes(search.toLowerCase()) ||
-        l.event_type_display.toLowerCase().includes(search.toLowerCase()) ||
-        l.contact_email.toLowerCase().includes(search.toLowerCase()) ||
-        l.contact_phone?.toLowerCase().includes(search.toLowerCase()) ||
-        l.account_name?.toLowerCase().includes(search.toLowerCase())
-      )
-    : tableLeads;
-
   // Kanban loading state
   const kanbanLoading = viewMode === "kanban" && kanbanIsLoading;
   const loadError = viewMode === "kanban" ? undefined : tableError;
@@ -422,7 +419,7 @@ function LeadsContent() {
     if (qs) revalidate(`leads-paginated?${qs}`);
   }
 
-  const hasFilters = filterAssigned || filterStatus || filterProduct || filterEventType || filterDateFrom || filterDateTo || filterLeadDateFrom || filterLeadDateTo;
+  const hasFilters = search || filterAssigned || filterStatus || filterProduct || filterEventType || filterDateFrom || filterDateTo || filterLeadDateFrom || filterLeadDateTo;
 
   const clearQueryFilters = useClearQueryState(["assigned", "status", "product", "eventType", "dateFrom", "dateTo", "leadDateFrom", "leadDateTo"]);
   function clearFilters() {
@@ -454,10 +451,10 @@ function LeadsContent() {
   }
 
   function toggleSelectAll() {
-    if (selectedIds.size === filtered.length) {
+    if (selectedIds.size === tableLeads.length) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(filtered.map((l) => l.id)));
+      setSelectedIds(new Set(tableLeads.map((l) => l.id)));
     }
   }
 
@@ -882,7 +879,7 @@ function LeadsContent() {
       ) : (
         <>
           <LeadsTable
-            leads={filtered}
+            leads={tableLeads}
             selectedIds={selectedIds}
             ordering={ordering}
             onToggleSelect={toggleSelect}

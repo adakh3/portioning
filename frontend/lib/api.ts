@@ -865,6 +865,7 @@ export interface MyDashboardStats {
 
 // Lead filter params
 export interface LeadFilters {
+  search?: string;
   status?: string;
   assigned_to?: string;
   product?: string;

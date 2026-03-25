@@ -96,6 +96,15 @@ def _apply_lead_filters(qs, request):
     if lead_date_to:
         qs = qs.filter(lead_date__lte=lead_date_to)
 
+    search = params.get('search')
+    if search:
+        qs = qs.filter(
+            Q(contact_name__icontains=search) |
+            Q(contact_email__icontains=search) |
+            Q(contact_phone__icontains=search) |
+            Q(account__name__icontains=search)
+        )
+
     ordering = params.get('ordering')
     if ordering and ordering in LEAD_ORDERING_FIELDS:
         qs = qs.order_by(ordering)
