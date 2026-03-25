@@ -91,7 +91,10 @@ class Lead(models.Model):
 
     def can_transition_to(self, new_status):
         from bookings.models.choices import LeadStatusOption
-        valid_statuses = set(LeadStatusOption.objects.values_list('value', flat=True))
+        valid_statuses = set(
+            LeadStatusOption.objects.filter(organisation=self.organisation)
+            .values_list('value', flat=True)
+        )
         return new_status in valid_statuses and new_status != self.status
 
     def transition_to(self, new_status):

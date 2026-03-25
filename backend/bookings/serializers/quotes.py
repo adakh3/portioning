@@ -53,7 +53,7 @@ class QuoteSerializer(serializers.ModelSerializer):
             if org:
                 self.fields['dish_ids'].child_relation.queryset = Dish.objects.filter(organisation=org)
             else:
-                self.fields['dish_ids'].child_relation.queryset = Dish.objects.all()
+                self.fields['dish_ids'].child_relation.queryset = Dish.objects.none()
 
     class Meta:
         model = Quote

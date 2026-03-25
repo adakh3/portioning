@@ -1,5 +1,6 @@
 from django.utils import timezone
 from rest_framework import generics, status
+from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 
 from bookings.activity import log_activity
@@ -20,6 +21,8 @@ class ReminderListCreateView(generics.ListCreateAPIView):
             org = get_request_org(self.request)
             if org is not None:
                 qs = qs.filter(lead__organisation=org)
+            else:
+                return qs.none()
         params = self.request.query_params
 
         # Default to current user
@@ -50,6 +53,10 @@ class ReminderListCreateView(generics.ListCreateAPIView):
 
     def perform_create(self, serializer):
         user = self.request.user if self.request.user.is_authenticated else None
+        lead = serializer.validated_data.get('lead')
+        org = get_request_org(self.request)
+        if lead and org and lead.organisation_id != org.id:
+            raise ValidationError({'lead': 'Lead does not belong to your organisation.'})
         serializer.save(created_by=user)
 
 
@@ -63,6 +70,8 @@ class ReminderDetailView(generics.RetrieveUpdateDestroyAPIView):
             org = get_request_org(self.request)
             if org is not None:
                 qs = qs.filter(lead__organisation=org)
+            else:
+                return qs.none()
         return qs
 
     def perform_update(self, serializer):

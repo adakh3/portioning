@@ -24,8 +24,8 @@ class UserListView(generics.ListAPIView):
         qs = User.objects.filter(is_active=True).order_by('first_name', 'last_name')
         org = get_request_org(self.request)
         if org:
-            qs = qs.filter(organisation=org)
-        return qs
+            return qs.filter(organisation=org)
+        return qs.none()
 
 
 class ProductLineListView(generics.ListAPIView):
@@ -35,8 +35,8 @@ class ProductLineListView(generics.ListAPIView):
         qs = ProductLine.objects.filter(is_active=True)
         org = get_request_org(self.request)
         if org:
-            qs = qs.filter(organisation=org)
-        return qs
+            return qs.filter(organisation=org)
+        return qs.none()
 
 
 class ProductLineDetailView(generics.RetrieveUpdateAPIView):

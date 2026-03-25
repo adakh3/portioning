@@ -25,6 +25,27 @@ from .services.lead_import import (
 )
 
 
+# --- Org-scoped admin mixin ---
+
+class OrgScopedAdmin(admin.ModelAdmin):
+    """Base admin that scopes querysets to the logged-in user's org (unless superuser)."""
+    org_field = 'organisation'
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        if request.user.is_superuser:
+            return qs
+        org = getattr(request.user, 'organisation', None)
+        if org:
+            return qs.filter(**{self.org_field: org})
+        return qs.none()
+
+    def save_model(self, request, obj, form, change):
+        if not change and not getattr(obj, self.org_field, None):
+            setattr(obj, self.org_field, request.user.organisation)
+        super().save_model(request, obj, form, change)
+
+
 # --- Accounts & Contacts ---
 
 class ContactInline(admin.TabularInline):
@@ -33,7 +54,7 @@ class ContactInline(admin.TabularInline):
 
 
 @admin.register(Account)
-class AccountAdmin(admin.ModelAdmin):
+class AccountAdmin(OrgScopedAdmin):
     list_display = ['name', 'account_type', 'billing_city', 'payment_terms', 'created_at']
     list_filter = ['account_type', 'payment_terms']
     search_fields = ['name', 'vat_number']
@@ -41,7 +62,9 @@ class AccountAdmin(admin.ModelAdmin):
 
 
 @admin.register(Contact)
-class ContactAdmin(admin.ModelAdmin):
+class ContactAdmin(OrgScopedAdmin):
+    org_field = 'account__organisation'
+
     list_display = ['name', 'account', 'role', 'email', 'phone', 'is_primary']
     list_filter = ['role', 'is_primary']
     search_fields = ['name', 'email', 'account__name']
@@ -50,7 +73,7 @@ class ContactAdmin(admin.ModelAdmin):
 # --- Venues ---
 
 @admin.register(Venue)
-class VenueAdmin(admin.ModelAdmin):
+class VenueAdmin(OrgScopedAdmin):
     list_display = ['name', 'city', 'kitchen_access', 'contact_name']
     list_filter = ['kitchen_access']
     search_fields = ['name', 'city']
@@ -59,14 +82,14 @@ class VenueAdmin(admin.ModelAdmin):
 # --- Leads ---
 
 @admin.register(ProductLine)
-class ProductLineAdmin(admin.ModelAdmin):
+class ProductLineAdmin(OrgScopedAdmin):
     list_display = ['name', 'organisation', 'is_active', 'created_at']
     list_filter = ['is_active']
     search_fields = ['name']
 
 
 @admin.register(Lead)
-class LeadAdmin(admin.ModelAdmin):
+class LeadAdmin(OrgScopedAdmin):
     list_display = ['contact_name', 'event_type', 'event_date', 'lead_date', 'status', 'product', 'assigned_to', 'source', 'guest_estimate', 'created_at']
     list_select_related = ['product', 'assigned_to', 'organisation']
     list_filter = ['status', 'source', 'event_type', 'product']
@@ -141,7 +164,7 @@ class LeadAdmin(admin.ModelAdmin):
 
             import_rows = parse_rows(data_rows, header)
             validate_rows(import_rows, org)
-            flag_duplicates(import_rows)
+            flag_duplicates(import_rows, org)
         except ValueError as e:
             context["errors"] = [str(e)]
             return render(request, "admin/bookings/lead/import_form.html", context)
@@ -258,7 +281,7 @@ class QuoteLineItemInline(admin.TabularInline):
 
 
 @admin.register(Quote)
-class QuoteAdmin(admin.ModelAdmin):
+class QuoteAdmin(OrgScopedAdmin):
     list_display = ['__str__', 'account', 'event_date', 'guest_count', 'total', 'status', 'created_at']
     list_filter = ['status', 'event_type']
     search_fields = ['account__name']
@@ -274,7 +297,9 @@ class PaymentInline(admin.TabularInline):
 
 
 @admin.register(Invoice)
-class InvoiceAdmin(admin.ModelAdmin):
+class InvoiceAdmin(OrgScopedAdmin):
+    org_field = 'event__organisation'
+
     list_display = ['invoice_number', 'event', 'invoice_type', 'total', 'status', 'due_date']
     list_filter = ['status', 'invoice_type']
     search_fields = ['invoice_number', 'event__name']
@@ -283,7 +308,9 @@ class InvoiceAdmin(admin.ModelAdmin):
 
 
 @admin.register(Payment)
-class PaymentAdmin(admin.ModelAdmin):
+class PaymentAdmin(OrgScopedAdmin):
+    org_field = 'invoice__event__organisation'
+
     list_display = ['invoice', 'amount', 'payment_date', 'method', 'reference']
     list_filter = ['method']
     search_fields = ['invoice__invoice_number', 'reference']
@@ -292,56 +319,56 @@ class PaymentAdmin(admin.ModelAdmin):
 # --- Choice Options ---
 
 @admin.register(EventTypeOption)
-class EventTypeOptionAdmin(admin.ModelAdmin):
+class EventTypeOptionAdmin(OrgScopedAdmin):
     list_display = ['value', 'label', 'sort_order', 'is_active']
     list_editable = ['label', 'sort_order', 'is_active']
     ordering = ['sort_order']
 
 
 @admin.register(SourceOption)
-class SourceOptionAdmin(admin.ModelAdmin):
+class SourceOptionAdmin(OrgScopedAdmin):
     list_display = ['value', 'label', 'sort_order', 'is_active']
     list_editable = ['label', 'sort_order', 'is_active']
     ordering = ['sort_order']
 
 
 @admin.register(ServiceStyleOption)
-class ServiceStyleOptionAdmin(admin.ModelAdmin):
+class ServiceStyleOptionAdmin(OrgScopedAdmin):
     list_display = ['value', 'label', 'sort_order', 'is_active']
     list_editable = ['label', 'sort_order', 'is_active']
     ordering = ['sort_order']
 
 
 @admin.register(LeadStatusOption)
-class LeadStatusOptionAdmin(admin.ModelAdmin):
+class LeadStatusOptionAdmin(OrgScopedAdmin):
     list_display = ['value', 'label', 'sort_order', 'is_active']
     list_editable = ['label', 'sort_order', 'is_active']
     ordering = ['sort_order']
 
 
 @admin.register(LostReasonOption)
-class LostReasonOptionAdmin(admin.ModelAdmin):
+class LostReasonOptionAdmin(OrgScopedAdmin):
     list_display = ['value', 'label', 'sort_order', 'is_active']
     list_editable = ['label', 'sort_order', 'is_active']
     ordering = ['sort_order']
 
 
 @admin.register(MealTypeOption)
-class MealTypeOptionAdmin(admin.ModelAdmin):
+class MealTypeOptionAdmin(OrgScopedAdmin):
     list_display = ['value', 'label', 'sort_order', 'is_active']
     list_editable = ['label', 'sort_order', 'is_active']
     ordering = ['sort_order']
 
 
 @admin.register(ArrangementTypeOption)
-class ArrangementTypeOptionAdmin(admin.ModelAdmin):
+class ArrangementTypeOptionAdmin(OrgScopedAdmin):
     list_display = ['value', 'label', 'sort_order', 'is_active']
     list_editable = ['label', 'sort_order', 'is_active']
     ordering = ['sort_order']
 
 
 @admin.register(BeverageTypeOption)
-class BeverageTypeOptionAdmin(admin.ModelAdmin):
+class BeverageTypeOptionAdmin(OrgScopedAdmin):
     list_display = ['value', 'label', 'sort_order', 'is_active']
     list_editable = ['label', 'sort_order', 'is_active']
     ordering = ['sort_order']
@@ -366,7 +393,9 @@ class ActivityLogAdmin(admin.ModelAdmin):
 # --- Reminders ---
 
 @admin.register(Reminder)
-class ReminderAdmin(admin.ModelAdmin):
+class ReminderAdmin(OrgScopedAdmin):
+    org_field = 'lead__organisation'
+
     list_display = ['lead', 'user', 'due_at', 'status', 'note', 'created_at']
     list_filter = ['status', 'user']
     search_fields = ['note', 'lead__contact_name']
@@ -412,7 +441,7 @@ class OrgSettingsAdmin(admin.ModelAdmin):
 # --- WhatsApp Messages ---
 
 @admin.register(WhatsAppMessage)
-class WhatsAppMessageAdmin(admin.ModelAdmin):
+class WhatsAppMessageAdmin(OrgScopedAdmin):
     list_display = ['to_phone', 'lead', 'direction', 'status', 'sent_by', 'created_at']
     list_filter = ['status', 'direction']
     search_fields = ['to_phone', 'body', 'twilio_sid', 'lead__contact_name']
@@ -422,7 +451,7 @@ class WhatsAppMessageAdmin(admin.ModelAdmin):
 # --- Locked Dates ---
 
 @admin.register(LockedDate)
-class LockedDateAdmin(admin.ModelAdmin):
+class LockedDateAdmin(OrgScopedAdmin):
     list_display = ['date', 'reason', 'locked_by', 'organisation', 'created_at']
     list_filter = ['organisation']
     search_fields = ['reason']

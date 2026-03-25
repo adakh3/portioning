@@ -1,7 +1,9 @@
 from rest_framework import generics
+from rest_framework.exceptions import ValidationError
 
 from bookings.models import Invoice, Payment
 from bookings.serializers import InvoiceSerializer, PaymentSerializer
+from events.models import Event
 from users.mixins import get_request_org, is_superuser_without_org
 
 
@@ -12,7 +14,7 @@ def _apply_event_org_filter(qs, request):
     org = get_request_org(request)
     if org is not None:
         return qs.filter(event__organisation=org)
-    return qs
+    return qs.none()
 
 
 class InvoiceListCreateView(generics.ListCreateAPIView):
@@ -28,6 +30,12 @@ class InvoiceListCreateView(generics.ListCreateAPIView):
         if invoice_status:
             qs = qs.filter(status=invoice_status)
         return qs
+
+    def perform_create(self, serializer):
+        event = serializer.validated_data.get('event')
+        org = get_request_org(self.request)
+        if event and org and event.organisation_id != org.id:
+            raise ValidationError({'event': 'Event does not belong to your organisation.'})
 
 
 class InvoiceDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -54,7 +62,12 @@ class PaymentListCreateView(generics.ListCreateAPIView):
         return qs
 
     def perform_create(self, serializer):
-        serializer.save(invoice_id=self.kwargs['invoice_pk'])
+        invoice_pk = self.kwargs['invoice_pk']
+        org = get_request_org(self.request)
+        if org:
+            if not Invoice.objects.filter(pk=invoice_pk, event__organisation=org).exists():
+                raise ValidationError({'invoice': 'Invoice does not belong to your organisation.'})
+        serializer.save(invoice_id=invoice_pk)
 
 
 class PaymentDetailView(generics.RetrieveUpdateDestroyAPIView):
