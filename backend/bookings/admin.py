@@ -1,6 +1,7 @@
 import json
 from dataclasses import asdict
 
+from django import forms
 from django.contrib import admin
 from django.shortcuts import render, redirect
 from django.urls import path, reverse
@@ -416,8 +417,31 @@ class SiteSettingsAdmin(admin.ModelAdmin):
         return False
 
 
+class OrgSettingsForm(forms.ModelForm):
+    twilio_auth_token_plain = forms.CharField(
+        label='Twilio Auth Token',
+        required=False,
+        widget=forms.PasswordInput(render_value=False),
+        help_text='Enter a new token to update. Leave blank to keep current.',
+    )
+
+    class Meta:
+        model = OrgSettings
+        exclude = ['twilio_auth_token_encrypted']
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        token = self.cleaned_data.get('twilio_auth_token_plain')
+        if token:
+            instance.twilio_auth_token = token  # uses the encrypting setter
+        if commit:
+            instance.save()
+        return instance
+
+
 @admin.register(OrgSettings)
 class OrgSettingsAdmin(admin.ModelAdmin):
+    form = OrgSettingsForm
     list_display = ['organisation', 'whatsapp_enabled', 'twilio_whatsapp_number', 'twilio_configured']
     readonly_fields = ['twilio_configured']
     fieldsets = (
@@ -428,7 +452,7 @@ class OrgSettingsAdmin(admin.ModelAdmin):
             'fields': ('tax_label', 'default_tax_rate', 'default_price_per_head', 'target_food_cost_percentage', 'price_rounding_step'),
         }),
         ('WhatsApp / Twilio', {
-            'fields': ('whatsapp_enabled', 'twilio_account_sid', 'twilio_auth_token_encrypted', 'twilio_whatsapp_number', 'twilio_configured'),
+            'fields': ('whatsapp_enabled', 'twilio_account_sid', 'twilio_auth_token_plain', 'twilio_whatsapp_number', 'twilio_configured'),
             'description': 'Configure Twilio credentials to enable WhatsApp for this organisation.',
         }),
     )

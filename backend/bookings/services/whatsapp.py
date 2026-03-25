@@ -43,7 +43,7 @@ class WhatsAppService:
 
         try:
             from twilio.rest import Client
-            client = Client(s.twilio_account_sid, s.twilio_auth_token_encrypted)
+            client = Client(s.twilio_account_sid, s.twilio_auth_token)
             twilio_msg = client.messages.create(
                 body=body,
                 from_=from_phone,

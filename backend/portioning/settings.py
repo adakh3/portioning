@@ -83,6 +83,7 @@ MIDDLEWARE = [
     'users.middleware.OrgMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'users.middleware.CSPMiddleware',
 ]
 
 # CORS
