@@ -555,19 +555,15 @@ class LeadKanbanView(APIView):
         qs = apply_org_filter(qs, request)
         qs = _apply_lead_filters(qs, request)
 
-        # Group leads by status in Python
-        buckets = defaultdict(list)
-        counts = defaultdict(int)
-        for lead in qs.iterator():
-            s = lead.status
-            counts[s] += 1
-            if len(buckets[s]) < page_size:
-                buckets[s].append(lead)
+        # Get counts per status in a single DB query
+        from django.db.models import Count as DbCount
+        count_rows = qs.values('status').annotate(n=DbCount('id'))
+        counts = {row['status']: row['n'] for row in count_rows}
 
-        # Serialize and build response
+        # Fetch top N leads per status using per-status queries (avoids full table scan)
         columns = {}
         for status_val in KANBAN_STATUSES:
-            leads = buckets.get(status_val, [])
+            leads = list(qs.filter(status=status_val)[:page_size])
             columns[status_val] = {
                 'count': counts.get(status_val, 0),
                 'results': LeadListSerializer(leads, many=True).data,
