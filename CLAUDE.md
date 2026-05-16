@@ -46,12 +46,32 @@ npm run dev
 - **`seed.json`** contains dev reference/config data (dishes, menus, rules, settings, labor roles, equipment) and is **not deployed to prod**. **`test_fixtures.json`** contains demo transactional data (accounts, leads, quotes, events) and must NEVER be deployed to prod.
 - **New org setup**: A `post_save` signal on `Organisation` (`users/signals.py`) auto-creates `OrgSettings` with defaults and seeds workflow options (lead statuses + lost reasons). No manual setup needed for new orgs.
 - **Any new npm package** must be committed with both `frontend/package.json` and `frontend/package-lock.json` so deployments can install it.
+- **Any new feature or bug fix** must include backend and/or frontend tests. Tests are run automatically by the pre-commit hook — never skip them.
 
-## Running Tests
+## Testing
+
+- **Any new feature or bug fix must include tests** — backend (Django `TestCase`) and frontend (Vitest + React Testing Library) as appropriate.
+- **A git pre-commit hook** (`.git/hooks/pre-commit`) runs both test suites automatically before every commit. If tests fail, the commit is blocked.
+
+### Backend
 ```bash
+source venv/bin/activate
 cd backend
-python manage.py test
+python manage.py test                    # all tests
+python manage.py test bookings.tests     # specific app
 ```
+
+### Frontend
+```bash
+cd frontend
+npm run test:run                         # single run
+npm test                                 # watch mode
+```
+
+- Frontend tests are co-located next to source files (e.g. `lib/utils.test.ts` beside `lib/utils.ts`)
+- Use Vitest globals (`describe`, `it`, `expect`) — no imports needed
+- Mock `fetch` for API tests, mock modules with `vi.mock()` for hook tests
+- Wrap hook tests in `SWRConfig` with `{ provider: () => new Map() }` to isolate cache
 
 ## Git
 - Remote: https://github.com/adakh3/portioning.git
