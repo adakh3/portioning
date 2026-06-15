@@ -3,6 +3,7 @@ from rest_framework import serializers
 from bookings.models import Lead, Quote
 from bookings.models.leads import ProductLine
 from bookings.models.choices import EventTypeOption, LeadStatusOption
+from users.serializer_mixins import OrgScopedModelSerializer
 
 
 class LeadQuoteSummarySerializer(serializers.ModelSerializer):
@@ -42,7 +43,7 @@ def _get_lead_status_labels(org_id):
     return _lead_status_cache[org_id]
 
 
-class LeadSerializer(serializers.ModelSerializer):
+class LeadSerializer(OrgScopedModelSerializer):
     account_name = serializers.CharField(source='account.name', read_only=True, default=None)
     status_display = serializers.SerializerMethodField()
     event_type_display = serializers.SerializerMethodField()

@@ -4,9 +4,10 @@ from bookings.models import Quote, QuoteLineItem
 from bookings.serializers.leads import _get_event_type_labels
 from dishes.models import Dish
 from users.mixins import get_request_org
+from users.serializer_mixins import OrgScopedModelSerializer
 
 
-class QuoteLineItemSerializer(serializers.ModelSerializer):
+class QuoteLineItemSerializer(OrgScopedModelSerializer):
     class Meta:
         model = QuoteLineItem
         fields = [
@@ -23,7 +24,7 @@ class QuoteLineItemSerializer(serializers.ModelSerializer):
         }
 
 
-class QuoteSerializer(serializers.ModelSerializer):
+class QuoteSerializer(OrgScopedModelSerializer):
     line_items = QuoteLineItemSerializer(many=True, read_only=True)
     account_name = serializers.CharField(source='account.name', read_only=True)
     contact_name = serializers.SerializerMethodField()

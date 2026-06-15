@@ -1,6 +1,7 @@
 from django.db import models
 from django.utils import timezone
 from users.managers import TenantManager
+from users.model_mixins import OrgScopedModel
 
 
 class ProductLine(models.Model):
@@ -23,7 +24,7 @@ class ProductLine(models.Model):
         return self.name
 
 
-class Lead(models.Model):
+class Lead(OrgScopedModel, models.Model):
     objects = TenantManager()
 
     organisation = models.ForeignKey(

@@ -4,6 +4,7 @@ from django.conf import settings
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
 from users.managers import TenantManager
+from users.model_mixins import OrgScopedModel
 
 class EventStatus(models.TextChoices):
     TENTATIVE = 'tentative', 'Tentative'
@@ -22,7 +23,7 @@ EVENT_STATUS_TRANSITIONS = {
 }
 
 
-class Event(models.Model):
+class Event(OrgScopedModel, models.Model):
     objects = TenantManager()
 
     organisation = models.ForeignKey(

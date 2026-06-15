@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
 from .models import LaborRole, StaffMember, Shift, AllocationRule
+from users.serializer_mixins import OrgScopedModelSerializer
 
 
 class LaborRoleSerializer(serializers.ModelSerializer):
@@ -32,7 +33,7 @@ class StaffMemberSerializer(serializers.ModelSerializer):
         return list(obj.roles.values_list('name', flat=True))
 
 
-class ShiftSerializer(serializers.ModelSerializer):
+class ShiftSerializer(OrgScopedModelSerializer):
     staff_member_name = serializers.CharField(source='staff_member.name', read_only=True, default=None)
     role_name = serializers.CharField(source='role.name', read_only=True)
     duration_hours = serializers.SerializerMethodField()
@@ -63,7 +64,7 @@ class ShiftSerializer(serializers.ModelSerializer):
             return None
 
 
-class AllocationRuleSerializer(serializers.ModelSerializer):
+class AllocationRuleSerializer(OrgScopedModelSerializer):
     role_name = serializers.CharField(source='role.name', read_only=True)
 
     class Meta:

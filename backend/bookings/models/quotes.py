@@ -5,6 +5,7 @@ from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
 from django.utils import timezone
 from users.managers import TenantManager
+from users.model_mixins import OrgScopedModel
 
 class QuoteStatus(models.TextChoices):
     DRAFT = 'draft', 'Draft'
@@ -23,7 +24,7 @@ QUOTE_TRANSITIONS = {
 }
 
 
-class Quote(models.Model):
+class Quote(OrgScopedModel, models.Model):
     objects = TenantManager()
 
     organisation = models.ForeignKey(
