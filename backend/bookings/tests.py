@@ -505,6 +505,51 @@ class TestLeadAPI(TestCase):
         self.assertEqual(lead.won_quote, quote)
 
 
+class TestLeadUnreadWhatsApp(TestCase):
+    """The unread-WhatsApp count (powering the green dot) is computed via a
+    correlated subquery on the leads list and kanban endpoints."""
+
+    def setUp(self):
+        self.org = _make_org()
+        self.client = _authenticated_client()
+
+    def _add_messages(self, lead):
+        from django.utils import timezone
+        from bookings.models import WhatsAppMessage
+        common = dict(
+            organisation=self.org, lead=lead,
+            to_phone="+100", from_phone="+200", body="hi",
+        )
+        # 2 unread inbound + 1 read inbound + 1 outbound -> unread count == 2
+        WhatsAppMessage.objects.create(direction="inbound", read_at=None, **common)
+        WhatsAppMessage.objects.create(direction="inbound", read_at=None, **common)
+        WhatsAppMessage.objects.create(direction="inbound", read_at=timezone.now(), **common)
+        WhatsAppMessage.objects.create(direction="outbound", read_at=None, **common)
+
+    def test_kanban_reports_unread_whatsapp_count(self):
+        lead = make_lead(org=self.org, contact_name="HasUnread")
+        self._add_messages(lead)
+        make_lead(org=self.org, contact_name="NoMessages")
+
+        res = self.client.get("/api/bookings/leads/kanban/")
+        self.assertEqual(res.status_code, 200)
+        new_col = {l["contact_name"]: l for l in res.json()["columns"]["new"]["results"]}
+        self.assertEqual(new_col["HasUnread"]["unread_whatsapp_count"], 2)
+        self.assertTrue(new_col["HasUnread"]["has_unread_whatsapp"])
+        self.assertEqual(new_col["NoMessages"]["unread_whatsapp_count"], 0)
+        self.assertFalse(new_col["NoMessages"]["has_unread_whatsapp"])
+
+    def test_list_reports_unread_whatsapp_count(self):
+        lead = make_lead(org=self.org, contact_name="HasUnread")
+        self._add_messages(lead)
+
+        res = self.client.get("/api/bookings/leads/?page_size=all")
+        self.assertEqual(res.status_code, 200)
+        by_name = {l["contact_name"]: l for l in res.json()}
+        self.assertEqual(by_name["HasUnread"]["unread_whatsapp_count"], 2)
+        self.assertTrue(by_name["HasUnread"]["has_unread_whatsapp"])
+
+
 class TestLeadSearch(TestCase):
     def setUp(self):
         self.org = _make_org()

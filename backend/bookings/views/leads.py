@@ -112,6 +112,31 @@ def _apply_lead_filters(qs, request):
     return qs
 
 
+def _annotate_unread_whatsapp(qs):
+    """Annotate each lead with its unread inbound WhatsApp count.
+
+    Uses a correlated subquery rather than Count('whatsapp_messages', ...),
+    which would force a LEFT JOIN + GROUP BY on whatsapp_messages on every lead
+    query (the kanban runs the lead query 7x: 1 count + 6 per-status). The
+    subquery is a cheap per-row lookup and keeps the per-status count query
+    join-free.
+    """
+    from django.db.models import Count, IntegerField, OuterRef, Subquery
+    from django.db.models.functions import Coalesce
+    from bookings.models import WhatsAppMessage
+
+    unread = (
+        WhatsAppMessage.objects
+        .filter(lead=OuterRef('pk'), direction='inbound', read_at__isnull=True)
+        .values('lead')
+        .annotate(c=Count('id'))
+        .values('c')
+    )
+    return qs.annotate(
+        unread_whatsapp_count=Coalesce(Subquery(unread, output_field=IntegerField()), 0),
+    )
+
+
 class LeadListCreateView(generics.ListCreateAPIView):
     serializer_class = LeadSerializer
 
@@ -126,16 +151,11 @@ class LeadListCreateView(generics.ListCreateAPIView):
         log_activity(lead, 'created', user=user, description=f"Created lead \"{lead.contact_name}\"")
 
     def get_queryset(self):
-        from django.db.models import Count, Q
         qs = Lead.objects.select_related(
             'account', 'won_quote', 'won_event', 'product', 'assigned_to',
             'lost_reason_option',
-        ).annotate(
-            unread_whatsapp_count=Count(
-                'whatsapp_messages',
-                filter=Q(whatsapp_messages__direction='inbound', whatsapp_messages__read_at__isnull=True),
-            ),
         )
+        qs = _annotate_unread_whatsapp(qs)
         qs = apply_org_filter(qs, self.request)
         return _apply_lead_filters(qs, self.request)
 
@@ -547,18 +567,13 @@ class LeadKanbanView(APIView):
     """GET /api/bookings/leads/kanban/ — All columns in a single response."""
 
     def get(self, request):
-        from django.db.models import Count, Q
         page_size = int(request.query_params.get('page_size', 20))
 
         qs = Lead.objects.select_related(
             'account', 'won_quote', 'won_event', 'product', 'assigned_to',
             'lost_reason_option',
-        ).annotate(
-            unread_whatsapp_count=Count(
-                'whatsapp_messages',
-                filter=Q(whatsapp_messages__direction='inbound', whatsapp_messages__read_at__isnull=True),
-            ),
         )
+        qs = _annotate_unread_whatsapp(qs)
         qs = apply_org_filter(qs, request)
         qs = _apply_lead_filters(qs, request)
 
