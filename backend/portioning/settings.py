@@ -159,6 +159,11 @@ WSGI_APPLICATION = 'portioning.wsgi.application'
 DATABASES = {
     'default': dj_database_url.config(
         default=f'sqlite:///{BASE_DIR / "db.sqlite3"}',
+        # Reuse DB connections across requests instead of opening a new one
+        # (and paying the TCP+TLS handshake) every request. Huge latency win on
+        # managed Postgres; ignored harmlessly by SQLite in dev.
+        conn_max_age=600,
+        conn_health_checks=True,
     )
 }
 
