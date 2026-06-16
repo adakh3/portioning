@@ -1,9 +1,10 @@
 from rest_framework import serializers
 
 from bookings.models import Invoice, Payment
+from users.serializer_mixins import OrgScopedModelSerializer
 
 
-class PaymentSerializer(serializers.ModelSerializer):
+class PaymentSerializer(OrgScopedModelSerializer):
     class Meta:
         model = Payment
         fields = [
@@ -17,7 +18,7 @@ class PaymentSerializer(serializers.ModelSerializer):
         }
 
 
-class InvoiceSerializer(serializers.ModelSerializer):
+class InvoiceSerializer(OrgScopedModelSerializer):
     payments = PaymentSerializer(many=True, read_only=True)
     amount_paid = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
     balance_due = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)

@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
 from .models import EquipmentItem, EquipmentReservation
+from users.serializer_mixins import OrgScopedModelSerializer
 
 
 class EquipmentItemSerializer(serializers.ModelSerializer):
@@ -18,7 +19,7 @@ class EquipmentItemSerializer(serializers.ModelSerializer):
         }
 
 
-class EquipmentReservationSerializer(serializers.ModelSerializer):
+class EquipmentReservationSerializer(OrgScopedModelSerializer):
     equipment_name = serializers.CharField(source='equipment.name', read_only=True)
     line_cost = serializers.SerializerMethodField()
 

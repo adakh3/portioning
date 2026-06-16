@@ -42,7 +42,7 @@ def _apply_event_org_filter(qs, request):
     org = get_request_org(request)
     if org is not None:
         return qs.filter(event__organisation=org)
-    return qs
+    return qs.none()
 
 
 class ShiftListCreateView(generics.ListCreateAPIView):
@@ -75,7 +75,8 @@ class AllocationRuleListCreateView(generics.ListCreateAPIView):
         if not is_superuser_without_org(self.request):
             org = get_request_org(self.request)
             if org is not None:
-                qs = qs.filter(role__organisation=org)
+                return qs.filter(role__organisation=org)
+            return qs.none()
         return qs
 
 
@@ -87,7 +88,8 @@ class AllocationRuleDetailView(generics.RetrieveUpdateDestroyAPIView):
         if not is_superuser_without_org(self.request):
             org = get_request_org(self.request)
             if org is not None:
-                qs = qs.filter(role__organisation=org)
+                return qs.filter(role__organisation=org)
+            return qs.none()
         return qs
 
 

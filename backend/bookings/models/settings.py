@@ -120,6 +120,27 @@ class OrgSettings(models.Model):
         return f"Settings for {self.organisation.name}"
 
     @property
+    def twilio_auth_token(self):
+        """Decrypt and return the Twilio auth token."""
+        if not self.twilio_auth_token_encrypted:
+            return ''
+        try:
+            from bookings.services.encryption import decrypt
+            return decrypt(self.twilio_auth_token_encrypted)
+        except Exception:
+            # If decryption fails (e.g. old plaintext value), return as-is
+            return self.twilio_auth_token_encrypted
+
+    @twilio_auth_token.setter
+    def twilio_auth_token(self, value):
+        """Encrypt and store the Twilio auth token."""
+        if value:
+            from bookings.services.encryption import encrypt
+            self.twilio_auth_token_encrypted = encrypt(value)
+        else:
+            self.twilio_auth_token_encrypted = ''
+
+    @property
     def twilio_configured(self):
         """Check whether this org has Twilio credentials configured."""
         return bool(

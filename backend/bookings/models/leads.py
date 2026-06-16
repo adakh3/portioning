@@ -1,6 +1,7 @@
 from django.db import models
 from django.utils import timezone
 from users.managers import TenantManager
+from users.model_mixins import OrgScopedModel
 
 
 class ProductLine(models.Model):
@@ -23,7 +24,7 @@ class ProductLine(models.Model):
         return self.name
 
 
-class Lead(models.Model):
+class Lead(OrgScopedModel, models.Model):
     objects = TenantManager()
 
     organisation = models.ForeignKey(
@@ -91,7 +92,10 @@ class Lead(models.Model):
 
     def can_transition_to(self, new_status):
         from bookings.models.choices import LeadStatusOption
-        valid_statuses = set(LeadStatusOption.objects.values_list('value', flat=True))
+        valid_statuses = set(
+            LeadStatusOption.objects.filter(organisation=self.organisation)
+            .values_list('value', flat=True)
+        )
         return new_status in valid_statuses and new_status != self.status
 
     def transition_to(self, new_status):

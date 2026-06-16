@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
 from bookings.models import EquipmentItem, EquipmentReservation
+from users.serializer_mixins import OrgScopedModelSerializer
 
 
 class EquipmentItemSerializer(serializers.ModelSerializer):
@@ -14,7 +15,7 @@ class EquipmentItemSerializer(serializers.ModelSerializer):
         read_only_fields = ['created_at', 'updated_at']
 
 
-class EquipmentReservationSerializer(serializers.ModelSerializer):
+class EquipmentReservationSerializer(OrgScopedModelSerializer):
     equipment_name = serializers.CharField(source='equipment.name', read_only=True)
     line_cost = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
 

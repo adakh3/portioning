@@ -277,15 +277,15 @@ def load_csv(file_obj):
     return header, data_rows, []
 
 
-def flag_duplicates(import_rows):
+def flag_duplicates(import_rows, org=None):
     """Mark rows whose email already exists in the DB. Warning only, does not block."""
     emails = [r.contact_email.lower() for r in import_rows if r.contact_email and not r.skipped]
     if not emails:
         return
-    all_db_emails = set(
-        Lead.objects.exclude(contact_email='')
-        .values_list("contact_email", flat=True)
-    )
+    qs = Lead.objects.exclude(contact_email='')
+    if org:
+        qs = qs.filter(organisation=org)
+    all_db_emails = set(qs.values_list("contact_email", flat=True))
     existing_lower = {e.lower() for e in all_db_emails}
     for row in import_rows:
         if row.contact_email and row.contact_email.lower() in existing_lower:

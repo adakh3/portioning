@@ -1,7 +1,9 @@
-from django.db.models.signals import post_save
+from django.core.exceptions import ValidationError
+from django.db.models.signals import m2m_changed, post_save
 from django.dispatch import receiver
 
 from users.models import Organisation
+from users.model_mixins import model_is_org_scoped
 
 
 @receiver(post_save, sender=Organisation)
@@ -42,3 +44,29 @@ def create_org_defaults(sender, instance, created, **kwargs):
                 value=value,
                 defaults={'label': label, 'sort_order': sort_order},
             )
+
+
+@receiver(m2m_changed)
+def block_cross_org_m2m(sender, instance, action, reverse, model, pk_set, **kwargs):
+    """Block linking an org-scoped object to a row in another organisation.
+
+    The model layer (``OrgScopedModel.save``) cannot see M2M additions — they
+    happen after save, through a join table. This receiver is the data-layer
+    backstop for those: on ``pre_add``, every row being linked must share the
+    owning object's organisation. Fires for both the forward and reverse side,
+    whichever holds the ``organisation`` column. Defense-in-depth partner to the
+    serializer layer, which scopes writable M2M querysets at the API boundary.
+    """
+    if action != 'pre_add' or not pk_set:
+        return
+    org_id = getattr(instance, 'organisation_id', None)
+    if org_id is None or not model_is_org_scoped(model):
+        return
+    if (
+        model._base_manager.filter(pk__in=pk_set)
+        .exclude(organisation_id=org_id)
+        .exists()
+    ):
+        raise ValidationError(
+            f'Cannot link {model.__name__} from a different organisation.'
+        )

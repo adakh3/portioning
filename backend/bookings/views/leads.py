@@ -24,8 +24,8 @@ class UserListView(generics.ListAPIView):
         qs = User.objects.filter(is_active=True).order_by('first_name', 'last_name')
         org = get_request_org(self.request)
         if org:
-            qs = qs.filter(organisation=org)
-        return qs
+            return qs.filter(organisation=org)
+        return qs.none()
 
 
 class ProductLineListView(generics.ListAPIView):
@@ -35,8 +35,8 @@ class ProductLineListView(generics.ListAPIView):
         qs = ProductLine.objects.filter(is_active=True)
         org = get_request_org(self.request)
         if org:
-            qs = qs.filter(organisation=org)
-        return qs
+            return qs.filter(organisation=org)
+        return qs.none()
 
 
 class ProductLineDetailView(generics.RetrieveUpdateAPIView):
@@ -169,15 +169,19 @@ class LeadBulkUpdateView(APIView):
         # Capture old values for logging
         lead_list = list(leads.values('id', 'assigned_to_id', 'status', 'product_id'))
 
+        org = get_request_org(request)
+
         if action == 'assign':
             if value is None:
                 leads.update(assigned_to=None)
             else:
+                from users.models import User
+                if org is None or not User.objects.filter(pk=value, organisation=org).exists():
+                    return Response({'error': f'Invalid assignee: {value}'}, status=status.HTTP_400_BAD_REQUEST)
                 leads.update(assigned_to_id=value)
             field, desc = 'assigned_to', 'Bulk updated assignment'
 
         elif action == 'status':
-            org = get_request_org(request)
             status_qs = LeadStatusOption.objects.all()
             if org:
                 status_qs = status_qs.filter(organisation=org)
@@ -191,6 +195,9 @@ class LeadBulkUpdateView(APIView):
             if value is None:
                 leads.update(product=None)
             else:
+                from bookings.models.leads import ProductLine
+                if org is None or not ProductLine.objects.filter(pk=value, organisation=org).exists():
+                    return Response({'error': f'Invalid product: {value}'}, status=status.HTTP_400_BAD_REQUEST)
                 leads.update(product_id=value)
             field, desc = 'product', 'Bulk updated product'
 

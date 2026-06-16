@@ -5,6 +5,7 @@ from staff.serializers import ShiftSerializer
 from equipment.serializers import EquipmentReservationSerializer
 from bookings.serializers.finance import InvoiceSerializer
 from users.mixins import get_request_org
+from users.serializer_mixins import OrgScopedModelSerializer
 
 
 class EventConstraintOverrideSerializer(serializers.ModelSerializer):
@@ -60,7 +61,7 @@ class EventMealSerializer(serializers.ModelSerializer):
         extra_kwargs = {'notes': {'max_length': 5000}}
 
 
-class EventSerializer(serializers.ModelSerializer):
+class EventSerializer(OrgScopedModelSerializer):
     constraint_override = EventConstraintOverrideSerializer(required=False)
     dish_ids = serializers.PrimaryKeyRelatedField(
         many=True, source='dishes', queryset=Dish.objects.none(), write_only=True, required=False

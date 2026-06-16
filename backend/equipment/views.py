@@ -24,6 +24,8 @@ class EquipmentReservationListCreateView(generics.ListCreateAPIView):
             org = get_request_org(self.request)
             if org is not None:
                 qs = qs.filter(event__organisation=org)
+            else:
+                return qs.none()
         event_id = self.request.query_params.get('event')
         if event_id:
             qs = qs.filter(event_id=event_id)
@@ -39,4 +41,6 @@ class EquipmentReservationDetailView(generics.RetrieveUpdateDestroyAPIView):
             org = get_request_org(self.request)
             if org is not None:
                 qs = qs.filter(event__organisation=org)
+            else:
+                return qs.none()
         return qs

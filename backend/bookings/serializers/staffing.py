@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
 from bookings.models import LaborRole, StaffMember, Shift
+from users.serializer_mixins import OrgScopedModelSerializer
 
 
 class LaborRoleSerializer(serializers.ModelSerializer):
@@ -27,7 +28,7 @@ class StaffMemberSerializer(serializers.ModelSerializer):
         return list(obj.roles.values_list('name', flat=True))
 
 
-class ShiftSerializer(serializers.ModelSerializer):
+class ShiftSerializer(OrgScopedModelSerializer):
     staff_member_name = serializers.CharField(source='staff_member.name', read_only=True, default=None)
     role_name = serializers.CharField(source='role.name', read_only=True)
     duration_hours = serializers.DecimalField(max_digits=6, decimal_places=2, read_only=True)
