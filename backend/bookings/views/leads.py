@@ -153,7 +153,7 @@ class LeadListCreateView(generics.ListCreateAPIView):
     def get_queryset(self):
         qs = Lead.objects.select_related(
             'account', 'won_quote', 'won_event', 'product', 'assigned_to',
-            'lost_reason_option',
+            'lost_reason_option', 'created_by',
         )
         qs = _annotate_unread_whatsapp(qs)
         qs = apply_org_filter(qs, self.request)
@@ -264,7 +264,7 @@ class LeadDetailView(generics.RetrieveUpdateDestroyAPIView):
     def get_queryset(self):
         qs = Lead.objects.select_related(
             'account', 'won_quote', 'won_event', 'product', 'assigned_to',
-            'lost_reason_option',
+            'lost_reason_option', 'created_by',
         ).prefetch_related('quotes')
         return apply_org_filter(qs, self.request)
 
@@ -571,7 +571,7 @@ class LeadKanbanView(APIView):
 
         qs = Lead.objects.select_related(
             'account', 'won_quote', 'won_event', 'product', 'assigned_to',
-            'lost_reason_option',
+            'lost_reason_option', 'created_by',
         )
         qs = _annotate_unread_whatsapp(qs)
         qs = apply_org_filter(qs, request)

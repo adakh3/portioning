@@ -550,6 +550,41 @@ class TestLeadUnreadWhatsApp(TestCase):
         self.assertTrue(by_name["HasUnread"]["has_unread_whatsapp"])
 
 
+class TestLeadQueryEfficiency(TestCase):
+    """The lead list must not run a query per lead (N+1). Every FK the
+    serializer reads (account, product, assigned_to, created_by, ...) must be
+    in select_related, so query count stays constant as leads grow."""
+
+    def setUp(self):
+        self.org = _make_org()
+        self.client = _authenticated_client()
+
+    def test_list_query_count_does_not_grow_with_leads(self):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        user = get_test_user()
+        make_lead(org=self.org, created_by=user, contact_name="seed")
+        # Warm module-level label caches so they don't skew the first count.
+        self.client.get("/api/bookings/leads/?page_size=all")
+
+        with CaptureQueriesContext(connection) as few:
+            self.client.get("/api/bookings/leads/?page_size=all")
+
+        for i in range(5):
+            make_lead(org=self.org, created_by=user, contact_name=f"extra{i}")
+
+        with CaptureQueriesContext(connection) as many:
+            self.client.get("/api/bookings/leads/?page_size=all")
+
+        self.assertEqual(
+            len(few.captured_queries), len(many.captured_queries),
+            f"N+1 detected: queries grew {len(few.captured_queries)} -> "
+            f"{len(many.captured_queries)} as leads increased; a FK is likely "
+            "missing from select_related.",
+        )
+
+
 class TestLeadSearch(TestCase):
     def setUp(self):
         self.org = _make_org()
