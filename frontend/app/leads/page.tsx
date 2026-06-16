@@ -18,7 +18,7 @@ import {
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { api, Lead, LeadFilters, AuthUser, ProductLine, ChoiceOption } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { useKanbanData, useLeadsPaginated, useUsers, useProductLines, useEventTypes, useLeadStatuses, useLostReasons, useDateFormat, revalidate } from "@/lib/hooks";
+import { useKanbanData, useLeadsPaginated, useUsers, useProductLines, useEventTypes, useLeadStatuses, useLostReasons, useDateFormat, useSources, revalidate } from "@/lib/hooks";
 import { formatDate } from "@/lib/dateFormat";
 import { Button } from "@/components/ui/button";
 import { ValidatedInput } from "@/components/ui/validated-input";
@@ -208,13 +208,15 @@ function KanbanColumn({
           <p className="text-xs text-muted-foreground text-center py-8">No leads</p>
         )}
         {hasMore && loadMore && (
-          <button
-            onClick={loadMore}
-            disabled={loadingMore}
-            className="w-full text-xs text-primary hover:text-primary/80 py-2 text-center disabled:opacity-50"
-          >
-            {loadingMore ? "Loading..." : `Load more (${count - allLeads.length} remaining)`}
-          </button>
+          <div className="flex justify-center pt-1">
+            <button
+              onClick={loadMore}
+              disabled={loadingMore}
+              className="text-xs font-semibold text-primary bg-primary/10 hover:bg-primary/20 rounded-full px-3 py-1.5 transition-colors disabled:opacity-50"
+            >
+              {loadingMore ? "Loading…" : `Load ${count - allLeads.length} more`}
+            </button>
+          </div>
         )}
       </div>
     </div>
@@ -1094,6 +1096,7 @@ function LeadsTable({
   const dateFormat = useDateFormat();
   const { data: eventTypes = [] } = useEventTypes();
   const { data: leadStatuses = [] } = useLeadStatuses();
+  const { data: sources = [] } = useSources();
   const allSelected = leads.length > 0 && selectedIds.size === leads.length;
 
   // Inline editing state
@@ -1334,7 +1337,7 @@ function LeadsTable({
                 Name <SortIcon field="contact_name" current={ordering} />
               </button>
             </TableHead>
-            <TableHead className="hidden lg:table-cell">Email</TableHead>
+            <TableHead className="hidden lg:table-cell">Phone</TableHead>
             <TableHead className="hidden md:table-cell">Event Type</TableHead>
             <TableHead>
               <button className="flex items-center hover:text-foreground" onClick={() => onToggleSort("event_date")}>
@@ -1424,13 +1427,13 @@ function LeadsTable({
                   className="h-7 text-sm"
                 />
               </TableCell>
-              {/* Email */}
+              {/* Phone / WhatsApp */}
               <TableCell className="hidden lg:table-cell">
                 <ValidatedInput
-                  type="email"
-                  placeholder="Email"
-                  value={quickAdd.contact_email || ""}
-                  onChange={(e) => setQuickAdd((p) => ({ ...p, contact_email: e.target.value }))}
+                  type="tel"
+                  placeholder="Phone / WhatsApp"
+                  value={quickAdd.contact_phone || ""}
+                  onChange={(e) => setQuickAdd((p) => ({ ...p, contact_phone: e.target.value }))}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") saveQuickAdd();
                     if (e.key === "Escape") cancelQuickAdd();
@@ -1538,7 +1541,21 @@ function LeadsTable({
                 />
               </TableCell>
               {/* Source */}
-              <TableCell className="hidden md:table-cell text-muted-foreground text-xs">—</TableCell>
+              <TableCell className="hidden md:table-cell">
+                <Select
+                  value={quickAdd.source || ""}
+                  onValueChange={(v) => setQuickAdd((p) => ({ ...p, source: v }))}
+                >
+                  <SelectTrigger className="h-7 text-sm">
+                    <SelectValue placeholder="Source" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {sources.map((s) => (
+                      <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </TableCell>
               {/* Status */}
               <TableCell className="text-muted-foreground text-xs">—</TableCell>
               {/* Created */}
