@@ -402,6 +402,22 @@ class TestLeadAPI(TestCase):
         self.assertEqual(res.status_code, 201)
         self.assertEqual(res.json()["status"], "new")
 
+    def test_create_lead_source_defaults_to_blank(self):
+        # No source supplied → blank/unknown, not a poisoning "website" default.
+        res = self.client.post("/api/bookings/leads/", {
+            "contact_name": "NoSource", "event_type": "corporate",
+        }, format="json")
+        self.assertEqual(res.status_code, 201)
+        self.assertEqual(Lead.objects.get(id=res.json()["id"]).source, "")
+
+    def test_create_lead_accepts_blank_source(self):
+        # The slimmed form / quick-add send an explicit "" for unknown source.
+        res = self.client.post("/api/bookings/leads/", {
+            "contact_name": "BlankSource", "event_type": "corporate", "source": "",
+        }, format="json")
+        self.assertEqual(res.status_code, 201)
+        self.assertEqual(Lead.objects.get(id=res.json()["id"]).source, "")
+
     def test_list_leads_filter_by_status(self):
         make_lead(org=self.org, contact_name="A")
         lead_b = make_lead(org=self.org, contact_name="B")

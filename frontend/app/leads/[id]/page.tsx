@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { api, Lead, Account, AuthUser, ProductLine, Reminder, WhatsAppMessage } from "@/lib/api";
-import { useAccounts, useLead, useSiteSettings, useDateFormat, useProductLines, useUsers, useSources, useEventTypes, useServiceStyles, useMealTypes, useLeadStatuses, useLostReasons, useLeadReminders, useLeadWhatsAppMessages, revalidate } from "@/lib/hooks";
+import { useLead, useSiteSettings, useDateFormat, useProductLines, useUsers, useSources, useEventTypes, useServiceStyles, useMealTypes, useLeadStatuses, useLostReasons, useLeadReminders, useLeadWhatsAppMessages, revalidate } from "@/lib/hooks";
 import { formatDate, formatDateTime } from "@/lib/dateFormat";
 import { formatCurrency } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -192,7 +192,6 @@ export default function LeadDetailPage() {
   const { data: mealTypes = [] } = useMealTypes();
   const { data: leadStatuses = [] } = useLeadStatuses();
   const { data: lostReasons = [] } = useLostReasons();
-  const { data: accountsList = [] } = useAccounts();
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [transitioning, setTransitioning] = useState(false);
@@ -211,7 +210,7 @@ export default function LeadDetailPage() {
     contact_name: "",
     contact_email: "",
     contact_phone: "",
-    source: "website",
+    source: "",
     event_date: "",
     guest_estimate: "",
     budget: "",
@@ -373,18 +372,7 @@ export default function LeadDetailPage() {
                   <ValidatedInput type="text" required maxLength={60} value={formData.contact_name} onChange={setField("contact_name")} />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Account (optional)</label>
-                  <select value={formData.account} onChange={setField("account")} className={selectClass}>
-                    <option value="">-- No account --</option>
-                    {accountsList.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Email</label>
-                  <ValidatedInput type="email" maxLength={100} value={formData.contact_email} onChange={setField("contact_email")} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Phone</label>
+                  <label className="block text-sm font-medium text-foreground mb-1">Phone / WhatsApp</label>
                   <ValidatedInput type="tel" maxLength={20} value={formData.contact_phone} onChange={setField("contact_phone")} />
                 </div>
               </div>
@@ -406,36 +394,9 @@ export default function LeadDetailPage() {
                   <ValidatedInput type="number" min={1} max={50000} value={formData.guest_estimate} onChange={setField("guest_estimate")} />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Budget</label>
-                  <ValidatedInput
-                    type="text"
-                    inputMode="numeric"
-                    value={formData.budget ? parseInt(formData.budget, 10).toLocaleString() : ""}
-                    maxLength={15}
-                    onChange={(e) => {
-                      const raw = e.target.value.replace(/[^0-9]/g, "").slice(0, 10);
-                      setFormData({ ...formData, budget: raw });
-                    }}
-                    placeholder="e.g. 5,000"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Meal Type</label>
-                  <select value={formData.meal_type} onChange={setField("meal_type")} className={selectClass}>
-                    <option value="">-- Select --</option>
-                    {mealTypes.map((mt) => <option key={mt.id} value={mt.value}>{mt.label}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Service Style</label>
-                  <select value={formData.service_style} onChange={setField("service_style")} className={selectClass}>
-                    <option value="">-- Select --</option>
-                    {serviceStyles.map((ss) => <option key={ss.id} value={ss.value}>{ss.label}</option>)}
-                  </select>
-                </div>
-                <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Source</label>
                   <select value={formData.source} onChange={setField("source")} className={selectClass}>
+                    <option value="">-- Select --</option>
                     {sources.map((s) => <option key={s.id} value={s.value}>{s.label}</option>)}
                   </select>
                 </div>
@@ -685,7 +646,7 @@ export default function LeadDetailPage() {
                 label="Source"
                 type="select"
                 value={l.source}
-                options={sources.map((s) => ({ value: s.value, label: s.label }))}
+                options={[{ value: "", label: "-- Select --" }, ...sources.map((s) => ({ value: s.value, label: s.label }))]}
               />
             </div>
         </CardContent>
