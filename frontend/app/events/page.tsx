@@ -151,11 +151,11 @@ function EventsContent() {
                 </div>
                 <div className="flex gap-2 ml-4">
                   <Button variant="outline" size="sm" asChild>
-                    <Link href={`/events/${event.id}`}>Details</Link>
+                    <Link href={`/events/${event.id}`} prefetch={false}>Details</Link>
                   </Button>
                   {event.status !== "completed" && event.status !== "cancelled" && (
                     <Button size="sm" asChild>
-                      <Link href={`/events/${event.id}?edit=true`}>Edit Event</Link>
+                      <Link href={`/events/${event.id}?edit=true`} prefetch={false}>Edit Event</Link>
                     </Button>
                   )}
                 </div>

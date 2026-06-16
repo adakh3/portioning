@@ -103,7 +103,7 @@ export default function KitchenEventsPage() {
                   </div>
                 </div>
                 <Button variant="outline" size="sm" asChild>
-                  <Link href={`/kitchen/events/${event.id}`}>View Portions</Link>
+                  <Link href={`/kitchen/events/${event.id}`} prefetch={false}>View Portions</Link>
                 </Button>
               </div>
             </CardContent>

@@ -1571,7 +1571,7 @@ function LeadsTable({
                 {/* Name - links to lead detail */}
                 <TableCell className="font-medium">
                   <div className="flex items-center gap-1.5">
-                    <Link href={`/leads/${lead.id}`} className="text-primary hover:underline" onClick={(e) => e.stopPropagation()}>
+                    <Link href={`/leads/${lead.id}`} prefetch={false} className="text-primary hover:underline" onClick={(e) => e.stopPropagation()}>
                       {lead.contact_name}
                     </Link>
                     {lead.has_unread_whatsapp && (

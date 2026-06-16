@@ -486,7 +486,7 @@ export default function Dashboard() {
             <ul className="space-y-3">
               {events.map((ev) => (
                 <li key={ev.id}>
-                  <Link href={`/events/${ev.id}`} className="block hover:bg-muted -mx-1 px-1 py-1 rounded transition-colors">
+                  <Link href={`/events/${ev.id}`} prefetch={false} className="block hover:bg-muted -mx-1 px-1 py-1 rounded transition-colors">
                     <p className="text-sm font-medium text-foreground truncate">{ev.name}</p>
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                       <span>{formatDate(ev.date, dateFormat)}</span>
@@ -509,7 +509,7 @@ export default function Dashboard() {
             <ul className="space-y-3">
               {quotes.map((q) => (
                 <li key={q.id}>
-                  <Link href={`/quotes/${q.id}`} className="block hover:bg-muted -mx-1 px-1 py-1 rounded transition-colors">
+                  <Link href={`/quotes/${q.id}`} prefetch={false} className="block hover:bg-muted -mx-1 px-1 py-1 rounded transition-colors">
                     <p className="text-sm font-medium text-foreground truncate">
                       {q.account_name || "No account"}
                     </p>
@@ -534,7 +534,7 @@ export default function Dashboard() {
             <ul className="space-y-3">
               {leads.map((l) => (
                 <li key={l.id}>
-                  <Link href={`/leads/${l.id}`} className="block hover:bg-muted -mx-1 px-1 py-1 rounded transition-colors">
+                  <Link href={`/leads/${l.id}`} prefetch={false} className="block hover:bg-muted -mx-1 px-1 py-1 rounded transition-colors">
                     <div className="flex items-center gap-1.5">
                       <p className="text-sm font-medium text-foreground truncate">{l.contact_name}</p>
                       {l.has_unread_whatsapp && (

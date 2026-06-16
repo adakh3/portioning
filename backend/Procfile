@@ -1,0 +1,1 @@
+web: gunicorn portioning.wsgi --bind 0.0.0.0:8080 --worker-tmp-dir /dev/shm --workers 1 --threads 8 --worker-class gthread --timeout 60
