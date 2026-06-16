@@ -585,6 +585,37 @@ class TestLeadQueryEfficiency(TestCase):
         )
 
 
+class TestLeadKanbanCounts(TestCase):
+    """Per-column counts must be correct even when the queryset is ordered —
+    the ordering must not leak into the GROUP BY of the count query, which
+    would split each status into one row per created_at and break 'Load more'."""
+
+    def setUp(self):
+        self.org = _make_org()
+        self.client = _authenticated_client()
+
+    def test_kanban_count_correct_with_ordering(self):
+        import datetime
+        from django.utils import timezone
+
+        user = get_test_user()
+        leads = [
+            make_lead(org=self.org, created_by=user, contact_name=f"n{i}")
+            for i in range(3)
+        ]
+        # Force distinct created_at so a GROUP BY status,created_at bug would
+        # split the count into 1-per-row instead of 3.
+        base = timezone.now()
+        for i, lead in enumerate(leads):
+            Lead.objects.filter(pk=lead.pk).update(
+                created_at=base - datetime.timedelta(minutes=i)
+            )
+
+        res = self.client.get("/api/bookings/leads/kanban/?ordering=-created_at")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.json()["columns"]["new"]["count"], 3)
+
+
 class TestLeadSearch(TestCase):
     def setUp(self):
         self.org = _make_org()

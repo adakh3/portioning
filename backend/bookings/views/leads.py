@@ -577,9 +577,12 @@ class LeadKanbanView(APIView):
         qs = apply_org_filter(qs, request)
         qs = _apply_lead_filters(qs, request)
 
-        # Get counts per status in a single DB query
+        # Get counts per status in a single DB query.
+        # order_by() clears the inherited ordering (Lead.Meta + ?ordering param)
+        # so it doesn't leak into the GROUP BY (which would split each status
+        # into one row per created_at and break the per-column counts).
         from django.db.models import Count as DbCount
-        count_rows = qs.values('status').annotate(n=DbCount('id'))
+        count_rows = qs.order_by().values('status').annotate(n=DbCount('id'))
         counts = {row['status']: row['n'] for row in count_rows}
 
         # Fetch top N leads per status using per-status queries (avoids full table scan)
