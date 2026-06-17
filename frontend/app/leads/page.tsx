@@ -269,6 +269,8 @@ function LeadsContent() {
 
   // Bulk selection state
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  // Lifted so the header "+ Quick Add" button can open the table's inline add row
+  const [quickAddActive, setQuickAddActive] = useState(false);
   const [bulkAction, setBulkAction] = useState("");
   const [bulkValue, setBulkValue] = useState("");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -622,6 +624,14 @@ function LeadsContent() {
               </svg>
             </button>
           </div>
+          <Button
+            onClick={() => {
+              setViewMode("table");
+              setQuickAddActive(true);
+            }}
+          >
+            + Quick Add
+          </Button>
           <Button asChild>
             <Link href="/leads/new">New Lead</Link>
           </Button>
@@ -894,6 +904,8 @@ function LeadsContent() {
             onRevalidate={revalidateAllLeads}
             onMarkLost={(leadId) => setPendingLostLeadId(leadId)}
             onMarkWon={(leadId) => setPendingWonLeadId(leadId)}
+            quickAddActive={quickAddActive}
+            onQuickAddActiveChange={setQuickAddActive}
           />
           {/* Pagination controls */}
           {tableTotalPages > 1 && (
@@ -1077,6 +1089,8 @@ function LeadsTable({
   onRevalidate,
   onMarkLost,
   onMarkWon,
+  quickAddActive,
+  onQuickAddActiveChange: setQuickAddActive,
 }: {
   leads: Lead[];
   selectedIds: Set<number>;
@@ -1091,6 +1105,8 @@ function LeadsTable({
   onRevalidate: () => void;
   onMarkLost: (leadId: number) => void;
   onMarkWon: (leadId: number) => void;
+  quickAddActive: boolean;
+  onQuickAddActiveChange: (active: boolean) => void;
 }) {
   const router = useRouter();
   const dateFormat = useDateFormat();
@@ -1106,7 +1122,6 @@ function LeadsTable({
 
   // Quick-add state
   const [quickAdd, setQuickAdd] = useState<Partial<Lead>>({});
-  const [quickAddActive, setQuickAddActive] = useState(false);
   const [quickAddSaving, setQuickAddSaving] = useState(false);
 
   const isEditing = (field: string, leadId: number) =>
@@ -1121,6 +1136,10 @@ function LeadsTable({
   async function saveQuickAdd() {
     if (!quickAdd.contact_name?.trim()) {
       onToast("Name is required");
+      return;
+    }
+    if (!quickAdd.contact_phone?.trim()) {
+      onToast("Phone / WhatsApp is required");
       return;
     }
     setQuickAddSaving(true);
@@ -1242,7 +1261,7 @@ function LeadsTable({
     }
     return (
       <TableCell
-        className={cn(className, "cursor-pointer hover:underline decoration-dotted underline-offset-4")}
+        className={cn(className, "cursor-pointer underline decoration-dotted decoration-muted-foreground/40 underline-offset-4 hover:decoration-foreground")}
         title={title}
         onClick={(e) => {
           e.stopPropagation();
@@ -1308,7 +1327,7 @@ function LeadsTable({
     }
     return (
       <TableCell
-        className={cn(className, "cursor-pointer hover:underline decoration-dotted underline-offset-4")}
+        className={cn(className, "cursor-pointer underline decoration-dotted decoration-muted-foreground/40 underline-offset-4 hover:decoration-foreground")}
         onClick={(e) => {
           e.stopPropagation();
           startEdit(lead.id, field, String(lead[field as keyof Lead] ?? ""));
@@ -1431,7 +1450,7 @@ function LeadsTable({
               <TableCell className="hidden lg:table-cell">
                 <ValidatedInput
                   type="tel"
-                  placeholder="Phone / WhatsApp"
+                  placeholder="Phone / WhatsApp *"
                   value={quickAdd.contact_phone || ""}
                   onChange={(e) => setQuickAdd((p) => ({ ...p, contact_phone: e.target.value }))}
                   onKeyDown={(e) => {
@@ -1597,13 +1616,13 @@ function LeadsTable({
                   </div>
                 </TableCell>
 
-                {/* Email - editable text */}
+                {/* Phone / WhatsApp - editable text */}
                 <EditableTextCell
                   lead={lead}
-                  field="contact_email"
-                  display={lead.contact_email || "-"}
+                  field="contact_phone"
+                  display={lead.contact_phone || "-"}
                   className="hidden lg:table-cell text-muted-foreground"
-                  type="email"
+                  type="tel"
                 />
 
                 {/* Event Type - editable select */}
@@ -1690,7 +1709,7 @@ function LeadsTable({
                   </TableCell>
                 ) : (
                   <TableCell
-                    className="hidden xl:table-cell text-muted-foreground text-xs min-w-[200px] cursor-pointer hover:underline decoration-dotted underline-offset-4"
+                    className="hidden xl:table-cell text-muted-foreground text-xs min-w-[200px] cursor-pointer underline decoration-dotted decoration-muted-foreground/40 underline-offset-4 hover:decoration-foreground"
                     title={lead.notes || undefined}
                     onClick={(e) => {
                       e.stopPropagation();

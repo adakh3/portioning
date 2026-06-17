@@ -372,8 +372,8 @@ export default function LeadDetailPage() {
                   <ValidatedInput type="text" required maxLength={60} value={formData.contact_name} onChange={setField("contact_name")} />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Phone / WhatsApp</label>
-                  <ValidatedInput type="tel" maxLength={20} value={formData.contact_phone} onChange={setField("contact_phone")} />
+                  <label className="block text-sm font-medium text-foreground mb-1">Phone / WhatsApp *</label>
+                  <ValidatedInput type="tel" required maxLength={20} value={formData.contact_phone} onChange={setField("contact_phone")} />
                 </div>
               </div>
 
@@ -573,8 +573,8 @@ export default function LeadDetailPage() {
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Contact</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <AutoSaveField {...fieldProps("contact_name")} label="Name" type="text" value={l.contact_name} required />
+            <AutoSaveField {...fieldProps("contact_phone")} label="Phone / WhatsApp" type="tel" value={l.contact_phone} required />
             <AutoSaveField {...fieldProps("contact_email")} label="Email" type="email" value={l.contact_email} />
-            <AutoSaveField {...fieldProps("contact_phone")} label="Phone" type="tel" value={l.contact_phone} />
             <AutoSaveField
               {...fieldProps("account")}
               label="Account"

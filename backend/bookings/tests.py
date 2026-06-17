@@ -396,16 +396,27 @@ class TestLeadAPI(TestCase):
 
     def test_create_lead(self):
         res = self.client.post("/api/bookings/leads/", {
-            "contact_name": "Sarah", "event_type": "corporate",
+            "contact_name": "Sarah", "contact_phone": "+92 300 1234567",
+            "event_type": "corporate",
             "event_date": "2026-09-01", "guest_estimate": 200,
         }, format="json")
         self.assertEqual(res.status_code, 201)
         self.assertEqual(res.json()["status"], "new")
 
+    def test_create_lead_requires_phone(self):
+        """Phone/WhatsApp is the primary contact channel and required on create."""
+        res = self.client.post("/api/bookings/leads/", {
+            "contact_name": "Sarah", "event_type": "corporate",
+            "event_date": "2026-09-01", "guest_estimate": 200,
+        }, format="json")
+        self.assertEqual(res.status_code, 400)
+        self.assertIn("contact_phone", res.json())
+
     def test_create_lead_source_defaults_to_blank(self):
         # No source supplied → blank/unknown, not a poisoning "website" default.
         res = self.client.post("/api/bookings/leads/", {
-            "contact_name": "NoSource", "event_type": "corporate",
+            "contact_name": "NoSource", "contact_phone": "+92 300 1234567",
+            "event_type": "corporate",
         }, format="json")
         self.assertEqual(res.status_code, 201)
         self.assertEqual(Lead.objects.get(id=res.json()["id"]).source, "")
@@ -413,7 +424,8 @@ class TestLeadAPI(TestCase):
     def test_create_lead_accepts_blank_source(self):
         # The slimmed form / quick-add send an explicit "" for unknown source.
         res = self.client.post("/api/bookings/leads/", {
-            "contact_name": "BlankSource", "event_type": "corporate", "source": "",
+            "contact_name": "BlankSource", "contact_phone": "+92 300 1234567",
+            "event_type": "corporate", "source": "",
         }, format="json")
         self.assertEqual(res.status_code, 201)
         self.assertEqual(Lead.objects.get(id=res.json()["id"]).source, "")

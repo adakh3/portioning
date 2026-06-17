@@ -86,6 +86,10 @@ class LeadSerializer(OrgScopedModelSerializer):
         extra_kwargs = {
             'notes': {'max_length': 5000},
             'lost_notes': {'max_length': 2000},
+            # Phone/WhatsApp is the primary contact channel and required on
+            # create. PATCH (partial) updates are unaffected, so existing
+            # phone-less leads stay editable.
+            'contact_phone': {'required': True, 'allow_blank': False},
         }
 
     def get_created_by_name(self, obj):
