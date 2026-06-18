@@ -1097,6 +1097,8 @@ export const api = {
     fetchApi<Quote>("/bookings/quotes/", { method: "POST", body: JSON.stringify(data) }),
   updateQuote: (id: number, data: Partial<Quote> & { dish_ids?: number[] }) =>
     fetchApi<Quote>(`/bookings/quotes/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
+  deleteQuote: (id: number) =>
+    fetchApi<void>(`/bookings/quotes/${id}/`, { method: "DELETE" }),
   transitionQuote: (id: number, status: string) =>
     fetchApi<Quote>(`/bookings/quotes/${id}/transition/`, { method: "POST", body: JSON.stringify({ status }) }),
   downloadQuotePDF: async (id: number): Promise<Blob> => {

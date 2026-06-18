@@ -367,7 +367,7 @@ def generate_quote_pdf(quote):
     ITEM_COL_WIDTHS = [CONTENT_W * 0.60, CONTENT_W * 0.20, CONTENT_W * 0.20]
     MENU_COL_W = CONTENT_W * 0.50
 
-    if dish_names and has_food_total:
+    if dish_names:
         menu_header = _section_header([
             Paragraph('MENU ITEMS', s['section_title']),
         ], [CONTENT_W])
@@ -397,12 +397,14 @@ def generate_quote_pdf(quote):
         menu_table.setStyle(TableStyle(menu_style))
         elements.append(menu_table)
 
-        # Bold summary line below the menu
-        elements.append(Spacer(1, 3 * mm))
-        elements.append(Paragraph(
-            f'<b>{_fmt(quote.price_per_head, cs)} per head × {quote.guest_count} guests = {_fmt(quote.food_total, cs)}</b>',
-            s['body'],
-        ))
+        # Bold summary line below the menu — only when a per-head price is set.
+        # The menu itself always shows so a price-less quote still lists its food.
+        if has_food_total:
+            elements.append(Spacer(1, 3 * mm))
+            elements.append(Paragraph(
+                f'<b>{_fmt(quote.price_per_head, cs)} per head × {quote.guest_count} guests = {_fmt(quote.food_total, cs)}</b>',
+                s['body'],
+            ))
         elements.append(Spacer(1, 6 * mm))
 
     # ── 4. Add-ons / Line Items ──

@@ -269,6 +269,17 @@ export default function QuoteDetailPage() {
     }
   }
 
+  async function handleDeleteQuote() {
+    if (!quote || !confirm("Delete this entire quote? This cannot be undone.")) return;
+    try {
+      await api.deleteQuote(quote.id);
+      revalidate("quotes");
+      router.push("/quotes");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete quote");
+    }
+  }
+
   async function handleTransition(newStatus: string) {
     if (!quote) return;
     setSaving(true);
@@ -604,6 +615,13 @@ export default function QuoteDetailPage() {
                 {saving ? "..." : "Reopen as Draft"}
               </Button>
             )}
+            <Button
+              variant="outline"
+              onClick={handleDeleteQuote}
+              className="ml-auto border-destructive text-destructive hover:bg-destructive/10 hover:text-destructive"
+            >
+              Delete Quote
+            </Button>
           </div>
 
           {/* Event link when accepted */}

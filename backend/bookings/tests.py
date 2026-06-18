@@ -704,6 +704,102 @@ class TestQuoteAPI(TestCase):
         self.client = _authenticated_client()
         self.account = make_account(org=self.org)
 
+    def test_create_quote_saves_dishes_and_totals(self):
+        from dishes.models import Dish, DishCategory
+        cat = DishCategory.objects.create(
+            organisation=self.org, name="Mains", display_name="Mains",
+        )
+        dish = Dish.objects.create(
+            organisation=self.org, name="Biryani", category=cat,
+            default_portion_grams=200,
+        )
+        res = self.client.post("/api/bookings/quotes/", {
+            "account": self.account.id,
+            "event_date": "2026-09-01",
+            "guest_count": 100,
+            "price_per_head": "50.00",
+            "tax_rate": "0.00",
+            "event_type": "wedding",
+            "dish_ids": [dish.id],
+        }, format="json")
+        self.assertEqual(res.status_code, 201, res.content)
+        quote = Quote.objects.get(id=res.json()["id"])
+        self.assertEqual(quote.dishes.count(), 1, "dishes (menu items) not saved")
+        self.assertEqual(str(quote.subtotal), "5000.00", "food total not in subtotal")
+
+    def test_update_quote_saves_dishes(self):
+        from dishes.models import Dish, DishCategory
+        cat = DishCategory.objects.create(
+            organisation=self.org, name="Mains2", display_name="Mains",
+        )
+        dish = Dish.objects.create(
+            organisation=self.org, name="Korma", category=cat,
+            default_portion_grams=200,
+        )
+        quote = make_quote(org=self.org, account=self.account)
+        res = self.client.patch(
+            f"/api/bookings/quotes/{quote.id}/",
+            {"dish_ids": [dish.id]}, format="json",
+        )
+        self.assertEqual(res.status_code, 200, res.content)
+        quote.refresh_from_db()
+        self.assertEqual(quote.dishes.count(), 1, "dishes not saved on PATCH")
+
+    def test_create_event_saves_dishes(self):
+        from dishes.models import Dish, DishCategory
+        cat = DishCategory.objects.create(
+            organisation=self.org, name="Mains3", display_name="Mains",
+        )
+        dish = Dish.objects.create(
+            organisation=self.org, name="Tikka", category=cat,
+            default_portion_grams=200,
+        )
+        res = self.client.post("/api/events/", {
+            "name": "Wedding", "date": "2026-09-01",
+            "gents": 50, "ladies": 50,
+            "dish_ids": [dish.id],
+        }, format="json")
+        self.assertEqual(res.status_code, 201, res.content)
+        from events.models import Event
+        event = Event.objects.get(id=res.json()["id"])
+        self.assertEqual(event.dishes.count(), 1, "event dishes not saved")
+
+    def test_delete_quote(self):
+        quote = make_quote(org=self.org, account=self.account)
+        res = self.client.delete(f"/api/bookings/quotes/{quote.id}/")
+        self.assertEqual(res.status_code, 204, res.content)
+        self.assertFalse(Quote.objects.filter(id=quote.id).exists())
+
+    def test_delete_won_quote_nulls_lead_reference(self):
+        """won_quote is SET_NULL, so deleting a lead's won quote must not be blocked."""
+        quote = make_quote(org=self.org, account=self.account)
+        lead = make_lead(org=self.org)
+        lead.won_quote = quote
+        lead.save(update_fields=["won_quote"])
+        res = self.client.delete(f"/api/bookings/quotes/{quote.id}/")
+        self.assertEqual(res.status_code, 204, res.content)
+        lead.refresh_from_db()
+        self.assertIsNone(lead.won_quote)
+
+    def test_quote_pdf_lists_menu_without_price(self):
+        """A quote with dishes but no per-head price must still render its menu
+        in the PDF (the menu used to be hidden unless food_total > 0)."""
+        from dishes.models import Dish, DishCategory
+        from bookings.pdf import generate_quote_pdf
+        cat = DishCategory.objects.create(
+            organisation=self.org, name="Mains5", display_name="Mains",
+        )
+        dish = Dish.objects.create(
+            organisation=self.org, name="Nihari", category=cat,
+            default_portion_grams=200,
+        )
+        quote = make_quote(org=self.org, account=self.account)  # no price_per_head
+        quote.dishes.set([dish])
+        quote.refresh_from_db()  # event_date as a real date, like a live fetch
+        # Exercises the price-less menu path; previously this branch was skipped.
+        pdf_bytes = generate_quote_pdf(quote)
+        self.assertTrue(pdf_bytes and len(pdf_bytes) > 0)
+
     def test_create_quote(self):
         res = self.client.post("/api/bookings/quotes/", {
             "account": self.account.id,
