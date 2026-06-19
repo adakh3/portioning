@@ -2,7 +2,7 @@ from rest_framework import generics, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from users.mixins import OrgQuerySetMixin, apply_org_filter
+from users.mixins import OrgQuerySetMixin, apply_org_filter, get_request_org
 from .models import MenuTemplate, MenuTemplatePriceTier
 from .serializers import MenuTemplateListSerializer, MenuTemplateDetailSerializer
 
@@ -194,7 +194,6 @@ class MenuPriceCheckView(APIView):
 
         # Apply rounding step from settings
         from bookings.models import OrgSettings
-        from users.mixins import get_request_org
         step = OrgSettings.for_org(get_request_org(request)).price_rounding_step
         if step > 1:
             adjusted_price = round(adjusted_price / step) * step

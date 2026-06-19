@@ -99,6 +99,18 @@ class TestPriceEstimateView(CalculatorViewTestBase):
                                                         "guest_count": "many"}, format="json")
         self.assertEqual(res.status_code, 400)
 
+    def test_engine_failure_does_not_leak_internals(self):
+        # A raw exception from the engine must NOT be echoed to the client.
+        from unittest.mock import patch
+        with patch("calculator.views.calculate_portions",
+                   side_effect=RuntimeError("secret internal detail: get_request_org")):
+            res = self.client.post("/api/price-estimate/", {"dish_ids": self.dish_ids,
+                                                            "guest_count": 100}, format="json")
+        self.assertEqual(res.status_code, 400)
+        detail = res.json()["detail"]
+        self.assertNotIn("secret internal detail", detail)
+        self.assertNotIn("get_request_org", detail)
+
     def test_happy_path_matches_engine_priced_estimate(self):
         # Regression guard for the UnboundLocalError 400: the real endpoint
         # (engine + DB, no mocks) must return 200, and its price must match the

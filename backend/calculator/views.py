@@ -1,3 +1,5 @@
+import logging
+
 from django.http import HttpResponse
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
@@ -9,6 +11,15 @@ from .engine.checker import check_user_portions
 from .engine.models import GuestMix
 from .pdf import generate_portion_pdf
 from users.mixins import get_request_org
+
+logger = logging.getLogger(__name__)
+
+# Shown to the client when portion calculation fails; the real exception is
+# logged server-side. Never echo the raw exception — it can leak internals.
+CALC_ERROR_DETAIL = (
+    'Unable to calculate portions for this menu. '
+    'Please try again or adjust the selected dishes.'
+)
 
 
 class CalculateView(APIView):
@@ -28,9 +39,10 @@ class CalculateView(APIView):
                 big_eaters_percentage=data.get('big_eaters_percentage', 20.0),
                 org=get_request_org(request),
             )
-        except Exception as e:
+        except Exception:
+            logger.exception('Portion calculation failed')
             return Response(
-                {'detail': f'Calculation error: {e}'},
+                {'detail': CALC_ERROR_DETAIL},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         return Response(result)
@@ -152,9 +164,10 @@ class CheckPortionsView(APIView):
                 big_eaters_percentage=big_eaters_percentage,
                 org=org,
             )
-        except Exception as e:
+        except Exception:
+            logger.exception('Portion calculation failed')
             return Response(
-                {'detail': f'Calculation error: {e}'},
+                {'detail': CALC_ERROR_DETAIL},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -225,9 +238,10 @@ class PriceEstimateView(APIView):
 
         try:
             result = calculate_portions(dish_ids, guests, org=get_request_org(request))
-        except Exception as e:
+        except Exception:
+            logger.exception('Portion calculation failed')
             return Response(
-                {'detail': f'Calculation error: {e}'},
+                {'detail': CALC_ERROR_DETAIL},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -278,9 +292,10 @@ class ExportPDFView(APIView):
                 big_eaters_percentage=data.get('big_eaters_percentage', 20.0),
                 org=get_request_org(request),
             )
-        except Exception as e:
+        except Exception:
+            logger.exception('Portion calculation failed')
             return Response(
-                {'detail': f'Calculation error: {e}'},
+                {'detail': CALC_ERROR_DETAIL},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
