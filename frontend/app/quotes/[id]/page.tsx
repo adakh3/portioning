@@ -332,14 +332,6 @@ export default function QuoteDetailPage() {
                   <ValidatedInput type="date" required value={createData.event_date} onChange={setCreate("event_date")} />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Guest Count *</label>
-                  <ValidatedInput type="number" required min={1} max={50000} value={createData.guest_count} onChange={setCreate("guest_count")} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Price Per Head ({cs})</label>
-                  <ValidatedInput type="number" step="0.01" min={0} value={createData.price_per_head} onChange={setCreate("price_per_head")} placeholder="0.00" />
-                </div>
-                <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Event Type</label>
                   <select value={createData.event_type} onChange={setCreate("event_type")} className={selectClass}>
                     {eventTypes.map((et) => <option key={et.id} value={et.value}>{et.label}</option>)}
@@ -395,10 +387,20 @@ export default function QuoteDetailPage() {
             </CardContent>
           </Card>
 
-          {/* Menu */}
+          {/* Menu & Pricing */}
           <Card>
             <CardContent className="p-6">
-              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Menu</h2>
+              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Menu &amp; Pricing</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Guest Count *</label>
+                  <ValidatedInput type="number" required min={1} max={50000} value={createData.guest_count} onChange={setCreate("guest_count")} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Price Per Head ({cs})</label>
+                  <ValidatedInput type="number" step="0.01" min={0} value={createData.price_per_head} onChange={setCreate("price_per_head")} placeholder="0.00" />
+                </div>
+              </div>
               <MenuBuilder
                 selectedDishIds={menuData.dish_ids}
                 basedOnTemplate={menuData.based_on_template}
@@ -440,7 +442,7 @@ export default function QuoteDetailPage() {
           {/* Pricing & Terms */}
           <Card>
             <CardContent className="p-6">
-              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Pricing &amp; Terms</h2>
+              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Terms</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Tax Rate (%)</label>
