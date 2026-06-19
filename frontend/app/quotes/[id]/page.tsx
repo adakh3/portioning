@@ -633,79 +633,83 @@ export default function QuoteDetailPage() {
         </CardContent>
       </Card>
 
-      {/* Edit Form (shown when editing) */}
+      {/* Customer (editing) — mirrors the create form layout */}
       {editing && (
-        <div className="bg-muted border border-border rounded-lg p-6">
-          <h2 className="text-lg font-semibold text-foreground mb-4">Edit Quote Details</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Contact Person</label>
-              <select value={editData.primary_contact} onChange={setEdit("primary_contact")} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
-                <option value="">-- No contact --</option>
-                {contacts.map((c) => <option key={c.id} value={c.id}>{c.name} ({c.role})</option>)}
-              </select>
+        <Card>
+          <CardContent className="p-6">
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Customer</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Contact Person</label>
+                <select value={editData.primary_contact} onChange={setEdit("primary_contact")} className={selectClass}>
+                  <option value="">-- No contact --</option>
+                  {contacts.map((c) => <option key={c.id} value={c.id}>{c.name} ({c.role})</option>)}
+                </select>
+              </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Event Date *</label>
-              <ValidatedInput type="date" required value={editData.event_date} onChange={setEdit("event_date")} />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Event (editing) */}
+      {editing && (
+        <Card>
+          <CardContent className="p-6">
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Event Details</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Event Date *</label>
+                <ValidatedInput type="date" required value={editData.event_date} onChange={setEdit("event_date")} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Event Type</label>
+                <select value={editData.event_type} onChange={setEdit("event_type")} className={selectClass}>
+                  {eventTypes.map((et) => <option key={et.id} value={et.value}>{et.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Meal Type</label>
+                <select value={editData.meal_type} onChange={setEdit("meal_type")} className={selectClass}>
+                  <option value="">-- None --</option>
+                  {mealTypes.map((mt) => <option key={mt.id} value={mt.value}>{mt.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Booking Date</label>
+                <ValidatedInput type="date" value={editData.booking_date} onChange={setEdit("booking_date")} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Service Style</label>
+                <select value={editData.service_style} onChange={setEdit("service_style")} className={selectClass}>
+                  <option value="">-- None --</option>
+                  {serviceStyles.map((ss) => <option key={ss.id} value={ss.value}>{ss.label}</option>)}
+                </select>
+              </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Guest Count *</label>
-              <ValidatedInput type="number" required min={1} max={50000} value={editData.guest_count} onChange={setEdit("guest_count")} />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Venue (editing) */}
+      {editing && (
+        <Card>
+          <CardContent className="p-6">
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Venue</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Venue</label>
+                <select value={editData.venue} onChange={setEdit("venue")} className={selectClass}>
+                  <option value="">-- No venue --</option>
+                  {venues.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Venue Address / Notes</label>
+                <Textarea value={editData.venue_address} onChange={setEdit("venue_address")} rows={2} maxLength={300} placeholder="Freeform address or additional venue notes" />
+              </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Event Type</label>
-              <select value={editData.event_type} onChange={setEdit("event_type")} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
-                {eventTypes.map((et) => <option key={et.id} value={et.value}>{et.label}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Meal Type</label>
-              <select value={editData.meal_type} onChange={setEdit("meal_type")} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
-                <option value="">-- None --</option>
-                {mealTypes.map((mt) => <option key={mt.id} value={mt.value}>{mt.label}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Booking Date</label>
-              <ValidatedInput type="date" value={editData.booking_date} onChange={setEdit("booking_date")} />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Service Style</label>
-              <select value={editData.service_style} onChange={setEdit("service_style")} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
-                <option value="">-- None --</option>
-                {serviceStyles.map((ss) => <option key={ss.id} value={ss.value}>{ss.label}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Venue</label>
-              <select value={editData.venue} onChange={setEdit("venue")} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
-                <option value="">-- No venue --</option>
-                {venues.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
-              </select>
-            </div>
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-foreground mb-1">Venue Address / Notes</label>
-              <Textarea value={editData.venue_address} onChange={setEdit("venue_address")} rows={2} maxLength={300} placeholder="Freeform address or additional venue notes" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Tax Rate (%)</label>
-              <ValidatedInput type="number" step="0.01" min={0} max={100} value={editData.tax_rate} onChange={setEdit("tax_rate")} />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Valid Until</label>
-              <ValidatedInput type="date" value={editData.valid_until} onChange={setEdit("valid_until")} />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Notes (customer-visible)</label>
-              <Textarea value={editData.notes} onChange={setEdit("notes")} rows={2} maxLength={2000} />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Internal Notes</label>
-              <Textarea value={editData.internal_notes} onChange={setEdit("internal_notes")} rows={2} maxLength={2000} />
-            </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* Customer & Venue (always visible) */}
@@ -820,18 +824,30 @@ export default function QuoteDetailPage() {
       {/* Menu */}
       <Card>
         <CardContent className="p-6">
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Menu</h2>
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">{editing ? "Menu & Pricing" : "Menu"}</h2>
           {editing ? (
-            <MenuBuilder
-              selectedDishIds={menuData.dish_ids}
-              basedOnTemplate={menuData.based_on_template}
-              guestCount={editGuestCount}
-              onChange={setMenuData}
-              pricePerHead={editData.price_per_head}
-              onPricePerHeadChange={(val) => setEditData((prev) => ({ ...prev, price_per_head: val }))}
-              currencySymbol={cs}
-              priceRoundingStep={Number(settings.price_rounding_step) || 50}
-            />
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Guest Count *</label>
+                  <ValidatedInput type="number" required min={1} max={50000} value={editData.guest_count} onChange={setEdit("guest_count")} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Price Per Head ({cs})</label>
+                  <ValidatedInput type="number" step="0.01" min={0} value={editData.price_per_head} onChange={setEdit("price_per_head")} placeholder="0.00" />
+                </div>
+              </div>
+              <MenuBuilder
+                selectedDishIds={menuData.dish_ids}
+                basedOnTemplate={menuData.based_on_template}
+                guestCount={editGuestCount}
+                onChange={setMenuData}
+                pricePerHead={editData.price_per_head}
+                onPricePerHeadChange={(val) => setEditData((prev) => ({ ...prev, price_per_head: val }))}
+                currencySymbol={cs}
+                priceRoundingStep={Number(settings.price_rounding_step) || 50}
+              />
+            </>
           ) : (
             <MenuBuilder
               selectedDishIds={q.dishes || []}
@@ -929,6 +945,42 @@ export default function QuoteDetailPage() {
         taxPercent={editing ? parseFloat(editData.tax_rate || "0").toFixed(0) : (parseFloat(q.tax_rate) * 100).toFixed(0)}
         currencySymbol={cs}
       />
+
+      {editing && (
+        <Card>
+          <CardContent className="p-6">
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Terms</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Tax Rate (%)</label>
+                <ValidatedInput type="number" step="0.01" min={0} max={100} value={editData.tax_rate} onChange={setEdit("tax_rate")} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Valid Until</label>
+                <ValidatedInput type="date" value={editData.valid_until} onChange={setEdit("valid_until")} />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {editing && (
+        <Card>
+          <CardContent className="p-6">
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Notes</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Notes (customer-visible)</label>
+                <Textarea value={editData.notes} onChange={setEdit("notes")} rows={3} maxLength={2000} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Internal Notes</label>
+                <Textarea value={editData.internal_notes} onChange={setEdit("internal_notes")} rows={3} maxLength={2000} />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {editing && (
         <div className="sticky bottom-0 z-10 bg-background/95 backdrop-blur border-t border-border py-3 flex gap-3">
