@@ -391,15 +391,9 @@ export default function QuoteDetailPage() {
           <Card>
             <CardContent className="p-6">
               <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Menu &amp; Pricing</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Guest Count *</label>
-                  <ValidatedInput type="number" required min={1} max={50000} value={createData.guest_count} onChange={setCreate("guest_count")} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Price Per Head ({cs})</label>
-                  <ValidatedInput type="number" step="0.01" min={0} value={createData.price_per_head} onChange={setCreate("price_per_head")} placeholder="0.00" />
-                </div>
+              <div className="mb-4 max-w-xs">
+                <label className="block text-sm font-medium text-foreground mb-1">Guest Count *</label>
+                <ValidatedInput type="number" required min={1} max={50000} value={createData.guest_count} onChange={setCreate("guest_count")} />
               </div>
               <MenuBuilder
                 selectedDishIds={menuData.dish_ids}
@@ -427,7 +421,7 @@ export default function QuoteDetailPage() {
             </CardContent>
           </Card>
 
-          {/* Quote Total (menu + additional items) */}
+          {/* Quote Total (tax rate + menu + additional items) */}
           <QuoteTotalsCard
             foodTotal={createTotals.food_total}
             subtotal={createTotals.subtotal}
@@ -437,33 +431,22 @@ export default function QuoteDetailPage() {
             guestCount={createData.guest_count}
             taxPercent={(parseFloat(createData.tax_rate || "0") * 100).toFixed(0)}
             currencySymbol={cs}
+            taxRateField={
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Tax Rate (%)</label>
+                <ValidatedInput
+                  type="number"
+                  step="0.01"
+                  min={0}
+                  max={100}
+                  value={Math.round(parseFloat(createData.tax_rate) * 10000) / 100}
+                  onChange={(e) => setCreateData({ ...createData, tax_rate: (parseFloat(e.target.value) / 100).toFixed(4) })}
+                />
+              </div>
+            }
           />
 
-          {/* Pricing & Terms */}
-          <Card>
-            <CardContent className="p-6">
-              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Terms</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Tax Rate (%)</label>
-                  <ValidatedInput
-                    type="number"
-                    step="0.01"
-                    min={0}
-                    max={100}
-                    value={Math.round(parseFloat(createData.tax_rate) * 10000) / 100}
-                    onChange={(e) => setCreateData({ ...createData, tax_rate: (parseFloat(e.target.value) / 100).toFixed(4) })}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Valid Until</label>
-                  <ValidatedInput type="date" value={createData.valid_until} onChange={setCreate("valid_until")} />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Notes */}
+          {/* Notes & validity */}
           <Card>
             <CardContent className="p-6">
               <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Notes</h2>
@@ -475,6 +458,10 @@ export default function QuoteDetailPage() {
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Internal Notes</label>
                   <Textarea value={createData.internal_notes} onChange={setCreate("internal_notes")} rows={3} maxLength={2000} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Valid Until</label>
+                  <ValidatedInput type="date" value={createData.valid_until} onChange={setCreate("valid_until")} />
                 </div>
               </div>
             </CardContent>
@@ -827,15 +814,9 @@ export default function QuoteDetailPage() {
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">{editing ? "Menu & Pricing" : "Menu"}</h2>
           {editing ? (
             <>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Guest Count *</label>
-                  <ValidatedInput type="number" required min={1} max={50000} value={editData.guest_count} onChange={setEdit("guest_count")} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Price Per Head ({cs})</label>
-                  <ValidatedInput type="number" step="0.01" min={0} value={editData.price_per_head} onChange={setEdit("price_per_head")} placeholder="0.00" />
-                </div>
+              <div className="mb-4 max-w-xs">
+                <label className="block text-sm font-medium text-foreground mb-1">Guest Count *</label>
+                <ValidatedInput type="number" required min={1} max={50000} value={editData.guest_count} onChange={setEdit("guest_count")} />
               </div>
               <MenuBuilder
                 selectedDishIds={menuData.dish_ids}
@@ -944,25 +925,13 @@ export default function QuoteDetailPage() {
         guestCount={editing ? editGuestCount : q.guest_count}
         taxPercent={editing ? parseFloat(editData.tax_rate || "0").toFixed(0) : (parseFloat(q.tax_rate) * 100).toFixed(0)}
         currencySymbol={cs}
+        taxRateField={editing ? (
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1">Tax Rate (%)</label>
+            <ValidatedInput type="number" step="0.01" min={0} max={100} value={editData.tax_rate} onChange={setEdit("tax_rate")} />
+          </div>
+        ) : undefined}
       />
-
-      {editing && (
-        <Card>
-          <CardContent className="p-6">
-            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Terms</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Tax Rate (%)</label>
-                <ValidatedInput type="number" step="0.01" min={0} max={100} value={editData.tax_rate} onChange={setEdit("tax_rate")} />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Valid Until</label>
-                <ValidatedInput type="date" value={editData.valid_until} onChange={setEdit("valid_until")} />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       {editing && (
         <Card>
@@ -976,6 +945,10 @@ export default function QuoteDetailPage() {
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">Internal Notes</label>
                 <Textarea value={editData.internal_notes} onChange={setEdit("internal_notes")} rows={3} maxLength={2000} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Valid Until</label>
+                <ValidatedInput type="date" value={editData.valid_until} onChange={setEdit("valid_until")} />
               </div>
             </div>
           </CardContent>

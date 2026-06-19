@@ -1,10 +1,13 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/utils";
 
 /** Unified quote total — food/menu (price/head × guests) + additional line
- * items, then tax and grand total. Used in the create and edit flows. */
+ * items, then tax and grand total. Used in the create and edit flows.
+ * `taxRateField` optionally renders an editable tax-rate input above the
+ * breakdown (so the rate sits with the totals it drives). */
 export default function QuoteTotalsCard({
   foodTotal,
   subtotal,
@@ -14,6 +17,7 @@ export default function QuoteTotalsCard({
   guestCount,
   taxPercent,
   currencySymbol,
+  taxRateField,
 }: {
   foodTotal: number;
   subtotal: number;
@@ -23,6 +27,7 @@ export default function QuoteTotalsCard({
   guestCount: string | number;
   taxPercent: string;
   currencySymbol: string;
+  taxRateField?: ReactNode;
 }) {
   const itemsTotal = Math.round((subtotal - foodTotal) * 100) / 100;
   const fmt = (n: number | string) => formatCurrency(n, currencySymbol);
@@ -31,6 +36,7 @@ export default function QuoteTotalsCard({
     <Card>
       <CardContent className="p-6">
         <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Quote Total</h2>
+        {taxRateField && <div className="ml-auto max-w-sm mb-4">{taxRateField}</div>}
         <div className="ml-auto max-w-sm space-y-1.5 text-sm">
           {foodTotal > 0 && (
             <div className="flex justify-between">
