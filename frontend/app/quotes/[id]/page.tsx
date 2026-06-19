@@ -233,8 +233,8 @@ export default function QuoteDetailPage() {
   }
 
   // Line items are edited locally (in create and edit) and saved with the quote
-  function handleAddItem(e: React.FormEvent) {
-    e.preventDefault();
+  function handleAddItem(e?: React.FormEvent) {
+    e?.preventDefault();
     const row: LineItemInput = {
       category: itemData.category,
       description: itemData.description,
@@ -430,6 +430,95 @@ export default function QuoteDetailPage() {
                 currencySymbol={cs}
                 priceRoundingStep={Number(settings.price_rounding_step) || 50}
               />
+            </CardContent>
+          </Card>
+
+          {/* Additional Items */}
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Additional Items</h2>
+                <Button type="button" size="sm" onClick={() => setShowItemForm(!showItemForm)}>
+                  {showItemForm ? "Cancel" : "Add Item"}
+                </Button>
+              </div>
+              {showItemForm && (
+                <div className="border border-border rounded p-4 mb-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-1">Category</label>
+                      <select value={itemData.category} onChange={(e) => setItemData({ ...itemData, category: e.target.value })} className={selectClass}>
+                        <option value="food">Food</option>
+                        <option value="beverage">Beverage</option>
+                        <option value="rental">Rental</option>
+                        <option value="labor">Labour</option>
+                        <option value="fee">Fee</option>
+                        <option value="discount">Discount</option>
+                      </select>
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-medium text-foreground mb-1">Description</label>
+                      <ValidatedInput type="text" maxLength={100} value={itemData.description} onChange={(e) => setItemData({ ...itemData, description: e.target.value })} />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-1">Quantity</label>
+                      <ValidatedInput type="number" step="0.01" min={0} max={99999} value={itemData.quantity} onChange={(e) => setItemData({ ...itemData, quantity: e.target.value })} />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-1">Unit</label>
+                      <select value={itemData.unit} onChange={(e) => setItemData({ ...itemData, unit: e.target.value })} className={selectClass}>
+                        <option value="each">Each</option>
+                        <option value="per_guest">Per Guest</option>
+                        <option value="per_hour">Per Hour</option>
+                        <option value="flat">Flat Rate</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-1">Unit Price ({cs})</label>
+                      <ValidatedInput type="number" step="0.01" min={0} max={9999999.99} value={itemData.unit_price} onChange={(e) => setItemData({ ...itemData, unit_price: e.target.value })} />
+                    </div>
+                    <div className="flex items-center gap-2 mt-6">
+                      <input type="checkbox" checked={itemData.is_taxable} onChange={(e) => setItemData({ ...itemData, is_taxable: e.target.checked })} className="rounded border-input" />
+                      <label className="text-sm text-foreground">Taxable</label>
+                    </div>
+                  </div>
+                  <Button type="button" variant="success" className="mt-4" onClick={() => handleAddItem()}>
+                    Add Item
+                  </Button>
+                </div>
+              )}
+              {createLineItems.length === 0 ? (
+                <p className="text-muted-foreground text-sm">No additional items. Use &quot;Add Item&quot; to add rentals, labour, fees, etc.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border text-left text-muted-foreground">
+                        <th className="pb-2 font-medium">Category</th>
+                        <th className="pb-2 font-medium">Description</th>
+                        <th className="pb-2 font-medium text-right">Qty</th>
+                        <th className="pb-2 font-medium">Unit</th>
+                        <th className="pb-2 font-medium text-right">Price</th>
+                        <th className="pb-2"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {createLineItems.map((item, index) => (
+                        <tr key={index} className="border-b border-border/50">
+                          <td className="py-2"><Badge variant="secondary" className="text-xs">{CATEGORY_LABELS[item.category] || item.category}</Badge></td>
+                          <td className="py-2 text-foreground">{item.description}</td>
+                          <td className="py-2 text-right text-foreground/80">{item.quantity}</td>
+                          <td className="py-2 text-muted-foreground">{item.unit.replace(/_/g, " ")}</td>
+                          <td className="py-2 text-right text-foreground/80">{formatCurrency(item.unit_price, cs)}</td>
+                          <td className="py-2 text-right">
+                            <Button type="button" variant="ghost" size="sm" onClick={() => handleRemoveItem(index)} className="text-destructive hover:text-destructive h-auto py-0.5 px-1.5 text-xs">Remove</Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </CardContent>
           </Card>
 
