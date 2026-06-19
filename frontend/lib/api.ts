@@ -1094,9 +1094,9 @@ export const api = {
     return fetchList<Quote>(`/bookings/quotes/${qs ? `?${qs}` : ""}`);
   },
   getQuote: (id: number) => fetchApi<Quote>(`/bookings/quotes/${id}/`),
-  createQuote: (data: Partial<Quote> & { dish_ids?: number[] }) =>
+  createQuote: (data: Omit<Partial<Quote>, "line_items"> & { dish_ids?: number[]; line_items?: unknown[] }) =>
     fetchApi<Quote>("/bookings/quotes/", { method: "POST", body: JSON.stringify(data) }),
-  updateQuote: (id: number, data: Partial<Quote> & { dish_ids?: number[]; line_items?: unknown[] }) =>
+  updateQuote: (id: number, data: Omit<Partial<Quote>, "line_items"> & { dish_ids?: number[]; line_items?: unknown[] }) =>
     fetchApi<Quote>(`/bookings/quotes/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
   deleteQuote: (id: number) =>
     fetchApi<void>(`/bookings/quotes/${id}/`, { method: "DELETE" }),

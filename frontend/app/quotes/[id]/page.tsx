@@ -8,6 +8,7 @@ import { useQuote, useAccounts, useVenues, useSiteSettings, useDateFormat, useEv
 import { formatDate } from "@/lib/dateFormat";
 import { formatCurrency } from "@/lib/utils";
 import MenuBuilder from "@/components/MenuBuilder";
+import { computeQuoteTotals, buildQuoteSavePayload, lineItemTotal, LineItemInput } from "@/lib/quoteTotals";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -94,6 +95,9 @@ export default function QuoteDetailPage() {
     based_on_template: number | null;
   }>({ dish_ids: [], based_on_template: null });
   const [createContacts, setCreateContacts] = useState<Contact[]>([]);
+  // Line items held locally and committed with the rest of the quote in one save
+  const [editLineItems, setEditLineItems] = useState<LineItemInput[]>([]);
+  const [createLineItems, setCreateLineItems] = useState<LineItemInput[]>([]);
 
   // Set default price from settings in create mode
   const defaultPriceApplied = useRef(false);
@@ -163,6 +167,7 @@ export default function QuoteDetailPage() {
         internal_notes: createData.internal_notes,
         dish_ids: menuData.dish_ids,
         based_on_template: menuData.based_on_template,
+        line_items: createLineItems,
       };
       const newQuote = await api.createQuote(data);
       revalidate("quotes");
@@ -200,34 +205,24 @@ export default function QuoteDetailPage() {
       notes: quote.notes,
       internal_notes: quote.internal_notes,
     });
+    setEditLineItems((quote.line_items || []).map((li) => ({
+      id: li.id, category: li.category, description: li.description,
+      quantity: li.quantity, unit: li.unit, unit_price: li.unit_price,
+      is_taxable: li.is_taxable, sort_order: li.sort_order ?? 0,
+    })));
+    setMenuData({ dish_ids: quote.dishes || [], based_on_template: quote.based_on_template || null });
     if (quote.account) {
       api.getAccount(quote.account).then((acct) => setContacts(acct.contacts || [])).catch(() => {});
     }
     setEditing(true);
   }
 
-  async function handleSaveDetails(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleSaveQuote() {
     if (!quote) return;
     setSaving(true);
     setError("");
     try {
-      await api.updateQuote(quote.id, {
-        primary_contact: editData.primary_contact ? Number(editData.primary_contact) : null,
-        event_date: editData.event_date,
-        guest_count: Number(editData.guest_count),
-        price_per_head: editData.price_per_head ? editData.price_per_head : null,
-        venue: editData.venue ? Number(editData.venue) : null,
-        venue_address: editData.venue_address,
-        event_type: editData.event_type,
-        meal_type: editData.meal_type || undefined,
-        booking_date: editData.booking_date || null,
-        service_style: editData.service_style || undefined,
-        tax_rate: (parseFloat(editData.tax_rate) / 100).toFixed(4),
-        valid_until: editData.valid_until || null,
-        notes: editData.notes,
-        internal_notes: editData.internal_notes,
-      });
+      await api.updateQuote(quote.id, buildQuoteSavePayload(editData, menuData, editLineItems));
       await mutateQuote();
       setEditing(false);
     } catch (err) {
@@ -237,36 +232,27 @@ export default function QuoteDetailPage() {
     }
   }
 
-  async function handleAddItem(e: React.FormEvent) {
+  // Line items are edited locally (in create and edit) and saved with the quote
+  function handleAddItem(e: React.FormEvent) {
     e.preventDefault();
-    if (!quote) return;
-    setSaving(true);
-    setError("");
-    try {
-      await api.createQuoteLineItem(quote.id, {
-        ...itemData,
-        quantity: itemData.quantity,
-        unit_price: itemData.unit_price,
-        sort_order: itemData.sort_order,
-      });
-      await mutateQuote();
-      setShowItemForm(false);
-      setItemData({ category: "food", description: "", quantity: "1", unit: "each", unit_price: "", is_taxable: true, sort_order: 0 });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to add item");
-    } finally {
-      setSaving(false);
-    }
+    const row: LineItemInput = {
+      category: itemData.category,
+      description: itemData.description,
+      quantity: itemData.quantity,
+      unit: itemData.unit,
+      unit_price: itemData.unit_price,
+      is_taxable: itemData.is_taxable,
+      sort_order: itemData.sort_order,
+    };
+    if (isNew) setCreateLineItems((prev) => [...prev, row]);
+    else setEditLineItems((prev) => [...prev, row]);
+    setShowItemForm(false);
+    setItemData({ category: "food", description: "", quantity: "1", unit: "each", unit_price: "", is_taxable: true, sort_order: 0 });
   }
 
-  async function handleDeleteItem(itemId: number) {
-    if (!quote || !confirm("Remove this line item?")) return;
-    try {
-      await api.deleteQuoteLineItem(quote.id, itemId);
-      await mutateQuote();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete item");
-    }
+  function handleRemoveItem(index: number) {
+    if (isNew) setCreateLineItems((prev) => prev.filter((_, i) => i !== index));
+    else setEditLineItems((prev) => prev.filter((_, i) => i !== index));
   }
 
   async function handleDeleteQuote() {
@@ -504,6 +490,11 @@ export default function QuoteDetailPage() {
 
   // At this point, quote is guaranteed to be defined
   const q = quote!;
+  const editGuestCount = editData.guest_count ? Number(editData.guest_count) : q.guest_count;
+  const liveTotals = computeQuoteTotals(
+    editData.price_per_head, editData.guest_count,
+    parseFloat(editData.tax_rate || "0") / 100, editLineItems,
+  );
 
   return (
     <div className="space-y-6">
@@ -540,7 +531,7 @@ export default function QuoteDetailPage() {
           <div className="mt-4 pt-4 border-t border-border flex flex-wrap gap-3">
             {!editing && (
               <Button variant="outline" onClick={startEditing} className="border-primary text-primary hover:bg-primary/5 hover:text-primary">
-                Edit Details
+                Edit Quote
               </Button>
             )}
             <Button
@@ -638,7 +629,7 @@ export default function QuoteDetailPage() {
 
       {/* Edit Form (shown when editing) */}
       {editing && (
-        <form onSubmit={handleSaveDetails} className="bg-muted border border-border rounded-lg p-6">
+        <div className="bg-muted border border-border rounded-lg p-6">
           <h2 className="text-lg font-semibold text-foreground mb-4">Edit Quote Details</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -708,15 +699,7 @@ export default function QuoteDetailPage() {
               <Textarea value={editData.internal_notes} onChange={setEdit("internal_notes")} rows={2} maxLength={2000} />
             </div>
           </div>
-          <div className="flex gap-3 mt-4">
-            <Button type="submit" disabled={saving}>
-              {saving ? "Saving..." : "Save Changes"}
-            </Button>
-            <Button type="button" variant="outline" onClick={() => setEditing(false)}>
-              Cancel
-            </Button>
-          </div>
-        </form>
+        </div>
       )}
 
       {/* Customer & Venue (always visible) */}
@@ -832,22 +815,27 @@ export default function QuoteDetailPage() {
       <Card>
         <CardContent className="p-6">
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Menu</h2>
-          <MenuBuilder
-            selectedDishIds={q.dishes || []}
-            basedOnTemplate={q.based_on_template || null}
-            guestCount={editing && editData.guest_count ? Number(editData.guest_count) : q.guest_count}
-            onSave={async (data) => {
-              await api.updateQuote(q.id, {
-                dish_ids: data.dish_ids,
-                based_on_template: data.based_on_template,
-              });
-              await mutateQuote();
-            }}
-            pricePerHead={editData.price_per_head}
-            onPricePerHeadChange={editing ? (val) => setEditData((prev) => ({ ...prev, price_per_head: val })) : undefined}
-            currencySymbol={cs}
-            priceRoundingStep={Number(settings.price_rounding_step) || 50}
-          />
+          {editing ? (
+            <MenuBuilder
+              selectedDishIds={menuData.dish_ids}
+              basedOnTemplate={menuData.based_on_template}
+              guestCount={editGuestCount}
+              onChange={setMenuData}
+              pricePerHead={editData.price_per_head}
+              onPricePerHeadChange={(val) => setEditData((prev) => ({ ...prev, price_per_head: val }))}
+              currencySymbol={cs}
+              priceRoundingStep={Number(settings.price_rounding_step) || 50}
+            />
+          ) : (
+            <MenuBuilder
+              selectedDishIds={q.dishes || []}
+              basedOnTemplate={q.based_on_template || null}
+              guestCount={q.guest_count}
+              disabled
+              currencySymbol={cs}
+              priceRoundingStep={Number(settings.price_rounding_step) || 50}
+            />
+          )}
         </CardContent>
       </Card>
 
@@ -882,13 +870,15 @@ export default function QuoteDetailPage() {
       <Card>
         <CardContent className="p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Line Items</h2>
-            <Button size="sm" onClick={() => setShowItemForm(!showItemForm)}>
-              {showItemForm ? "Cancel" : "Add Item"}
-            </Button>
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Additional Items</h2>
+            {editing && (
+              <Button size="sm" onClick={() => setShowItemForm(!showItemForm)}>
+                {showItemForm ? "Cancel" : "Add Item"}
+              </Button>
+            )}
           </div>
 
-          {showItemForm && (
+          {editing && showItemForm && (
             <form onSubmit={handleAddItem} className="border border-border rounded p-4 mb-4">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
@@ -934,8 +924,10 @@ export default function QuoteDetailPage() {
             </form>
           )}
 
-          {q.line_items.length === 0 && parseFloat(q.food_total) === 0 ? (
-            <p className="text-muted-foreground text-sm">No line items yet. Click &quot;Add Item&quot; to start building this quote.</p>
+          {(editing ? editLineItems.length === 0 : q.line_items.length === 0 && parseFloat(q.food_total) === 0) ? (
+            <p className="text-muted-foreground text-sm">
+              {editing ? 'No additional items. Click "Add Item" to add one.' : "No additional items."}
+            </p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -951,49 +943,65 @@ export default function QuoteDetailPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {q.line_items.map((item) => (
-                    <tr key={item.id} className="border-b border-border/50">
-                      <td className="py-2">
-                        <Badge variant="secondary" className="text-xs">
-                          {CATEGORY_LABELS[item.category] || item.category}
-                        </Badge>
-                      </td>
-                      <td className="py-2 text-foreground">{item.description}</td>
-                      <td className="py-2 text-right text-foreground/80">{item.quantity}</td>
-                      <td className="py-2 text-muted-foreground">{item.unit.replace(/_/g, " ")}</td>
-                      <td className="py-2 text-right text-foreground/80">{formatCurrency(item.unit_price, cs)}</td>
-                      <td className="py-2 text-right font-medium text-foreground">{formatCurrency(item.line_total, cs)}</td>
-                      <td className="py-2 text-right">
-                        <Button variant="ghost" size="sm" onClick={() => handleDeleteItem(item.id)} className="text-destructive hover:text-destructive h-auto py-0.5 px-1.5 text-xs">
-                          Remove
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
+                  {editing
+                    ? editLineItems.map((item, index) => (
+                        <tr key={index} className="border-b border-border/50">
+                          <td className="py-2">
+                            <Badge variant="secondary" className="text-xs">
+                              {CATEGORY_LABELS[item.category] || item.category}
+                            </Badge>
+                          </td>
+                          <td className="py-2 text-foreground">{item.description}</td>
+                          <td className="py-2 text-right text-foreground/80">{item.quantity}</td>
+                          <td className="py-2 text-muted-foreground">{item.unit.replace(/_/g, " ")}</td>
+                          <td className="py-2 text-right text-foreground/80">{formatCurrency(item.unit_price, cs)}</td>
+                          <td className="py-2 text-right font-medium text-foreground">{formatCurrency(lineItemTotal(item, editGuestCount), cs)}</td>
+                          <td className="py-2 text-right">
+                            <Button variant="ghost" size="sm" onClick={() => handleRemoveItem(index)} className="text-destructive hover:text-destructive h-auto py-0.5 px-1.5 text-xs">
+                              Remove
+                            </Button>
+                          </td>
+                        </tr>
+                      ))
+                    : q.line_items.map((item) => (
+                        <tr key={item.id} className="border-b border-border/50">
+                          <td className="py-2">
+                            <Badge variant="secondary" className="text-xs">
+                              {CATEGORY_LABELS[item.category] || item.category}
+                            </Badge>
+                          </td>
+                          <td className="py-2 text-foreground">{item.description}</td>
+                          <td className="py-2 text-right text-foreground/80">{item.quantity}</td>
+                          <td className="py-2 text-muted-foreground">{item.unit.replace(/_/g, " ")}</td>
+                          <td className="py-2 text-right text-foreground/80">{formatCurrency(item.unit_price, cs)}</td>
+                          <td className="py-2 text-right font-medium text-foreground">{formatCurrency(item.line_total, cs)}</td>
+                          <td className="py-2"></td>
+                        </tr>
+                      ))}
                 </tbody>
                 <tfoot>
-                  {parseFloat(q.food_total) > 0 && (
+                  {(editing ? liveTotals.food_total > 0 : parseFloat(q.food_total) > 0) && (
                     <tr className="border-t border-border">
                       <td colSpan={5} className="pt-3 text-right text-muted-foreground">
-                        Food ({formatCurrency(q.price_per_head ?? 0, cs)} x {q.guest_count} guests)
+                        Food ({formatCurrency(editing ? editData.price_per_head || 0 : q.price_per_head ?? 0, cs)} x {editing ? editGuestCount : q.guest_count} guests)
                       </td>
-                      <td className="pt-3 text-right font-medium">{formatCurrency(q.food_total, cs)}</td>
+                      <td className="pt-3 text-right font-medium">{formatCurrency(editing ? liveTotals.food_total : q.food_total, cs)}</td>
                       <td></td>
                     </tr>
                   )}
-                  <tr className={parseFloat(q.food_total) > 0 ? "" : "border-t border-border"}>
+                  <tr className={(editing ? liveTotals.food_total > 0 : parseFloat(q.food_total) > 0) ? "" : "border-t border-border"}>
                     <td colSpan={5} className="pt-3 text-right text-muted-foreground">Subtotal</td>
-                    <td className="pt-3 text-right font-medium">{formatCurrency(q.subtotal, cs)}</td>
+                    <td className="pt-3 text-right font-medium">{formatCurrency(editing ? liveTotals.subtotal : q.subtotal, cs)}</td>
                     <td></td>
                   </tr>
                   <tr>
-                    <td colSpan={5} className="py-1 text-right text-muted-foreground">VAT ({(parseFloat(q.tax_rate) * 100).toFixed(0)}%)</td>
-                    <td className="py-1 text-right">{formatCurrency(q.tax_amount, cs)}</td>
+                    <td colSpan={5} className="py-1 text-right text-muted-foreground">VAT ({editing ? parseFloat(editData.tax_rate || "0").toFixed(0) : (parseFloat(q.tax_rate) * 100).toFixed(0)}%)</td>
+                    <td className="py-1 text-right">{formatCurrency(editing ? liveTotals.tax_amount : q.tax_amount, cs)}</td>
                     <td></td>
                   </tr>
                   <tr className="border-t border-border">
                     <td colSpan={5} className="pt-2 text-right font-semibold text-foreground">Total</td>
-                    <td className="pt-2 text-right font-bold text-lg text-foreground">{formatCurrency(q.total, cs)}</td>
+                    <td className="pt-2 text-right font-bold text-lg text-foreground">{formatCurrency(editing ? liveTotals.total : q.total, cs)}</td>
                     <td></td>
                   </tr>
                 </tfoot>
@@ -1002,6 +1010,17 @@ export default function QuoteDetailPage() {
           )}
         </CardContent>
       </Card>
+
+      {editing && (
+        <div className="sticky bottom-0 z-10 bg-background/95 backdrop-blur border-t border-border py-3 flex gap-3">
+          <Button onClick={handleSaveQuote} disabled={saving}>
+            {saving ? "Saving..." : "Save Quote"}
+          </Button>
+          <Button variant="outline" onClick={() => setEditing(false)} disabled={saving}>
+            Cancel
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
