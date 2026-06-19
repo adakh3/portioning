@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo, useRef } from "react";
-import { api, MenuTemplateDetail, PriceTier, PriceCheckResult, PriceCheckBreakdownItem, PriceEstimateResult } from "@/lib/api";
+import { api, collectErrorMessages, MenuTemplateDetail, PriceTier, PriceCheckResult, PriceCheckBreakdownItem, PriceEstimateResult } from "@/lib/api";
 import { useDishes, useCategories, useMenus } from "@/lib/hooks";
 import { formatCurrency } from "@/lib/utils";
 
@@ -17,6 +17,13 @@ interface CalculatedPrice {
 function roundToStep(value: number, step: number): number {
   if (step <= 1) return value;
   return Math.round(value / step) * step;
+}
+
+/** Readable message for a thrown API error. The api layer throws an Error with
+ * an already-sanitized message; fall back to flattening a raw DRF payload. */
+function errorText(e: unknown): string {
+  if (e instanceof Error && e.message) return e.message;
+  return collectErrorMessages(e).join(" ");
 }
 
 interface Props {
@@ -66,6 +73,7 @@ export default function MenuBuilder({
   // Calculate Rate state
   const [calculatedPrice, setCalculatedPrice] = useState<CalculatedPrice | null>(null);
   const [priceLoading, setPriceLoading] = useState(false);
+  const [priceError, setPriceError] = useState<string | null>(null);
 
   // Extra food % markup
   const [extraFoodPercent, setExtraFoodPercent] = useState(0);
@@ -131,6 +139,7 @@ export default function MenuBuilder({
     setDirty(true);
     setDishesModified(true);
     setCalculatedPrice(null);
+    setPriceError(null);
     onChange?.({ dish_ids: Array.from(next), based_on_template: templateId });
   };
 
@@ -145,9 +154,10 @@ export default function MenuBuilder({
       setTemplatePriceTiers(detail.price_tiers || []);
       setOriginalDishIds(new Set(dishIds));
       setCalculatedPrice(null);
+      setPriceError(null);
       onChange?.({ dish_ids: dishIds, based_on_template: tid });
-    } catch {
-      // ignore
+    } catch (e) {
+      setPriceError(errorText(e) || "Couldn't load that template.");
     }
   };
 
@@ -159,12 +169,14 @@ export default function MenuBuilder({
     setTemplatePriceTiers([]);
     setOriginalDishIds(new Set());
     setCalculatedPrice(null);
+    setPriceError(null);
     onChange?.({ dish_ids: [], based_on_template: null });
   };
 
   const handleCalculateRate = async () => {
     if (!guestCount || selected.size === 0) return;
     setPriceLoading(true);
+    setPriceError(null);
     try {
       const dishIds = Array.from(selected);
       if (templateId && dishesModified) {
@@ -193,8 +205,11 @@ export default function MenuBuilder({
           hasUnpriced: result.has_unpriced,
         });
       }
-    } catch {
-      // ignore
+    } catch (e) {
+      setCalculatedPrice(null);
+      setPriceError(
+        errorText(e) || "Couldn't calculate the rate. Please try again."
+      );
     } finally {
       setPriceLoading(false);
     }
@@ -512,6 +527,23 @@ export default function MenuBuilder({
             </div>
           ) : null}
         </>
+      )}
+
+      {/* Pricing error (engine/price-estimate failure) */}
+      {priceError && (
+        <div className="flex items-center justify-between gap-3 bg-destructive/10 border border-destructive/20 rounded-lg px-4 py-2.5 text-sm text-destructive">
+          <span>{priceError}</span>
+          {hasGuestCount && hasDishes && (
+            <button
+              type="button"
+              onClick={handleCalculateRate}
+              disabled={priceLoading}
+              className="font-medium underline hover:no-underline disabled:opacity-50 shrink-0"
+            >
+              {priceLoading ? "Retrying…" : "Retry"}
+            </button>
+          )}
+        </div>
       )}
 
       {/* Dish Selector (expandable) */}
