@@ -8,7 +8,8 @@ import { useQuote, useAccounts, useVenues, useSiteSettings, useDateFormat, useEv
 import { formatDate } from "@/lib/dateFormat";
 import { formatCurrency } from "@/lib/utils";
 import MenuBuilder from "@/components/MenuBuilder";
-import { computeQuoteTotals, buildQuoteSavePayload, lineItemTotal, LineItemInput } from "@/lib/quoteTotals";
+import { computeQuoteTotals, buildQuoteSavePayload, LineItemInput } from "@/lib/quoteTotals";
+import QuoteLineItemsEditor from "@/components/QuoteLineItemsEditor";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -48,7 +49,6 @@ export default function QuoteDetailPage() {
   const { data: mealTypes = [] } = useMealTypes();
   const { data: allLeads = [] } = useAllLeads();
   const leads = allLeads.filter((l) => !["won", "lost"].includes(l.status));
-  const [showItemForm, setShowItemForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -177,16 +177,6 @@ export default function QuoteDetailPage() {
       setSaving(false);
     }
   }
-  const [itemData, setItemData] = useState({
-    category: "food",
-    description: "",
-    quantity: "1",
-    unit: "each",
-    unit_price: "",
-    is_taxable: true,
-    sort_order: 0,
-  });
-
   function startEditing() {
     if (!quote) return;
     setEditData({
@@ -230,29 +220,6 @@ export default function QuoteDetailPage() {
     } finally {
       setSaving(false);
     }
-  }
-
-  // Line items are edited locally (in create and edit) and saved with the quote
-  function handleAddItem(e?: React.FormEvent) {
-    e?.preventDefault();
-    const row: LineItemInput = {
-      category: itemData.category,
-      description: itemData.description,
-      quantity: itemData.quantity,
-      unit: itemData.unit,
-      unit_price: itemData.unit_price,
-      is_taxable: itemData.is_taxable,
-      sort_order: itemData.sort_order,
-    };
-    if (isNew) setCreateLineItems((prev) => [...prev, row]);
-    else setEditLineItems((prev) => [...prev, row]);
-    setShowItemForm(false);
-    setItemData({ category: "food", description: "", quantity: "1", unit: "each", unit_price: "", is_taxable: true, sort_order: 0 });
-  }
-
-  function handleRemoveItem(index: number) {
-    if (isNew) setCreateLineItems((prev) => prev.filter((_, i) => i !== index));
-    else setEditLineItems((prev) => prev.filter((_, i) => i !== index));
   }
 
   async function handleDeleteQuote() {
@@ -436,89 +403,13 @@ export default function QuoteDetailPage() {
           {/* Additional Items */}
           <Card>
             <CardContent className="p-6">
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Additional Items</h2>
-                <Button type="button" size="sm" onClick={() => setShowItemForm(!showItemForm)}>
-                  {showItemForm ? "Cancel" : "Add Item"}
-                </Button>
-              </div>
-              {showItemForm && (
-                <div className="border border-border rounded p-4 mb-4">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-foreground mb-1">Category</label>
-                      <select value={itemData.category} onChange={(e) => setItemData({ ...itemData, category: e.target.value })} className={selectClass}>
-                        <option value="food">Food</option>
-                        <option value="beverage">Beverage</option>
-                        <option value="rental">Rental</option>
-                        <option value="labor">Labour</option>
-                        <option value="fee">Fee</option>
-                        <option value="discount">Discount</option>
-                      </select>
-                    </div>
-                    <div className="md:col-span-2">
-                      <label className="block text-sm font-medium text-foreground mb-1">Description</label>
-                      <ValidatedInput type="text" maxLength={100} value={itemData.description} onChange={(e) => setItemData({ ...itemData, description: e.target.value })} />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-foreground mb-1">Quantity</label>
-                      <ValidatedInput type="number" step="0.01" min={0} max={99999} value={itemData.quantity} onChange={(e) => setItemData({ ...itemData, quantity: e.target.value })} />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-foreground mb-1">Unit</label>
-                      <select value={itemData.unit} onChange={(e) => setItemData({ ...itemData, unit: e.target.value })} className={selectClass}>
-                        <option value="each">Each</option>
-                        <option value="per_guest">Per Guest</option>
-                        <option value="per_hour">Per Hour</option>
-                        <option value="flat">Flat Rate</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-foreground mb-1">Unit Price ({cs})</label>
-                      <ValidatedInput type="number" step="0.01" min={0} max={9999999.99} value={itemData.unit_price} onChange={(e) => setItemData({ ...itemData, unit_price: e.target.value })} />
-                    </div>
-                    <div className="flex items-center gap-2 mt-6">
-                      <input type="checkbox" checked={itemData.is_taxable} onChange={(e) => setItemData({ ...itemData, is_taxable: e.target.checked })} className="rounded border-input" />
-                      <label className="text-sm text-foreground">Taxable</label>
-                    </div>
-                  </div>
-                  <Button type="button" variant="success" className="mt-4" onClick={() => handleAddItem()}>
-                    Add Item
-                  </Button>
-                </div>
-              )}
-              {createLineItems.length === 0 ? (
-                <p className="text-muted-foreground text-sm">No additional items. Use &quot;Add Item&quot; to add rentals, labour, fees, etc.</p>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-border text-left text-muted-foreground">
-                        <th className="pb-2 font-medium">Category</th>
-                        <th className="pb-2 font-medium">Description</th>
-                        <th className="pb-2 font-medium text-right">Qty</th>
-                        <th className="pb-2 font-medium">Unit</th>
-                        <th className="pb-2 font-medium text-right">Price</th>
-                        <th className="pb-2"></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {createLineItems.map((item, index) => (
-                        <tr key={index} className="border-b border-border/50">
-                          <td className="py-2"><Badge variant="secondary" className="text-xs">{CATEGORY_LABELS[item.category] || item.category}</Badge></td>
-                          <td className="py-2 text-foreground">{item.description}</td>
-                          <td className="py-2 text-right text-foreground/80">{item.quantity}</td>
-                          <td className="py-2 text-muted-foreground">{item.unit.replace(/_/g, " ")}</td>
-                          <td className="py-2 text-right text-foreground/80">{formatCurrency(item.unit_price, cs)}</td>
-                          <td className="py-2 text-right">
-                            <Button type="button" variant="ghost" size="sm" onClick={() => handleRemoveItem(index)} className="text-destructive hover:text-destructive h-auto py-0.5 px-1.5 text-xs">Remove</Button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Additional Items</h2>
+              <QuoteLineItemsEditor
+                items={createLineItems}
+                onChange={setCreateLineItems}
+                guestCount={createData.guest_count ? Number(createData.guest_count) : 0}
+                currencySymbol={cs}
+              />
             </CardContent>
           </Card>
 
@@ -955,68 +846,41 @@ export default function QuoteDetailPage() {
         </div>
       )}
 
-      {/* Line Items */}
+      {/* Additional Items */}
       <Card>
         <CardContent className="p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Additional Items</h2>
-            {editing && (
-              <Button size="sm" onClick={() => setShowItemForm(!showItemForm)}>
-                {showItemForm ? "Cancel" : "Add Item"}
-              </Button>
-            )}
-          </div>
-
-          {editing && showItemForm && (
-            <form onSubmit={handleAddItem} className="border border-border rounded p-4 mb-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Category</label>
-                  <select value={itemData.category} onChange={(e) => setItemData({ ...itemData, category: e.target.value })} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
-                    <option value="food">Food</option>
-                    <option value="beverage">Beverage</option>
-                    <option value="rental">Rental</option>
-                    <option value="labor">Labour</option>
-                    <option value="fee">Fee</option>
-                    <option value="discount">Discount</option>
-                  </select>
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-4">Additional Items</h2>
+          {editing ? (
+            <>
+              <QuoteLineItemsEditor
+                items={editLineItems}
+                onChange={setEditLineItems}
+                guestCount={editGuestCount}
+                currencySymbol={cs}
+              />
+              <div className="mt-4 border-t border-border pt-3 ml-auto max-w-xs space-y-1 text-sm">
+                {liveTotals.food_total > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Food ({formatCurrency(editData.price_per_head || 0, cs)} × {editGuestCount})</span>
+                    <span className="font-medium">{formatCurrency(liveTotals.food_total, cs)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Subtotal</span>
+                  <span className="font-medium">{formatCurrency(liveTotals.subtotal, cs)}</span>
                 </div>
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-foreground mb-1">Description *</label>
-                  <ValidatedInput type="text" required maxLength={100} value={itemData.description} onChange={(e) => setItemData({ ...itemData, description: e.target.value })} />
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">VAT ({parseFloat(editData.tax_rate || "0").toFixed(0)}%)</span>
+                  <span>{formatCurrency(liveTotals.tax_amount, cs)}</span>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Quantity *</label>
-                  <ValidatedInput type="number" step="0.01" min={0} max={99999} required value={itemData.quantity} onChange={(e) => setItemData({ ...itemData, quantity: e.target.value })} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Unit</label>
-                  <select value={itemData.unit} onChange={(e) => setItemData({ ...itemData, unit: e.target.value })} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
-                    <option value="each">Each</option>
-                    <option value="per_guest">Per Guest</option>
-                    <option value="per_hour">Per Hour</option>
-                    <option value="flat">Flat Rate</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Unit Price ({cs}) *</label>
-                  <ValidatedInput type="number" step="0.01" min={0} max={9999999.99} required value={itemData.unit_price} onChange={(e) => setItemData({ ...itemData, unit_price: e.target.value })} />
-                </div>
-                <div className="flex items-center gap-2 mt-6">
-                  <input type="checkbox" checked={itemData.is_taxable} onChange={(e) => setItemData({ ...itemData, is_taxable: e.target.checked })} className="rounded border-input" />
-                  <label className="text-sm text-foreground">Taxable</label>
+                <div className="flex justify-between border-t border-border pt-1">
+                  <span className="font-semibold text-foreground">Total</span>
+                  <span className="font-bold text-lg text-foreground">{formatCurrency(liveTotals.total, cs)}</span>
                 </div>
               </div>
-              <Button type="submit" disabled={saving} variant="success" className="mt-4">
-                {saving ? "Adding..." : "Add Item"}
-              </Button>
-            </form>
-          )}
-
-          {(editing ? editLineItems.length === 0 : q.line_items.length === 0 && parseFloat(q.food_total) === 0) ? (
-            <p className="text-muted-foreground text-sm">
-              {editing ? 'No additional items. Click "Add Item" to add one.' : "No additional items."}
-            </p>
+            </>
+          ) : q.line_items.length === 0 && parseFloat(q.food_total) === 0 ? (
+            <p className="text-muted-foreground text-sm">No additional items.</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -1028,70 +892,42 @@ export default function QuoteDetailPage() {
                     <th className="pb-2 font-medium">Unit</th>
                     <th className="pb-2 font-medium text-right">Price</th>
                     <th className="pb-2 font-medium text-right">Total</th>
-                    <th className="pb-2"></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {editing
-                    ? editLineItems.map((item, index) => (
-                        <tr key={index} className="border-b border-border/50">
-                          <td className="py-2">
-                            <Badge variant="secondary" className="text-xs">
-                              {CATEGORY_LABELS[item.category] || item.category}
-                            </Badge>
-                          </td>
-                          <td className="py-2 text-foreground">{item.description}</td>
-                          <td className="py-2 text-right text-foreground/80">{item.quantity}</td>
-                          <td className="py-2 text-muted-foreground">{item.unit.replace(/_/g, " ")}</td>
-                          <td className="py-2 text-right text-foreground/80">{formatCurrency(item.unit_price, cs)}</td>
-                          <td className="py-2 text-right font-medium text-foreground">{formatCurrency(lineItemTotal(item, editGuestCount), cs)}</td>
-                          <td className="py-2 text-right">
-                            <Button variant="ghost" size="sm" onClick={() => handleRemoveItem(index)} className="text-destructive hover:text-destructive h-auto py-0.5 px-1.5 text-xs">
-                              Remove
-                            </Button>
-                          </td>
-                        </tr>
-                      ))
-                    : q.line_items.map((item) => (
-                        <tr key={item.id} className="border-b border-border/50">
-                          <td className="py-2">
-                            <Badge variant="secondary" className="text-xs">
-                              {CATEGORY_LABELS[item.category] || item.category}
-                            </Badge>
-                          </td>
-                          <td className="py-2 text-foreground">{item.description}</td>
-                          <td className="py-2 text-right text-foreground/80">{item.quantity}</td>
-                          <td className="py-2 text-muted-foreground">{item.unit.replace(/_/g, " ")}</td>
-                          <td className="py-2 text-right text-foreground/80">{formatCurrency(item.unit_price, cs)}</td>
-                          <td className="py-2 text-right font-medium text-foreground">{formatCurrency(item.line_total, cs)}</td>
-                          <td className="py-2"></td>
-                        </tr>
-                      ))}
+                  {q.line_items.map((item) => (
+                    <tr key={item.id} className="border-b border-border/50">
+                      <td className="py-2">
+                        <Badge variant="secondary" className="text-xs">{CATEGORY_LABELS[item.category] || item.category}</Badge>
+                      </td>
+                      <td className="py-2 text-foreground">{item.description}</td>
+                      <td className="py-2 text-right text-foreground/80">{item.quantity}</td>
+                      <td className="py-2 text-muted-foreground">{item.unit.replace(/_/g, " ")}</td>
+                      <td className="py-2 text-right text-foreground/80">{formatCurrency(item.unit_price, cs)}</td>
+                      <td className="py-2 text-right font-medium text-foreground">{formatCurrency(item.line_total, cs)}</td>
+                    </tr>
+                  ))}
                 </tbody>
                 <tfoot>
-                  {(editing ? liveTotals.food_total > 0 : parseFloat(q.food_total) > 0) && (
+                  {parseFloat(q.food_total) > 0 && (
                     <tr className="border-t border-border">
                       <td colSpan={5} className="pt-3 text-right text-muted-foreground">
-                        Food ({formatCurrency(editing ? editData.price_per_head || 0 : q.price_per_head ?? 0, cs)} x {editing ? editGuestCount : q.guest_count} guests)
+                        Food ({formatCurrency(q.price_per_head ?? 0, cs)} × {q.guest_count} guests)
                       </td>
-                      <td className="pt-3 text-right font-medium">{formatCurrency(editing ? liveTotals.food_total : q.food_total, cs)}</td>
-                      <td></td>
+                      <td className="pt-3 text-right font-medium">{formatCurrency(q.food_total, cs)}</td>
                     </tr>
                   )}
-                  <tr className={(editing ? liveTotals.food_total > 0 : parseFloat(q.food_total) > 0) ? "" : "border-t border-border"}>
+                  <tr className={parseFloat(q.food_total) > 0 ? "" : "border-t border-border"}>
                     <td colSpan={5} className="pt-3 text-right text-muted-foreground">Subtotal</td>
-                    <td className="pt-3 text-right font-medium">{formatCurrency(editing ? liveTotals.subtotal : q.subtotal, cs)}</td>
-                    <td></td>
+                    <td className="pt-3 text-right font-medium">{formatCurrency(q.subtotal, cs)}</td>
                   </tr>
                   <tr>
-                    <td colSpan={5} className="py-1 text-right text-muted-foreground">VAT ({editing ? parseFloat(editData.tax_rate || "0").toFixed(0) : (parseFloat(q.tax_rate) * 100).toFixed(0)}%)</td>
-                    <td className="py-1 text-right">{formatCurrency(editing ? liveTotals.tax_amount : q.tax_amount, cs)}</td>
-                    <td></td>
+                    <td colSpan={5} className="py-1 text-right text-muted-foreground">VAT ({(parseFloat(q.tax_rate) * 100).toFixed(0)}%)</td>
+                    <td className="py-1 text-right">{formatCurrency(q.tax_amount, cs)}</td>
                   </tr>
                   <tr className="border-t border-border">
                     <td colSpan={5} className="pt-2 text-right font-semibold text-foreground">Total</td>
-                    <td className="pt-2 text-right font-bold text-lg text-foreground">{formatCurrency(editing ? liveTotals.total : q.total, cs)}</td>
-                    <td></td>
+                    <td className="pt-2 text-right font-bold text-lg text-foreground">{formatCurrency(q.total, cs)}</td>
                   </tr>
                 </tfoot>
               </table>

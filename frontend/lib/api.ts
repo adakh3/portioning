@@ -54,11 +54,30 @@ async function tryRefresh(): Promise<boolean> {
   return refreshPromise;
 }
 
+// Flatten DRF validation errors ({field: [msg], nested: [{f: [msg]}]}) into
+// readable sentences instead of dumping raw JSON in the UI.
+export function collectErrorMessages(node: unknown, prefix = ""): string[] {
+  if (typeof node === "string") return [prefix ? `${prefix}: ${node}` : node];
+  if (Array.isArray(node)) return node.flatMap((n) => collectErrorMessages(n, prefix));
+  if (node && typeof node === "object") {
+    return Object.entries(node).flatMap(([k, v]) => {
+      const label = k.replace(/_/g, " ");
+      return collectErrorMessages(v, prefix ? `${prefix} ${label}` : label);
+    });
+  }
+  return [];
+}
+
 function sanitizeError(status: number, text: string): string {
   if (status >= 500) return `Server error (${status})`;
   try {
     const json = JSON.parse(text);
-    if (json.detail) return json.detail;
+    if (typeof json === "string") return json;
+    if (json && typeof json === "object" && typeof (json as { detail?: unknown }).detail === "string") {
+      return (json as { detail: string }).detail;
+    }
+    const messages = collectErrorMessages(json);
+    if (messages.length) return messages.slice(0, 4).join(" ");
   } catch { /* not JSON */ }
   return text.length > 200 ? text.slice(0, 200) + "…" : text;
 }
