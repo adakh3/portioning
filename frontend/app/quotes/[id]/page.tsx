@@ -108,17 +108,19 @@ export default function QuoteDetailPage() {
     }
   }, [isNew, rawSettings]);
 
-  // Load contacts when account changes in create mode
+  // Load contacts when account changes in create mode. The accounts LIST does
+  // not include contacts, so fetch the account detail.
   useEffect(() => {
     if (!isNew) return;
     if (createData.account) {
-      const acct = accounts.find((a) => a.id === Number(createData.account));
-      setCreateContacts(acct?.contacts || []);
+      api.getAccount(Number(createData.account))
+        .then((acct) => setCreateContacts(acct.contacts || []))
+        .catch(() => setCreateContacts([]));
       setCreateData((prev) => ({ ...prev, primary_contact: "" }));
     } else {
       setCreateContacts([]);
     }
-  }, [isNew, createData.account, accounts]);
+  }, [isNew, createData.account]);
 
   const setCreate = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setCreateData({ ...createData, [field]: e.target.value });
@@ -174,6 +176,7 @@ export default function QuoteDetailPage() {
       router.push(`/quotes/${newQuote.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create quote");
+    } finally {
       setSaving(false);
     }
   }
@@ -261,6 +264,10 @@ export default function QuoteDetailPage() {
 
   // Create mode
   if (isNew) {
+    const createTotals = computeQuoteTotals(
+      createData.price_per_head, createData.guest_count,
+      parseFloat(createData.tax_rate || "0"), createLineItems,
+    );
     return (
       <div className="space-y-6">
         <div className="flex items-center gap-2 text-sm">
@@ -326,6 +333,10 @@ export default function QuoteDetailPage() {
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Guest Count *</label>
                   <ValidatedInput type="number" required min={1} max={50000} value={createData.guest_count} onChange={setCreate("guest_count")} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Price Per Head ({cs})</label>
+                  <ValidatedInput type="number" step="0.01" min={0} value={createData.price_per_head} onChange={setCreate("price_per_head")} placeholder="0.00" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Event Type</label>
@@ -410,6 +421,26 @@ export default function QuoteDetailPage() {
                 guestCount={createData.guest_count ? Number(createData.guest_count) : 0}
                 currencySymbol={cs}
               />
+              <div className="mt-4 border-t border-border pt-3 ml-auto max-w-xs space-y-1 text-sm">
+                {createTotals.food_total > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Food ({formatCurrency(createData.price_per_head || 0, cs)} × {createData.guest_count || 0})</span>
+                    <span className="font-medium">{formatCurrency(createTotals.food_total, cs)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Subtotal</span>
+                  <span className="font-medium">{formatCurrency(createTotals.subtotal, cs)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">VAT ({(parseFloat(createData.tax_rate || "0") * 100).toFixed(0)}%)</span>
+                  <span>{formatCurrency(createTotals.tax_amount, cs)}</span>
+                </div>
+                <div className="flex justify-between border-t border-border pt-1">
+                  <span className="font-semibold text-foreground">Total</span>
+                  <span className="font-bold text-lg text-foreground">{formatCurrency(createTotals.total, cs)}</span>
+                </div>
+              </div>
             </CardContent>
           </Card>
 
