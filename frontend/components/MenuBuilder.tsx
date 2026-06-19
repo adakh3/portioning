@@ -200,6 +200,18 @@ export default function MenuBuilder({
     }
   };
 
+  // Auto-calculate a suggested per-head rate for custom menus (no matching
+  // tier) so it appears without the user clicking "Calculate Rate".
+  useEffect(() => {
+    if (!guestCount || guestCount <= 0 || selected.size === 0) return;
+    if (tierPrice || calculatedPrice) return;
+    const t = setTimeout(() => {
+      handleCalculateRate();
+    }, 400);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [guestCount, selected, tierPrice, calculatedPrice, templateId, dishesModified]);
+
   const handleSave = async () => {
     if (!onSave) return;
     setSaving(true);

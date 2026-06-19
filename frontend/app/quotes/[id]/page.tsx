@@ -10,6 +10,7 @@ import { formatCurrency } from "@/lib/utils";
 import MenuBuilder from "@/components/MenuBuilder";
 import { computeQuoteTotals, buildQuoteSavePayload, LineItemInput } from "@/lib/quoteTotals";
 import QuoteLineItemsEditor from "@/components/QuoteLineItemsEditor";
+import QuoteTotalsCard from "@/components/QuoteTotalsCard";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -421,28 +422,20 @@ export default function QuoteDetailPage() {
                 guestCount={createData.guest_count ? Number(createData.guest_count) : 0}
                 currencySymbol={cs}
               />
-              <div className="mt-4 border-t border-border pt-3 ml-auto max-w-xs space-y-1 text-sm">
-                {createTotals.food_total > 0 && (
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Food ({formatCurrency(createData.price_per_head || 0, cs)} × {createData.guest_count || 0})</span>
-                    <span className="font-medium">{formatCurrency(createTotals.food_total, cs)}</span>
-                  </div>
-                )}
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Subtotal</span>
-                  <span className="font-medium">{formatCurrency(createTotals.subtotal, cs)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">VAT ({(parseFloat(createData.tax_rate || "0") * 100).toFixed(0)}%)</span>
-                  <span>{formatCurrency(createTotals.tax_amount, cs)}</span>
-                </div>
-                <div className="flex justify-between border-t border-border pt-1">
-                  <span className="font-semibold text-foreground">Total</span>
-                  <span className="font-bold text-lg text-foreground">{formatCurrency(createTotals.total, cs)}</span>
-                </div>
-              </div>
             </CardContent>
           </Card>
+
+          {/* Quote Total (menu + additional items) */}
+          <QuoteTotalsCard
+            foodTotal={createTotals.food_total}
+            subtotal={createTotals.subtotal}
+            taxAmount={createTotals.tax_amount}
+            total={createTotals.total}
+            pricePerHead={createData.price_per_head}
+            guestCount={createData.guest_count}
+            taxPercent={(parseFloat(createData.tax_rate || "0") * 100).toFixed(0)}
+            currencySymbol={cs}
+          />
 
           {/* Pricing & Terms */}
           <Card>
@@ -882,35 +875,13 @@ export default function QuoteDetailPage() {
         <CardContent className="p-6">
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-4">Additional Items</h2>
           {editing ? (
-            <>
-              <QuoteLineItemsEditor
-                items={editLineItems}
-                onChange={setEditLineItems}
-                guestCount={editGuestCount}
-                currencySymbol={cs}
-              />
-              <div className="mt-4 border-t border-border pt-3 ml-auto max-w-xs space-y-1 text-sm">
-                {liveTotals.food_total > 0 && (
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Food ({formatCurrency(editData.price_per_head || 0, cs)} × {editGuestCount})</span>
-                    <span className="font-medium">{formatCurrency(liveTotals.food_total, cs)}</span>
-                  </div>
-                )}
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Subtotal</span>
-                  <span className="font-medium">{formatCurrency(liveTotals.subtotal, cs)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">VAT ({parseFloat(editData.tax_rate || "0").toFixed(0)}%)</span>
-                  <span>{formatCurrency(liveTotals.tax_amount, cs)}</span>
-                </div>
-                <div className="flex justify-between border-t border-border pt-1">
-                  <span className="font-semibold text-foreground">Total</span>
-                  <span className="font-bold text-lg text-foreground">{formatCurrency(liveTotals.total, cs)}</span>
-                </div>
-              </div>
-            </>
-          ) : q.line_items.length === 0 && parseFloat(q.food_total) === 0 ? (
+            <QuoteLineItemsEditor
+              items={editLineItems}
+              onChange={setEditLineItems}
+              guestCount={editGuestCount}
+              currencySymbol={cs}
+            />
+          ) : q.line_items.length === 0 ? (
             <p className="text-muted-foreground text-sm">No additional items.</p>
           ) : (
             <div className="overflow-x-auto">
@@ -939,33 +910,23 @@ export default function QuoteDetailPage() {
                     </tr>
                   ))}
                 </tbody>
-                <tfoot>
-                  {parseFloat(q.food_total) > 0 && (
-                    <tr className="border-t border-border">
-                      <td colSpan={5} className="pt-3 text-right text-muted-foreground">
-                        Food ({formatCurrency(q.price_per_head ?? 0, cs)} × {q.guest_count} guests)
-                      </td>
-                      <td className="pt-3 text-right font-medium">{formatCurrency(q.food_total, cs)}</td>
-                    </tr>
-                  )}
-                  <tr className={parseFloat(q.food_total) > 0 ? "" : "border-t border-border"}>
-                    <td colSpan={5} className="pt-3 text-right text-muted-foreground">Subtotal</td>
-                    <td className="pt-3 text-right font-medium">{formatCurrency(q.subtotal, cs)}</td>
-                  </tr>
-                  <tr>
-                    <td colSpan={5} className="py-1 text-right text-muted-foreground">VAT ({(parseFloat(q.tax_rate) * 100).toFixed(0)}%)</td>
-                    <td className="py-1 text-right">{formatCurrency(q.tax_amount, cs)}</td>
-                  </tr>
-                  <tr className="border-t border-border">
-                    <td colSpan={5} className="pt-2 text-right font-semibold text-foreground">Total</td>
-                    <td className="pt-2 text-right font-bold text-lg text-foreground">{formatCurrency(q.total, cs)}</td>
-                  </tr>
-                </tfoot>
               </table>
             </div>
           )}
         </CardContent>
       </Card>
+
+      {/* Quote Total (menu + additional items) */}
+      <QuoteTotalsCard
+        foodTotal={editing ? liveTotals.food_total : parseFloat(q.food_total)}
+        subtotal={editing ? liveTotals.subtotal : parseFloat(q.subtotal)}
+        taxAmount={editing ? liveTotals.tax_amount : parseFloat(q.tax_amount)}
+        total={editing ? liveTotals.total : parseFloat(q.total)}
+        pricePerHead={editing ? editData.price_per_head : (q.price_per_head ?? 0)}
+        guestCount={editing ? editGuestCount : q.guest_count}
+        taxPercent={editing ? parseFloat(editData.tax_rate || "0").toFixed(0) : (parseFloat(q.tax_rate) * 100).toFixed(0)}
+        currencySymbol={cs}
+      />
 
       {editing && (
         <div className="sticky bottom-0 z-10 bg-background/95 backdrop-blur border-t border-border py-3 flex gap-3">
