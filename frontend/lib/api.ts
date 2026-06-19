@@ -533,6 +533,7 @@ export interface SiteSettingsData {
   default_price_per_head: string;
   target_food_cost_percentage: string;
   price_rounding_step: string;
+  quotation_terms: string;
   tax_label: string;
   default_tax_rate: string;
   // WhatsApp
@@ -1095,7 +1096,7 @@ export const api = {
   getQuote: (id: number) => fetchApi<Quote>(`/bookings/quotes/${id}/`),
   createQuote: (data: Partial<Quote> & { dish_ids?: number[] }) =>
     fetchApi<Quote>("/bookings/quotes/", { method: "POST", body: JSON.stringify(data) }),
-  updateQuote: (id: number, data: Partial<Quote> & { dish_ids?: number[] }) =>
+  updateQuote: (id: number, data: Partial<Quote> & { dish_ids?: number[]; line_items?: unknown[] }) =>
     fetchApi<Quote>(`/bookings/quotes/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
   deleteQuote: (id: number) =>
     fetchApi<void>(`/bookings/quotes/${id}/`, { method: "DELETE" }),

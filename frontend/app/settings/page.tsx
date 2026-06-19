@@ -23,6 +23,7 @@ export default function SettingsPage() {
     default_price_per_head: "",
     target_food_cost_percentage: "",
     price_rounding_step: "50",
+    quotation_terms: "",
   });
 
   // WhatsApp toggle state (separate save)
@@ -40,6 +41,7 @@ export default function SettingsPage() {
         default_price_per_head: settings.default_price_per_head,
         target_food_cost_percentage: settings.target_food_cost_percentage,
         price_rounding_step: settings.price_rounding_step || "50",
+        quotation_terms: settings.quotation_terms || "",
       });
       setWaEnabled(settings.whatsapp_enabled || false);
     }
@@ -197,6 +199,19 @@ export default function SettingsPage() {
                   Set to 1 to disable rounding.
                 </p>
               </div>
+            </div>
+            <div className="mt-4">
+              <label className="block text-sm font-medium text-foreground mb-1">Terms &amp; Conditions</label>
+              <textarea
+                value={formData.quotation_terms}
+                onChange={(e) => setFormData({ ...formData, quotation_terms: e.target.value })}
+                rows={6}
+                className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                placeholder="Printed on the Terms & Conditions page of every quotation PDF. One paragraph per line."
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Shown on the Terms &amp; Conditions page of quotation PDFs.
+              </p>
             </div>
           </CardContent>
         </Card>

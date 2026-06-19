@@ -8,6 +8,11 @@ from users.serializer_mixins import OrgScopedModelSerializer
 
 
 class QuoteLineItemSerializer(OrgScopedModelSerializer):
+    # Writable so the parent QuoteSerializer can match existing rows on a
+    # nested save (default `id` is read-only). Unused by the standalone
+    # line-item endpoints, which take the id from the URL.
+    id = serializers.IntegerField(required=False)
+
     class Meta:
         model = QuoteLineItem
         fields = [
@@ -25,7 +30,7 @@ class QuoteLineItemSerializer(OrgScopedModelSerializer):
 
 
 class QuoteSerializer(OrgScopedModelSerializer):
-    line_items = QuoteLineItemSerializer(many=True, read_only=True)
+    line_items = QuoteLineItemSerializer(many=True, required=False)
     account_name = serializers.CharField(source='account.name', read_only=True)
     contact_name = serializers.SerializerMethodField()
     contact_email = serializers.SerializerMethodField()
@@ -119,24 +124,47 @@ class QuoteSerializer(OrgScopedModelSerializer):
     def get_dish_names(self, obj):
         return list(obj.dishes.values_list('name', flat=True))
 
+    @staticmethod
+    def _save_line_items(quote, items_data):
+        """Reconcile nested line items in one pass: update rows by id, create
+        rows without an id, delete existing rows absent from the payload."""
+        existing = {li.id: li for li in quote.line_items.all()}
+        keep_ids = set()
+        for item in items_data:
+            item_id = item.get('id')
+            fields = {k: v for k, v in item.items() if k not in ('id', 'quote')}
+            if item_id and item_id in existing:
+                li = existing[item_id]
+                for k, v in fields.items():
+                    setattr(li, k, v)
+                li.save()  # recomputes line_total + quote totals
+                keep_ids.add(item_id)
+            else:
+                QuoteLineItem.objects.create(quote=quote, **fields)
+        for li_id, li in existing.items():
+            if li_id not in keep_ids:
+                li.delete()
+
     def create(self, validated_data):
         dishes = validated_data.pop('dishes', [])
+        line_items_data = validated_data.pop('line_items', None)
         quote = super().create(validated_data)
         if dishes:
             quote.dishes.set(dishes)
-        # Recalculate totals if price_per_head was set
-        if quote.price_per_head:
-            quote.recalculate_totals()
+        if line_items_data:
+            self._save_line_items(quote, line_items_data)
+        quote.recalculate_totals()
         return quote
 
     def update(self, instance, validated_data):
         dishes = validated_data.pop('dishes', None)
-        needs_recalc = 'price_per_head' in validated_data or 'guest_count' in validated_data or 'tax_rate' in validated_data
+        line_items_data = validated_data.pop('line_items', None)
         quote = super().update(instance, validated_data)
         if dishes is not None:
             quote.dishes.set(dishes)
-        if needs_recalc:
-            quote.recalculate_totals()
+        if line_items_data is not None:
+            self._save_line_items(quote, line_items_data)
+        quote.recalculate_totals()
         return quote
 
 

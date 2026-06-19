@@ -800,6 +800,42 @@ class TestQuoteAPI(TestCase):
         pdf_bytes = generate_quote_pdf(quote)
         self.assertTrue(pdf_bytes and len(pdf_bytes) > 0)
 
+    def test_quote_patch_reconciles_line_items_in_one_call(self):
+        """One PATCH to the quote can edit, add, and remove line items together
+        and recompute totals — the basis for the single-save redesign."""
+        from bookings.models import QuoteLineItem
+        quote = make_quote(org=self.org, account=self.account, price_per_head=Decimal("0"))
+        keep = QuoteLineItem.objects.create(
+            quote=quote, category="food", description="Keep",
+            quantity=Decimal("1"), unit="flat", unit_price=Decimal("100.00"), is_taxable=False,
+        )
+        QuoteLineItem.objects.create(
+            quote=quote, category="food", description="Remove",
+            quantity=Decimal("1"), unit="flat", unit_price=Decimal("50.00"), is_taxable=False,
+        )
+        res = self.client.patch(
+            f"/api/bookings/quotes/{quote.id}/",
+            {
+                "tax_rate": "0.0000",
+                "line_items": [
+                    # edit existing (qty 1 -> 2), drop "Remove", add a new taxable row
+                    {"id": keep.id, "category": "food", "description": "Keep",
+                     "quantity": "2", "unit": "flat", "unit_price": "100.00", "is_taxable": False},
+                    {"category": "rental", "description": "Chairs",
+                     "quantity": "10", "unit": "each", "unit_price": "5.00", "is_taxable": True},
+                ],
+            },
+            format="json",
+        )
+        self.assertEqual(res.status_code, 200, res.content)
+        quote.refresh_from_db()
+        self.assertEqual(
+            set(quote.line_items.values_list("description", flat=True)),
+            {"Keep", "Chairs"},
+        )
+        # Keep 2x100 = 200 (non-taxable) + Chairs 10x5 = 50 (taxable) = 250
+        self.assertEqual(str(quote.subtotal), "250.00")
+
     def test_create_quote(self):
         res = self.client.post("/api/bookings/quotes/", {
             "account": self.account.id,
