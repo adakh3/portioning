@@ -836,6 +836,31 @@ class TestQuoteAPI(TestCase):
         # Keep 2x100 = 200 (non-taxable) + Chairs 10x5 = 50 (taxable) = 250
         self.assertEqual(str(quote.subtotal), "250.00")
 
+    def test_price_estimate_does_not_500(self):
+        """PriceEstimateView must compute a rate, not 400. Regression for a
+        function-local `get_request_org` import that shadowed the module-level
+        one (UnboundLocalError, swallowed into a 400 — custom-menu Calculate
+        Rate never worked). Engine is mocked to isolate the view."""
+        from unittest.mock import patch
+        from dishes.models import Dish, DishCategory
+        cat = DishCategory.objects.create(
+            organisation=self.org, name="MainsPE", display_name="Mains",
+        )
+        dish = Dish.objects.create(
+            organisation=self.org, name="BiryaniPE", category=cat,
+            default_portion_grams=200, selling_price_per_gram=Decimal("0.05"),
+        )
+        with patch(
+            "calculator.views.calculate_portions",
+            return_value={"portions": [{"dish_id": dish.id, "grams_per_person": 200}]},
+        ):
+            res = self.client.post(
+                "/api/price-estimate/",
+                {"dish_ids": [dish.id], "guest_count": 100}, format="json",
+            )
+        self.assertEqual(res.status_code, 200, res.content)
+        self.assertIn("price_per_head", res.json())
+
     def test_create_quote(self):
         res = self.client.post("/api/bookings/quotes/", {
             "account": self.account.id,

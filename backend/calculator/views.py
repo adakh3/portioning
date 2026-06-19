@@ -251,7 +251,6 @@ class PriceEstimateView(APIView):
 
         # Apply rounding step from settings
         from bookings.models import OrgSettings
-        from users.mixins import get_request_org
         step = OrgSettings.for_org(get_request_org(request)).price_rounding_step
         if step > 1:
             price_per_head = round(price_per_head / step) * step
