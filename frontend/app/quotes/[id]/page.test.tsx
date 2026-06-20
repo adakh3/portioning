@@ -6,12 +6,12 @@ const h = vi.hoisted(() => ({
   updateQuote: vi.fn(),
   mutateQuote: vi.fn(),
   quote: {
-    id: 1, account: 1, account_name: "Acme", status: "draft", version: 1,
+    id: 1, is_b2b: false, account: null, account_name: null, status: "draft", version: 1,
     event_date: "2026-09-01", guest_count: 100, event_type: "wedding",
     meal_type: "", service_style: "", booking_date: "",
     venue: null, venue_name: null, venue_address: "",
     price_per_head: "50.00", tax_rate: "0.2000", valid_until: "",
-    primary_contact: null, contact_name: null, contact_email: null, contact_phone: null,
+    primary_contact: 3, contact_name: "Jane Doe", contact_email: null, contact_phone: null,
     notes: "", internal_notes: "", dishes: [], based_on_template: null,
     line_items: [], subtotal: "5000.00", tax_amount: "1000.00", total: "6000.00",
     food_total: "5000.00", is_editable: true, event_id: null,
@@ -30,6 +30,7 @@ vi.mock("@/components/MenuBuilder", () => ({ default: () => null }));
 vi.mock("@/lib/hooks", () => ({
   useQuote: () => ({ data: h.quote, error: null, isLoading: false, mutate: h.mutateQuote }),
   useAccounts: () => ({ data: [] }),
+  useContacts: () => ({ data: [{ id: 3, name: "Jane Doe", phone: "", account: null }] }),
   useVenues: () => ({ data: [] }),
   useSiteSettings: () => ({ data: { currency_symbol: "£", currency_code: "GBP", date_format: "DD/MM/YYYY", price_rounding_step: "50" } }),
   useDateFormat: () => "DD/MM/YYYY",

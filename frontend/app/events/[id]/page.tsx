@@ -14,6 +14,7 @@ import {
 import {
   useEvent,
   useAccounts,
+  useContacts,
   useVenues,
   useLaborRoles,
   useStaff,
@@ -63,6 +64,7 @@ export default function EventDetailPage() {
   // SWR hooks
   const { data: event, error: loadError, isLoading: eventLoading, mutate: mutateEvent } = useEvent(isNew || isNaN(eventId) ? null : eventId);
   const { data: accounts = [] } = useAccounts();
+  const { data: orgContacts = [] } = useContacts();
   const { data: venues = [] } = useVenues();
   const { data: laborRoles = [] } = useLaborRoles();
   const { data: staffList = [] } = useStaff();
@@ -101,6 +103,7 @@ export default function EventDetailPage() {
   const [formDate, setFormDate] = useState("");
   const [formAccount, setFormAccount] = useState<number | null>(null);
   const [formContact, setFormContact] = useState<number | null>(null);
+  const [formIsB2b, setFormIsB2b] = useState(false);
   const [formVenue, setFormVenue] = useState<number | null>(null);
   const [formVenueAddress, setFormVenueAddress] = useState("");
   const [formEventType, setFormEventType] = useState("");
@@ -149,6 +152,7 @@ export default function EventDetailPage() {
     setFormDate(data.date);
     setFormAccount(data.account);
     setFormContact(data.primary_contact);
+    setFormIsB2b(data.is_b2b);
     setFormVenue(data.venue);
     setFormVenueAddress(data.venue_address || "");
     setFormEventType(data.event_type || "");
@@ -208,16 +212,22 @@ export default function EventDetailPage() {
       setError("Event date is required");
       return;
     }
-    if (!formAccount) {
-      setError("Account is required");
+    if (!formContact) {
+      setError("Customer is required");
+      return;
+    }
+    if (formIsB2b && !formAccount) {
+      setError("A business is required for a B2B event");
       return;
     }
     setSaving(true);
-    const accountName = accounts.find((a) => a.id === formAccount)?.name || "Event";
+    const customerName = orgContacts.find((c) => c.id === formContact)?.name
+      || accounts.find((a) => a.id === formAccount)?.name || "Event";
     const payload = {
-      name: `${accountName} — ${formDate}`,
+      name: `${customerName} — ${formDate}`,
       date: formDate,
-      account: formAccount,
+      is_b2b: formIsB2b,
+      account: formIsB2b ? formAccount : null,
       primary_contact: formContact,
       venue: venueMode === "saved" ? formVenue : null,
       venue_address: venueMode === "custom" ? formVenueAddress : "",
@@ -405,8 +415,6 @@ export default function EventDetailPage() {
   };
 
   // Contacts for selected account
-  const selectedAccount = accounts.find((a) => a.id === (editing || isNew ? formAccount : event?.account));
-  const contactsForAccount: Contact[] = selectedAccount?.contacts || [];
 
   if (loading) {
     return (
@@ -606,36 +614,43 @@ export default function EventDetailPage() {
             {editing ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Account *</label>
+                  <label className="block text-sm font-medium text-foreground mb-1">Customer *</label>
                   <select
                     required
-                    value={formAccount ?? ""}
-                    onChange={(e) => {
-                      const val = e.target.value ? Number(e.target.value) : null;
-                      setFormAccount(val);
-                      setFormContact(null);
-                    }}
-                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  >
-                    <option value="">-- Select Account --</option>
-                    {accounts.map((a) => (
-                      <option key={a.id} value={a.id}>{a.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Primary Contact</label>
-                  <select
                     value={formContact ?? ""}
                     onChange={(e) => setFormContact(e.target.value ? Number(e.target.value) : null)}
-                    disabled={!formAccount}
-                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                   >
-                    <option value="">-- Select Contact --</option>
-                    {contactsForAccount.map((c) => (
-                      <option key={c.id} value={c.id}>{c.name} {c.role ? `(${c.role})` : ""}</option>
+                    <option value="">-- Select customer --</option>
+                    {orgContacts.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}{c.phone ? ` — ${c.phone}` : ""}</option>
                     ))}
                   </select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Not listed? <Link href="/customers" target="_blank" className="text-primary hover:underline">Add a customer</Link>.
+                  </p>
+                </div>
+                <div>
+                  <label className="inline-flex items-center gap-2 text-sm font-medium text-foreground">
+                    <input type="checkbox" checked={formIsB2b} onChange={(e) => setFormIsB2b(e.target.checked)} />
+                    Business booking (B2B)
+                  </label>
+                  {formIsB2b && (
+                    <div className="mt-2">
+                      <label className="block text-sm font-medium text-foreground mb-1">Business *</label>
+                      <select
+                        required
+                        value={formAccount ?? ""}
+                        onChange={(e) => setFormAccount(e.target.value ? Number(e.target.value) : null)}
+                        className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      >
+                        <option value="">-- Select business --</option>
+                        {accounts.filter((a) => a.account_type !== "individual").map((a) => (
+                          <option key={a.id} value={a.id}>{a.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                 </div>
                 <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-foreground mb-1">Venue</label>
@@ -729,8 +744,8 @@ export default function EventDetailPage() {
               </div>
             ) : (
               <dl className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                <InfoRow label="Account" value={event!.account_name} />
-                <InfoRow label="Primary Contact" value={event!.contact_name} />
+                <InfoRow label="Customer" value={event!.contact_name} />
+                {event!.is_b2b && <InfoRow label="Business" value={event!.account_name} />}
                 <InfoRow label="Venue" value={event!.venue_name || event!.venue_address || null} />
                 <InfoRow label="Event Type" value={eventTypeLabels[event!.event_type] || event!.event_type} />
                 <InfoRow label="Meal Type" value={mealTypeLabels[event!.meal_type] || event!.meal_type || null} />

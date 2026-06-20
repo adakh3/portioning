@@ -254,7 +254,7 @@ export interface Account {
 
 export interface Contact {
   id: number;
-  account: number;
+  account: number | null;
   name: string;
   email: string;
   phone: string;
@@ -362,12 +362,13 @@ export interface Quote {
   id: number;
   lead: number | null;
   lead_name: string | null;
-  account: number;
-  account_name: string;
   primary_contact: number | null;
   contact_name: string | null;
   contact_email: string | null;
   contact_phone: string | null;
+  is_b2b: boolean;
+  account: number | null;
+  account_name: string | null;
   version: number;
   status: string;
   status_display: string;
@@ -583,6 +584,7 @@ export interface EventData {
   };
   created_at: string;
   // Booking fields
+  is_b2b: boolean;
   account: number | null;
   account_name: string | null;
   product: number | null;
@@ -988,7 +990,14 @@ export const api = {
     return res.blob();
   },
 
-  // Bookings: Accounts
+  // Bookings: Customers (people, person-first) — selectable independently of a business
+  getContacts: () => fetchList<Contact>("/bookings/contacts/?page_size=all"),
+  createCustomer: (data: Partial<Contact>) =>
+    fetchApi<Contact>("/bookings/contacts/", { method: "POST", body: JSON.stringify(data) }),
+  updateCustomer: (id: number, data: Partial<Contact>) =>
+    fetchApi<Contact>(`/bookings/contacts/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
+
+  // Bookings: Accounts (businesses)
   getAccounts: () => fetchList<Account>("/bookings/accounts/?page_size=all"),
   getAccount: (id: number) => fetchApi<Account>(`/bookings/accounts/${id}/`),
   createAccount: (data: Partial<Account>) =>

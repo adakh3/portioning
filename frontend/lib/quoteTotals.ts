@@ -63,6 +63,8 @@ export function computeQuoteTotals(
 
 export interface QuoteEditData {
   primary_contact: string;
+  is_b2b: boolean;
+  account: string;
   event_date: string;
   guest_count: string;
   price_per_head: string;
@@ -96,6 +98,8 @@ export function buildQuoteSavePayload(
 ) {
   return {
     primary_contact: editData.primary_contact ? Number(editData.primary_contact) : null,
+    is_b2b: editData.is_b2b,
+    account: editData.is_b2b && editData.account ? Number(editData.account) : null,
     event_date: editData.event_date,
     guest_count: Number(editData.guest_count),
     price_per_head: editData.price_per_head ? editData.price_per_head : null,

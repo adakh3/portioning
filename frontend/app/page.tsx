@@ -511,7 +511,7 @@ export default function Dashboard() {
                 <li key={q.id}>
                   <Link href={`/quotes/${q.id}`} prefetch={false} className="block hover:bg-muted -mx-1 px-1 py-1 rounded transition-colors">
                     <p className="text-sm font-medium text-foreground truncate">
-                      {q.account_name || "No account"}
+                      {q.contact_name || q.account_name || "No customer"}
                     </p>
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                       <span>{formatDate(q.event_date, dateFormat)}</span>

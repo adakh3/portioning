@@ -3,6 +3,7 @@ import { useCallback, useRef, useState } from "react";
 import {
   api,
   Account,
+  Contact,
   AuthUser,
   Venue,
   Lead,
@@ -50,6 +51,12 @@ export function useDateFormat(): string {
 
 export function useAccounts() {
   return useSWR<Account[]>("accounts", () => api.getAccounts(), {
+    dedupingInterval: 60000,
+  });
+}
+
+export function useContacts() {
+  return useSWR<Contact[]>("contacts", () => api.getContacts(), {
     dedupingInterval: 60000,
   });
 }

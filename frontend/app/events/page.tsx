@@ -135,8 +135,8 @@ function EventsContent() {
                     <span>{event.dishes.length} dishes</span>
                   </div>
                   <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground">
-                    {event.account_name && (
-                      <span>Customer: {event.account_name}</span>
+                    {(event.contact_name || event.account_name) && (
+                      <span>Customer: {event.contact_name || event.account_name}{event.is_b2b && event.account_name ? ` (${event.account_name})` : ""}</span>
                     )}
                     {(event.venue_name || event.venue_address) && (
                       <span>Venue: {event.venue_name || event.venue_address.slice(0, 40)}</span>

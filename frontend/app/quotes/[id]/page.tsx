@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { api, Contact } from "@/lib/api";
-import { useQuote, useAccounts, useVenues, useSiteSettings, useDateFormat, useEventTypes, useServiceStyles, useMealTypes, useAllLeads, revalidate } from "@/lib/hooks";
+import { useQuote, useAccounts, useContacts, useVenues, useSiteSettings, useDateFormat, useEventTypes, useServiceStyles, useMealTypes, useAllLeads, revalidate } from "@/lib/hooks";
 import { formatDate } from "@/lib/dateFormat";
 import { formatCurrency } from "@/lib/utils";
 import MenuBuilder from "@/components/MenuBuilder";
@@ -41,6 +41,7 @@ export default function QuoteDetailPage() {
   const { data: quote, error: loadError, isLoading: quoteLoading, mutate: mutateQuote } = useQuote(isNew ? null : (Number(id) || null));
   const loading = isNew ? false : quoteLoading;
   const { data: accounts = [] } = useAccounts();
+  const { data: orgContacts = [] } = useContacts();
   const { data: venues = [] } = useVenues();
   const { data: rawSettings } = useSiteSettings();
   const settings = rawSettings || { currency_symbol: "£", currency_code: "GBP", date_format: "DD/MM/YYYY", default_price_per_head: "0.00", target_food_cost_percentage: "30.00", price_rounding_step: "50" };
@@ -52,10 +53,11 @@ export default function QuoteDetailPage() {
   const leads = allLeads.filter((l) => !["won", "lost"].includes(l.status));
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
-  const [contacts, setContacts] = useState<Contact[]>([]);
   const [error, setError] = useState("");
   const [editData, setEditData] = useState({
     primary_contact: "",
+    is_b2b: false,
+    account: "",
     event_date: "",
     guest_count: "",
     price_per_head: "",
@@ -75,8 +77,9 @@ export default function QuoteDetailPage() {
   // Create mode state
   const [createData, setCreateData] = useState({
     lead: "",
-    account: "",
     primary_contact: "",
+    is_b2b: false,
+    account: "",
     venue: "",
     venue_address: "",
     event_date: "",
@@ -95,7 +98,6 @@ export default function QuoteDetailPage() {
     dish_ids: number[];
     based_on_template: number | null;
   }>({ dish_ids: [], based_on_template: null });
-  const [createContacts, setCreateContacts] = useState<Contact[]>([]);
   // Line items held locally and committed with the rest of the quote in one save
   const [editLineItems, setEditLineItems] = useState<LineItemInput[]>([]);
   const [createLineItems, setCreateLineItems] = useState<LineItemInput[]>([]);
@@ -109,20 +111,6 @@ export default function QuoteDetailPage() {
     }
   }, [isNew, rawSettings]);
 
-  // Load contacts when account changes in create mode. The accounts LIST does
-  // not include contacts, so fetch the account detail.
-  useEffect(() => {
-    if (!isNew) return;
-    if (createData.account) {
-      api.getAccount(Number(createData.account))
-        .then((acct) => setCreateContacts(acct.contacts || []))
-        .catch(() => setCreateContacts([]));
-      setCreateData((prev) => ({ ...prev, primary_contact: "" }));
-    } else {
-      setCreateContacts([]);
-    }
-  }, [isNew, createData.account]);
-
   const setCreate = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setCreateData({ ...createData, [field]: e.target.value });
 
@@ -134,10 +122,14 @@ export default function QuoteDetailPage() {
     }
     const selectedLead = leads.find((l) => l.id === Number(leadId));
     if (!selectedLead) return;
+    // A real business on the lead makes this B2B; a leftover "individual" account is ignored.
+    const leadCompany = accounts.find((a) => a.id === selectedLead.account);
+    const isBusiness = !!leadCompany && leadCompany.account_type !== "individual";
     setCreateData((prev) => ({
       ...prev,
       lead: leadId,
-      account: selectedLead.account ? String(selectedLead.account) : prev.account,
+      is_b2b: isBusiness || prev.is_b2b,
+      account: isBusiness ? String(selectedLead.account) : prev.account,
       event_date: selectedLead.event_date || prev.event_date,
       guest_count: selectedLead.guest_estimate ? String(selectedLead.guest_estimate) : prev.guest_count,
       event_type: selectedLead.event_type || prev.event_type,
@@ -153,8 +145,9 @@ export default function QuoteDetailPage() {
     try {
       const data = {
         lead: createData.lead ? Number(createData.lead) : null,
-        account: Number(createData.account),
         primary_contact: createData.primary_contact ? Number(createData.primary_contact) : null,
+        is_b2b: createData.is_b2b,
+        account: createData.is_b2b && createData.account ? Number(createData.account) : null,
         venue: createData.venue ? Number(createData.venue) : null,
         venue_address: createData.venue_address,
         event_date: createData.event_date,
@@ -185,6 +178,8 @@ export default function QuoteDetailPage() {
     if (!quote) return;
     setEditData({
       primary_contact: quote.primary_contact ? String(quote.primary_contact) : "",
+      is_b2b: quote.is_b2b,
+      account: quote.account ? String(quote.account) : "",
       event_date: quote.event_date,
       guest_count: String(quote.guest_count),
       price_per_head: quote.price_per_head || "",
@@ -205,9 +200,6 @@ export default function QuoteDetailPage() {
       is_taxable: li.is_taxable, sort_order: li.sort_order ?? 0,
     })));
     setMenuData({ dish_ids: quote.dishes || [], based_on_template: quote.based_on_template || null });
-    if (quote.account) {
-      api.getAccount(quote.account).then((acct) => setContacts(acct.contacts || [])).catch(() => {});
-    }
     setEditing(true);
   }
 
@@ -300,24 +292,31 @@ export default function QuoteDetailPage() {
                   ))}
                 </select>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Account *</label>
-                  <select required value={createData.account} onChange={setCreate("account")} className={selectClass}>
-                    <option value="">-- Select Account --</option>
-                    {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Contact Person</label>
-                  <select value={createData.primary_contact} onChange={setCreate("primary_contact")} disabled={!createData.account} className={`${selectClass} disabled:cursor-not-allowed disabled:opacity-50`}>
-                    <option value="">-- Select Contact --</option>
-                    {createContacts.map((c) => <option key={c.id} value={c.id}>{c.name} ({c.role})</option>)}
-                  </select>
-                  {createData.account && createContacts.length === 0 && (
-                    <p className="text-xs text-muted-foreground mt-1">No contacts on this account</p>
-                  )}
-                </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Customer *</label>
+                <select required value={createData.primary_contact} onChange={setCreate("primary_contact")} className={selectClass}>
+                  <option value="">-- Select customer --</option>
+                  {orgContacts.map((c) => <option key={c.id} value={c.id}>{c.name}{c.phone ? ` — ${c.phone}` : ""}</option>)}
+                </select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Not listed? <Link href="/customers" className="text-primary hover:underline" target="_blank">Add a customer</Link>.
+                </p>
+              </div>
+              <div className="mt-4">
+                <label className="inline-flex items-center gap-2 text-sm font-medium text-foreground">
+                  <input type="checkbox" checked={createData.is_b2b}
+                    onChange={(e) => setCreateData((prev) => ({ ...prev, is_b2b: e.target.checked }))} />
+                  Business booking (B2B)
+                </label>
+                {createData.is_b2b && (
+                  <div className="mt-2">
+                    <label className="block text-sm font-medium text-foreground mb-1">Business *</label>
+                    <select required value={createData.account} onChange={setCreate("account")} className={selectClass}>
+                      <option value="">-- Select business --</option>
+                      {accounts.filter((a) => a.account_type !== "individual").map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                    </select>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -625,14 +624,31 @@ export default function QuoteDetailPage() {
         <Card>
           <CardContent className="p-6">
             <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Customer</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Contact Person</label>
-                <select value={editData.primary_contact} onChange={setEdit("primary_contact")} className={selectClass}>
-                  <option value="">-- No contact --</option>
-                  {contacts.map((c) => <option key={c.id} value={c.id}>{c.name} ({c.role})</option>)}
-                </select>
-              </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Customer *</label>
+              <select required value={editData.primary_contact} onChange={setEdit("primary_contact")} className={selectClass}>
+                <option value="">-- Select customer --</option>
+                {orgContacts.map((c) => <option key={c.id} value={c.id}>{c.name}{c.phone ? ` — ${c.phone}` : ""}</option>)}
+              </select>
+              <p className="text-xs text-muted-foreground mt-1">
+                Not listed? <Link href="/customers" className="text-primary hover:underline" target="_blank">Add a customer</Link>.
+              </p>
+            </div>
+            <div className="mt-4">
+              <label className="inline-flex items-center gap-2 text-sm font-medium text-foreground">
+                <input type="checkbox" checked={editData.is_b2b}
+                  onChange={(e) => setEditData((prev) => ({ ...prev, is_b2b: e.target.checked }))} />
+                Business booking (B2B)
+              </label>
+              {editData.is_b2b && (
+                <div className="mt-2">
+                  <label className="block text-sm font-medium text-foreground mb-1">Business *</label>
+                  <select required value={editData.account} onChange={setEdit("account")} className={selectClass}>
+                    <option value="">-- Select business --</option>
+                    {accounts.filter((a) => a.account_type !== "individual").map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                  </select>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -706,13 +722,9 @@ export default function QuoteDetailPage() {
             <CardContent className="p-6">
               <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Customer</h2>
               <div className="space-y-2 text-sm">
-                <div>
-                  <span className="text-muted-foreground">Account:</span>{" "}
-                  <Link href={`/accounts/${q.account}`} className="text-primary hover:underline font-medium">{q.account_name}</Link>
-                </div>
                 {q.contact_name ? (
                   <div>
-                    <span className="text-muted-foreground">Contact:</span> {q.contact_name}
+                    <span className="font-medium text-foreground">{q.contact_name}</span>
                     {q.contact_email && (
                       <span className="text-muted-foreground ml-2">{q.contact_email}</span>
                     )}
@@ -721,7 +733,13 @@ export default function QuoteDetailPage() {
                     )}
                   </div>
                 ) : (
-                  <div className="text-muted-foreground italic">No contact person set</div>
+                  <div className="text-muted-foreground italic">No customer set</div>
+                )}
+                {q.is_b2b && q.account && (
+                  <div>
+                    <span className="text-muted-foreground">Business:</span>{" "}
+                    <Link href={`/accounts/${q.account}`} className="text-primary hover:underline font-medium">{q.account_name}</Link>
+                  </div>
                 )}
               </div>
             </CardContent>

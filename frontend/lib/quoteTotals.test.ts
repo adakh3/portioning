@@ -57,7 +57,7 @@ describe("computeQuoteTotals", () => {
 
 describe("buildQuoteSavePayload", () => {
   const editData = {
-    primary_contact: "3", event_date: "2026-09-01", guest_count: "100",
+    primary_contact: "3", is_b2b: false, account: "", event_date: "2026-09-01", guest_count: "100",
     price_per_head: "50.00", venue: "", venue_address: "", event_type: "wedding",
     meal_type: "", booking_date: "", service_style: "", tax_rate: "20",
     valid_until: "", notes: "", internal_notes: "",
@@ -80,5 +80,12 @@ describe("buildQuoteSavePayload", () => {
   it("sends null price when blank", () => {
     const payload = buildQuoteSavePayload({ ...editData, price_per_head: "" }, menuData, []);
     expect(payload.price_per_head).toBeNull();
+  });
+
+  it("includes the business only when B2B", () => {
+    expect(buildQuoteSavePayload(editData, menuData, []).account).toBeNull();
+    const b2b = buildQuoteSavePayload({ ...editData, is_b2b: true, account: "9" }, menuData, []);
+    expect(b2b.is_b2b).toBe(true);
+    expect(b2b.account).toBe(9);
   });
 });
