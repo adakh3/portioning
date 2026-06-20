@@ -237,6 +237,7 @@ class EventListSerializer(serializers.ModelSerializer):
     account_name = serializers.CharField(source='account.name', read_only=True, default=None)
     contact_name = serializers.CharField(source='primary_contact.name', read_only=True, default=None)
     venue_name = serializers.CharField(source='venue.name', read_only=True, default=None)
+    product_name = serializers.CharField(source='product.name', read_only=True, default=None)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     source_quote_id = serializers.SerializerMethodField()
 
