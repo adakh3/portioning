@@ -4,10 +4,12 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { api, Contact } from "@/lib/api";
-import { useQuote, useAccounts, useContacts, useVenues, useSiteSettings, useDateFormat, useEventTypes, useServiceStyles, useMealTypes, useAllLeads, revalidate } from "@/lib/hooks";
+import { useQuote, useAccounts, useVenues, useSiteSettings, useDateFormat, useEventTypes, useServiceStyles, useMealTypes, useAllLeads, revalidate } from "@/lib/hooks";
 import { formatDate } from "@/lib/dateFormat";
 import { formatCurrency } from "@/lib/utils";
 import MenuBuilder from "@/components/MenuBuilder";
+import CustomerSelect from "@/components/CustomerSelect";
+import BusinessSelect from "@/components/BusinessSelect";
 import { computeQuoteTotals, buildQuoteSavePayload, LineItemInput } from "@/lib/quoteTotals";
 import QuoteLineItemsEditor from "@/components/QuoteLineItemsEditor";
 import QuoteTotalsCard from "@/components/QuoteTotalsCard";
@@ -41,7 +43,6 @@ export default function QuoteDetailPage() {
   const { data: quote, error: loadError, isLoading: quoteLoading, mutate: mutateQuote } = useQuote(isNew ? null : (Number(id) || null));
   const loading = isNew ? false : quoteLoading;
   const { data: accounts = [] } = useAccounts();
-  const { data: orgContacts = [] } = useContacts();
   const { data: venues = [] } = useVenues();
   const { data: rawSettings } = useSiteSettings();
   const settings = rawSettings || { currency_symbol: "£", currency_code: "GBP", date_format: "DD/MM/YYYY", default_price_per_head: "0.00", target_food_cost_percentage: "30.00", price_rounding_step: "50" };
@@ -294,13 +295,8 @@ export default function QuoteDetailPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">Customer *</label>
-                <select required value={createData.primary_contact} onChange={setCreate("primary_contact")} className={selectClass}>
-                  <option value="">-- Select customer --</option>
-                  {orgContacts.map((c) => <option key={c.id} value={c.id}>{c.name}{c.phone ? ` — ${c.phone}` : ""}</option>)}
-                </select>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Not listed? <Link href="/customers" className="text-primary hover:underline" target="_blank">Add a customer</Link>.
-                </p>
+                <CustomerSelect required value={createData.primary_contact}
+                  onChange={(v) => setCreateData((prev) => ({ ...prev, primary_contact: v }))} />
               </div>
               <div className="mt-4">
                 <label className="inline-flex items-center gap-2 text-sm font-medium text-foreground">
@@ -311,10 +307,8 @@ export default function QuoteDetailPage() {
                 {createData.is_b2b && (
                   <div className="mt-2">
                     <label className="block text-sm font-medium text-foreground mb-1">Business *</label>
-                    <select required value={createData.account} onChange={setCreate("account")} className={selectClass}>
-                      <option value="">-- Select business --</option>
-                      {accounts.filter((a) => a.account_type !== "individual").map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-                    </select>
+                    <BusinessSelect required value={createData.account}
+                      onChange={(v) => setCreateData((prev) => ({ ...prev, account: v }))} />
                   </div>
                 )}
               </div>
@@ -626,13 +620,8 @@ export default function QuoteDetailPage() {
             <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Customer</h2>
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">Customer *</label>
-              <select required value={editData.primary_contact} onChange={setEdit("primary_contact")} className={selectClass}>
-                <option value="">-- Select customer --</option>
-                {orgContacts.map((c) => <option key={c.id} value={c.id}>{c.name}{c.phone ? ` — ${c.phone}` : ""}</option>)}
-              </select>
-              <p className="text-xs text-muted-foreground mt-1">
-                Not listed? <Link href="/customers" className="text-primary hover:underline" target="_blank">Add a customer</Link>.
-              </p>
+              <CustomerSelect required value={editData.primary_contact}
+                onChange={(v) => setEditData((prev) => ({ ...prev, primary_contact: v }))} />
             </div>
             <div className="mt-4">
               <label className="inline-flex items-center gap-2 text-sm font-medium text-foreground">
@@ -643,10 +632,8 @@ export default function QuoteDetailPage() {
               {editData.is_b2b && (
                 <div className="mt-2">
                   <label className="block text-sm font-medium text-foreground mb-1">Business *</label>
-                  <select required value={editData.account} onChange={setEdit("account")} className={selectClass}>
-                    <option value="">-- Select business --</option>
-                    {accounts.filter((a) => a.account_type !== "individual").map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-                  </select>
+                  <BusinessSelect required value={editData.account}
+                    onChange={(v) => setEditData((prev) => ({ ...prev, account: v }))} />
                 </div>
               )}
             </div>

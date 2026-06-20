@@ -28,6 +28,8 @@ import {
 } from "@/lib/hooks";
 import { formatDate, formatDateTime as sharedFormatDateTime } from "@/lib/dateFormat";
 import MenuBuilder from "@/components/MenuBuilder";
+import CustomerSelect from "@/components/CustomerSelect";
+import BusinessSelect from "@/components/BusinessSelect";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -615,20 +617,8 @@ export default function EventDetailPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Customer *</label>
-                  <select
-                    required
-                    value={formContact ?? ""}
-                    onChange={(e) => setFormContact(e.target.value ? Number(e.target.value) : null)}
-                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  >
-                    <option value="">-- Select customer --</option>
-                    {orgContacts.map((c) => (
-                      <option key={c.id} value={c.id}>{c.name}{c.phone ? ` — ${c.phone}` : ""}</option>
-                    ))}
-                  </select>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Not listed? <Link href="/customers" target="_blank" className="text-primary hover:underline">Add a customer</Link>.
-                  </p>
+                  <CustomerSelect required value={formContact != null ? String(formContact) : ""}
+                    onChange={(v) => setFormContact(v ? Number(v) : null)} />
                 </div>
                 <div>
                   <label className="inline-flex items-center gap-2 text-sm font-medium text-foreground">
@@ -638,17 +628,8 @@ export default function EventDetailPage() {
                   {formIsB2b && (
                     <div className="mt-2">
                       <label className="block text-sm font-medium text-foreground mb-1">Business *</label>
-                      <select
-                        required
-                        value={formAccount ?? ""}
-                        onChange={(e) => setFormAccount(e.target.value ? Number(e.target.value) : null)}
-                        className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                      >
-                        <option value="">-- Select business --</option>
-                        {accounts.filter((a) => a.account_type !== "individual").map((a) => (
-                          <option key={a.id} value={a.id}>{a.name}</option>
-                        ))}
-                      </select>
+                      <BusinessSelect required value={formAccount != null ? String(formAccount) : ""}
+                        onChange={(v) => setFormAccount(v ? Number(v) : null)} />
                     </div>
                   )}
                 </div>
