@@ -19,6 +19,11 @@ export default function CustomerSelect({
   required?: boolean;
 }) {
   const { data: contacts = [], mutate } = useContacts();
+  // Only show the phone as a tiebreaker when two customers share a name.
+  const nameCounts = contacts.reduce<Record<string, number>>((m, c) => {
+    m[c.name] = (m[c.name] || 0) + 1;
+    return m;
+  }, {});
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState({ name: "", phone: "" });
   const [saving, setSaving] = useState(false);
@@ -71,7 +76,9 @@ export default function CustomerSelect({
       <select required={required} value={value} onChange={(e) => onChange(e.target.value)} className={selectClass}>
         <option value="">-- Select customer --</option>
         {contacts.map((c) => (
-          <option key={c.id} value={c.id}>{c.name}{c.phone ? ` — ${c.phone}` : ""}</option>
+          <option key={c.id} value={c.id}>
+            {c.name}{nameCounts[c.name] > 1 && c.phone ? ` — ${c.phone}` : ""}
+          </option>
         ))}
       </select>
       <button type="button" onClick={() => setCreating(true)}
