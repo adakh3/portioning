@@ -502,6 +502,17 @@ class TestLeadAPI(TestCase):
         lead.refresh_from_db()
         self.assertIsNone(lead.account)
 
+    def test_convert_treats_leftover_individual_account_as_b2c(self):
+        # A lead still carrying an old `individual` account converts to B2C.
+        indiv = make_account(org=self.org, name="John Person", account_type="individual")
+        lead = make_lead(org=self.org, account=indiv)
+        res = self.client.post(f"/api/bookings/leads/{lead.id}/convert/")
+        self.assertEqual(res.status_code, 201, res.content)
+        data = res.json()
+        self.assertFalse(data["is_b2b"])
+        self.assertIsNone(data["account"])
+        self.assertIsNotNone(data["primary_contact"])
+
     def test_mark_won_creates_event(self):
         lead = make_lead(org=self.org)
         lead.transition_to("contacted")

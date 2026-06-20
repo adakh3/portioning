@@ -345,6 +345,15 @@ def _find_or_create_contact(org, name, email, phone, account=None):
     return contact
 
 
+def _lead_company(lead):
+    """The business attached to a lead, or None. A leftover `individual` account
+    (old person-as-account residue) is treated as no business — B2C."""
+    account = lead.account
+    if account and account.account_type != 'individual':
+        return account
+    return None
+
+
 class LeadCreateQuoteView(APIView):
     """POST /api/bookings/leads/<pk>/create-quote/ — Create Quote from Lead (does not change lead status)."""
 
@@ -352,11 +361,12 @@ class LeadCreateQuoteView(APIView):
         lead = get_org_object_or_404(Lead.objects.select_related('account'), request, pk=pk)
 
         # Resolve the customer (person). The business is optional — only set when
-        # the lead already has one (B2B); we no longer fabricate an "individual"
+        # the lead has a real company (B2B); we no longer fabricate an "individual"
         # company per person.
+        company = _lead_company(lead)
         contact = _find_or_create_contact(
             lead.organisation, lead.contact_name, lead.contact_email, lead.contact_phone,
-            account=lead.account,
+            account=company,
         )
 
         user = request.user if request.user.is_authenticated else None
@@ -364,8 +374,8 @@ class LeadCreateQuoteView(APIView):
         quote = Quote.objects.create(
             lead=lead,
             primary_contact=contact,
-            is_b2b=bool(lead.account),
-            account=lead.account,
+            is_b2b=bool(company),
+            account=company,
             event_date=lead.event_date or lead.created_at.date(),
             guest_count=lead.guest_estimate or 1,
             event_type=lead.event_type,
@@ -434,7 +444,7 @@ class LeadWonView(APIView):
 
     def _create_event(self, lead, quote=None, user=None):
         from events.models import Event
-        account = lead.account
+        account = _lead_company(lead)
 
         event_name = f"{lead.contact_name}"
         if account:
