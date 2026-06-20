@@ -15,7 +15,6 @@ import {
   useEvent,
   useAccounts,
   useContacts,
-  useVenues,
   useLaborRoles,
   useStaff,
   useSiteSettings,
@@ -30,6 +29,7 @@ import { formatDate, formatDateTime as sharedFormatDateTime } from "@/lib/dateFo
 import MenuBuilder from "@/components/MenuBuilder";
 import CustomerSelect from "@/components/CustomerSelect";
 import BusinessSelect from "@/components/BusinessSelect";
+import VenueField from "@/components/VenueField";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -67,7 +67,6 @@ export default function EventDetailPage() {
   const { data: event, error: loadError, isLoading: eventLoading, mutate: mutateEvent } = useEvent(isNew || isNaN(eventId) ? null : eventId);
   const { data: accounts = [] } = useAccounts();
   const { data: orgContacts = [] } = useContacts();
-  const { data: venues = [] } = useVenues();
   const { data: laborRoles = [] } = useLaborRoles();
   const { data: staffList = [] } = useStaff();
   const { data: arrangementTypesData = [] } = useArrangementTypes();
@@ -98,8 +97,6 @@ export default function EventDetailPage() {
     based_on_template: number | null;
   }>({ dish_ids: [], based_on_template: null });
 
-  // Venue mode
-  const [venueMode, setVenueMode] = useState<"saved" | "custom">("saved");
 
   // Form fields (used in edit mode)
   const [formDate, setFormDate] = useState("");
@@ -166,7 +163,6 @@ export default function EventDetailPage() {
     setFormKitchenInstructions(data.kitchen_instructions || "");
     setFormBanquetInstructions(data.banquet_instructions || "");
     setFormSetupInstructions(data.setup_instructions || "");
-    setVenueMode(data.venue ? "saved" : data.venue_address ? "custom" : "saved");
     const total = data.gents + data.ladies;
     setFormTotalGuests(total);
     setFormGents(data.gents);
@@ -231,8 +227,8 @@ export default function EventDetailPage() {
       is_b2b: formIsB2b,
       account: formIsB2b ? formAccount : null,
       primary_contact: formContact,
-      venue: venueMode === "saved" ? formVenue : null,
-      venue_address: venueMode === "custom" ? formVenueAddress : "",
+      venue: formVenue,
+      venue_address: formVenueAddress,
       event_type: formEventType,
       meal_type: formMealType,
       booking_date: formBookingDate || null,
@@ -635,36 +631,12 @@ export default function EventDetailPage() {
                 </div>
                 <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-foreground mb-1">Venue</label>
-                  <div className="flex gap-4 mb-2">
-                    <label className="flex items-center gap-1.5 text-sm">
-                      <input type="radio" name="venueMode" checked={venueMode === "saved"} onChange={() => setVenueMode("saved")} className="text-primary" />
-                      Saved Venue
-                    </label>
-                    <label className="flex items-center gap-1.5 text-sm">
-                      <input type="radio" name="venueMode" checked={venueMode === "custom"} onChange={() => setVenueMode("custom")} className="text-primary" />
-                      Custom Address
-                    </label>
-                  </div>
-                  {venueMode === "saved" ? (
-                    <select
-                      value={formVenue ?? ""}
-                      onChange={(e) => setFormVenue(e.target.value ? Number(e.target.value) : null)}
-                      className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                    >
-                      <option value="">-- Select Venue --</option>
-                      {venues.map((v) => (
-                        <option key={v.id} value={v.id}>{v.name} - {v.city}</option>
-                      ))}
-                    </select>
-                  ) : (
-                    <Textarea
-                      value={formVenueAddress}
-                      onChange={(e) => setFormVenueAddress(e.target.value)}
-                      rows={3}
-                      maxLength={300}
-                      placeholder="Enter venue address..."
-                    />
-                  )}
+                  <VenueField
+                    venue={formVenue != null ? String(formVenue) : ""}
+                    address={formVenueAddress}
+                    onVenue={(v) => setFormVenue(v ? Number(v) : null)}
+                    onAddress={setFormVenueAddress}
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Event Type</label>

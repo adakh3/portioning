@@ -4,12 +4,13 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { api, Contact } from "@/lib/api";
-import { useQuote, useAccounts, useVenues, useSiteSettings, useDateFormat, useEventTypes, useServiceStyles, useMealTypes, useAllLeads, revalidate } from "@/lib/hooks";
+import { useQuote, useAccounts, useSiteSettings, useDateFormat, useEventTypes, useServiceStyles, useMealTypes, useAllLeads, revalidate } from "@/lib/hooks";
 import { formatDate } from "@/lib/dateFormat";
 import { formatCurrency } from "@/lib/utils";
 import MenuBuilder from "@/components/MenuBuilder";
 import CustomerSelect from "@/components/CustomerSelect";
 import BusinessSelect from "@/components/BusinessSelect";
+import VenueField from "@/components/VenueField";
 import { computeQuoteTotals, buildQuoteSavePayload, LineItemInput } from "@/lib/quoteTotals";
 import QuoteLineItemsEditor from "@/components/QuoteLineItemsEditor";
 import QuoteTotalsCard from "@/components/QuoteTotalsCard";
@@ -43,7 +44,6 @@ export default function QuoteDetailPage() {
   const { data: quote, error: loadError, isLoading: quoteLoading, mutate: mutateQuote } = useQuote(isNew ? null : (Number(id) || null));
   const loading = isNew ? false : quoteLoading;
   const { data: accounts = [] } = useAccounts();
-  const { data: venues = [] } = useVenues();
   const { data: rawSettings } = useSiteSettings();
   const settings = rawSettings || { currency_symbol: "£", currency_code: "GBP", date_format: "DD/MM/YYYY", default_price_per_head: "0.00", target_food_cost_percentage: "30.00", price_rounding_step: "50" };
   const dateFormat = useDateFormat();
@@ -254,7 +254,6 @@ export default function QuoteDetailPage() {
     setEditData({ ...editData, [field]: e.target.value });
 
   const selectClass = "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring";
-  const venueSelected = !!createData.venue;
 
   // Create mode
   if (isNew) {
@@ -356,27 +355,12 @@ export default function QuoteDetailPage() {
           <Card>
             <CardContent className="p-6">
               <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Venue</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Saved Venue</label>
-                  <select value={createData.venue} onChange={setCreate("venue")} className={selectClass}>
-                    <option value="">-- No saved venue --</option>
-                    {venues.map((v) => <option key={v.id} value={v.id}>{v.name} — {v.city}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">
-                    {venueSelected ? "Additional Address Notes" : "Venue Address (freeform)"}
-                  </label>
-                  <Textarea
-                    value={createData.venue_address}
-                    onChange={setCreate("venue_address")}
-                    rows={2}
-                    maxLength={300}
-                    placeholder={venueSelected ? "e.g. Use the garden entrance" : "e.g. 42 Oak Lane, Manchester, M1 2AB"}
-                  />
-                </div>
-              </div>
+              <VenueField
+                venue={createData.venue}
+                address={createData.venue_address}
+                onVenue={(v) => setCreateData((prev) => ({ ...prev, venue: v }))}
+                onAddress={(v) => setCreateData((prev) => ({ ...prev, venue_address: v }))}
+              />
             </CardContent>
           </Card>
 
@@ -685,19 +669,12 @@ export default function QuoteDetailPage() {
         <Card>
           <CardContent className="p-6">
             <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Venue</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Venue</label>
-                <select value={editData.venue} onChange={setEdit("venue")} className={selectClass}>
-                  <option value="">-- No venue --</option>
-                  {venues.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Venue Address / Notes</label>
-                <Textarea value={editData.venue_address} onChange={setEdit("venue_address")} rows={2} maxLength={300} placeholder="Freeform address or additional venue notes" />
-              </div>
-            </div>
+            <VenueField
+              venue={editData.venue}
+              address={editData.venue_address}
+              onVenue={(v) => setEditData((prev) => ({ ...prev, venue: v }))}
+              onAddress={(v) => setEditData((prev) => ({ ...prev, venue_address: v }))}
+            />
           </CardContent>
         </Card>
       )}
