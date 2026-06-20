@@ -39,6 +39,13 @@ describe("VenueField", () => {
     expect(screen.queryByText(/Use customer.s home address/)).not.toBeInTheDocument();
   });
 
+  it("clears the freeform address when switching to a saved venue", () => {
+    const onAddress = vi.fn();
+    render(<VenueField venue="" address="some address" onVenue={vi.fn()} onAddress={onAddress} />);
+    fireEvent.click(screen.getByLabelText(/Saved venue/));
+    expect(onAddress).toHaveBeenCalledWith("");
+  });
+
   it("creates a venue inline and selects it", async () => {
     h.createVenue.mockResolvedValue({ id: 9, name: "New Venue", city: "Leeds" });
     const onVenue = vi.fn();

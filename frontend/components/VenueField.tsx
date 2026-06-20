@@ -35,7 +35,8 @@ export default function VenueField({
 
   function chooseMode(m: "address" | "venue") {
     setMode(m);
-    if (m === "address") onVenue(""); // an address booking has no saved venue
+    if (m === "address") onVenue("");      // an address booking has no saved venue
+    if (m === "venue") onAddress("");       // a saved venue carries its own address
   }
 
   async function createVenue() {
@@ -103,14 +104,12 @@ export default function VenueField({
           </div>
         </div>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-1">
           <select value={venue} onChange={(e) => onVenue(e.target.value)} className={selectClass}>
             <option value="">-- Select venue --</option>
             {venues.map((v) => <option key={v.id} value={v.id}>{v.name}{v.city ? ` — ${v.city}` : ""}</option>)}
           </select>
           <button type="button" onClick={() => setCreating(true)} className="text-xs text-primary hover:underline">+ New venue</button>
-          <input type="text" value={address} onChange={(e) => onAddress(e.target.value)}
-            placeholder="Address notes (optional)" className={inputClass} />
         </div>
       )}
     </div>
