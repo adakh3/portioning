@@ -1576,7 +1576,21 @@ function LeadsTable({
                 </Select>
               </TableCell>
               {/* Status */}
-              <TableCell className="text-muted-foreground text-xs">—</TableCell>
+              <TableCell onClick={(e) => e.stopPropagation()}>
+                <Select
+                  value={quickAdd.status || "new"}
+                  onValueChange={(v) => setQuickAdd((p) => ({ ...p, status: v }))}
+                >
+                  <SelectTrigger className="h-7 text-sm">
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {leadStatuses.map((s) => (
+                      <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </TableCell>
               {/* Created */}
               <TableCell className="hidden xl:table-cell text-muted-foreground text-xs">—</TableCell>
             </TableRow>

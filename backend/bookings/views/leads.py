@@ -147,7 +147,17 @@ class LeadListCreateView(generics.ListCreateAPIView):
 
     def perform_create(self, serializer):
         user = self.request.user if self.request.user.is_authenticated else None
-        lead = serializer.save(created_by=user, organisation=get_request_org(self.request))
+        org = get_request_org(self.request)
+        # `status` is read-only in the serializer (workflow-managed), but allow an
+        # initial status to be chosen at creation (e.g. the quick-add row) as long
+        # as it's a valid option for the org.
+        extra = {}
+        requested = self.request.data.get('status')
+        if requested:
+            from bookings.models.choices import LeadStatusOption
+            if LeadStatusOption.objects.filter(organisation=org, value=requested).exists():
+                extra['status'] = requested
+        lead = serializer.save(created_by=user, organisation=org, **extra)
         log_activity(lead, 'created', user=user, description=f"Created lead \"{lead.contact_name}\"")
 
     def get_queryset(self):

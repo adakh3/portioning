@@ -411,6 +411,21 @@ class TestLeadAPI(TestCase):
         self.assertEqual(res.status_code, 201)
         self.assertEqual(res.json()["status"], "new")
 
+    def test_create_lead_with_initial_status(self):
+        # Quick-add can pick a starting pipeline stage (valid org option).
+        res = self.client.post("/api/bookings/leads/", {
+            "contact_name": "Sarah", "contact_phone": "+92 300 1234567", "status": "qualified",
+        }, format="json")
+        self.assertEqual(res.status_code, 201, res.content)
+        self.assertEqual(res.json()["status"], "qualified")
+
+    def test_create_lead_ignores_invalid_status(self):
+        res = self.client.post("/api/bookings/leads/", {
+            "contact_name": "Sarah", "contact_phone": "+92 300 1234567", "status": "bogus",
+        }, format="json")
+        self.assertEqual(res.status_code, 201, res.content)
+        self.assertEqual(res.json()["status"], "new")  # falls back to default
+
     def test_create_lead_requires_phone(self):
         """Phone/WhatsApp is the primary contact channel and required on create."""
         res = self.client.post("/api/bookings/leads/", {
