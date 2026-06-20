@@ -1,4 +1,4 @@
-from .accounts import AccountListCreateView, AccountDetailView, ContactListCreateView, ContactDetailView
+from .accounts import AccountListCreateView, AccountDetailView, ContactListCreateView, ContactDetailView, CustomerListCreateView, CustomerDetailView
 from .venues import VenueListCreateView, VenueDetailView
 from .leads import UserListView, ProductLineListView, ProductLineDetailView, LeadListCreateView, LeadDetailView, LeadTransitionView, LeadConvertView, LeadCreateQuoteView, LeadWonView, LeadCreateEventView, LeadBulkUpdateView, LeadActivityView, LeadAutoAssignView, LeadKanbanView
 from .dashboard import DashboardStatsView, MyDashboardStatsView

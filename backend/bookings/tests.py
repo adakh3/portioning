@@ -38,10 +38,14 @@ def make_account(org=None, **kwargs):
     return Account.objects.create(**defaults)
 
 
-def make_contact(account=None, **kwargs):
-    if account is None:
+def make_contact(account=None, org=None, **kwargs):
+    # Contact (person) is now org-scoped directly; account (company) is optional.
+    if account is None and org is None:
         account = make_account()
-    defaults = {"account": account, "name": "Jane Doe", "email": "jane@test.com", "role": "coordinator"}
+    if org is None:
+        org = account.organisation
+    defaults = {"organisation": org, "account": account, "name": "Jane Doe",
+                "email": "jane@test.com", "role": "coordinator"}
     defaults.update(kwargs)
     return Contact.objects.create(**defaults)
 
@@ -72,14 +76,18 @@ def make_lead(org=None, account=None, **kwargs):
     return Lead.objects.create(**defaults)
 
 
-def make_quote(org=None, account=None, **kwargs):
+def make_quote(org=None, account=None, primary_contact=None, **kwargs):
     if org is None:
         org = _make_org(slug="quote-org")
     if account is None:
         account = make_account(org=org)
+    if primary_contact is None:
+        # Quote now requires a customer (person).
+        primary_contact = make_contact(account=account, org=org)
     defaults = {
         "organisation": org,
         "account": account,
+        "primary_contact": primary_contact,
         "event_date": "2026-06-15",
         "guest_count": 100,
         "event_type": "wedding",
@@ -480,13 +488,19 @@ class TestLeadAPI(TestCase):
         self.assertEqual(res2.status_code, 201)
         self.assertNotEqual(res1.json()["id"], res2.json()["id"])
 
-    def test_create_quote_creates_account_if_none(self):
+    def test_create_quote_resolves_customer_without_business(self):
+        # Person-first: a lead with no business becomes a B2C quote — the lead's
+        # free-text name is resolved into a customer; no company is fabricated.
         lead = make_lead(org=self.org, account=None)
         res = self.client.post(f"/api/bookings/leads/{lead.id}/convert/")
-        self.assertEqual(res.status_code, 201)
+        self.assertEqual(res.status_code, 201, res.content)
+        data = res.json()
+        self.assertFalse(data["is_b2b"])
+        self.assertIsNone(data["account"])
+        self.assertIsNotNone(data["primary_contact"])
+        self.assertEqual(data["contact_name"], "John Smith")
         lead.refresh_from_db()
-        self.assertIsNotNone(lead.account)
-        self.assertEqual(lead.account.name, "John Smith")
+        self.assertIsNone(lead.account)
 
     def test_mark_won_creates_event(self):
         lead = make_lead(org=self.org)
@@ -703,6 +717,7 @@ class TestQuoteAPI(TestCase):
         self.org = _make_org()
         self.client = _authenticated_client()
         self.account = make_account(org=self.org)
+        self.contact = make_contact(account=self.account, org=self.org)
 
     def test_create_quote_saves_dishes_and_totals(self):
         from dishes.models import Dish, DishCategory
@@ -714,6 +729,8 @@ class TestQuoteAPI(TestCase):
             default_portion_grams=200,
         )
         res = self.client.post("/api/bookings/quotes/", {
+            "primary_contact": self.contact.id,
+            "is_b2b": True,
             "account": self.account.id,
             "event_date": "2026-09-01",
             "guest_count": 100,
@@ -800,6 +817,18 @@ class TestQuoteAPI(TestCase):
         pdf_bytes = generate_quote_pdf(quote)
         self.assertTrue(pdf_bytes and len(pdf_bytes) > 0)
 
+    def test_quote_pdf_b2c_no_business(self):
+        """A B2C quote (no account/business) must still render — the PDF used to
+        dereference quote.account.name unconditionally."""
+        from bookings.pdf import generate_quote_pdf
+        quote = Quote.objects.create(
+            organisation=self.org, account=None, primary_contact=self.contact,
+            is_b2b=False, event_date="2026-09-01", guest_count=100, event_type="wedding",
+        )
+        quote.refresh_from_db()
+        pdf_bytes = generate_quote_pdf(quote)
+        self.assertTrue(pdf_bytes and len(pdf_bytes) > 0)
+
     def test_quote_patch_reconciles_line_items_in_one_call(self):
         """One PATCH to the quote can edit, add, and remove line items together
         and recompute totals — the basis for the single-save redesign."""
@@ -862,15 +891,31 @@ class TestQuoteAPI(TestCase):
         self.assertIn("price_per_head", res.json())
 
     def test_create_quote(self):
+        # B2C quote: customer required, no business.
         res = self.client.post("/api/bookings/quotes/", {
-            "account": self.account.id,
+            "primary_contact": self.contact.id,
             "event_date": "2026-07-01",
             "guest_count": 80,
             "event_type": "corporate",
         }, format="json")
-        self.assertEqual(res.status_code, 201)
+        self.assertEqual(res.status_code, 201, res.content)
         self.assertEqual(res.json()["status"], "draft")
         self.assertTrue(res.json()["is_editable"])
+
+    def test_create_quote_requires_customer(self):
+        res = self.client.post("/api/bookings/quotes/", {
+            "event_date": "2026-07-01", "guest_count": 80, "event_type": "corporate",
+        }, format="json")
+        self.assertEqual(res.status_code, 400)
+        self.assertIn("primary_contact", res.json())
+
+    def test_b2b_quote_requires_business(self):
+        res = self.client.post("/api/bookings/quotes/", {
+            "primary_contact": self.contact.id, "is_b2b": True,
+            "event_date": "2026-07-01", "guest_count": 80, "event_type": "corporate",
+        }, format="json")
+        self.assertEqual(res.status_code, 400)
+        self.assertIn("account", res.json())
 
     def test_add_line_item(self):
         quote = make_quote(org=self.org, account=self.account)

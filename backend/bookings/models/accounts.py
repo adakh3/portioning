@@ -57,7 +57,17 @@ class Account(models.Model):
 
 
 class Contact(models.Model):
-    account = models.ForeignKey(Account, on_delete=models.CASCADE, related_name='contacts')
+    objects = TenantManager()
+
+    # The PERSON is the primary customer and is org-scoped directly. The
+    # business (account) is now OPTIONAL — a person is not tied to a company;
+    # the company attaches to the booking (Quote/Event) instead.
+    organisation = models.ForeignKey(
+        'users.Organisation', on_delete=models.CASCADE, related_name='contacts',
+    )
+    account = models.ForeignKey(
+        Account, on_delete=models.SET_NULL, null=True, blank=True, related_name='contacts',
+    )
     name = models.CharField(max_length=200)
     email = models.EmailField(blank=True)
     phone = models.CharField(max_length=50, blank=True)
@@ -75,4 +85,6 @@ class Contact(models.Model):
         ordering = ['-is_primary', 'name']
 
     def __str__(self):
-        return f"{self.name} ({self.account.name})"
+        if self.account_id:
+            return f"{self.name} ({self.account.name})"
+        return self.name

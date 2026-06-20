@@ -60,6 +60,9 @@ class Event(OrgScopedModel, models.Model):
         'bookings.Contact', null=True, blank=True,
         on_delete=models.SET_NULL, related_name='events',
     )
+    is_b2b = models.BooleanField(
+        default=False, help_text='Business booking — an account (company) is required',
+    )
     venue = models.ForeignKey(
         'bookings.Venue', null=True, blank=True,
         on_delete=models.SET_NULL, related_name='events',

@@ -31,7 +31,7 @@ class QuoteLineItemSerializer(OrgScopedModelSerializer):
 
 class QuoteSerializer(OrgScopedModelSerializer):
     line_items = QuoteLineItemSerializer(many=True, required=False)
-    account_name = serializers.CharField(source='account.name', read_only=True)
+    account_name = serializers.SerializerMethodField()
     contact_name = serializers.SerializerMethodField()
     contact_email = serializers.SerializerMethodField()
     contact_phone = serializers.SerializerMethodField()
@@ -64,8 +64,9 @@ class QuoteSerializer(OrgScopedModelSerializer):
     class Meta:
         model = Quote
         fields = [
-            'id', 'lead', 'lead_name', 'account', 'account_name',
+            'id', 'lead', 'lead_name',
             'primary_contact', 'contact_name', 'contact_email', 'contact_phone',
+            'is_b2b', 'account', 'account_name',
             'version', 'status', 'status_display', 'is_editable',
             'event_date', 'venue', 'venue_name', 'venue_address',
             'product', 'product_name', 'guest_count',
@@ -88,6 +89,19 @@ class QuoteSerializer(OrgScopedModelSerializer):
             'internal_notes': {'max_length': 5000},
             'venue_address': {'max_length': 1000},
         }
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        is_b2b = attrs.get('is_b2b', getattr(self.instance, 'is_b2b', False))
+        account = attrs.get('account', getattr(self.instance, 'account', None))
+        if is_b2b and not account:
+            raise serializers.ValidationError(
+                {'account': 'A business is required for a B2B quote.'}
+            )
+        return attrs
+
+    def get_account_name(self, obj):
+        return obj.account.name if obj.account_id else None
 
     def get_food_total(self, obj):
         try:

@@ -35,11 +35,16 @@ class Quote(OrgScopedModel, models.Model):
         'bookings.Lead', null=True, blank=True,
         on_delete=models.SET_NULL, related_name='quotes',
     )
-    account = models.ForeignKey(
-        'bookings.Account', on_delete=models.PROTECT, related_name='quotes',
-    )
+    # The customer (person) is required; the business (account) is optional and
+    # only required when this is a B2B booking (enforced in the serializer).
     primary_contact = models.ForeignKey(
-        'bookings.Contact', null=True, blank=True,
+        'bookings.Contact', on_delete=models.PROTECT, related_name='quotes',
+    )
+    is_b2b = models.BooleanField(
+        default=False, help_text='Business booking — an account (company) is required',
+    )
+    account = models.ForeignKey(
+        'bookings.Account', null=True, blank=True,
         on_delete=models.SET_NULL, related_name='quotes',
     )
     version = models.IntegerField(default=1)
@@ -93,7 +98,8 @@ class Quote(OrgScopedModel, models.Model):
         ordering = ['-created_at']
 
     def __str__(self):
-        return f"Quote #{self.pk} v{self.version} — {self.account.name} ({self.get_status_display()})"
+        who = self.account.name if self.account_id else (self.primary_contact.name if self.primary_contact_id else '—')
+        return f"Quote #{self.pk} v{self.version} — {who} ({self.get_status_display()})"
 
     def can_transition_to(self, new_status):
         return new_status in QUOTE_TRANSITIONS.get(self.status, [])

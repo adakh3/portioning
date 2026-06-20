@@ -74,7 +74,9 @@ class QuoteTransitionView(APIView):
         if new_status == QuoteStatus.ACCEPTED and not quote.event:
             from events.models import Event
             user = request.user if request.user.is_authenticated else None
-            event_name = f"{quote.account.name} — {quote.event_type}"
+            who = quote.account.name if quote.account_id else (
+                quote.primary_contact.name if quote.primary_contact_id else 'Event')
+            event_name = f"{who} — {quote.event_type}"
             guest_count = quote.guest_count
             event = Event.objects.create(
                 name=event_name,
@@ -82,6 +84,7 @@ class QuoteTransitionView(APIView):
                 gents=guest_count // 2,
                 ladies=guest_count - (guest_count // 2),
                 account=quote.account,
+                is_b2b=quote.is_b2b,
                 primary_contact=quote.primary_contact,
                 venue=quote.venue,
                 venue_address=quote.venue_address,

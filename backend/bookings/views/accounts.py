@@ -28,9 +28,9 @@ class ContactListCreateView(generics.ListCreateAPIView):
 
     def perform_create(self, serializer):
         from users.mixins import get_org_object_or_404
-        # Validate account belongs to user's org
-        get_org_object_or_404(Account, self.request, pk=self.kwargs['account_pk'])
-        serializer.save(account_id=self.kwargs['account_pk'])
+        # Validate account belongs to user's org; the contact is org-scoped to it.
+        account = get_org_object_or_404(Account, self.request, pk=self.kwargs['account_pk'])
+        serializer.save(account_id=account.id, organisation=account.organisation)
 
 
 class ContactDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -43,3 +43,18 @@ class ContactDetailView(generics.RetrieveUpdateDestroyAPIView):
         return apply_org_filter(Account.objects.all(), self.request).filter(
             pk=self.kwargs['account_pk']
         ).exists() and qs or qs.none()
+
+
+class CustomerListCreateView(OrgQuerySetMixin, OrgCreateMixin, generics.ListCreateAPIView):
+    """GET/POST /api/bookings/contacts/ — people (customers) in the org.
+
+    Person-first: customers are selectable independently of a company. The
+    organisation is set from the request; the account (company) is optional.
+    """
+    queryset = Contact.objects.select_related('account').all()
+    serializer_class = ContactSerializer
+
+
+class CustomerDetailView(OrgQuerySetMixin, generics.RetrieveUpdateDestroyAPIView):
+    queryset = Contact.objects.select_related('account').all()
+    serializer_class = ContactSerializer

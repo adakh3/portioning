@@ -96,6 +96,16 @@ class EventSerializer(OrgScopedModelSerializer):
             self.fields['dish_ids'].child_relation.queryset = dish_qs
             self.fields['additional_meals'].child.fields['dish_ids'].child_relation.queryset = dish_qs
 
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        is_b2b = attrs.get('is_b2b', getattr(self.instance, 'is_b2b', False))
+        account = attrs.get('account', getattr(self.instance, 'account', None))
+        if is_b2b and not account:
+            raise serializers.ValidationError(
+                {'account': 'A business is required for a B2B event.'}
+            )
+        return attrs
+
     class Meta:
         model = Event
         fields = ['id', 'name', 'date', 'gents', 'ladies',
@@ -104,8 +114,8 @@ class EventSerializer(OrgScopedModelSerializer):
                   'kitchen_instructions', 'banquet_instructions', 'setup_instructions',
                   'constraint_override', 'dish_comments', 'arrangements', 'beverages', 'created_at',
                   # Booking fields
-                  'account', 'account_name',
                   'primary_contact', 'contact_name',
+                  'is_b2b', 'account', 'account_name',
                   'venue', 'venue_name', 'venue_address',
                   'product', 'product_name',
                   'event_type', 'meal_type', 'service_style', 'booking_date', 'price_per_head',

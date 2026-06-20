@@ -56,7 +56,7 @@ class OrgIsolationTestBase(TestCase):
             organisation=cls.org_a, name="Org A Account", account_type="company",
         )
         cls.contact_a = Contact.objects.create(
-            account=cls.account_a, name="Contact A", email="contact@orga.com",
+            organisation=cls.org_a, account=cls.account_a, name="Contact A", email="contact@orga.com",
         )
         cls.venue_a = Venue.objects.create(
             organisation=cls.org_a, name="Org A Venue", city="London",
@@ -66,7 +66,8 @@ class OrgIsolationTestBase(TestCase):
             event_type="wedding", status="new", account=cls.account_a,
         )
         cls.quote_a = Quote.objects.create(
-            organisation=cls.org_a, account=cls.account_a, lead=cls.lead_a,
+            organisation=cls.org_a, account=cls.account_a, primary_contact=cls.contact_a,
+            is_b2b=True, lead=cls.lead_a,
             event_date=date.today() + timedelta(days=30), guest_count=100,
         )
 

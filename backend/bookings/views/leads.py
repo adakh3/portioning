@@ -320,16 +320,22 @@ class LeadTransitionView(APIView):
         return Response(LeadSerializer(lead).data)
 
 
-def _find_or_create_contact(account, name, email, phone):
-    """Find existing Contact by email/phone on account, or create a new one."""
+def _find_or_create_contact(org, name, email, phone, account=None):
+    """Find an existing Contact (person) in the org by email/phone, or create one.
+
+    Person-first: the customer is org-scoped; the business (account) is optional
+    and only attached when this is a B2B booking.
+    """
     from bookings.models.accounts import Contact
     contact = None
+    qs = Contact.objects.filter(organisation=org)
     if email:
-        contact = Contact.objects.filter(account=account, email=email).first()
+        contact = qs.filter(email=email).first()
     if not contact and phone:
-        contact = Contact.objects.filter(account=account, phone=phone).first()
+        contact = qs.filter(phone=phone).first()
     if not contact and name:
         contact = Contact.objects.create(
+            organisation=org,
             account=account,
             name=name,
             email=email or "",
@@ -345,22 +351,21 @@ class LeadCreateQuoteView(APIView):
     def post(self, request, pk):
         lead = get_org_object_or_404(Lead.objects.select_related('account'), request, pk=pk)
 
-        # Create account from lead if none exists
-        account = lead.account
-        if not account:
-            from bookings.models import Account
-            account = Account.objects.create(name=lead.contact_name, account_type="individual", organisation=lead.organisation)
-            lead.account = account
-            lead.save(update_fields=['account'])
-
-        contact = _find_or_create_contact(account, lead.contact_name, lead.contact_email, lead.contact_phone)
+        # Resolve the customer (person). The business is optional — only set when
+        # the lead already has one (B2B); we no longer fabricate an "individual"
+        # company per person.
+        contact = _find_or_create_contact(
+            lead.organisation, lead.contact_name, lead.contact_email, lead.contact_phone,
+            account=lead.account,
+        )
 
         user = request.user if request.user.is_authenticated else None
 
         quote = Quote.objects.create(
             lead=lead,
-            account=account,
             primary_contact=contact,
+            is_b2b=bool(lead.account),
+            account=lead.account,
             event_date=lead.event_date or lead.created_at.date(),
             guest_count=lead.guest_estimate or 1,
             event_type=lead.event_type,
@@ -449,12 +454,15 @@ class LeadWonView(APIView):
             if quote.accepted_at:
                 booking_date = quote.accepted_at.date()
 
-        # Resolve primary contact from quote or lead strings
+        # Resolve the customer (person): inherit from the quote, else resolve in the org.
         primary_contact = None
         if quote and quote.primary_contact:
             primary_contact = quote.primary_contact
-        elif account:
-            primary_contact = _find_or_create_contact(account, lead.contact_name, lead.contact_email, lead.contact_phone)
+        else:
+            primary_contact = _find_or_create_contact(
+                lead.organisation, lead.contact_name, lead.contact_email, lead.contact_phone,
+                account=account,
+            )
 
         event = Event.objects.create(
             name=event_name,
@@ -462,6 +470,7 @@ class LeadWonView(APIView):
             gents=guest_count // 2,
             ladies=guest_count - (guest_count // 2),
             account=account,
+            is_b2b=bool(account),
             primary_contact=primary_contact,
             event_type=lead.event_type,
             meal_type=lead.meal_type,

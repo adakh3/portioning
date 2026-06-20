@@ -248,25 +248,27 @@ def generate_quote_pdf(quote):
     elements.append(Spacer(1, 8 * mm))
 
     # ── 2. Two-column info block ──
-    # Left column: "To: Account" with contact info
+    # Left column: "To: Customer" (person-first); the business is shown only when present.
     left_data = []
-    left_data.append([Paragraph(f'<b>To: {quote.account.name}</b>', s['info_header']), ''])
+    c = quote.primary_contact
+    to_name = c.name if c else (quote.account.name if quote.account_id else '—')
+    left_data.append([Paragraph(f'<b>To: {to_name}</b>', s['info_header']), ''])
 
-    if quote.primary_contact:
-        c = quote.primary_contact
-        left_data.append([Paragraph('Contact:', s['info_label']), Paragraph(c.name, s['info_value'])])
+    if c:
         if c.phone:
             left_data.append([Paragraph('Phone:', s['info_label']), Paragraph(c.phone, s['info_value'])])
         if c.email:
             left_data.append([Paragraph('Email:', s['info_label']), Paragraph(c.email, s['info_value'])])
 
-    acct = quote.account
-    addr_parts = [p for p in [
-        acct.billing_address_line1, acct.billing_address_line2,
-        acct.billing_city, acct.billing_postcode,
-    ] if p]
-    if addr_parts:
-        left_data.append([Paragraph('Address:', s['info_label']), Paragraph(', '.join(addr_parts), s['info_value'])])
+    if quote.account_id:
+        acct = quote.account
+        left_data.append([Paragraph('Business:', s['info_label']), Paragraph(acct.name, s['info_value'])])
+        addr_parts = [p for p in [
+            acct.billing_address_line1, acct.billing_address_line2,
+            acct.billing_city, acct.billing_postcode,
+        ] if p]
+        if addr_parts:
+            left_data.append([Paragraph('Address:', s['info_label']), Paragraph(', '.join(addr_parts), s['info_value'])])
 
     if quote.venue:
         venue = quote.venue
@@ -314,7 +316,7 @@ def generate_quote_pdf(quote):
     right_rows = [
         ['Booking Date:', quote.created_at.strftime('%d %B %Y')],
         ['Quotation #:', f'Q-{quote.pk}'],
-        ['Customer ID:', str(quote.account.pk)],
+        ['Customer ID:', str(quote.primary_contact_id or quote.account_id or quote.pk)],
         ['No. of Guests:', str(quote.guest_count)],
         ['Event Date:', quote.event_date.strftime('%d %B %Y')],
         ['Event Day:', quote.event_date.strftime('%A')],
