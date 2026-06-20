@@ -634,6 +634,7 @@ export default function EventDetailPage() {
                   <VenueField
                     venue={formVenue != null ? String(formVenue) : ""}
                     address={formVenueAddress}
+                    customerAddress={orgContacts.find((c) => c.id === formContact)?.address}
                     onVenue={(v) => setFormVenue(v ? Number(v) : null)}
                     onAddress={setFormVenueAddress}
                   />

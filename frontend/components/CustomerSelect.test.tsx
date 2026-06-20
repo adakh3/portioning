@@ -31,7 +31,7 @@ describe("CustomerSelect — inline create", () => {
     fireEvent.change(screen.getByPlaceholderText("Name *"), { target: { value: "New Person" } });
     fireEvent.click(screen.getByText("Add customer"));
 
-    await waitFor(() => expect(h.createCustomer).toHaveBeenCalledWith({ name: "New Person", phone: "" }));
+    await waitFor(() => expect(h.createCustomer).toHaveBeenCalledWith({ name: "New Person", phone: "", address: "" }));
     await waitFor(() => expect(onChange).toHaveBeenCalledWith("42"));
     expect(h.mutate).toHaveBeenCalled(); // refreshes the list so the option appears
   });

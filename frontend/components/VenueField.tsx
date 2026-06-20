@@ -17,11 +17,14 @@ export default function VenueField({
   address,
   onVenue,
   onAddress,
+  customerAddress,
 }: {
   venue: string;
   address: string;
   onVenue: (id: string) => void;
   onAddress: (text: string) => void;
+  /** The selected customer's home address; offered as a one-click prefill. */
+  customerAddress?: string;
 }) {
   const { data: venues = [], mutate } = useVenues();
   const [mode, setMode] = useState<"address" | "venue">(venue ? "venue" : "address");
@@ -69,14 +72,20 @@ export default function VenueField({
       </div>
 
       {mode === "address" ? (
-        <textarea
-          value={address}
-          onChange={(e) => onAddress(e.target.value)}
-          rows={2}
-          maxLength={300}
-          placeholder="e.g. 42 Oak Lane, Manchester — or the customer's home"
-          className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-        />
+        <div className="space-y-1">
+          <textarea
+            value={address}
+            onChange={(e) => onAddress(e.target.value)}
+            rows={2}
+            maxLength={300}
+            placeholder="e.g. 42 Oak Lane, Manchester — or the customer's home"
+            className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          />
+          {customerAddress && customerAddress.trim() && customerAddress.trim() !== address.trim() && (
+            <button type="button" onClick={() => onAddress(customerAddress)}
+              className="text-xs text-primary hover:underline">Use customer&rsquo;s home address</button>
+          )}
+        </div>
       ) : creating ? (
         <div className="space-y-2 rounded-md border border-border bg-muted/40 p-3">
           <input autoFocus type="text" placeholder="Venue name *" value={form.name}

@@ -19,7 +19,7 @@ export default function CustomersPage() {
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ name: "", phone: "", email: "", account: "" });
+  const [form, setForm] = useState({ name: "", phone: "", email: "", address: "", account: "" });
 
   const filtered = customers.filter((c) => {
     const q = search.toLowerCase();
@@ -35,11 +35,12 @@ export default function CustomersPage() {
         name: form.name,
         phone: form.phone,
         email: form.email,
+        address: form.address,
         account: form.account ? Number(form.account) : null,
       });
       await mutate();
       setShowForm(false);
-      setForm({ name: "", phone: "", email: "", account: "" });
+      setForm({ name: "", phone: "", email: "", address: "", account: "" });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create customer");
     } finally {
@@ -78,6 +79,11 @@ export default function CustomersPage() {
                   <label className="block text-sm font-medium text-foreground mb-1">Email</label>
                   <Input type="email" value={form.email}
                     onChange={(e) => setForm({ ...form, email: e.target.value })} />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-foreground mb-1">Home address</label>
+                  <Input type="text" value={form.address} placeholder="Used to prefill the venue for home events"
+                    onChange={(e) => setForm({ ...form, address: e.target.value })} />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Business (optional)</label>

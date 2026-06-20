@@ -258,6 +258,7 @@ export interface Contact {
   name: string;
   email: string;
   phone: string;
+  address: string;
   role: string;
   is_primary: boolean;
   notes: string;

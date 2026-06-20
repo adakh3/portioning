@@ -71,6 +71,9 @@ class Contact(models.Model):
     name = models.CharField(max_length=200)
     email = models.EmailField(blank=True)
     phone = models.CharField(max_length=50, blank=True)
+    address = models.TextField(
+        blank=True, help_text='Home/billing address — used to prefill the venue address',
+    )
     role = models.CharField(
         max_length=20,
         choices=ContactRole.choices,

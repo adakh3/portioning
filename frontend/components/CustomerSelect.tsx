@@ -25,7 +25,7 @@ export default function CustomerSelect({
     return m;
   }, {});
   const [creating, setCreating] = useState(false);
-  const [form, setForm] = useState({ name: "", phone: "" });
+  const [form, setForm] = useState({ name: "", phone: "", address: "" });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -37,11 +37,13 @@ export default function CustomerSelect({
     setSaving(true);
     setError("");
     try {
-      const c = await api.createCustomer({ name: form.name.trim(), phone: form.phone.trim() });
+      const c = await api.createCustomer({
+        name: form.name.trim(), phone: form.phone.trim(), address: form.address.trim(),
+      });
       await mutate();
       onChange(String(c.id));
       setCreating(false);
-      setForm({ name: "", phone: "" });
+      setForm({ name: "", phone: "", address: "" });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to create customer");
     } finally {
@@ -57,6 +59,9 @@ export default function CustomerSelect({
           className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm" />
         <input type="tel" placeholder="Phone / WhatsApp" value={form.phone}
           onChange={(e) => setForm({ ...form, phone: e.target.value })}
+          className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm" />
+        <input type="text" placeholder="Home address (optional)" value={form.address}
+          onChange={(e) => setForm({ ...form, address: e.target.value })}
           className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm" />
         {error && <p className="text-xs text-destructive">{error}</p>}
         <div className="flex gap-2">

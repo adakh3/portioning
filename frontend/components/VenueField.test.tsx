@@ -27,6 +27,18 @@ describe("VenueField", () => {
     expect(onVenue).toHaveBeenCalledWith("");
   });
 
+  it("offers the customer's home address as a one-click prefill", () => {
+    const onAddress = vi.fn();
+    render(<VenueField venue="" address="" customerAddress="42 Oak Lane" onVenue={vi.fn()} onAddress={onAddress} />);
+    fireEvent.click(screen.getByText(/Use customer.s home address/));
+    expect(onAddress).toHaveBeenCalledWith("42 Oak Lane");
+  });
+
+  it("hides the home-address prefill once it already matches", () => {
+    render(<VenueField venue="" address="42 Oak Lane" customerAddress="42 Oak Lane" onVenue={vi.fn()} onAddress={vi.fn()} />);
+    expect(screen.queryByText(/Use customer.s home address/)).not.toBeInTheDocument();
+  });
+
   it("creates a venue inline and selects it", async () => {
     h.createVenue.mockResolvedValue({ id: 9, name: "New Venue", city: "Leeds" });
     const onVenue = vi.fn();

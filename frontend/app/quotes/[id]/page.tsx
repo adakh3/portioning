@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { api, Contact } from "@/lib/api";
-import { useQuote, useAccounts, useSiteSettings, useDateFormat, useEventTypes, useServiceStyles, useMealTypes, useAllLeads, revalidate } from "@/lib/hooks";
+import { useQuote, useAccounts, useContacts, useSiteSettings, useDateFormat, useEventTypes, useServiceStyles, useMealTypes, useAllLeads, revalidate } from "@/lib/hooks";
 import { formatDate } from "@/lib/dateFormat";
 import { formatCurrency } from "@/lib/utils";
 import MenuBuilder from "@/components/MenuBuilder";
@@ -44,6 +44,7 @@ export default function QuoteDetailPage() {
   const { data: quote, error: loadError, isLoading: quoteLoading, mutate: mutateQuote } = useQuote(isNew ? null : (Number(id) || null));
   const loading = isNew ? false : quoteLoading;
   const { data: accounts = [] } = useAccounts();
+  const { data: orgContacts = [] } = useContacts();
   const { data: rawSettings } = useSiteSettings();
   const settings = rawSettings || { currency_symbol: "£", currency_code: "GBP", date_format: "DD/MM/YYYY", default_price_per_head: "0.00", target_food_cost_percentage: "30.00", price_rounding_step: "50" };
   const dateFormat = useDateFormat();
@@ -358,6 +359,7 @@ export default function QuoteDetailPage() {
               <VenueField
                 venue={createData.venue}
                 address={createData.venue_address}
+                customerAddress={orgContacts.find((c) => String(c.id) === createData.primary_contact)?.address}
                 onVenue={(v) => setCreateData((prev) => ({ ...prev, venue: v }))}
                 onAddress={(v) => setCreateData((prev) => ({ ...prev, venue_address: v }))}
               />
@@ -672,6 +674,7 @@ export default function QuoteDetailPage() {
             <VenueField
               venue={editData.venue}
               address={editData.venue_address}
+              customerAddress={orgContacts.find((c) => String(c.id) === editData.primary_contact)?.address}
               onVenue={(v) => setEditData((prev) => ({ ...prev, venue: v }))}
               onAddress={(v) => setEditData((prev) => ({ ...prev, venue_address: v }))}
             />
