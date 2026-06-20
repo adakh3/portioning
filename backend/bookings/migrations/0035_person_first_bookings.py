@@ -50,6 +50,12 @@ def noop(apps, schema_editor):
 
 class Migration(migrations.Migration):
 
+    # Not atomic: the backfill modifies bookings_contact and we then ALTER that
+    # same table (tighten organisation/primary_contact to NOT NULL). Postgres
+    # refuses an ALTER while a transaction has pending trigger events from data
+    # changes on the table, so the data step must commit before the DDL.
+    atomic = False
+
     dependencies = [
         ('bookings', '0034_alter_lead_source'),
     ]
