@@ -120,6 +120,16 @@ export default function MenuBuilder({
   useEffect(() => {
     if (activePrice === null || !onPricePerHeadChange) return;
     const newVal = activePrice.toFixed(2);
+    // Already showing this value — do nothing. Without this guard the parent's
+    // onPricePerHeadChange (a fresh closure each render that always builds a new
+    // state object) would re-fire this effect forever → "Maximum update depth".
+    // Already showing this value — do nothing. Without this guard the parent's
+    // onPricePerHeadChange (a fresh closure each render that always builds a new
+    // state object) would re-fire this effect forever → "Maximum update depth".
+    if (pricePerHead === newVal) {
+      lastAutoFilledRef.current = newVal;
+      return;
+    }
     // Auto-fill if field is empty, or still matches the last auto-filled value
     if (!pricePerHead || pricePerHead === lastAutoFilledRef.current) {
       lastAutoFilledRef.current = newVal;

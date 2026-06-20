@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { useState } from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 
 // Hoisted so the vi.mock factories can reference the spies.
@@ -47,5 +48,37 @@ describe("MenuBuilder — price errors are surfaced", () => {
       expect(screen.queryByText("Calculation error: boom")).not.toBeInTheDocument()
     );
     expect(await screen.findByText(/\/head/)).toBeInTheDocument();
+  });
+
+  it("auto-fills price without an infinite update loop", async () => {
+    h.priceEstimate.mockResolvedValue({ price_per_head: 1650, has_unpriced: true });
+
+    // Reproduces the real parent: onPricePerHeadChange is a fresh closure each
+    // render and setState always builds a NEW object, so an unguarded auto-fill
+    // effect would re-fire forever ("Maximum update depth exceeded").
+    let renderCount = 0;
+    function Harness() {
+      renderCount++;
+      if (renderCount > 80) throw new Error(`render loop: ${renderCount} renders`);
+      const [data, setData] = useState<{ price: string }>({ price: "" });
+      return (
+        <MenuBuilder
+          selectedDishIds={[1]}
+          basedOnTemplate={null}
+          guestCount={100}
+          priceRoundingStep={50}
+          pricePerHead={data.price}
+          onPricePerHeadChange={(val) => setData((prev) => ({ ...prev, price: val }))}
+        />
+      );
+    }
+
+    render(<Harness />);
+
+    // Settles on the computed value (no thrown render-loop error).
+    expect(await screen.findByDisplayValue("1650.00", undefined, { timeout: 3000 })).toBeInTheDocument();
+    // Stays settled — the effect doesn't keep re-firing.
+    await new Promise((r) => setTimeout(r, 200));
+    expect(screen.getByDisplayValue("1650.00")).toBeInTheDocument();
   });
 });
