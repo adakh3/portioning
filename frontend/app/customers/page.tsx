@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { api } from "@/lib/api";
+import { api, Contact } from "@/lib/api";
 import { useContacts, useAccounts } from "@/lib/hooks";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +9,8 @@ import { Card, CardContent } from "@/components/ui/card";
 
 const selectClass =
   "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring";
+
+const EMPTY = { name: "", phone: "", email: "", address: "", account: "" };
 
 export default function CustomersPage() {
   const { data: customers = [], error: loadError, isLoading: loading, mutate } = useContacts();
@@ -18,31 +20,52 @@ export default function CustomersPage() {
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ name: "", phone: "", email: "", address: "", account: "" });
+  const [form, setForm] = useState(EMPTY);
 
   const filtered = customers.filter((c) => {
     const q = search.toLowerCase();
     return c.name.toLowerCase().includes(q) || c.phone.includes(search) || c.email.toLowerCase().includes(q);
   });
 
-  async function handleCreate(e: React.FormEvent) {
+  function openCreate() {
+    setEditingId(null);
+    setForm(EMPTY);
+    setError("");
+    setShowForm(true);
+  }
+
+  function openEdit(c: Contact) {
+    setEditingId(c.id);
+    setForm({
+      name: c.name, phone: c.phone, email: c.email, address: c.address,
+      account: c.account != null ? String(c.account) : "",
+    });
+    setError("");
+    setShowForm(true);
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
     setError("");
+    const payload = {
+      name: form.name,
+      phone: form.phone,
+      email: form.email,
+      address: form.address,
+      account: form.account ? Number(form.account) : null,
+    };
     try {
-      await api.createCustomer({
-        name: form.name,
-        phone: form.phone,
-        email: form.email,
-        address: form.address,
-        account: form.account ? Number(form.account) : null,
-      });
+      if (editingId != null) await api.updateCustomer(editingId, payload);
+      else await api.createCustomer(payload);
       await mutate();
       setShowForm(false);
-      setForm({ name: "", phone: "", email: "", address: "", account: "" });
+      setEditingId(null);
+      setForm(EMPTY);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create customer");
+      setError(err instanceof Error ? err.message : "Failed to save customer");
     } finally {
       setSaving(false);
     }
@@ -55,7 +78,9 @@ export default function CustomersPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-foreground">Customers</h1>
-        <Button onClick={() => setShowForm(!showForm)}>{showForm ? "Cancel" : "New Customer"}</Button>
+        <Button onClick={() => (showForm ? setShowForm(false) : openCreate())}>
+          {showForm ? "Cancel" : "New Customer"}
+        </Button>
       </div>
 
       {error && <p className="text-sm text-destructive">{error}</p>}
@@ -63,7 +88,10 @@ export default function CustomersPage() {
       {showForm && (
         <Card>
           <CardContent className="p-6">
-            <form onSubmit={handleCreate}>
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+              {editingId != null ? "Edit Customer" : "New Customer"}
+            </h2>
+            <form onSubmit={handleSubmit}>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Name *</label>
@@ -94,7 +122,7 @@ export default function CustomersPage() {
                 </div>
               </div>
               <Button type="submit" disabled={saving} variant="success" className="mt-4">
-                {saving ? "Creating..." : "Create Customer"}
+                {saving ? "Saving..." : editingId != null ? "Save Customer" : "Create Customer"}
               </Button>
             </form>
           </CardContent>
@@ -109,11 +137,12 @@ export default function CustomersPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtered.map((c) => (
-            <Card key={c.id}>
+            <Card key={c.id} className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => openEdit(c)}>
               <CardContent className="p-6">
                 <h3 className="font-semibold text-foreground">{c.name}</h3>
                 {c.phone && <p className="text-sm text-muted-foreground mt-1">{c.phone}</p>}
                 {c.email && <p className="text-sm text-muted-foreground">{c.email}</p>}
+                {c.address && <p className="text-sm text-muted-foreground mt-1">{c.address}</p>}
                 {c.account != null && (
                   <p className="text-xs text-muted-foreground mt-2">
                     {accounts.find((a) => a.id === c.account)?.name || "Business"}
