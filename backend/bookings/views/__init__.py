@@ -19,6 +19,7 @@ from .choices import (
     ArrangementTypeOptionListView,
     BeverageTypeOptionListView,
 )
+from .addons import AddOnProductListView
 from .reminders import (
     ReminderListCreateView, ReminderDetailView,
     LeadReminderListCreateView, ReminderCountsView,

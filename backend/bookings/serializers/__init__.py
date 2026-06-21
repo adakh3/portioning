@@ -2,6 +2,7 @@ from .accounts import AccountSerializer, ContactSerializer
 from .venues import VenueSerializer
 from .leads import LeadSerializer, LeadListSerializer
 from .quotes import QuoteSerializer, QuoteLineItemSerializer, QuoteListSerializer
+from .addons import AddOnProductSerializer, AddOnVariantSerializer
 from .finance import InvoiceSerializer, PaymentSerializer
 from .settings import OrgSettingsSerializer
 from .choices import (

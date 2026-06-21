@@ -12,6 +12,7 @@ from django.contrib.staticfiles import finders
 from users.models import User
 from .models import (
     Account, Contact, Venue, Lead, ProductLine, Quote, QuoteLineItem,
+    AddOnProduct, AddOnVariant,
     Invoice, Payment,
     SiteSettings, OrgSettings,
     EventTypeOption, SourceOption, ServiceStyleOption, LeadStatusOption,
@@ -373,6 +374,33 @@ class BeverageTypeOptionAdmin(OrgScopedAdmin):
     list_display = ['value', 'label', 'sort_order', 'is_active']
     list_editable = ['label', 'sort_order', 'is_active']
     ordering = ['sort_order']
+
+
+class AddOnVariantInline(admin.TabularInline):
+    model = AddOnVariant
+    extra = 1
+    fields = ['name', 'unit_price', 'is_active', 'sort_order']
+
+
+@admin.register(AddOnProduct)
+class AddOnProductAdmin(OrgScopedAdmin):
+    list_display = ['name', 'category', 'is_featured', 'is_active', 'sort_order']
+    list_editable = ['category', 'is_featured', 'is_active', 'sort_order']
+    list_filter = ['category', 'is_featured', 'is_active']
+    search_fields = ['name']
+    ordering = ['sort_order', 'name']
+    inlines = [AddOnVariantInline]
+
+    def save_formset(self, request, form, formset, change):
+        # Keep variants org-scoped to their parent product (OrgScopedModel checks this).
+        instances = formset.save(commit=False)
+        for obj in instances:
+            if isinstance(obj, AddOnVariant) and obj.organisation_id is None:
+                obj.organisation_id = form.instance.organisation_id
+            obj.save()
+        for obj in formset.deleted_objects:
+            obj.delete()
+        formset.save_m2m()
 
 
 # --- Activity Log ---

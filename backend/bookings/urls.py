@@ -18,6 +18,7 @@ from bookings.views import (
     LostReasonOptionListView, MealTypeOptionListView,
     ArrangementTypeOptionListView,
     BeverageTypeOptionListView,
+    AddOnProductListView,
     ReminderListCreateView, ReminderDetailView,
     LeadReminderListCreateView, ReminderCountsView,
     WhatsAppMessageListView, WhatsAppSendView, WhatsAppMarkReadView, TwilioWebhookView,
@@ -89,6 +90,7 @@ urlpatterns = [
     path('bookings/meal-types/', MealTypeOptionListView.as_view(), name='meal-type-list'),
     path('bookings/arrangement-types/', ArrangementTypeOptionListView.as_view(), name='arrangement-type-list'),
     path('bookings/beverage-types/', BeverageTypeOptionListView.as_view(), name='beverage-type-list'),
+    path('bookings/addon-products/', AddOnProductListView.as_view(), name='addon-product-list'),
 
     # WhatsApp
     path('bookings/leads/<int:lead_pk>/whatsapp/', WhatsAppMessageListView.as_view(), name='whatsapp-message-list'),
