@@ -4,7 +4,7 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 
 from bookings.models import (
-    Account, Contact, Venue, Lead, Quote, QuoteLineItem,
+    Account, Contact, Venue, Lead, Quote, BookingLineItem,
     Invoice, Payment,
     OrgSettings,
 )
@@ -186,20 +186,20 @@ class TestQuoteTransitions(TestCase):
         self.assertTrue(self.quote.is_editable)
 
 
-class TestQuoteLineItemCalculation(TestCase):
+class TestBookingLineItemCalculation(TestCase):
     def setUp(self):
         self.org = _make_org()
         self.quote = make_quote(org=self.org, guest_count=50)
 
     def test_each_unit_calculation(self):
-        item = QuoteLineItem.objects.create(
+        item = BookingLineItem.objects.create(
             quote=self.quote, category="food", description="Main Course",
             quantity=Decimal("10"), unit="each", unit_price=Decimal("25.00"),
         )
         self.assertEqual(item.line_total, Decimal("250.00"))
 
     def test_per_guest_calculation(self):
-        item = QuoteLineItem.objects.create(
+        item = BookingLineItem.objects.create(
             quote=self.quote, category="food", description="Starter",
             quantity=Decimal("1"), unit="per_guest", unit_price=Decimal("12.50"),
         )
@@ -207,19 +207,38 @@ class TestQuoteLineItemCalculation(TestCase):
         self.assertEqual(item.line_total, Decimal("625.00"))
 
     def test_discount_is_negative(self):
-        item = QuoteLineItem.objects.create(
+        item = BookingLineItem.objects.create(
             quote=self.quote, category="discount", description="Early booking",
             quantity=Decimal("1"), unit="flat", unit_price=Decimal("100.00"),
         )
         self.assertEqual(item.line_total, Decimal("-100.00"))
 
+    def test_exactly_one_parent_constraint(self):
+        from django.db.utils import IntegrityError
+        from events.models import Event
+        event = Event.objects.create(organisation=self.org, name="E", date="2026-09-01", gents=25, ladies=25)
+        with self.assertRaises(IntegrityError):
+            BookingLineItem.objects.create(
+                quote=self.quote, event=event, category="fee", description="bad",
+                quantity=Decimal("1"), unit="flat", unit_price=Decimal("1"),
+            )
+
+    def test_event_line_item_uses_event_guest_count(self):
+        from events.models import Event
+        event = Event.objects.create(organisation=self.org, name="E", date="2026-09-01", gents=20, ladies=30)
+        item = BookingLineItem.objects.create(
+            event=event, category="beverage", description="Soft drinks",
+            quantity=Decimal("1"), unit="per_guest", unit_price=Decimal("2.00"),
+        )
+        self.assertEqual(item.line_total, Decimal("100.00"))  # 2 * (20+30)
+
     def test_quote_totals_recalculated(self):
-        QuoteLineItem.objects.create(
+        BookingLineItem.objects.create(
             quote=self.quote, category="food", description="Food",
             quantity=Decimal("1"), unit="flat", unit_price=Decimal("1000.00"),
             is_taxable=True,
         )
-        QuoteLineItem.objects.create(
+        BookingLineItem.objects.create(
             quote=self.quote, category="rental", description="Tables",
             quantity=Decimal("5"), unit="each", unit_price=Decimal("50.00"),
             is_taxable=False,
@@ -231,7 +250,7 @@ class TestQuoteLineItemCalculation(TestCase):
         self.assertEqual(self.quote.total, Decimal("1450.00"))
 
     def test_delete_item_recalculates(self):
-        item = QuoteLineItem.objects.create(
+        item = BookingLineItem.objects.create(
             quote=self.quote, category="food", description="Food",
             quantity=Decimal("1"), unit="flat", unit_price=Decimal("500.00"),
         )
@@ -745,6 +764,36 @@ class TestQuoteAPI(TestCase):
         self.account = make_account(org=self.org)
         self.contact = make_contact(account=self.account, org=self.org)
 
+    def test_accept_carries_line_items_to_event(self):
+        # Headline bug: accepting a quote used to drop its add-on items.
+        quote = make_quote(org=self.org, account=self.account, primary_contact=self.contact)
+        BookingLineItem.objects.create(
+            quote=quote, category="rental", description="Chairs",
+            quantity=Decimal("10"), unit="each", unit_price=Decimal("2.00"),
+        )
+        res = self.client.post(f"/api/bookings/quotes/{quote.id}/transition/",
+                               {"status": "accepted"}, format="json")
+        self.assertEqual(res.status_code, 200, res.content)
+        quote.refresh_from_db()
+        self.assertIsNotNone(quote.event_id)
+        items = list(quote.event.line_items.all())
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0].description, "Chairs")
+        self.assertIsNone(items[0].quote_id)
+
+    def test_event_api_saves_line_items(self):
+        res = self.client.post("/api/events/", {
+            "name": "Garden Party", "date": "2026-09-01", "gents": 40, "ladies": 40,
+            "line_items": [{"category": "beverage", "description": "Mojito",
+                            "quantity": "20", "unit": "each", "unit_price": "3.00", "is_taxable": True}],
+        }, format="json")
+        self.assertEqual(res.status_code, 201, res.content)
+        from events.models import Event
+        event = Event.objects.get(id=res.json()["id"])
+        items = list(event.line_items.all())
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0].line_total, Decimal("60.00"))
+
     def test_create_quote_saves_dishes_and_totals(self):
         from dishes.models import Dish, DishCategory
         cat = DishCategory.objects.create(
@@ -858,13 +907,13 @@ class TestQuoteAPI(TestCase):
     def test_quote_patch_reconciles_line_items_in_one_call(self):
         """One PATCH to the quote can edit, add, and remove line items together
         and recompute totals — the basis for the single-save redesign."""
-        from bookings.models import QuoteLineItem
+        from bookings.models import BookingLineItem
         quote = make_quote(org=self.org, account=self.account, price_per_head=Decimal("0"))
-        keep = QuoteLineItem.objects.create(
+        keep = BookingLineItem.objects.create(
             quote=quote, category="food", description="Keep",
             quantity=Decimal("1"), unit="flat", unit_price=Decimal("100.00"), is_taxable=False,
         )
-        QuoteLineItem.objects.create(
+        BookingLineItem.objects.create(
             quote=quote, category="food", description="Remove",
             quantity=Decimal("1"), unit="flat", unit_price=Decimal("50.00"), is_taxable=False,
         )
@@ -999,7 +1048,7 @@ class TestQuoteAPI(TestCase):
 
     def test_delete_line_item(self):
         quote = make_quote(org=self.org, account=self.account)
-        item = QuoteLineItem.objects.create(
+        item = BookingLineItem.objects.create(
             quote=quote, category="food", description="Starter",
             quantity=Decimal("1"), unit="flat", unit_price=Decimal("500.00"),
         )

@@ -11,8 +11,8 @@ from django.contrib.staticfiles import finders
 
 from users.models import User
 from .models import (
-    Account, Contact, Venue, Lead, ProductLine, Quote, QuoteLineItem,
-    AddOnProduct, AddOnVariant,
+    Account, Contact, Venue, Lead, ProductLine, Quote,
+    AddOnProduct, AddOnVariant, BookingLineItem,
     Invoice, Payment,
     SiteSettings, OrgSettings,
     EventTypeOption, SourceOption, ServiceStyleOption, LeadStatusOption,
@@ -276,9 +276,10 @@ class LeadAdmin(OrgScopedAdmin):
 # --- Quotes ---
 
 class QuoteLineItemInline(admin.TabularInline):
-    model = QuoteLineItem
+    model = BookingLineItem
+    fk_name = 'quote'
     extra = 1
-    fields = ['category', 'description', 'quantity', 'unit', 'unit_price', 'is_taxable', 'line_total', 'sort_order']
+    fields = ['variant', 'category', 'description', 'quantity', 'unit', 'unit_price', 'is_taxable', 'line_total', 'sort_order']
     readonly_fields = ['line_total']
 
 

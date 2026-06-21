@@ -158,47 +158,6 @@ class LineItemUnit(models.TextChoices):
     EACH = 'each', 'Each'
 
 
-class QuoteLineItem(models.Model):
-    quote = models.ForeignKey(Quote, on_delete=models.CASCADE, related_name='line_items')
-    category = models.CharField(max_length=20, choices=LineItemCategory.choices)
-    description = models.CharField(max_length=500)
-    quantity = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('1.00'), validators=[MinValueValidator(Decimal('0')), MaxValueValidator(Decimal('99999'))])
-    unit = models.CharField(max_length=20, choices=LineItemUnit.choices, default=LineItemUnit.EACH)
-    unit_price = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal('0')), MaxValueValidator(Decimal('9999999.99'))])
-    is_taxable = models.BooleanField(default=True)
-    line_total = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
-    sort_order = models.IntegerField(default=0)
-    menu_item = models.ForeignKey(
-        'dishes.Dish', null=True, blank=True,
-        on_delete=models.SET_NULL, related_name='quote_line_items',
-    )
-    equipment_item = models.ForeignKey(
-        'equipment.EquipmentItem', null=True, blank=True,
-        on_delete=models.SET_NULL, related_name='quote_line_items',
-    )
-    labor_role = models.ForeignKey(
-        'staff.LaborRole', null=True, blank=True,
-        on_delete=models.SET_NULL, related_name='quote_line_items',
-    )
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        ordering = ['sort_order', 'pk']
-
-    def __str__(self):
-        return f"{self.description} — £{self.line_total}"
-
-    def save(self, *args, **kwargs):
-        if self.unit == LineItemUnit.PER_GUEST:
-            self.line_total = (self.unit_price * self.quote.guest_count).quantize(Decimal('0.01'))
-        elif self.category == LineItemCategory.DISCOUNT:
-            self.line_total = -(abs(self.quantity * self.unit_price)).quantize(Decimal('0.01'))
-        else:
-            self.line_total = (self.quantity * self.unit_price).quantize(Decimal('0.01'))
-        super().save(*args, **kwargs)
-        self.quote.recalculate_totals()
-
-    def delete(self, *args, **kwargs):
-        quote = self.quote
-        super().delete(*args, **kwargs)
-        quote.recalculate_totals()
+# QuoteLineItem was renamed to BookingLineItem and moved to bookings/models/addons.py
+# (it now attaches to a quote OR an event). LineItemCategory/LineItemUnit live here
+# and are imported by addons.py.

@@ -521,6 +521,10 @@ class LeadWonView(APIView):
                     portion_grams=p['grams_per_person'],
                 )
 
+        if quote:
+            from bookings.views.quotes import _copy_line_items_to_event
+            _copy_line_items_to_event(quote, event)
+
         return event
 
 

@@ -1,9 +1,11 @@
 from rest_framework import serializers
-from .models import Event, EventConstraintOverride, EventDishComment, EventArrangement, EventBeverage, EventMeal, EventMealDishComment
+from .models import Event, EventConstraintOverride, EventDishComment, EventMeal, EventMealDishComment
 from dishes.models import Dish
 from staff.serializers import ShiftSerializer
 from equipment.serializers import EquipmentReservationSerializer
 from bookings.serializers.finance import InvoiceSerializer
+from bookings.serializers.quotes import BookingLineItemSerializer
+from bookings.models import BookingLineItem
 from users.mixins import get_request_org
 from users.serializer_mixins import OrgScopedModelSerializer
 
@@ -22,20 +24,6 @@ class EventDishCommentSerializer(serializers.ModelSerializer):
         model = EventDishComment
         fields = ['dish_id', 'dish_name', 'comment', 'portion_grams']
         extra_kwargs = {'comment': {'max_length': 2000}}
-
-
-class EventArrangementSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = EventArrangement
-        fields = ['id', 'arrangement_type', 'quantity', 'unit_price', 'notes']
-        extra_kwargs = {'notes': {'max_length': 2000}}
-
-
-class EventBeverageSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = EventBeverage
-        fields = ['id', 'beverage_type', 'quantity', 'unit_price', 'notes']
-        extra_kwargs = {'notes': {'max_length': 2000}}
 
 
 class EventMealDishCommentSerializer(serializers.ModelSerializer):
@@ -67,8 +55,7 @@ class EventSerializer(OrgScopedModelSerializer):
         many=True, source='dishes', queryset=Dish.objects.none(), write_only=True, required=False
     )
     dish_comments = EventDishCommentSerializer(many=True, required=False)
-    arrangements = EventArrangementSerializer(many=True, required=False)
-    beverages = EventBeverageSerializer(many=True, required=False)
+    line_items = BookingLineItemSerializer(many=True, required=False)
     additional_meals = EventMealSerializer(many=True, required=False)
 
     # Read-only computed fields
@@ -112,7 +99,7 @@ class EventSerializer(OrgScopedModelSerializer):
                   'big_eaters', 'big_eaters_percentage',
                   'dishes', 'dish_ids', 'based_on_template', 'notes',
                   'kitchen_instructions', 'banquet_instructions', 'setup_instructions',
-                  'constraint_override', 'dish_comments', 'arrangements', 'beverages', 'created_at',
+                  'constraint_override', 'dish_comments', 'line_items', 'created_at',
                   # Booking fields
                   'primary_contact', 'contact_name',
                   'is_b2b', 'account', 'account_name',
@@ -144,8 +131,7 @@ class EventSerializer(OrgScopedModelSerializer):
         override_data = validated_data.pop('constraint_override', None)
         dishes = validated_data.pop('dishes', [])
         dish_comments_data = validated_data.pop('dish_comments', [])
-        arrangements_data = validated_data.pop('arrangements', [])
-        beverages_data = validated_data.pop('beverages', [])
+        line_items_data = validated_data.pop('line_items', [])
         meals_data = validated_data.pop('additional_meals', [])
         event = Event.objects.create(**validated_data)
         if dishes:
@@ -154,10 +140,7 @@ class EventSerializer(OrgScopedModelSerializer):
             EventConstraintOverride.objects.create(event=event, **override_data)
         for dc in dish_comments_data:
             EventDishComment.objects.create(event=event, **dc)
-        for arr in arrangements_data:
-            EventArrangement.objects.create(event=event, **arr)
-        for bev in beverages_data:
-            EventBeverage.objects.create(event=event, **bev)
+        self._save_line_items(event, line_items_data)
         for meal in meals_data:
             self._create_meal(event, meal)
         return event
@@ -166,8 +149,7 @@ class EventSerializer(OrgScopedModelSerializer):
         override_data = validated_data.pop('constraint_override', None)
         dishes = validated_data.pop('dishes', None)
         dish_comments_data = validated_data.pop('dish_comments', None)
-        arrangements_data = validated_data.pop('arrangements', None)
-        beverages_data = validated_data.pop('beverages', None)
+        line_items_data = validated_data.pop('line_items', None)
         meals_data = validated_data.pop('additional_meals', None)
 
         old_status = instance.status
@@ -185,16 +167,8 @@ class EventSerializer(OrgScopedModelSerializer):
             instance.dish_comments.all().delete()
             for dc in dish_comments_data:
                 EventDishComment.objects.create(event=instance, **dc)
-        if arrangements_data is not None:
-            # Replace all arrangements
-            instance.arrangements.all().delete()
-            for arr in arrangements_data:
-                EventArrangement.objects.create(event=instance, **arr)
-        if beverages_data is not None:
-            # Replace all beverages
-            instance.beverages.all().delete()
-            for bev in beverages_data:
-                EventBeverage.objects.create(event=instance, **bev)
+        if line_items_data is not None:
+            self._save_line_items(instance, line_items_data)
 
         if meals_data is not None:
             instance.additional_meals.all().delete()
@@ -224,6 +198,15 @@ class EventSerializer(OrgScopedModelSerializer):
         return instance
 
     @staticmethod
+    def _save_line_items(event, items_data):
+        """Replace the event's add-on line items. Each BookingLineItem.save()
+        recomputes its line_total."""
+        event.line_items.all().delete()
+        for item in items_data:
+            fields = {k: v for k, v in item.items() if k not in ('id', 'quote', 'event')}
+            BookingLineItem.objects.create(event=event, **fields)
+
+    @staticmethod
     def _create_meal(event, meal_data):
         dishes = meal_data.pop('dishes', [])
         dish_comments = meal_data.pop('dish_comments', [])
@@ -238,7 +221,7 @@ class EventSerializer(OrgScopedModelSerializer):
 EVENT_LIST_EXCLUDE = {
     'shifts', 'equipment_reservations', 'invoices',
     'dish_comments', 'constraint_override',
-    'dish_ids', 'arrangements', 'beverages', 'additional_meals',
+    'dish_ids', 'line_items', 'additional_meals',
 }
 
 

@@ -111,34 +111,8 @@ class EventConstraintOverride(models.Model):
         return f"Overrides for {self.event.name}"
 
 
-class EventArrangement(models.Model):
-    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='arrangements')
-    arrangement_type = models.CharField(max_length=50)
-    quantity = models.IntegerField(default=1, validators=[MinValueValidator(1), MaxValueValidator(9999)])
-    unit_price = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0'), validators=[MinValueValidator(Decimal('0'))])
-    notes = models.TextField(blank=True)
-
-    class Meta:
-        unique_together = ('event', 'arrangement_type')
-        ordering = ['arrangement_type']
-
-    def __str__(self):
-        return f"{self.quantity}x {self.arrangement_type} for {self.event.name}"
-
-
-class EventBeverage(models.Model):
-    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='beverages')
-    beverage_type = models.CharField(max_length=50)
-    quantity = models.IntegerField(default=1, validators=[MinValueValidator(1), MaxValueValidator(9999)])
-    unit_price = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0'), validators=[MinValueValidator(Decimal('0'))])
-    notes = models.TextField(blank=True)
-
-    class Meta:
-        unique_together = ('event', 'beverage_type')
-        ordering = ['beverage_type']
-
-    def __str__(self):
-        return f"{self.quantity}x {self.beverage_type} for {self.event.name}"
+# EventArrangement / EventBeverage were replaced by the unified BookingLineItem
+# (bookings/models/addons.py), which attaches priced add-ons to an event or a quote.
 
 
 class EventDishComment(models.Model):

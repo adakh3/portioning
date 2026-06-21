@@ -1,22 +1,22 @@
 from rest_framework import serializers
 
-from bookings.models import Quote, QuoteLineItem
+from bookings.models import Quote, BookingLineItem
 from bookings.serializers.leads import _get_event_type_labels
 from dishes.models import Dish
 from users.mixins import get_request_org
 from users.serializer_mixins import OrgScopedModelSerializer
 
 
-class QuoteLineItemSerializer(OrgScopedModelSerializer):
-    # Writable so the parent QuoteSerializer can match existing rows on a
-    # nested save (default `id` is read-only). Unused by the standalone
-    # line-item endpoints, which take the id from the URL.
+class BookingLineItemSerializer(OrgScopedModelSerializer):
+    # Writable so the parent serializer can match existing rows on a nested save
+    # (default `id` is read-only). Unused by the standalone line-item endpoints,
+    # which take the id from the URL.
     id = serializers.IntegerField(required=False)
 
     class Meta:
-        model = QuoteLineItem
+        model = BookingLineItem
         fields = [
-            'id', 'quote', 'category', 'description',
+            'id', 'quote', 'event', 'variant', 'category', 'description',
             'quantity', 'unit', 'unit_price', 'is_taxable',
             'line_total', 'sort_order',
             'menu_item', 'equipment_item', 'labor_role',
@@ -25,12 +25,17 @@ class QuoteLineItemSerializer(OrgScopedModelSerializer):
         read_only_fields = ['line_total', 'created_at']
         extra_kwargs = {
             'quote': {'required': False},
+            'event': {'required': False},
             'description': {'max_length': 500},
         }
 
 
+# Back-compat alias (the standalone /quotes/<id>/items/ endpoints import this name).
+QuoteLineItemSerializer = BookingLineItemSerializer
+
+
 class QuoteSerializer(OrgScopedModelSerializer):
-    line_items = QuoteLineItemSerializer(many=True, required=False)
+    line_items = BookingLineItemSerializer(many=True, required=False)
     account_name = serializers.SerializerMethodField()
     contact_name = serializers.SerializerMethodField()
     contact_email = serializers.SerializerMethodField()
@@ -154,7 +159,7 @@ class QuoteSerializer(OrgScopedModelSerializer):
                 li.save()  # recomputes line_total + quote totals
                 keep_ids.add(item_id)
             else:
-                QuoteLineItem.objects.create(quote=quote, **fields)
+                BookingLineItem.objects.create(quote=quote, **fields)
         for li_id, li in existing.items():
             if li_id not in keep_ids:
                 li.delete()

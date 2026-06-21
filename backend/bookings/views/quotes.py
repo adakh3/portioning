@@ -4,13 +4,24 @@ from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from bookings.models import Quote, QuoteLineItem
+from bookings.models import Quote, BookingLineItem
 from bookings.models.quotes import QuoteStatus
 from bookings.serializers import QuoteSerializer, QuoteLineItemSerializer
 from bookings.serializers.quotes import QuoteListSerializer
 from bookings.pdf import generate_quote_pdf
 from bookings.permissions import is_salesperson
 from users.mixins import get_request_org, apply_org_filter, get_org_object_or_404
+
+
+def _copy_line_items_to_event(quote, event):
+    """Copy a quote's add-on line items onto its event (kept on conversion)."""
+    for li in quote.line_items.all():
+        BookingLineItem.objects.create(
+            event=event, variant=li.variant, category=li.category,
+            description=li.description, quantity=li.quantity, unit=li.unit,
+            unit_price=li.unit_price, is_taxable=li.is_taxable, sort_order=li.sort_order,
+            menu_item=li.menu_item, equipment_item=li.equipment_item, labor_role=li.labor_role,
+        )
 
 
 class QuoteListCreateView(generics.ListCreateAPIView):
@@ -117,6 +128,9 @@ class QuoteTransitionView(APIView):
                         portion_grams=p['grams_per_person'],
                     )
 
+            # Carry the add-on line items across to the event (previously dropped).
+            _copy_line_items_to_event(quote, event)
+
             quote.event = event
             quote.save(update_fields=['event', 'updated_at'])
 
@@ -145,7 +159,7 @@ class QuoteLineItemListCreateView(generics.ListCreateAPIView):
     serializer_class = QuoteLineItemSerializer
 
     def _get_org_filtered_qs(self):
-        qs = QuoteLineItem.objects.filter(
+        qs = BookingLineItem.objects.filter(
             quote_id=self.kwargs['quote_pk']
         ).select_related('quote', 'menu_item', 'equipment_item', 'labor_role')
         org = get_request_org(self.request)
@@ -165,7 +179,7 @@ class QuoteLineItemDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = QuoteLineItemSerializer
 
     def get_queryset(self):
-        qs = QuoteLineItem.objects.filter(
+        qs = BookingLineItem.objects.filter(
             quote_id=self.kwargs['quote_pk']
         ).select_related('quote', 'menu_item', 'equipment_item', 'labor_role')
         org = get_request_org(self.request)
