@@ -127,7 +127,7 @@ export default function AddOnItemsEditor({
 
       <div>
         <div className="flex items-center gap-3 mb-2 flex-wrap">
-          <p className="text-xs font-medium text-muted-foreground">Other items</p>
+          <p className="text-xs font-medium text-muted-foreground">Not listed above?</p>
           {nonFeatured.length > 0 && (
             <select className="h-8 rounded border border-input bg-transparent px-2 text-sm" value=""
               onChange={(e) => {
