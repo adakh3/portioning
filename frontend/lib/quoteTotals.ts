@@ -5,6 +5,7 @@
 
 export interface LineItemInput {
   id?: number;
+  variant?: number | null; // AddOnVariant id when the row came from the catalog
   category: string; // 'food' | 'beverage' | 'rental' | 'labor' | 'fee' | 'discount'
   description: string;
   quantity: number | string;
@@ -117,6 +118,7 @@ export function buildQuoteSavePayload(
     based_on_template: menuData.based_on_template,
     line_items: lineItems.map((li) => ({
       ...(li.id ? { id: li.id } : {}),
+      variant: li.variant ?? null,
       category: li.category,
       description: li.description,
       quantity: li.quantity,

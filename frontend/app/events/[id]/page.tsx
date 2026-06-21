@@ -6,8 +6,6 @@ import Link from "next/link";
 import {
   api,
   EventData,
-  EventArrangement,
-  EventBeverage,
   EventMealData,
   Contact,
 } from "@/lib/api";
@@ -22,10 +20,10 @@ import {
   useEventTypes,
   useServiceStyles,
   useMealTypes,
-  useArrangementTypes,
-  useBeverageTypes,
 } from "@/lib/hooks";
 import { formatDate, formatDateTime as sharedFormatDateTime } from "@/lib/dateFormat";
+import { LineItemInput, lineItemTotal } from "@/lib/quoteTotals";
+import AddOnItemsEditor from "@/components/AddOnItemsEditor";
 import MenuBuilder from "@/components/MenuBuilder";
 import CustomerSelect from "@/components/CustomerSelect";
 import BusinessSelect from "@/components/BusinessSelect";
@@ -69,10 +67,6 @@ export default function EventDetailPage() {
   const { data: orgContacts = [] } = useContacts();
   const { data: laborRoles = [] } = useLaborRoles();
   const { data: staffList = [] } = useStaff();
-  const { data: arrangementTypesData = [] } = useArrangementTypes();
-  const arrangementTypeLabels: Record<string, string> = Object.fromEntries(arrangementTypesData.map((at) => [at.value, at.label]));
-  const { data: beverageTypesData = [] } = useBeverageTypes();
-  const beverageTypeLabels: Record<string, string> = Object.fromEntries(beverageTypesData.map((bt) => [bt.value, bt.label]));
   const { data: rawSettings } = useSiteSettings();
   const settings = rawSettings || { currency_symbol: "\u00A3", currency_code: "GBP", date_format: "DD/MM/YYYY", default_price_per_head: "0.00", target_food_cost_percentage: "30.00", price_rounding_step: "50", tax_label: "VAT", default_tax_rate: "0.2000" };
   const dateFormat = useDateFormat();
@@ -138,10 +132,8 @@ export default function EventDetailPage() {
   const [newShiftStart, setNewShiftStart] = useState("");
   const [newShiftEnd, setNewShiftEnd] = useState("");
 
-  // Arrangements state
-  const [formArrangements, setFormArrangements] = useState<EventArrangement[]>([]);
-  // Beverages state
-  const [formBeverages, setFormBeverages] = useState<EventBeverage[]>([]);
+  // Add-on line items (catalog-driven or ad-hoc)
+  const [formLineItems, setFormLineItems] = useState<LineItemInput[]>([]);
   // Tax
   const [formIsTaxable, setFormIsTaxable] = useState(false);
   // Additional meals
@@ -178,8 +170,11 @@ export default function EventDetailPage() {
     setFormArrivalTime(data.guest_arrival_time ? data.guest_arrival_time.slice(0, 16) : "");
     setFormMealTime(data.meal_time ? data.meal_time.slice(0, 16) : "");
     setFormEndTime(data.end_time ? data.end_time.slice(0, 16) : "");
-    setFormArrangements(data.arrangements || []);
-    setFormBeverages(data.beverages || []);
+    setFormLineItems((data.line_items || []).map((li) => ({
+      id: li.id, variant: li.variant, category: li.category, description: li.description,
+      quantity: li.quantity, unit: li.unit, unit_price: li.unit_price,
+      is_taxable: li.is_taxable, sort_order: li.sort_order ?? 0,
+    })));
     setFormIsTaxable(data.is_taxable || false);
     setFormAdditionalMeals(data.additional_meals || []);
   }, []);
@@ -250,8 +245,11 @@ export default function EventDetailPage() {
       meal_time: formMealTime || null,
       end_time: formEndTime || null,
       is_taxable: formIsTaxable,
-      arrangements: formArrangements.map(({ arrangement_type, quantity, unit_price, notes }) => ({ arrangement_type, quantity, unit_price, notes })),
-      beverages: formBeverages.map(({ beverage_type, quantity, unit_price, notes }) => ({ beverage_type, quantity, unit_price, notes })),
+      line_items: formLineItems.map((li) => ({
+        ...(li.id ? { id: li.id } : {}), variant: li.variant ?? null,
+        category: li.category, description: li.description, quantity: li.quantity,
+        unit: li.unit, unit_price: li.unit_price, is_taxable: li.is_taxable, sort_order: li.sort_order ?? 0,
+      })),
       additional_meals: formAdditionalMeals.map(({ label, guest_count, price_per_head, dishes, based_on_template, meal_time, notes }) => ({
         label, guest_count, price_per_head: price_per_head || null, dishes, dish_ids: dishes, based_on_template, meal_time: meal_time || null, notes,
       })),
@@ -362,29 +360,6 @@ export default function EventDetailPage() {
     }
   };
 
-  const handleToggleArrangement = (value: string) => {
-    setFormArrangements((prev) => {
-      const exists = prev.find((a) => a.arrangement_type === value);
-      if (exists) return prev.filter((a) => a.arrangement_type !== value);
-      return [...prev, { arrangement_type: value, quantity: 1, unit_price: "0", notes: "" }];
-    });
-  };
-
-  const handleArrangementField = (value: string, field: "quantity" | "unit_price" | "notes", fieldValue: number | string) => {
-    setFormArrangements((prev) => prev.map((a) => a.arrangement_type === value ? { ...a, [field]: fieldValue } : a));
-  };
-
-  const handleToggleBeverage = (value: string) => {
-    setFormBeverages((prev) => {
-      const exists = prev.find((b) => b.beverage_type === value);
-      if (exists) return prev.filter((b) => b.beverage_type !== value);
-      return [...prev, { beverage_type: value, quantity: 1, unit_price: "0", notes: "" }];
-    });
-  };
-
-  const handleBeverageField = (value: string, field: "quantity" | "unit_price" | "notes", fieldValue: number | string) => {
-    setFormBeverages((prev) => prev.map((b) => b.beverage_type === value ? { ...b, [field]: fieldValue } : b));
-  };
 
   const handleCreateInvoice = async () => {
     if (!event) return;
@@ -1071,138 +1046,35 @@ export default function EventDetailPage() {
         </CardContent>
       </Card>
 
-      {/* Arrangements & Beverages — 2-column layout */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Arrangements */}
-        <Card>
-          <CardContent className="p-6">
-            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Arrangements</h2>
-            {editing ? (
-              <div className="space-y-3">
-                {arrangementTypesData.map((at) => {
-                  const selected = formArrangements.find((a) => a.arrangement_type === at.value);
-                  return (
-                    <div key={at.value}>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={!!selected}
-                          onChange={() => handleToggleArrangement(at.value)}
-                          className="rounded border-input"
-                        />
-                        <span className="text-sm text-foreground">{at.label}</span>
-                      </label>
-                      {selected && (
-                        <div className="flex items-center gap-2 mt-1.5 ml-6">
-                          <ValidatedInput
-                            type="number"
-                            min={1}
-                            value={selected.quantity}
-                            onChange={(e) => handleArrangementField(at.value, "quantity", Number(e.target.value) || 1)}
-                            className="w-16 h-8"
-                          />
-                          <span className="text-xs text-muted-foreground">qty</span>
-                          <ValidatedInput
-                            type="number"
-                            step="0.01"
-                            min={0}
-                            value={selected.unit_price}
-                            onChange={(e) => handleArrangementField(at.value, "unit_price", e.target.value)}
-                            placeholder="0.00"
-                            className="w-24 h-8"
-                          />
-                          <span className="text-xs text-muted-foreground">{settings.currency_symbol}/ea</span>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            ) : !isNew && (
-              (event!.arrangements?.length > 0) ? (
-                <div className="space-y-1.5">
-                  {event!.arrangements.map((arr) => (
-                    <div key={arr.arrangement_type} className="flex items-baseline gap-2">
-                      <span className="text-sm text-foreground font-medium">{arrangementTypeLabels[arr.arrangement_type] || arr.arrangement_type}</span>
-                      <span className="text-sm text-muted-foreground">
-                        x{arr.quantity}
-                        {parseFloat(arr.unit_price) > 0 && ` @ ${formatCurrency(arr.unit_price, settings.currency_symbol)}`}
-                      </span>
-                    </div>
-                  ))}
+      {/* Add-on items (arrangements, beverages, rentals, custom) */}
+      <Card>
+        <CardContent className="p-6">
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Add-on items</h2>
+          {editing ? (
+            <AddOnItemsEditor
+              items={formLineItems}
+              onChange={setFormLineItems}
+              guestCount={formTotalGuests}
+              currencySymbol={settings.currency_symbol}
+            />
+          ) : (event!.line_items?.length ?? 0) > 0 ? (
+            <div className="space-y-1.5">
+              {event!.line_items.map((li) => (
+                <div key={li.id} className="flex items-baseline gap-2">
+                  <span className="text-sm text-foreground font-medium">{li.description}</span>
+                  <span className="text-sm text-muted-foreground">
+                    \u00d7{li.quantity}
+                    {parseFloat(li.unit_price) > 0 && ` @ ${formatCurrency(li.unit_price, settings.currency_symbol)}`}
+                  </span>
+                  <span className="ml-auto text-sm text-foreground">{formatCurrency(li.line_total, settings.currency_symbol)}</span>
                 </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">No arrangements added.</p>
-              )
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Beverages */}
-        <Card>
-          <CardContent className="p-6">
-            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Beverages</h2>
-            {editing ? (
-              <div className="space-y-3">
-                {beverageTypesData.map((bt) => {
-                  const selected = formBeverages.find((b) => b.beverage_type === bt.value);
-                  return (
-                    <div key={bt.value}>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={!!selected}
-                          onChange={() => handleToggleBeverage(bt.value)}
-                          className="rounded border-input"
-                        />
-                        <span className="text-sm text-foreground">{bt.label}</span>
-                      </label>
-                      {selected && (
-                        <div className="flex items-center gap-2 mt-1.5 ml-6">
-                          <ValidatedInput
-                            type="number"
-                            min={1}
-                            value={selected.quantity}
-                            onChange={(e) => handleBeverageField(bt.value, "quantity", Number(e.target.value) || 1)}
-                            className="w-16 h-8"
-                          />
-                          <span className="text-xs text-muted-foreground">qty</span>
-                          <ValidatedInput
-                            type="number"
-                            step="0.01"
-                            min={0}
-                            value={selected.unit_price}
-                            onChange={(e) => handleBeverageField(bt.value, "unit_price", e.target.value)}
-                            placeholder="0.00"
-                            className="w-24 h-8"
-                          />
-                          <span className="text-xs text-muted-foreground">{settings.currency_symbol}/ea</span>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            ) : !isNew && (
-              (event!.beverages?.length > 0) ? (
-                <div className="space-y-1.5">
-                  {event!.beverages.map((bev) => (
-                    <div key={bev.beverage_type} className="flex items-baseline gap-2">
-                      <span className="text-sm text-foreground font-medium">{beverageTypeLabels[bev.beverage_type] || bev.beverage_type}</span>
-                      <span className="text-sm text-muted-foreground">
-                        x{bev.quantity}
-                        {parseFloat(bev.unit_price) > 0 && ` @ ${formatCurrency(bev.unit_price, settings.currency_symbol)}`}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">No beverages added.</p>
-              )
-            )}
-          </CardContent>
-        </Card>
-      </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">No add-on items.</p>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Pricing Section */}
       <Card>
@@ -1214,11 +1086,9 @@ export default function EventDetailPage() {
             const foodTotal = pph * guests;
             const meals = editing ? formAdditionalMeals : (event?.additional_meals || []);
             const mealsTotal = meals.reduce((sum, m) => sum + m.guest_count * (parseFloat(m.price_per_head || "0") || 0), 0);
-            const arrItems = editing ? formArrangements : (event?.arrangements || []);
-            const bevItems = editing ? formBeverages : (event?.beverages || []);
-            const arrTotal = arrItems.reduce((sum, a) => sum + a.quantity * (parseFloat(a.unit_price) || 0), 0);
-            const bevTotal = bevItems.reduce((sum, b) => sum + b.quantity * (parseFloat(b.unit_price) || 0), 0);
-            const subtotal = foodTotal + mealsTotal + arrTotal + bevTotal;
+            const liItems = editing ? formLineItems : (event?.line_items || []);
+            const addOnsTotal = liItems.reduce((sum, li) => sum + lineItemTotal(li, guests), 0);
+            const subtotal = foodTotal + mealsTotal + addOnsTotal;
             const taxable = editing ? formIsTaxable : (event?.is_taxable || false);
             const taxRate = parseFloat(settings.default_tax_rate) || 0;
             const taxAmount = taxable ? subtotal * taxRate : 0;
@@ -1240,16 +1110,10 @@ export default function EventDetailPage() {
                       </div>
                     ) : null;
                   })}
-                  {arrTotal > 0 && (
+                  {addOnsTotal !== 0 && (
                     <div className="flex justify-between px-4 py-2 text-sm">
-                      <span className="text-muted-foreground">Arrangements</span>
-                      <span className="font-medium text-foreground">{formatCurrency(arrTotal, settings.currency_symbol)}</span>
-                    </div>
-                  )}
-                  {bevTotal > 0 && (
-                    <div className="flex justify-between px-4 py-2 text-sm">
-                      <span className="text-muted-foreground">Beverages</span>
-                      <span className="font-medium text-foreground">{formatCurrency(bevTotal, settings.currency_symbol)}</span>
+                      <span className="text-muted-foreground">Add-on items</span>
+                      <span className="font-medium text-foreground">{formatCurrency(addOnsTotal, settings.currency_symbol)}</span>
                     </div>
                   )}
                   <div className="flex justify-between px-4 py-2 text-sm font-medium">

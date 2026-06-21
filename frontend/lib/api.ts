@@ -252,6 +252,26 @@ export interface Account {
   updated_at: string;
 }
 
+export interface AddOnVariant {
+  id: number;
+  name: string;
+  unit_price: string;
+  is_active: boolean;
+  sort_order: number;
+}
+
+export interface AddOnProduct {
+  id: number;
+  name: string;
+  category: string;
+  default_unit: string;
+  is_taxable: boolean;
+  is_featured: boolean;
+  is_active: boolean;
+  sort_order: number;
+  variants: AddOnVariant[];
+}
+
 export interface Contact {
   id: number;
   account: number | null;
@@ -344,7 +364,9 @@ export interface Lead {
 
 export interface QuoteLineItem {
   id: number;
-  quote: number;
+  quote: number | null;
+  event: number | null;
+  variant: number | null;
   category: string;
   description: string;
   quantity: string;
@@ -614,28 +636,11 @@ export interface EventData {
   final_count_due: string | null;
   // Nested
   source_quote_id: number | null;
-  arrangements: EventArrangement[];
-  beverages: EventBeverage[];
+  line_items: QuoteLineItem[];
   additional_meals: EventMealData[];
   shifts: Shift[];
   equipment_reservations: EquipmentReservation[];
   invoices: Invoice[];
-}
-
-export interface EventArrangement {
-  id?: number;
-  arrangement_type: string;
-  quantity: number;
-  unit_price: string;
-  notes: string;
-}
-
-export interface EventBeverage {
-  id?: number;
-  beverage_type: string;
-  quantity: number;
-  unit_price: string;
-  notes: string;
 }
 
 export interface EventMealData {
@@ -954,13 +959,13 @@ export const api = {
     const qs = searchParams.toString();
     return fetchList<EventData>(`/events/${qs ? `?${qs}` : ""}`);
   },
-  createEvent: (data: Partial<EventData> & { dish_ids?: number[]; dish_comments?: EventDishComment[] }) =>
+  createEvent: (data: Omit<Partial<EventData>, "line_items"> & { dish_ids?: number[]; dish_comments?: EventDishComment[]; line_items?: unknown[] }) =>
     fetchApi<EventData>("/events/", {
       method: "POST",
       body: JSON.stringify(data),
     }),
   getEvent: (id: number) => fetchApi<EventData>(`/events/${id}/`),
-  updateEvent: (id: number, data: Partial<EventData> & { dish_ids?: number[]; dish_comments?: EventDishComment[] }) =>
+  updateEvent: (id: number, data: Omit<Partial<EventData>, "line_items"> & { dish_ids?: number[]; dish_comments?: EventDishComment[]; line_items?: unknown[] }) =>
     fetchApi<EventData>(`/events/${id}/`, {
       method: "PATCH",
       body: JSON.stringify(data),
@@ -990,6 +995,9 @@ export const api = {
     }
     return res.blob();
   },
+
+  // Bookings: add-on catalog (priced products + variants)
+  getAddOnProducts: () => fetchList<AddOnProduct>("/bookings/addon-products/?page_size=all"),
 
   // Bookings: Customers (people, person-first) — selectable independently of a business
   getContacts: () => fetchList<Contact>("/bookings/contacts/?page_size=all"),

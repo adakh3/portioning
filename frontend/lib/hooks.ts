@@ -4,6 +4,7 @@ import {
   api,
   Account,
   Contact,
+  AddOnProduct,
   AuthUser,
   Venue,
   Lead,
@@ -58,6 +59,13 @@ export function useAccounts() {
 export function useContacts() {
   return useSWR<Contact[]>("contacts", () => api.getContacts(), {
     dedupingInterval: 60000,
+  });
+}
+
+export function useAddOnProducts() {
+  return useSWR<AddOnProduct[]>("addon-products", () => api.getAddOnProducts(), {
+    dedupingInterval: 300000,
+    revalidateOnFocus: false,
   });
 }
 

@@ -31,6 +31,7 @@ vi.mock("@/lib/hooks", () => ({
   useQuote: () => ({ data: h.quote, error: null, isLoading: false, mutate: h.mutateQuote }),
   useAccounts: () => ({ data: [] }),
   useContacts: () => ({ data: [{ id: 3, name: "Jane Doe", phone: "", account: null }] }),
+  useAddOnProducts: () => ({ data: [] }),
   useVenues: () => ({ data: [] }),
   useSiteSettings: () => ({ data: { currency_symbol: "£", currency_code: "GBP", date_format: "DD/MM/YYYY", price_rounding_step: "50" } }),
   useDateFormat: () => "DD/MM/YYYY",

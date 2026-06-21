@@ -12,7 +12,7 @@ import CustomerSelect from "@/components/CustomerSelect";
 import BusinessSelect from "@/components/BusinessSelect";
 import VenueField from "@/components/VenueField";
 import { computeQuoteTotals, buildQuoteSavePayload, LineItemInput } from "@/lib/quoteTotals";
-import QuoteLineItemsEditor from "@/components/QuoteLineItemsEditor";
+import AddOnItemsEditor from "@/components/AddOnItemsEditor";
 import QuoteTotalsCard from "@/components/QuoteTotalsCard";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -197,7 +197,7 @@ export default function QuoteDetailPage() {
       internal_notes: quote.internal_notes,
     });
     setEditLineItems((quote.line_items || []).map((li) => ({
-      id: li.id, category: li.category, description: li.description,
+      id: li.id, variant: li.variant, category: li.category, description: li.description,
       quantity: li.quantity, unit: li.unit, unit_price: li.unit_price,
       is_taxable: li.is_taxable, sort_order: li.sort_order ?? 0,
     })));
@@ -391,7 +391,7 @@ export default function QuoteDetailPage() {
           <Card>
             <CardContent className="p-6">
               <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Additional Items</h2>
-              <QuoteLineItemsEditor
+              <AddOnItemsEditor
                 items={createLineItems}
                 onChange={setCreateLineItems}
                 guestCount={createData.guest_count ? Number(createData.guest_count) : 0}
@@ -859,7 +859,7 @@ export default function QuoteDetailPage() {
         <CardContent className="p-6">
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-4">Additional Items</h2>
           {editing ? (
-            <QuoteLineItemsEditor
+            <AddOnItemsEditor
               items={editLineItems}
               onChange={setEditLineItems}
               guestCount={editGuestCount}
