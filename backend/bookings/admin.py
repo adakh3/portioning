@@ -509,3 +509,6 @@ class LockedDateAdmin(OrgScopedAdmin):
     list_filter = ['organisation']
     search_fields = ['reason']
     readonly_fields = ['created_at']
+
+# Inject one-line model descriptions on the admin index.
+import portioning.admin_descriptions  # noqa: E402,F401

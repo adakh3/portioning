@@ -35,6 +35,20 @@ class TestAddOnCatalogAPI(TestCase):
         self.assertNotIn("OldHiddenZZZ", names)
 
 
+class TestAdminDescriptions(TestCase):
+    def test_admin_index_shows_model_descriptions(self):
+        from users.models import User
+        org = _make_org()
+        u = User.objects.create(email="admin-desc@test.com", is_staff=True,
+                                is_superuser=True, is_active=True, organisation=org)
+        u.set_password("x")
+        u.save()
+        self.client.force_login(u)
+        res = self.client.get("/api/admin/")
+        self.assertEqual(res.status_code, 200)
+        self.assertContains(res, "Priced catalog of add-on")  # AddOnProduct description
+
+
 class TestSeedAddonCatalogMigration(TransactionTestCase):
     migrate_from = [('bookings', '0036_contact_address')]
     migrate_to = [('bookings', '0038_seed_addon_catalog_from_options')]
