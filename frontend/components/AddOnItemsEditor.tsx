@@ -13,6 +13,11 @@ const UNITS: [string, string][] = [
   ["each", "Each"], ["per_guest", "Per guest"], ["per_hour", "Per hour"], ["flat", "Flat"],
 ];
 const cellInput = "h-8 w-full rounded border border-input bg-transparent px-2 text-sm";
+const CATEGORY_LABELS: Record<string, string> = {
+  food: "Food", beverage: "Beverages", rental: "Arrangements & rentals",
+  labor: "Labour", fee: "Fees", discount: "Discounts",
+};
+const CATEGORY_ORDER = ["beverage", "rental", "food", "labor", "fee", "discount"];
 
 /** Unified add-on editor used by quotes and events: featured catalog products as
  * checkboxes (tick → priced variants with qty), plus an "other items" table for
@@ -55,41 +60,65 @@ export default function AddOnItemsEditor({
 
   const fmt = (n: number) => formatCurrency(n, currencySymbol);
 
+  const grouped: Record<string, AddOnProduct[]> = {};
+  featured.forEach((p) => { (grouped[p.category] ||= []).push(p); });
+  const categories = [
+    ...CATEGORY_ORDER.filter((c) => grouped[c]?.length),
+    ...Object.keys(grouped).filter((c) => !CATEGORY_ORDER.includes(c)),
+  ];
+
+  function variantRow(p: AddOnProduct, v: AddOnVariant, label: string) {
+    const i = indexOfVariant(v.id);
+    const checked = i >= 0;
+    return (
+      <div key={v.id}>
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input type="checkbox" checked={checked}
+            onChange={() => (checked ? removeAt(i) : add(variantLine(p, v)))}
+            className="rounded border-input" />
+          <span className="text-sm">{label}</span>
+          {!checked && Number(v.unit_price) > 0 && (
+            <span className="text-xs text-muted-foreground">{fmt(Number(v.unit_price))}</span>
+          )}
+        </label>
+        {checked && (
+          <div className="flex items-center gap-2 mt-1 ml-6">
+            <input type="number" min={1} step="1" value={items[i].quantity}
+              onChange={(e) => update(i, "quantity", e.target.value)}
+              className="w-14 h-7 rounded border border-input px-2 text-sm text-right" />
+            <span className="text-xs text-muted-foreground">× {currencySymbol}</span>
+            <input type="number" min={0} step="0.01" value={items[i].unit_price}
+              onChange={(e) => update(i, "unit_price", e.target.value)}
+              className="w-20 h-7 rounded border border-input px-2 text-sm text-right" />
+            <span className="ml-auto text-sm font-medium">{fmt(lineItemTotal(items[i], guestCount))}</span>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-5">
       {featured.length > 0 && (
-        <div className="space-y-3">
-          {featured.map((p) => (
-            <div key={p.id}>
-              <p className="text-xs font-medium text-muted-foreground mb-1">{p.name}</p>
-              <div className="space-y-1.5">
-                {p.variants.map((v) => {
-                  const i = indexOfVariant(v.id);
-                  const checked = i >= 0;
-                  return (
-                    <div key={v.id} className="flex items-center gap-2 flex-wrap">
-                      <label className="flex items-center gap-2 cursor-pointer min-w-[180px]">
-                        <input type="checkbox" checked={checked}
-                          onChange={() => (checked ? removeAt(i) : add(variantLine(p, v)))}
-                          className="rounded border-input" />
-                        <span className="text-sm">{v.name || p.name}</span>
-                      </label>
-                      {checked && (
-                        <>
-                          <input type="number" min={1} step="1" value={items[i].quantity}
-                            onChange={(e) => update(i, "quantity", e.target.value)}
-                            className="w-16 h-8 rounded border border-input px-2 text-sm text-right" />
-                          <span className="text-xs text-muted-foreground">×</span>
-                          <span className="text-xs text-muted-foreground">{currencySymbol}</span>
-                          <input type="number" min={0} step="0.01" value={items[i].unit_price}
-                            onChange={(e) => update(i, "unit_price", e.target.value)}
-                            className="w-24 h-8 rounded border border-input px-2 text-sm text-right" />
-                          <span className="ml-auto text-sm font-medium">{fmt(lineItemTotal(items[i], guestCount))}</span>
-                        </>
-                      )}
+        <div className="space-y-4">
+          {categories.map((cat) => (
+            <div key={cat}>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+                {CATEGORY_LABELS[cat] || cat}
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-2">
+                {grouped[cat].map((p) =>
+                  p.variants.length > 1 ? (
+                    <div key={p.id}>
+                      <p className="text-xs font-medium text-foreground mb-0.5">{p.name}</p>
+                      <div className="space-y-1 ml-1">
+                        {p.variants.map((v) => variantRow(p, v, v.name || p.name))}
+                      </div>
                     </div>
-                  );
-                })}
+                  ) : (
+                    p.variants[0] && variantRow(p, p.variants[0], p.name)
+                  )
+                )}
               </div>
             </div>
           ))}
