@@ -9,8 +9,6 @@ from .choices import (
     EventTypeOptionSerializer, SourceOptionSerializer,
     ServiceStyleOptionSerializer, LeadStatusOptionSerializer,
     LostReasonOptionSerializer, MealTypeOptionSerializer,
-    ArrangementTypeOptionSerializer,
-    BeverageTypeOptionSerializer,
 )
 from .reminders import ReminderSerializer
 from .whatsapp import WhatsAppMessageSerializer, WhatsAppSendSerializer

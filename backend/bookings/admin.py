@@ -16,7 +16,7 @@ from .models import (
     Invoice, Payment,
     SiteSettings, OrgSettings,
     EventTypeOption, SourceOption, ServiceStyleOption, LeadStatusOption,
-    LostReasonOption, MealTypeOption, ArrangementTypeOption, BeverageTypeOption,
+    LostReasonOption, MealTypeOption,
     ActivityLog,
     Reminder,
     WhatsAppMessage,
@@ -358,20 +358,6 @@ class LostReasonOptionAdmin(OrgScopedAdmin):
 
 @admin.register(MealTypeOption)
 class MealTypeOptionAdmin(OrgScopedAdmin):
-    list_display = ['value', 'label', 'sort_order', 'is_active']
-    list_editable = ['label', 'sort_order', 'is_active']
-    ordering = ['sort_order']
-
-
-@admin.register(ArrangementTypeOption)
-class ArrangementTypeOptionAdmin(OrgScopedAdmin):
-    list_display = ['value', 'label', 'sort_order', 'is_active']
-    list_editable = ['label', 'sort_order', 'is_active']
-    ordering = ['sort_order']
-
-
-@admin.register(BeverageTypeOption)
-class BeverageTypeOptionAdmin(OrgScopedAdmin):
     list_display = ['value', 'label', 'sort_order', 'is_active']
     list_editable = ['label', 'sort_order', 'is_active']
     ordering = ['sort_order']

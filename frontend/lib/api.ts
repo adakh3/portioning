@@ -1244,8 +1244,6 @@ export const api = {
   getLeadStatuses: () => fetchList<ChoiceOption>("/bookings/lead-statuses/?page_size=all"),
   getLostReasons: () => fetchList<ChoiceOption>("/bookings/lost-reasons/?page_size=all"),
   getMealTypes: () => fetchList<ChoiceOption>("/bookings/meal-types/?page_size=all"),
-  getArrangementTypes: () => fetchList<ChoiceOption>("/bookings/arrangement-types/?page_size=all"),
-  getBeverageTypes: () => fetchList<ChoiceOption>("/bookings/beverage-types/?page_size=all"),
 
   // Settings
   getSiteSettings: () => fetchApi<SiteSettingsData>("/bookings/settings/"),

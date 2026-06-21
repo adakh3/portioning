@@ -30,8 +30,9 @@ class TestPersonFirstBackfill(TransactionTestCase):
         return executor.loader.project_state(targets).apps
 
     def tearDown(self):
-        # Leave the DB at the latest migration for the rest of the suite.
-        self._migrate(self.migrate_to)
+        # Leave the DB at the latest migrations for the rest of the suite.
+        from django.core.management import call_command
+        call_command("migrate", verbosity=0)
 
     def test_backfill(self):
         old = self._migrate(self.migrate_from)

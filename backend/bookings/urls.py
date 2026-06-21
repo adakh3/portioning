@@ -16,8 +16,6 @@ from bookings.views import (
     EventTypeOptionListView, SourceOptionListView,
     ServiceStyleOptionListView, LeadStatusOptionListView,
     LostReasonOptionListView, MealTypeOptionListView,
-    ArrangementTypeOptionListView,
-    BeverageTypeOptionListView,
     AddOnProductListView,
     ReminderListCreateView, ReminderDetailView,
     LeadReminderListCreateView, ReminderCountsView,
@@ -87,10 +85,7 @@ urlpatterns = [
     path('bookings/service-styles/', ServiceStyleOptionListView.as_view(), name='service-style-list'),
     path('bookings/lead-statuses/', LeadStatusOptionListView.as_view(), name='lead-status-list'),
     path('bookings/lost-reasons/', LostReasonOptionListView.as_view(), name='lost-reason-list'),
-    path('bookings/meal-types/', MealTypeOptionListView.as_view(), name='meal-type-list'),
-    path('bookings/arrangement-types/', ArrangementTypeOptionListView.as_view(), name='arrangement-type-list'),
-    path('bookings/beverage-types/', BeverageTypeOptionListView.as_view(), name='beverage-type-list'),
-    path('bookings/addon-products/', AddOnProductListView.as_view(), name='addon-product-list'),
+    path('bookings/meal-types/', MealTypeOptionListView.as_view(), name='meal-type-list'),    path('bookings/addon-products/', AddOnProductListView.as_view(), name='addon-product-list'),
 
     # WhatsApp
     path('bookings/leads/<int:lead_pk>/whatsapp/', WhatsAppMessageListView.as_view(), name='whatsapp-message-list'),

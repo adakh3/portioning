@@ -16,8 +16,6 @@ from .choices import (
     EventTypeOptionListView, SourceOptionListView,
     ServiceStyleOptionListView, LeadStatusOptionListView,
     LostReasonOptionListView, MealTypeOptionListView,
-    ArrangementTypeOptionListView,
-    BeverageTypeOptionListView,
 )
 from .addons import AddOnProductListView
 from .reminders import (

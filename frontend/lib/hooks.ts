@@ -131,19 +131,6 @@ export function useMealTypes() {
   });
 }
 
-export function useArrangementTypes() {
-  return useSWR<ChoiceOption[]>("arrangement-types", () => api.getArrangementTypes(), {
-    dedupingInterval: 300000,
-    revalidateOnFocus: false,
-  });
-}
-
-export function useBeverageTypes() {
-  return useSWR<ChoiceOption[]>("beverage-types", () => api.getBeverageTypes(), {
-    dedupingInterval: 300000,
-    revalidateOnFocus: false,
-  });
-}
 
 export function useUsers() {
   return useSWR<AuthUser[]>("users", () => api.getUsers(), {

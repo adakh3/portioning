@@ -21,8 +21,6 @@ DESCRIPTIONS = {
     # Bookings — catalog & categorisation
     "bookings.addonproduct": "Priced catalog of add-on products/services (with variants) for quotes & events.",
     "bookings.productline": "Business/service lines (e.g. Weddings) — a calendar colour + round-robin lead assignment.",
-    "bookings.arrangementtypeoption": "Legacy arrangement list — superseded by Add-on products.",
-    "bookings.beveragetypeoption": "Legacy beverage list — superseded by Add-on products.",
     # Bookings — choice option lists (configure the dropdowns used across the app)
     "bookings.eventtypeoption": "Selectable event types (wedding, corporate…).",
     "bookings.mealtypeoption": "Selectable meal types (lunch, dinner…).",
@@ -73,3 +71,18 @@ def _get_app_list_with_descriptions(self, request, app_label=None):
 
 
 admin.AdminSite.get_app_list = _get_app_list_with_descriptions
+
+
+# Show the same one-liner under the heading on each model's changelist page.
+# Django's base.html renders `subtitle` as an <h2> right after the <h1> title.
+_original_changelist_view = admin.ModelAdmin.changelist_view
+
+
+def _changelist_view_with_description(self, request, extra_context=None):
+    desc = DESCRIPTIONS.get(self.model._meta.label_lower)
+    if desc:
+        extra_context = {**(extra_context or {}), "subtitle": desc}
+    return _original_changelist_view(self, request, extra_context)
+
+
+admin.ModelAdmin.changelist_view = _changelist_view_with_description

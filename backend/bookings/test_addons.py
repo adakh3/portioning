@@ -46,7 +46,11 @@ class TestAdminDescriptions(TestCase):
         self.client.force_login(u)
         res = self.client.get("/api/admin/")
         self.assertEqual(res.status_code, 200)
-        self.assertContains(res, "Priced catalog of add-on")  # AddOnProduct description
+        self.assertContains(res, "Priced catalog of add-on")  # AddOnProduct description (index)
+        # Same description shown under the heading on the changelist page.
+        cl = self.client.get("/api/admin/bookings/addonproduct/")
+        self.assertEqual(cl.status_code, 200)
+        self.assertContains(cl, "Priced catalog of add-on")
 
 
 class TestSeedAddonCatalogMigration(TransactionTestCase):
@@ -60,7 +64,10 @@ class TestSeedAddonCatalogMigration(TransactionTestCase):
         return executor.loader.project_state(targets).apps
 
     def tearDown(self):
-        self._migrate(self.migrate_to)
+        # Restore the DB to the latest migrations (not just migrate_to, which is
+        # no longer the leaf) so later tests see the current schema.
+        from django.core.management import call_command
+        call_command("migrate", verbosity=0)
 
     def test_options_become_featured_products_with_a_variant(self):
         old = self._migrate(self.migrate_from)

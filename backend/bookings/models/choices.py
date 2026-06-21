@@ -62,16 +62,5 @@ class MealTypeOption(ChoiceOptionBase):
     class Meta(ChoiceOptionBase.Meta):
         unique_together = [('organisation', 'value')]
 
-
-class ArrangementTypeOption(ChoiceOptionBase):
-    objects = TenantManager()
-
-    class Meta(ChoiceOptionBase.Meta):
-        unique_together = [('organisation', 'value')]
-
-
-class BeverageTypeOption(ChoiceOptionBase):
-    objects = TenantManager()
-
-    class Meta(ChoiceOptionBase.Meta):
-        unique_together = [('organisation', 'value')]
+# ArrangementTypeOption / BeverageTypeOption removed — superseded by the
+# AddOnProduct catalog (their data was migrated into it).
