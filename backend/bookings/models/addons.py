@@ -25,6 +25,11 @@ class AddOnProduct(OrgScopedModel, models.Model):
     default_unit = models.CharField(
         max_length=20, choices=LineItemUnit.choices, default=LineItemUnit.EACH,
     )
+    unit_price = models.DecimalField(
+        max_digits=10, decimal_places=2, default=Decimal('0'),
+        validators=[MinValueValidator(Decimal('0'))],
+        help_text='Base price. Variants without their own price inherit this.',
+    )
     is_taxable = models.BooleanField(default=True)
     is_featured = models.BooleanField(
         default=False, help_text='Show as a quick checkbox when adding items',
@@ -54,8 +59,9 @@ class AddOnVariant(OrgScopedModel, models.Model):
     )
     name = models.CharField(max_length=200, blank=True)
     unit_price = models.DecimalField(
-        max_digits=10, decimal_places=2, default=Decimal('0'),
+        max_digits=10, decimal_places=2, null=True, blank=True,
         validators=[MinValueValidator(Decimal('0'))],
+        help_text='Leave blank to inherit the product price; set a value to override it.',
     )
     is_active = models.BooleanField(default=True)
     sort_order = models.IntegerField(default=0)
@@ -65,6 +71,11 @@ class AddOnVariant(OrgScopedModel, models.Model):
 
     def __str__(self):
         return f"{self.product.name} — {self.name}" if self.name else self.product.name
+
+    @property
+    def effective_price(self):
+        """The variant's own price, or the product's base price when not set."""
+        return self.unit_price if self.unit_price is not None else self.product.unit_price
 
 
 class BookingLineItem(models.Model):

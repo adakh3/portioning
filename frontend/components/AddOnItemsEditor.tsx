@@ -34,9 +34,13 @@ export default function AddOnItemsEditor({
   currencySymbol: string;
 }) {
   const { data: products = [] } = useAddOnProducts();
-  const featured = products.filter((p) => p.is_featured && p.variants.length);
+  // Featured products surface as checkboxes — including those with no priced
+  // variant yet (price entered inline), so nothing the user adds in admin is
+  // silently hidden. Non-featured products still need a variant to be pickable.
+  const featured = products.filter((p) => p.is_featured);
   const nonFeatured = products.filter((p) => !p.is_featured && p.variants.length);
   const featuredVariantIds = new Set(featured.flatMap((p) => p.variants.map((v) => v.id)));
+  const bareProductNames = new Set(featured.filter((p) => !p.variants.length).map((p) => p.name));
 
   const update = (i: number, field: keyof LineItemInput, value: unknown) =>
     onChange(items.map((it, idx) => (idx === i ? { ...it, [field]: value } : it)));
@@ -54,9 +58,24 @@ export default function AddOnItemsEditor({
   });
   const indexOfVariant = (id: number) => items.findIndex((it) => it.variant === id);
 
+  // Featured product with no priced variant: pick by product, price entered inline.
+  const productLine = (p: AddOnProduct): LineItemInput => ({
+    variant: null,
+    category: p.category,
+    description: p.name,
+    quantity: "1",
+    unit: p.default_unit,
+    unit_price: p.unit_price ?? "",
+    is_taxable: p.is_taxable,
+  });
+  const indexOfProduct = (p: AddOnProduct) =>
+    items.findIndex((it) => !it.variant && it.description === p.name);
+
   const otherRows = items
     .map((it, i) => ({ it, i }))
-    .filter(({ it }) => !it.variant || !featuredVariantIds.has(it.variant));
+    .filter(({ it }) =>
+      it.variant ? !featuredVariantIds.has(it.variant) : !bareProductNames.has(it.description),
+    );
 
   const fmt = (n: number) => formatCurrency(n, currencySymbol);
 
@@ -97,6 +116,33 @@ export default function AddOnItemsEditor({
     );
   }
 
+  function productRow(p: AddOnProduct) {
+    const i = indexOfProduct(p);
+    const checked = i >= 0;
+    return (
+      <div key={`p-${p.id}`}>
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input type="checkbox" checked={checked}
+            onChange={() => (checked ? removeAt(i) : add(productLine(p)))}
+            className="rounded border-input" />
+          <span className="text-sm">{p.name}</span>
+        </label>
+        {checked && (
+          <div className="flex items-center gap-2 mt-1 ml-6">
+            <input type="number" min={1} step="1" value={items[i].quantity}
+              onChange={(e) => update(i, "quantity", e.target.value)}
+              className="w-14 h-7 rounded border border-input px-2 text-sm text-right" />
+            <span className="text-xs text-muted-foreground">× {currencySymbol}</span>
+            <input type="number" min={0} step="0.01" value={items[i].unit_price} placeholder="0.00"
+              onChange={(e) => update(i, "unit_price", e.target.value)}
+              className="w-20 h-7 rounded border border-input px-2 text-sm text-right" />
+            <span className="ml-auto text-sm font-medium">{fmt(lineItemTotal(items[i], guestCount))}</span>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-5">
       {featured.length > 0 && (
@@ -115,8 +161,10 @@ export default function AddOnItemsEditor({
                         {p.variants.map((v) => variantRow(p, v, v.name || p.name))}
                       </div>
                     </div>
+                  ) : p.variants.length === 1 ? (
+                    variantRow(p, p.variants[0], p.name)
                   ) : (
-                    p.variants[0] && variantRow(p, p.variants[0], p.name)
+                    productRow(p)
                   )
                 )}
               </div>

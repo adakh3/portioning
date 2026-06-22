@@ -81,6 +81,17 @@ export default function SettingsPage() {
     }
   }
 
+  const baseline = settings && {
+    currency_symbol: settings.currency_symbol,
+    currency_code: settings.currency_code,
+    date_format: settings.date_format || "DD/MM/YYYY",
+    default_price_per_head: settings.default_price_per_head,
+    target_food_cost_percentage: settings.target_food_cost_percentage,
+    price_rounding_step: settings.price_rounding_step || "50",
+    quotation_terms: settings.quotation_terms || "",
+  };
+  const dirty = baseline ? JSON.stringify(baseline) !== JSON.stringify(formData) : false;
+
   if (loading) return <p className="text-muted-foreground">Loading settings...</p>;
 
   return (
@@ -90,8 +101,6 @@ export default function SettingsPage() {
       </Button>
       <h1 className="text-2xl font-bold text-foreground mb-6">Settings</h1>
 
-      {error && <p className="text-destructive mb-4">{error}</p>}
-      {success && <p className="text-success mb-4">{success}</p>}
 
       <form onSubmit={handleSubmit} className="space-y-6 max-w-2xl">
         <Card>
@@ -216,9 +225,16 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
-        <Button type="submit" disabled={saving}>
-          {saving ? "Saving..." : "Save Settings"}
-        </Button>
+        <div className="flex items-center gap-3">
+          <Button type="submit" disabled={saving || !dirty}>
+            {saving ? "Saving..." : "Save Settings"}
+          </Button>
+          {error && <span className="text-destructive text-sm">{error}</span>}
+          {success && <span className="text-success text-sm">{success}</span>}
+          {!dirty && !saving && !success && !error && (
+            <span className="text-muted-foreground text-sm">No unsaved changes</span>
+          )}
+        </div>
       </form>
 
       {/* Product Line Colours */}

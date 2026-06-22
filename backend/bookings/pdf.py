@@ -530,63 +530,6 @@ def generate_quote_pdf(quote):
             else:
                 elements.append(Spacer(1, 2 * mm))
 
-        elements.append(Spacer(1, 8 * mm))
-
-        # Contact line
-        if org_contact_line:
-            elements.append(Paragraph(
-                f'If you have any questions about this quotation, please contact: {org_contact_line}',
-                s['note_grey'],
-            ))
-            elements.append(Spacer(1, 10 * mm))
-
-        # ── 8. Signature block ──
-        sig_line = '_' * 35
-        rep_name = ''
-        if salesperson:
-            rep_name = salesperson.get_full_name() or salesperson.email
-
-        sig_left = [
-            [Paragraph('<b>Customer</b>', s['sig_label'])],
-            [Spacer(1, 6 * mm)],
-            [Paragraph(f'Name: {sig_line}', s['sig_label'])],
-            [Spacer(1, 4 * mm)],
-            [Paragraph(f'CNIC: {sig_line}', s['sig_label'])],
-            [Spacer(1, 4 * mm)],
-            [Paragraph(f'Signature: {sig_line}', s['sig_label'])],
-        ]
-        sig_right = [
-            [Paragraph('<b>Representative</b>', s['sig_label'])],
-            [Spacer(1, 6 * mm)],
-            [Paragraph(f'Name: {rep_name}', s['sig_label'])],
-            [Spacer(1, 4 * mm)],
-            [Paragraph(f'Signature: {sig_line}', s['sig_label'])],
-        ]
-
-        sig_left_table = Table(sig_left, colWidths=[CONTENT_W * 0.48])
-        sig_left_table.setStyle(TableStyle([
-            ('LEFTPADDING', (0, 0), (-1, -1), 0),
-            ('RIGHTPADDING', (0, 0), (-1, -1), 0),
-            ('TOPPADDING', (0, 0), (-1, -1), 0),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
-        ]))
-        sig_right_table = Table(sig_right, colWidths=[CONTENT_W * 0.48])
-        sig_right_table.setStyle(TableStyle([
-            ('LEFTPADDING', (0, 0), (-1, -1), 0),
-            ('RIGHTPADDING', (0, 0), (-1, -1), 0),
-            ('TOPPADDING', (0, 0), (-1, -1), 0),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
-        ]))
-
-        sig_outer = Table([[sig_left_table, sig_right_table]], colWidths=[CONTENT_W * 0.50, CONTENT_W * 0.50])
-        sig_outer.setStyle(TableStyle([
-            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-            ('LEFTPADDING', (0, 0), (-1, -1), 0),
-            ('RIGHTPADDING', (0, 0), (-1, -1), 0),
-            ('TOPPADDING', (0, 0), (-1, -1), 0),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
-        ]))
-        elements.append(sig_outer)
 
     doc.build(elements)
     return buf.getvalue()

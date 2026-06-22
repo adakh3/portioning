@@ -13,6 +13,13 @@ vi.mock("@/lib/hooks", () => ({
           { id: 12, name: "Virgin Colada", unit_price: "3.50", is_active: true, sort_order: 1 },
         ],
       },
+      // Featured product with a base price and NO variant — shows and prefills its price.
+      {
+        id: 2, name: "Sound System", category: "rental", default_unit: "flat",
+        unit_price: "15000.00",
+        is_taxable: true, is_featured: true, is_active: true, sort_order: 1,
+        variants: [],
+      },
     ],
   }),
 }));
@@ -49,5 +56,13 @@ describe("AddOnItemsEditor", () => {
     const items = JSON.parse(screen.getByTestId("json").textContent!);
     expect(items.filter((i: LineItemInput) => i.variant).length).toBe(2);
     expect(items.filter((i: LineItemInput) => !i.variant).length).toBe(1); // custom
+  });
+
+  it("shows a featured product with no variant and prefills its base price", () => {
+    render(<Harness />);
+    fireEvent.click(screen.getByLabelText("Sound System"));
+    expect(screen.getByTestId("count").textContent).toBe("1");
+    const items = JSON.parse(screen.getByTestId("json").textContent!);
+    expect(items[0]).toMatchObject({ variant: null, category: "rental", description: "Sound System", unit_price: "15000.00" });
   });
 });

@@ -265,6 +265,7 @@ export interface AddOnProduct {
   name: string;
   category: string;
   default_unit: string;
+  unit_price: string;
   is_taxable: boolean;
   is_featured: boolean;
   is_active: boolean;

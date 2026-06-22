@@ -365,14 +365,15 @@ class MealTypeOptionAdmin(OrgScopedAdmin):
 
 class AddOnVariantInline(admin.TabularInline):
     model = AddOnVariant
-    extra = 1
+    extra = 0
     fields = ['name', 'unit_price', 'is_active', 'sort_order']
+    verbose_name_plural = 'Variants (optional — only for differently-priced options; blank price inherits the product price)'
 
 
 @admin.register(AddOnProduct)
 class AddOnProductAdmin(OrgScopedAdmin):
-    list_display = ['name', 'category', 'is_featured', 'is_active', 'sort_order']
-    list_editable = ['category', 'is_featured', 'is_active', 'sort_order']
+    list_display = ['name', 'category', 'unit_price', 'is_featured', 'is_active', 'sort_order']
+    list_editable = ['category', 'unit_price', 'is_featured', 'is_active', 'sort_order']
     list_filter = ['category', 'is_featured', 'is_active']
     search_fields = ['name']
     ordering = ['sort_order', 'name']

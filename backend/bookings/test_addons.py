@@ -34,6 +34,25 @@ class TestAddOnCatalogAPI(TestCase):
         names = [r["name"] for r in res.json()]
         self.assertNotIn("OldHiddenZZZ", names)
 
+    def test_variant_inherits_product_price_unless_overridden(self):
+        product = AddOnProduct.objects.create(
+            organisation=self.org, name="SoundSystemZZZ", category="rental",
+            is_featured=True, unit_price=Decimal("15000.00"),
+        )
+        # No own price -> inherits the product's base price.
+        inheritor = AddOnVariant.objects.create(organisation=self.org, product=product, name="Standard")
+        # Own price -> overrides.
+        override = AddOnVariant.objects.create(organisation=self.org, product=product, name="Premium", unit_price=Decimal("20000.00"))
+        self.assertEqual(inheritor.effective_price, Decimal("15000.00"))
+        self.assertEqual(override.effective_price, Decimal("20000.00"))
+
+        res = self.client.get("/api/bookings/addon-products/?page_size=all")
+        row = next(r for r in res.json() if r["name"] == "SoundSystemZZZ")
+        self.assertEqual(row["unit_price"], "15000.00")
+        prices = {v["name"]: v["unit_price"] for v in row["variants"]}
+        self.assertEqual(prices["Standard"], "15000.00")   # inherited in the API response
+        self.assertEqual(prices["Premium"], "20000.00")    # overridden
+
 
 class TestAdminDescriptions(TestCase):
     def test_admin_index_shows_model_descriptions(self):
