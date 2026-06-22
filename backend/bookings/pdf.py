@@ -84,8 +84,8 @@ def _styles():
         ),
         'grand_value': ParagraphStyle(
             'GrandValue', parent=base['Normal'],
-            fontName='Helvetica-Bold', fontSize=12,
-            textColor=WHITE, leading=14, alignment=TA_RIGHT,
+            fontName='Helvetica-Bold', fontSize=10,
+            textColor=WHITE, leading=13, alignment=TA_RIGHT,
         ),
         # Info block labels and values
         'info_label': ParagraphStyle(
@@ -465,7 +465,7 @@ def generate_quote_pdf(quote):
     # ── 6. Totals block (right-aligned) ──
     tax_pct = (quote.tax_rate * 100).quantize(Decimal('1'))
     TOTALS_LABEL_W = 110
-    TOTALS_VALUE_W = 100
+    TOTALS_VALUE_W = 120
     TOTALS_W = TOTALS_LABEL_W + TOTALS_VALUE_W
 
     totals_rows = [
