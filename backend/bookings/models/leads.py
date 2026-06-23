@@ -99,18 +99,24 @@ class Lead(OrgScopedModel, models.Model):
         return new_status in valid_statuses and new_status != self.status
 
     def transition_to(self, new_status):
+        from bookings.models.choices import LeadStatusOption
         if not self.can_transition_to(new_status):
             raise ValueError(f"Cannot transition from {self.status} to {new_status}")
+        option = LeadStatusOption.objects.filter(
+            organisation=self.organisation, value=new_status,
+        ).first()
         self.status = new_status
         now = timezone.now()
+        # Legacy per-stage timestamps for the default workflow (best-effort by value).
         if new_status == 'contacted':
             self.contacted_at = now
         elif new_status == 'qualified':
             self.qualified_at = now
         elif new_status == 'proposal_sent':
             self.proposal_sent_at = now
-        elif new_status == 'won':
+        # Terminal stamps follow the semantic flags so renamed stages still work.
+        if option and option.is_won:
             self.won_at = now
-        elif new_status == 'lost':
+        elif option and option.is_lost:
             self.lost_at = now
         self.save()

@@ -47,6 +47,7 @@ npm run dev
 - **New org setup**: A `post_save` signal on `Organisation` (`users/signals.py`) auto-creates `OrgSettings` with defaults and seeds workflow options (lead statuses + lost reasons). No manual setup needed for new orgs.
 - **Any new npm package** must be committed with both `frontend/package.json` and `frontend/package-lock.json` so deployments can install it.
 - **Any new feature or bug fix** must include backend and/or frontend tests. Tests are run automatically by the pre-commit hook — never skip them.
+- **Any new feature** must also get a user story + manual test cases in **`docs/user-stories/<feature>.md`** (see `docs/user-stories/README.md`), so the change can be verified by hand. Keep the stories there — not in this file.
 
 ## Testing
 

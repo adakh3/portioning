@@ -17,33 +17,41 @@ def create_org_defaults(sender, instance, created, **kwargs):
 
     from bookings.models.choices import LeadStatusOption, LostReasonOption
 
-    WORKFLOW_DATA = {
-        LeadStatusOption: [
-            ('new', 'New', 0),
-            ('contacted', 'Contacted', 1),
-            ('qualified', 'Qualified', 2),
-            ('proposal_sent', 'Proposal Sent', 3),
-            ('won', 'Won', 4),
-            ('lost', 'Lost', 5),
-        ],
-        LostReasonOption: [
-            ('too_expensive', 'Too expensive', 0),
-            ('competitor', 'Went with competitor', 1),
-            ('date_unavailable', 'Date unavailable', 2),
-            ('no_response', 'No response', 3),
-            ('budget_cut', 'Budget cut', 4),
-            ('changed_plans', 'Changed plans', 5),
-            ('other', 'Other', 6),
-        ],
-    }
+    # Lead statuses carry colour + semantic flags (default/won/lost stage).
+    LEAD_STATUS_DEFAULTS = [
+        # value, label, sort_order, color, is_default, is_won, is_lost
+        ('new', 'New', 0, 'blue', True, False, False),
+        ('contacted', 'Contacted', 1, 'amber', False, False, False),
+        ('qualified', 'Qualified', 2, 'cyan', False, False, False),
+        ('proposal_sent', 'Proposal Sent', 3, 'violet', False, False, False),
+        ('won', 'Won', 4, 'green', False, True, False),
+        ('lost', 'Lost', 5, 'gray', False, False, True),
+    ]
+    for value, label, sort_order, color, is_default, is_won, is_lost in LEAD_STATUS_DEFAULTS:
+        LeadStatusOption.objects.get_or_create(
+            organisation=instance,
+            value=value,
+            defaults={
+                'label': label, 'sort_order': sort_order, 'color': color,
+                'is_default': is_default, 'is_won': is_won, 'is_lost': is_lost,
+            },
+        )
 
-    for Model, rows in WORKFLOW_DATA.items():
-        for value, label, sort_order in rows:
-            Model.objects.get_or_create(
-                organisation=instance,
-                value=value,
-                defaults={'label': label, 'sort_order': sort_order},
-            )
+    LOST_REASON_DEFAULTS = [
+        ('too_expensive', 'Too expensive', 0),
+        ('competitor', 'Went with competitor', 1),
+        ('date_unavailable', 'Date unavailable', 2),
+        ('no_response', 'No response', 3),
+        ('budget_cut', 'Budget cut', 4),
+        ('changed_plans', 'Changed plans', 5),
+        ('other', 'Other', 6),
+    ]
+    for value, label, sort_order in LOST_REASON_DEFAULTS:
+        LostReasonOption.objects.get_or_create(
+            organisation=instance,
+            value=value,
+            defaults={'label': label, 'sort_order': sort_order},
+        )
 
 
 @receiver(m2m_changed)

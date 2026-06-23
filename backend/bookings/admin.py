@@ -344,8 +344,8 @@ class ServiceStyleOptionAdmin(OrgScopedAdmin):
 
 @admin.register(LeadStatusOption)
 class LeadStatusOptionAdmin(OrgScopedAdmin):
-    list_display = ['value', 'label', 'sort_order', 'is_active']
-    list_editable = ['label', 'sort_order', 'is_active']
+    list_display = ['value', 'label', 'color', 'sort_order', 'is_active', 'is_default', 'is_won', 'is_lost']
+    list_editable = ['label', 'color', 'sort_order', 'is_active', 'is_default', 'is_won', 'is_lost']
     ordering = ['sort_order']
 
 

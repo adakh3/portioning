@@ -29,6 +29,11 @@ class ServiceStyleOptionSerializer(ChoiceOptionSerializer):
 class LeadStatusOptionSerializer(ChoiceOptionSerializer):
     class Meta(ChoiceOptionSerializer.Meta):
         model = LeadStatusOption
+        # `value` is the stored key on leads — generated server-side from the
+        # label on create, never edited afterwards (renaming the label is safe).
+        fields = ['id', 'value', 'label', 'color', 'sort_order', 'is_active',
+                  'is_default', 'is_won', 'is_lost']
+        read_only_fields = ['value']
 
 
 class LostReasonOptionSerializer(ChoiceOptionSerializer):

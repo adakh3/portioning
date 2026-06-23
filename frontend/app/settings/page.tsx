@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { ValidatedInput } from "@/components/ui/validated-input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import LeadStatusesSettings from "@/components/LeadStatusesSettings";
 
 export default function SettingsPage() {
   const { data: settings, isLoading: loading, mutate: mutateSettings } = useSiteSettings();
@@ -102,140 +103,144 @@ export default function SettingsPage() {
       <h1 className="text-2xl font-bold text-foreground mb-6">Settings</h1>
 
 
-      <form onSubmit={handleSubmit} className="space-y-6 max-w-2xl">
+      <form onSubmit={handleSubmit} className="max-w-2xl">
         <Card>
           <CardHeader>
-            <CardTitle>Currency</CardTitle>
+            <CardTitle>General</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Currency Symbol *</label>
-                <Input
-                  type="text"
-                  required
-                  maxLength={5}
-                  value={formData.currency_symbol}
-                  onChange={(e) => setFormData({ ...formData, currency_symbol: e.target.value })}
-                />
+          <CardContent className="space-y-6">
+            {/* Currency */}
+            <div>
+              <h3 className="text-sm font-semibold text-foreground mb-2">Currency</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Currency Symbol *</label>
+                  <Input
+                    type="text"
+                    required
+                    maxLength={5}
+                    value={formData.currency_symbol}
+                    onChange={(e) => setFormData({ ...formData, currency_symbol: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Currency Code *</label>
+                  <Input
+                    type="text"
+                    required
+                    maxLength={5}
+                    value={formData.currency_code}
+                    onChange={(e) => setFormData({ ...formData, currency_code: e.target.value })}
+                  />
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Currency Code *</label>
-                <Input
-                  type="text"
-                  required
-                  maxLength={5}
-                  value={formData.currency_code}
-                  onChange={(e) => setFormData({ ...formData, currency_code: e.target.value })}
-                />
+            </div>
+
+            {/* Regional */}
+            <div>
+              <h3 className="text-sm font-semibold text-foreground mb-2">Regional</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Date Format</label>
+                  <select
+                    value={formData.date_format}
+                    onChange={(e) => setFormData({ ...formData, date_format: e.target.value })}
+                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  >
+                    {(settings?.date_format_choices || []).map((c: { value: string; label: string }) => (
+                      <option key={c.value} value={c.value}>{c.label}</option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Controls how dates are displayed across the application.
+                  </p>
+                </div>
               </div>
+            </div>
+
+            {/* Pricing Defaults */}
+            <div>
+              <h3 className="text-sm font-semibold text-foreground mb-2">Pricing Defaults</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Default Price Per Head ({formData.currency_symbol})</label>
+                  <ValidatedInput
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="9999999.99"
+                    value={formData.default_price_per_head}
+                    onChange={(e) => setFormData({ ...formData, default_price_per_head: e.target.value })}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Pre-filled when creating new quotes and events. Set to 0 to leave blank.
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Target Food Cost %</label>
+                  <ValidatedInput
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="100"
+                    value={formData.target_food_cost_percentage}
+                    onChange={(e) => setFormData({ ...formData, target_food_cost_percentage: e.target.value })}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Used to calculate selling prices from food costs. For example, if food cost is {formData.currency_symbol}3.00
+                    and target food cost is 30%, the suggested selling price would be {formData.currency_symbol}10.00/head.
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Price Rounding Step</label>
+                  <ValidatedInput
+                    type="number"
+                    step="1"
+                    min="1"
+                    max="1000"
+                    value={formData.price_rounding_step}
+                    onChange={(e) => setFormData({ ...formData, price_rounding_step: e.target.value })}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Round calculated prices to the nearest N. For example, 50 rounds {formData.currency_symbol}2,017 to {formData.currency_symbol}2,000.
+                    Set to 1 to disable rounding.
+                  </p>
+                </div>
+              </div>
+              <div className="mt-4">
+                <label className="block text-sm font-medium text-foreground mb-1">Terms &amp; Conditions</label>
+                <textarea
+                  value={formData.quotation_terms}
+                  onChange={(e) => setFormData({ ...formData, quotation_terms: e.target.value })}
+                  rows={6}
+                  className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  placeholder="Printed on the Terms & Conditions page of every quotation PDF. One paragraph per line."
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Shown on the Terms &amp; Conditions page of quotation PDFs.
+                </p>
+              </div>
+            </div>
+
+            {/* Save — footer of this card */}
+            <div className="flex items-center gap-3 border-t border-border pt-4">
+              <Button type="submit" disabled={saving || !dirty}>
+                {saving ? "Saving..." : "Save Settings"}
+              </Button>
+              {error && <span className="text-destructive text-sm">{error}</span>}
+              {success && <span className="text-success text-sm">{success}</span>}
+              {!dirty && !saving && !success && !error && (
+                <span className="text-muted-foreground text-sm">No unsaved changes</span>
+              )}
             </div>
           </CardContent>
         </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Regional</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Date Format</label>
-                <select
-                  value={formData.date_format}
-                  onChange={(e) => setFormData({ ...formData, date_format: e.target.value })}
-                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                >
-                  {(settings?.date_format_choices || []).map((c: { value: string; label: string }) => (
-                    <option key={c.value} value={c.value}>{c.label}</option>
-                  ))}
-                </select>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Controls how dates are displayed across the application.
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Pricing Defaults</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Default Price Per Head ({formData.currency_symbol})</label>
-                <ValidatedInput
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  max="9999999.99"
-                  value={formData.default_price_per_head}
-                  onChange={(e) => setFormData({ ...formData, default_price_per_head: e.target.value })}
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Pre-filled when creating new quotes and events. Set to 0 to leave blank.
-                </p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Target Food Cost %</label>
-                <ValidatedInput
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  max="100"
-                  value={formData.target_food_cost_percentage}
-                  onChange={(e) => setFormData({ ...formData, target_food_cost_percentage: e.target.value })}
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Used to calculate selling prices from food costs. For example, if food cost is {formData.currency_symbol}3.00
-                  and target food cost is 30%, the suggested selling price would be {formData.currency_symbol}10.00/head.
-                </p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Price Rounding Step</label>
-                <ValidatedInput
-                  type="number"
-                  step="1"
-                  min="1"
-                  max="1000"
-                  value={formData.price_rounding_step}
-                  onChange={(e) => setFormData({ ...formData, price_rounding_step: e.target.value })}
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Round calculated prices to the nearest N. For example, 50 rounds {formData.currency_symbol}2,017 to {formData.currency_symbol}2,000.
-                  Set to 1 to disable rounding.
-                </p>
-              </div>
-            </div>
-            <div className="mt-4">
-              <label className="block text-sm font-medium text-foreground mb-1">Terms &amp; Conditions</label>
-              <textarea
-                value={formData.quotation_terms}
-                onChange={(e) => setFormData({ ...formData, quotation_terms: e.target.value })}
-                rows={6}
-                className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                placeholder="Printed on the Terms & Conditions page of every quotation PDF. One paragraph per line."
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                Shown on the Terms &amp; Conditions page of quotation PDFs.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <div className="flex items-center gap-3">
-          <Button type="submit" disabled={saving || !dirty}>
-            {saving ? "Saving..." : "Save Settings"}
-          </Button>
-          {error && <span className="text-destructive text-sm">{error}</span>}
-          {success && <span className="text-success text-sm">{success}</span>}
-          {!dirty && !saving && !success && !error && (
-            <span className="text-muted-foreground text-sm">No unsaved changes</span>
-          )}
-        </div>
       </form>
+
+      {/* Lead Statuses */}
+      <div className="space-y-6 max-w-2xl mt-8">
+        <LeadStatusesSettings />
+      </div>
 
       {/* Product Line Colours */}
       <div className="space-y-6 max-w-2xl mt-8">

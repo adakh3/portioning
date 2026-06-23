@@ -100,7 +100,7 @@ async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
         const text = await retry.text();
         throw new Error(sanitizeError(retry.status, text));
       }
-      return retry.json();
+      return retry.status === 204 ? (undefined as T) : retry.json();
     }
     throw new Error("Unauthorized");
   }
@@ -108,7 +108,7 @@ async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
     const text = await res.text();
     throw new Error(sanitizeError(res.status, text));
   }
-  return res.json();
+  return res.status === 204 ? (undefined as T) : res.json();
 }
 
 /** DRF paginated response shape. */
@@ -566,6 +566,11 @@ export interface ChoiceOption {
   label: string;
   sort_order: number;
   is_active: boolean;
+  // Lead-status only — present on LeadStatusOption.
+  color?: string;
+  is_default?: boolean;
+  is_won?: boolean;
+  is_lost?: boolean;
 }
 
 // Settings types
@@ -834,6 +839,7 @@ export interface KanbanColumn {
 
 export interface KanbanResponse {
   columns: Record<string, KanbanColumn>;
+  order?: string[];
 }
 
 // Dashboard stats
@@ -1243,6 +1249,14 @@ export const api = {
   getServiceStyles: () => fetchList<ChoiceOption>("/bookings/service-styles/?page_size=all"),
   getSources: () => fetchList<ChoiceOption>("/bookings/sources/?page_size=all"),
   getLeadStatuses: () => fetchList<ChoiceOption>("/bookings/lead-statuses/?page_size=all"),
+  // Management (manager/owner) — lists ALL statuses incl. inactive.
+  getManagedLeadStatuses: () => fetchList<ChoiceOption>("/bookings/settings/lead-statuses/?page_size=all"),
+  createLeadStatus: (data: Partial<ChoiceOption>) =>
+    fetchApi<ChoiceOption>("/bookings/settings/lead-statuses/", { method: "POST", body: JSON.stringify(data) }),
+  updateLeadStatus: (id: number, data: Partial<ChoiceOption>) =>
+    fetchApi<ChoiceOption>(`/bookings/settings/lead-statuses/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
+  deleteLeadStatus: (id: number) =>
+    fetchApi<void>(`/bookings/settings/lead-statuses/${id}/`, { method: "DELETE" }),
   getLostReasons: () => fetchList<ChoiceOption>("/bookings/lost-reasons/?page_size=all"),
   getMealTypes: () => fetchList<ChoiceOption>("/bookings/meal-types/?page_size=all"),
 

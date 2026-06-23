@@ -15,6 +15,7 @@ from .settings import SiteSettingsView
 from .choices import (
     EventTypeOptionListView, SourceOptionListView,
     ServiceStyleOptionListView, LeadStatusOptionListView,
+    LeadStatusManageListCreateView, LeadStatusManageDetailView,
     LostReasonOptionListView, MealTypeOptionListView,
 )
 from .addons import AddOnProductListView

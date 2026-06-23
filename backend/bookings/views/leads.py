@@ -153,10 +153,16 @@ class LeadListCreateView(generics.ListCreateAPIView):
         # as it's a valid option for the org.
         extra = {}
         requested = self.request.data.get('status')
-        if requested:
-            from bookings.models.choices import LeadStatusOption
-            if LeadStatusOption.objects.filter(organisation=org, value=requested).exists():
-                extra['status'] = requested
+        if requested and LeadStatusOption.objects.filter(organisation=org, value=requested).exists():
+            extra['status'] = requested
+        else:
+            # Fall back to the org's configured default stage.
+            default = (
+                LeadStatusOption.objects.filter(organisation=org, is_default=True)
+                .values_list('value', flat=True).first()
+            )
+            if default:
+                extra['status'] = default
         lead = serializer.save(created_by=user, organisation=org, **extra)
         log_activity(lead, 'created', user=user, description=f"Created lead \"{lead.contact_name}\"")
 
@@ -296,8 +302,13 @@ class LeadTransitionView(APIView):
         if not new_status:
             return Response({'error': 'status is required'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # When marking lost, require lost_reason_option
-        if new_status == 'lost':
+        from bookings.models.choices import LeadStatusOption
+        target_option = LeadStatusOption.objects.filter(
+            organisation=lead.organisation, value=new_status,
+        ).first()
+
+        # When marking a "lost"-type stage, require lost_reason_option
+        if target_option and target_option.is_lost:
             lost_reason_option_id = request.data.get('lost_reason_option')
             if not lost_reason_option_id:
                 return Response(
@@ -415,7 +426,13 @@ class LeadWonView(APIView):
             Lead.objects.select_related('account', 'won_quote', 'won_event'), request, pk=pk,
         )
 
-        if lead.status == 'won':
+        from bookings.models.choices import LeadStatusOption
+        won_option = LeadStatusOption.objects.filter(
+            organisation=lead.organisation, is_won=True,
+        ).first()
+        won_value = won_option.value if won_option else 'won'
+
+        if lead.status == won_value:
             return Response({'error': 'Lead is already won'}, status=status.HTTP_400_BAD_REQUEST)
 
         quote_id = request.data.get('quote_id')
@@ -439,14 +456,14 @@ class LeadWonView(APIView):
             lead.won_quote = quote
 
         old_status = lead.status
-        lead.transition_to('won')
+        lead.transition_to(won_value)
 
         desc = "Marked lead as Won"
         if event:
             desc += f" and created Event #{event.id}"
         log_activity(
             lead, 'status_change', user=user,
-            field_name='status', old_value=old_status, new_value='won',
+            field_name='status', old_value=old_status, new_value=won_value,
             description=desc,
         )
 
@@ -536,7 +553,10 @@ class LeadCreateEventView(APIView):
             Lead.objects.select_related('account', 'won_event'), request, pk=pk,
         )
 
-        if lead.status != 'won':
+        from bookings.models.choices import LeadStatusOption
+        if not LeadStatusOption.objects.filter(
+            organisation=lead.organisation, value=lead.status, is_won=True,
+        ).exists():
             return Response({'error': 'Lead must be won to create an event'}, status=status.HTTP_400_BAD_REQUEST)
 
         if lead.won_event:
@@ -593,14 +613,18 @@ class LeadAutoAssignView(APIView):
         return Response(result)
 
 
-KANBAN_STATUSES = ['new', 'contacted', 'qualified', 'proposal_sent', 'won', 'lost']
-
-
 class LeadKanbanView(APIView):
-    """GET /api/bookings/leads/kanban/ — All columns in a single response."""
+    """GET /api/bookings/leads/kanban/ — All columns in a single response.
+
+    Columns are driven by the org's active LeadStatusOption rows (in sort order),
+    so each org sees its own customised pipeline. `order` returns the column keys
+    in display order. Any status still present on leads but no longer an active
+    option is appended, so deactivating a status never hides its leads."""
 
     def get(self, request):
+        from bookings.models.choices import LeadStatusOption
         page_size = int(request.query_params.get('page_size', 20))
+        org = get_request_org(request)
 
         qs = Lead.objects.select_related(
             'account', 'won_quote', 'won_event', 'product', 'assigned_to',
@@ -618,13 +642,21 @@ class LeadKanbanView(APIView):
         count_rows = qs.order_by().values('status').annotate(n=DbCount('id'))
         counts = {row['status']: row['n'] for row in count_rows}
 
+        status_values = list(
+            LeadStatusOption.objects.filter(organisation=org, is_active=True)
+            .order_by('sort_order', 'pk').values_list('value', flat=True)
+        )
+        for leftover in counts:
+            if leftover not in status_values:
+                status_values.append(leftover)
+
         # Fetch top N leads per status using per-status queries (avoids full table scan)
         columns = {}
-        for status_val in KANBAN_STATUSES:
+        for status_val in status_values:
             leads = list(qs.filter(status=status_val)[:page_size])
             columns[status_val] = {
                 'count': counts.get(status_val, 0),
                 'results': LeadListSerializer(leads, many=True).data,
             }
 
-        return Response({'columns': columns})
+        return Response({'columns': columns, 'order': status_values})

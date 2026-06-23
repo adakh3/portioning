@@ -20,6 +20,7 @@ import { api, Lead, LeadFilters, AuthUser, ProductLine, ChoiceOption } from "@/l
 import { useAuth } from "@/lib/auth";
 import { useKanbanData, useLeadsPaginated, useUsers, useProductLines, useEventTypes, useLeadStatuses, useLostReasons, useDateFormat, useSources, revalidate } from "@/lib/hooks";
 import { formatDate } from "@/lib/dateFormat";
+import { statusColor } from "@/lib/statusColors";
 import { Button } from "@/components/ui/button";
 import { ValidatedInput } from "@/components/ui/validated-input";
 import { Textarea } from "@/components/ui/textarea";
@@ -52,25 +53,14 @@ import { useQueryState, useClearQueryState } from "@/lib/useQueryState";
 
 // ── Constants ──
 
-const COLUMNS = [
-  { status: "new", label: "New", color: "bg-primary", badge: "bg-white/20 text-white" },
-  { status: "contacted", label: "Contacted", color: "bg-warning", badge: "bg-white/20 text-white" },
-  { status: "qualified", label: "Qualified", color: "bg-info", badge: "bg-white/20 text-white" },
-  { status: "proposal_sent", label: "Proposal Sent", color: "bg-violet-500", badge: "bg-white/20 text-white" },
-  { status: "won", label: "Won", color: "bg-success", badge: "bg-white/20 text-white" },
-  { status: "lost", label: "Lost", color: "bg-muted", badge: "bg-foreground/10 text-foreground" },
-] as const;
+// Kanban columns are built dynamically from the org's lead statuses. This
+// mutable set holds the currently-rendered column ids so the module-level
+// collision detector knows what counts as a drop target. Updated on render.
+let kanbanColumnIds = new Set<string>();
 
-const COLUMN_IDS = new Set(COLUMNS.map((c) => c.status as string));
+type LeadColumn = { status: string; label: string; color: string };
 
-const STATUS_VARIANT: Record<string, "default" | "warning" | "info" | "success" | "secondary"> = {
-  new: "default",
-  contacted: "warning",
-  qualified: "info",
-  proposal_sent: "info",
-  won: "success",
-  lost: "secondary",
-};
+const LS_HIDDEN_STATUSES_KEY = "leadKanbanHiddenStatuses";
 
 type SortField = "contact_name" | "event_date" | "lead_date" | "guest_estimate" | "status" | "created_at";
 
@@ -87,10 +77,10 @@ const SORTABLE_COLUMNS: { field: SortField; label: string }[] = [
 
 const columnFirstCollision: CollisionDetection = (args) => {
   const pointerCollisions = pointerWithin(args);
-  const columnHit = pointerCollisions.find((c) => COLUMN_IDS.has(c.id as string));
+  const columnHit = pointerCollisions.find((c) => kanbanColumnIds.has(c.id as string));
   if (columnHit) return [columnHit];
   const rectCollisions = rectIntersection(args);
-  const rectColumnHit = rectCollisions.find((c) => COLUMN_IDS.has(c.id as string));
+  const rectColumnHit = rectCollisions.find((c) => kanbanColumnIds.has(c.id as string));
   if (rectColumnHit) return [rectColumnHit];
   return pointerCollisions;
 };
@@ -161,7 +151,6 @@ function KanbanColumn({
   status,
   label,
   color,
-  badge,
   leads,
   count,
   hasMore,
@@ -172,7 +161,6 @@ function KanbanColumn({
   status: string;
   label: string;
   color: string;
-  badge: string;
   leads: Lead[];
   count: number;
   hasMore?: boolean;
@@ -181,6 +169,7 @@ function KanbanColumn({
   optimisticLeads?: Lead[];
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: status });
+  const cls = statusColor(color);
   // Merge optimistic leads (dropped into this column) with server leads
   const allLeads = optimisticLeads
     ? [...optimisticLeads.filter((ol) => !leads.some((l) => l.id === ol.id)), ...leads]
@@ -188,9 +177,9 @@ function KanbanColumn({
 
   return (
     <div className="flex flex-col min-w-[200px] flex-1">
-      <div className={cn(color, "rounded-t-lg px-3 py-2 flex items-center justify-between")}>
-        <span className={cn("text-sm font-semibold", color === "bg-muted" ? "text-muted-foreground" : "text-white")}>{label}</span>
-        <span className={cn("text-xs font-medium px-1.5 py-0.5 rounded-full", badge)}>
+      <div className={cn(cls.header, "rounded-t-lg px-3 py-2 flex items-center justify-between")}>
+        <span className="text-sm font-semibold">{label}</span>
+        <span className={cn("text-xs font-medium px-1.5 py-0.5 rounded-full", cls.badge)}>
           {count}
         </span>
       </div>
@@ -239,6 +228,47 @@ export default function LeadsPage() {
     <Suspense>
       <LeadsContent />
     </Suspense>
+  );
+}
+
+function ColumnVisibilityMenu({ columns, hidden, onToggle }: {
+  columns: LeadColumn[];
+  hidden: Set<string>;
+  onToggle: (value: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const shown = columns.length - columns.filter((c) => hidden.has(c.status)).length;
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="h-9 px-3 rounded-md border border-input bg-background text-sm hover:bg-muted"
+        title="Show or hide kanban columns"
+      >
+        Columns ({shown}/{columns.length})
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 mt-1 z-20 w-52 rounded-md border border-border bg-popover shadow-md p-2 space-y-0.5">
+            <p className="text-xs text-muted-foreground px-1 pb-1">Show columns</p>
+            {columns.map((c) => (
+              <label key={c.status} className="flex items-center gap-2 px-1 py-1 text-sm cursor-pointer hover:bg-muted rounded">
+                <input
+                  type="checkbox"
+                  checked={!hidden.has(c.status)}
+                  onChange={() => onToggle(c.status)}
+                  className="rounded border-input"
+                />
+                <span className={`h-3 w-3 rounded-full ${statusColor(c.color).dot}`} />
+                <span className="truncate">{c.label}</span>
+              </label>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
   );
 }
 
@@ -348,26 +378,6 @@ function LeadsContent() {
     }
   }, [loadingMoreCol, baseFilters]);
 
-  // Build columnData from kanban response + extra leads
-  const columnData = useMemo(() => {
-    const result: Record<string, { leads: Lead[]; count: number; hasMore: boolean; loadMore: () => void; loadingMore: boolean }> = {};
-    for (const col of COLUMNS) {
-      const colInfo = kanbanData?.columns[col.status];
-      const serverLeads = colInfo?.results || [];
-      const extras = extraLeads[col.status] || [];
-      const allLeads = [...serverLeads, ...extras];
-      const count = colInfo?.count ?? 0;
-      result[col.status] = {
-        leads: allLeads,
-        count,
-        hasMore: allLeads.length < count,
-        loadMore: () => loadMoreForColumn(col.status),
-        loadingMore: !!loadingMoreCol[col.status],
-      };
-    }
-    return result;
-  }, [kanbanData, extraLeads, loadingMoreCol, loadMoreForColumn]);
-
   // ── Table data (paginated) ──
   const tableFilters: LeadFilters = useMemo(
     () => ({ ...baseFilters, page_size: 50, page: tablePage }),
@@ -388,6 +398,72 @@ function LeadsContent() {
   const { data: eventTypes = [] } = useEventTypes();
   const { data: leadStatuses = [] } = useLeadStatuses();
   const { data: lostReasons = [] } = useLostReasons();
+
+  // ── Dynamic kanban columns from the org's lead statuses ──
+  const statusByValue = useMemo(
+    () => new Map(leadStatuses.map((s) => [s.value, s])),
+    [leadStatuses],
+  );
+
+  const columns: LeadColumn[] = useMemo(() => {
+    const base = [...leadStatuses]
+      .sort((a, b) => a.sort_order - b.sort_order || a.id - b.id)
+      .map((s) => ({ status: s.value, label: s.label, color: s.color || "slate" }));
+    // Safety net: a status still on the board but no longer active (deactivated
+    // with leads in it) still gets a column so its leads aren't hidden.
+    const known = new Set(base.map((c) => c.status));
+    const extra = (kanbanData?.order || [])
+      .filter((v) => !known.has(v))
+      .map((v) => ({ status: v, label: v, color: "slate" }));
+    return [...base, ...extra];
+  }, [leadStatuses, kanbanData]);
+
+  const [hiddenStatuses, setHiddenStatuses] = useState<Set<string>>(() => {
+    if (typeof window === "undefined") return new Set();
+    try {
+      const raw = window.localStorage.getItem(LS_HIDDEN_STATUSES_KEY);
+      return new Set(raw ? (JSON.parse(raw) as string[]) : []);
+    } catch { return new Set(); }
+  });
+
+  const toggleStatusVisible = useCallback((value: string) => {
+    setHiddenStatuses((prev) => {
+      const next = new Set(prev);
+      if (next.has(value)) next.delete(value); else next.add(value);
+      if (typeof window !== "undefined") {
+        try { window.localStorage.setItem(LS_HIDDEN_STATUSES_KEY, JSON.stringify([...next])); } catch { /* ignore */ }
+      }
+      return next;
+    });
+  }, []);
+
+  const visibleColumns = useMemo(
+    () => columns.filter((c) => !hiddenStatuses.has(c.status)),
+    [columns, hiddenStatuses],
+  );
+
+  // Keep the module-level set (read by the collision detector) in sync.
+  kanbanColumnIds = new Set(visibleColumns.map((c) => c.status));
+
+  // Build columnData from kanban response + extra leads
+  const columnData = useMemo(() => {
+    const result: Record<string, { leads: Lead[]; count: number; hasMore: boolean; loadMore: () => void; loadingMore: boolean }> = {};
+    for (const col of columns) {
+      const colInfo = kanbanData?.columns[col.status];
+      const serverLeads = colInfo?.results || [];
+      const extras = extraLeads[col.status] || [];
+      const allLeads = [...serverLeads, ...extras];
+      const count = colInfo?.count ?? 0;
+      result[col.status] = {
+        leads: allLeads,
+        count,
+        hasMore: allLeads.length < count,
+        loadMore: () => loadMoreForColumn(col.status),
+        loadingMore: !!loadingMoreCol[col.status],
+      };
+    }
+    return result;
+  }, [kanbanData, extraLeads, loadingMoreCol, loadMoreForColumn, columns]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
@@ -505,16 +581,18 @@ function LeadsContent() {
     if (!lead) return;
 
     const targetStatus = over.id as string;
-    if (!COLUMN_IDS.has(targetStatus) || targetStatus === lead.status) return;
+    if (!kanbanColumnIds.has(targetStatus) || targetStatus === lead.status) return;
+
+    const targetOption = statusByValue.get(targetStatus);
 
     // Intercept lost transitions — show dialog
-    if (targetStatus === "lost") {
+    if (targetOption?.is_lost) {
       setPendingLostLeadId(lead.id);
       return;
     }
 
     // Intercept won transitions — show dialog
-    if (targetStatus === "won") {
+    if (targetOption?.is_won) {
       setPendingWonLeadId(lead.id);
       return;
     }
@@ -624,6 +702,9 @@ function LeadsContent() {
               </svg>
             </button>
           </div>
+          {viewMode === "kanban" && (
+            <ColumnVisibilityMenu columns={columns} hidden={hiddenStatuses} onToggle={toggleStatusVisible} />
+          )}
           <Button
             onClick={() => {
               setViewMode("table");
@@ -783,9 +864,9 @@ function LeadsContent() {
                 <SelectValue placeholder="Status..." />
               </SelectTrigger>
               <SelectContent>
-                {COLUMNS.map((col) => (
-                  <SelectItem key={col.status} value={col.status}>
-                    {col.label}
+                {leadStatuses.map((s) => (
+                  <SelectItem key={s.value} value={s.value}>
+                    {s.label}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -864,7 +945,7 @@ function LeadsContent() {
           onDragEnd={handleDragEnd}
         >
           <div className="flex gap-3 overflow-x-auto pb-4 flex-1">
-            {COLUMNS.map((col) => {
+            {visibleColumns.map((col) => {
               const cd = columnData[col.status];
               return (
                 <KanbanColumn
@@ -872,7 +953,6 @@ function LeadsContent() {
                   status={col.status}
                   label={col.label}
                   color={col.color}
-                  badge={col.badge}
                   leads={cd?.leads || []}
                   count={cd?.count ?? 0}
                   hasMore={cd?.hasMore}
@@ -882,6 +962,9 @@ function LeadsContent() {
                 />
               );
             })}
+            {visibleColumns.length === 0 && (
+              <p className="text-muted-foreground text-sm">All columns hidden — use “Columns” to show some.</p>
+            )}
           </div>
 
           <DragOverlay>
@@ -1113,6 +1196,10 @@ function LeadsTable({
   const { data: eventTypes = [] } = useEventTypes();
   const { data: leadStatuses = [] } = useLeadStatuses();
   const { data: sources = [] } = useSources();
+  const statusColorByValue = useMemo(
+    () => new Map(leadStatuses.map((s) => [s.value, s.color])),
+    [leadStatuses],
+  );
   const allSelected = leads.length > 0 && selectedIds.size === leads.length;
 
   // Inline editing state
@@ -1751,9 +1838,12 @@ function LeadsTable({
                   lead={lead}
                   field="status"
                   display={
-                    <Badge variant={STATUS_VARIANT[lead.status] || "secondary"}>
+                    <span className={cn(
+                      "inline-block rounded-full px-2.5 py-0.5 text-xs font-medium uppercase tracking-wide",
+                      statusColor(statusColorByValue.get(lead.status)).pill,
+                    )}>
                       {lead.status_display}
-                    </Badge>
+                    </span>
                   }
                   options={leadStatuses.map((s) => ({ value: s.value, label: s.label }))}
                 />

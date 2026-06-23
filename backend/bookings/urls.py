@@ -15,6 +15,7 @@ from bookings.views import (
     SiteSettingsView,
     EventTypeOptionListView, SourceOptionListView,
     ServiceStyleOptionListView, LeadStatusOptionListView,
+    LeadStatusManageListCreateView, LeadStatusManageDetailView,
     LostReasonOptionListView, MealTypeOptionListView,
     AddOnProductListView,
     ReminderListCreateView, ReminderDetailView,
@@ -84,6 +85,8 @@ urlpatterns = [
     path('bookings/sources/', SourceOptionListView.as_view(), name='source-list'),
     path('bookings/service-styles/', ServiceStyleOptionListView.as_view(), name='service-style-list'),
     path('bookings/lead-statuses/', LeadStatusOptionListView.as_view(), name='lead-status-list'),
+    path('bookings/settings/lead-statuses/', LeadStatusManageListCreateView.as_view(), name='lead-status-manage-list'),
+    path('bookings/settings/lead-statuses/<int:pk>/', LeadStatusManageDetailView.as_view(), name='lead-status-manage-detail'),
     path('bookings/lost-reasons/', LostReasonOptionListView.as_view(), name='lost-reason-list'),
     path('bookings/meal-types/', MealTypeOptionListView.as_view(), name='meal-type-list'),    path('bookings/addon-products/', AddOnProductListView.as_view(), name='addon-product-list'),
 

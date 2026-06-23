@@ -117,6 +117,13 @@ export function useLeadStatuses() {
   });
 }
 
+// Management list for Settings — includes inactive statuses.
+export function useManagedLeadStatuses() {
+  return useSWR<ChoiceOption[]>("managed-lead-statuses", () => api.getManagedLeadStatuses(), {
+    revalidateOnFocus: false,
+  });
+}
+
 export function useLostReasons() {
   return useSWR<ChoiceOption[]>("lost-reasons", () => api.getLostReasons(), {
     dedupingInterval: 300000,
