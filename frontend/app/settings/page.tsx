@@ -4,6 +4,8 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { api, ProductLine, SiteSettingsData } from "@/lib/api";
 import { useSiteSettings, useProductLines, revalidate } from "@/lib/hooks";
+import { useQueryState } from "@/lib/useQueryState";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ValidatedInput } from "@/components/ui/validated-input";
@@ -12,16 +14,33 @@ import { Badge } from "@/components/ui/badge";
 import LeadStatusesSettings from "@/components/LeadStatusesSettings";
 import ChoiceOptionsSettings from "@/components/ChoiceOptionsSettings";
 
+// default_tax_rate is stored as a fraction (0.20 = 20%); show it as a percentage.
+const pctFromFraction = (f: string) => String(Math.round(Number(f || 0) * 10000) / 100);
+const fractionFromPct = (p: string) => (Number(p || 0) / 100).toFixed(4);
+
+const SETTINGS_TABS = [
+  { id: "general", label: "General" },
+  { id: "pipeline", label: "Lead Pipeline" },
+  { id: "options", label: "Options" },
+  { id: "branding", label: "Product Lines" },
+  { id: "integrations", label: "Integrations" },
+] as const;
+
 export default function SettingsPage() {
   const { data: settings, isLoading: loading, mutate: mutateSettings } = useSiteSettings();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [tabRaw, setTab] = useQueryState("tab", "general");
+  const tab = SETTINGS_TABS.some((t) => t.id === tabRaw) ? tabRaw : "general";
 
   const [formData, setFormData] = useState({
     currency_symbol: "",
     currency_code: "",
     date_format: "DD/MM/YYYY",
+    timezone: "",
+    tax_label: "",
+    default_tax_rate: "",
     default_price_per_head: "",
     target_food_cost_percentage: "",
     price_rounding_step: "50",
@@ -40,6 +59,9 @@ export default function SettingsPage() {
         currency_symbol: settings.currency_symbol,
         currency_code: settings.currency_code,
         date_format: settings.date_format || "DD/MM/YYYY",
+        timezone: settings.timezone || "",
+        tax_label: settings.tax_label || "",
+        default_tax_rate: settings.default_tax_rate || "",
         default_price_per_head: settings.default_price_per_head,
         target_food_cost_percentage: settings.target_food_cost_percentage,
         price_rounding_step: settings.price_rounding_step || "50",
@@ -87,6 +109,9 @@ export default function SettingsPage() {
     currency_symbol: settings.currency_symbol,
     currency_code: settings.currency_code,
     date_format: settings.date_format || "DD/MM/YYYY",
+    timezone: settings.timezone || "",
+    tax_label: settings.tax_label || "",
+    default_tax_rate: settings.default_tax_rate || "",
     default_price_per_head: settings.default_price_per_head,
     target_food_cost_percentage: settings.target_food_cost_percentage,
     price_rounding_step: settings.price_rounding_step || "50",
@@ -103,7 +128,25 @@ export default function SettingsPage() {
       </Button>
       <h1 className="text-2xl font-bold text-foreground mb-6">Settings</h1>
 
+      <div className="flex gap-1 border-b border-border mb-6 overflow-x-auto">
+        {SETTINGS_TABS.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => setTab(t.id)}
+            className={cn(
+              "px-4 py-2 text-sm font-medium border-b-2 -mb-px whitespace-nowrap transition-colors",
+              tab === t.id
+                ? "border-primary text-foreground"
+                : "border-transparent text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
 
+      {tab === "general" && (
       <form onSubmit={handleSubmit} className="max-w-2xl">
         <Card>
           <CardHeader>
@@ -154,6 +197,52 @@ export default function SettingsPage() {
                   </select>
                   <p className="text-xs text-muted-foreground mt-1">
                     Controls how dates are displayed across the application.
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Timezone</label>
+                  <Input
+                    type="text"
+                    placeholder="e.g. Asia/Karachi"
+                    value={formData.timezone}
+                    onChange={(e) => setFormData({ ...formData, timezone: e.target.value })}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    IANA timezone for dates/times (e.g. Asia/Karachi, Europe/London).
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Tax */}
+            <div>
+              <h3 className="text-sm font-semibold text-foreground mb-2">Tax</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Tax Label</label>
+                  <Input
+                    type="text"
+                    maxLength={20}
+                    placeholder="e.g. VAT, GST, Sales Tax"
+                    value={formData.tax_label}
+                    onChange={(e) => setFormData({ ...formData, tax_label: e.target.value })}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Name of the tax shown on quotations.
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Default Tax Rate %</label>
+                  <ValidatedInput
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="100"
+                    value={pctFromFraction(formData.default_tax_rate)}
+                    onChange={(e) => setFormData({ ...formData, default_tax_rate: fractionFromPct(e.target.value) })}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    e.g. 17 for 17%.
                   </p>
                 </div>
               </div>
@@ -237,14 +326,16 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
       </form>
+      )}
 
-      {/* Lead Statuses */}
-      <div className="space-y-6 max-w-2xl mt-8">
+      {tab === "pipeline" && (
+      <div className="space-y-6 max-w-2xl">
         <LeadStatusesSettings />
       </div>
+      )}
 
-      {/* Other org choice lists */}
-      <div className="space-y-6 max-w-2xl mt-8">
+      {tab === "options" && (
+      <div className="space-y-6 max-w-2xl">
         <ChoiceOptionsSettings
           title="Event Types"
           base="/bookings/settings/event-types/"
@@ -286,16 +377,19 @@ export default function SettingsPage() {
           addPlaceholder="New lost reason…"
         />
       </div>
+      )}
 
-      {/* Product Line Colours */}
-      <div className="space-y-6 max-w-2xl mt-8">
+      {tab === "branding" && (
+      <div className="space-y-6 max-w-2xl">
         <ProductLineColours />
       </div>
+      )}
 
-      {/* WhatsApp Integration */}
-      <div className="space-y-6 max-w-2xl mt-8">
+      {tab === "integrations" && (
+      <div className="space-y-6 max-w-2xl">
         <WhatsAppSettings settings={settings} onSave={() => mutateSettings()} />
       </div>
+      )}
     </div>
   );
 }

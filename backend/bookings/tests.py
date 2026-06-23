@@ -1220,6 +1220,23 @@ class TestSiteSettingsAPI(TestCase):
         self.assertEqual(res.json()["currency_symbol"], "$")
         self.assertEqual(res.json()["currency_code"], "USD")
 
+    def test_patch_tax_and_timezone(self):
+        """Tax label/rate (stored as a fraction) and timezone are editable in-app."""
+        res = self.client.patch(
+            "/api/bookings/settings/",
+            {"tax_label": "GST", "default_tax_rate": "0.1700", "timezone": "Asia/Karachi"},
+            format="json",
+        )
+        self.assertEqual(res.status_code, 200, res.content)
+        data = res.json()
+        self.assertEqual(data["tax_label"], "GST")
+        self.assertEqual(data["default_tax_rate"], "0.1700")
+        self.assertEqual(data["timezone"], "Asia/Karachi")
+        self.settings.refresh_from_db()
+        self.assertEqual(self.settings.tax_label, "GST")
+        self.assertEqual(self.settings.default_tax_rate, Decimal("0.1700"))
+        self.assertEqual(self.settings.timezone, "Asia/Karachi")
+
     def test_patch_partial_update(self):
         """PATCH with a single field should not clear other fields."""
         self.settings.currency_symbol = "€"
