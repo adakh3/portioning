@@ -15,7 +15,7 @@ from .models import (
     Account, Contact, Venue, Lead, ProductLine, Quote,
     AddOnProduct, AddOnVariant, BookingLineItem,
     Invoice, Payment,
-    SiteSettings, OrgSettings,
+    OrgSettings,
     EventTypeOption, SourceOption, ServiceStyleOption, LeadStatusOption,
     LostReasonOption, MealTypeOption,
     ActivityLog,
@@ -424,18 +424,6 @@ class ReminderAdmin(OrgScopedAdmin):
 
 
 # --- Settings ---
-
-@admin.register(SiteSettings)
-class SiteSettingsAdmin(admin.ModelAdmin):
-    list_display = ['currency_symbol', 'currency_code', 'target_food_cost_percentage']
-
-    def has_add_permission(self, request):
-        # Only allow one instance
-        return not SiteSettings.objects.exists()
-
-    def has_delete_permission(self, request, obj=None):
-        return False
-
 
 class OrgSettingsForm(forms.ModelForm):
     twilio_auth_token_plain = forms.CharField(

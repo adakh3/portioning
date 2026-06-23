@@ -5,7 +5,7 @@ from .quotes import Quote
 from .addons import AddOnProduct, AddOnVariant, BookingLineItem
 from .choices import EventTypeOption, SourceOption, ServiceStyleOption, LeadStatusOption, LostReasonOption, MealTypeOption
 from .finance import Invoice, Payment
-from .settings import SiteSettings, OrgSettings
+from .settings import OrgSettings
 from .activity import ActivityLog
 from .reminders import Reminder
 from .whatsapp import WhatsAppMessage

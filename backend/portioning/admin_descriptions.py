@@ -30,7 +30,6 @@ DESCRIPTIONS = {
     "bookings.lostreasonoption": "Reasons a lead was marked lost.",
     # Bookings — settings
     "bookings.orgsettings": "Per-organisation config (pricing rounding, tax, defaults).",
-    "bookings.sitesettings": "Global branding and quotation terms.",
     # Dishes / menus
     "dishes.dishcategory": "Categories that group dishes (mains, desserts…) with portioning pools.",
     "dishes.dish": "A menu dish with portion sizes and cost/price data.",
