@@ -7,6 +7,8 @@ export interface AuthUser {
   last_name: string;
   role: string;
   organisation: { id: number; name: string } | null;
+  is_superuser?: boolean;
+  all_orgs?: boolean; // superuser viewing all orgs (no single active org)
 }
 
 export interface ManagedUser {
@@ -926,6 +928,11 @@ export const api = {
     await fetch(`${API_BASE}/auth/logout/`, { method: "POST", credentials: "include", headers: buildHeaders() });
   },
   getMe: () => fetchApi<AuthUser>("/auth/me/"),
+  // Superuser org impersonation. orgId: a pk to enter that org, "all" for
+  // all-orgs mode, or null to return to the superuser's own org.
+  getOrganisations: () => fetchApi<{ id: number; name: string }[]>("/auth/organisations/"),
+  switchOrg: (orgId: number | "all" | null) =>
+    fetchApi<AuthUser>("/auth/switch-org/", { method: "POST", body: JSON.stringify({ org_id: orgId }) }),
 
   getDishes: () => fetchList<Dish>("/dishes/?page_size=all"),
   getCategories: () => fetchList<DishCategory>("/categories/?page_size=all"),

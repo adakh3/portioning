@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import { mutate } from "swr";
 import { api, AuthUser } from "./api";
 
 interface AuthContextValue {
@@ -9,6 +10,7 @@ interface AuthContextValue {
   loading: boolean;
   login: (email: string, password: string, returnTo?: string) => Promise<void>;
   logout: () => Promise<void>;
+  switchOrg: (orgId: number | "all" | null) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -58,8 +60,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     router.push("/login");
   }, [router]);
 
+  const switchOrg = useCallback(async (orgId: number | "all" | null) => {
+    const u = await api.switchOrg(orgId);
+    setUser(u);
+    // Every cached query is org-scoped — drop all SWR caches and refetch so the
+    // whole app reflects the newly-active org.
+    await mutate(() => true, undefined, { revalidate: true });
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, switchOrg }}>
       {children}
     </AuthContext.Provider>
   );

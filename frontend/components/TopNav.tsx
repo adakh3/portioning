@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { getActiveDepartment, getVisiblePages } from "@/lib/navigation";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
+import OrgSwitcher from "@/components/OrgSwitcher";
 
 export default function TopNav() {
   const pathname = usePathname();
@@ -43,6 +44,7 @@ export default function TopNav() {
 
         {user && (
           <div className="ml-auto flex items-center gap-3">
+            <OrgSwitcher />
             <span className="text-xs text-muted-foreground">
               {user.first_name} {user.last_name}
               <span className="ml-1.5 px-1.5 py-0.5 rounded bg-accent text-[10px] font-medium uppercase">
