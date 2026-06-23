@@ -4,6 +4,7 @@ from django.contrib import admin
 from django.contrib.auth import get_user_model
 from django.test import TestCase, RequestFactory
 
+from bookings.models import Account, Contact, Invoice, Lead, Payment, Quote
 from dishes.models import Dish, DishCategory
 from equipment.models import EquipmentItem, EquipmentReservation
 from menus.models import MenuTemplate
@@ -21,7 +22,9 @@ class TestAdminOrgVisibility(TestCase):
 
     def test_direct_org_models_show_org_column_and_filter(self):
         for model in [MenuTemplate, Dish, DishCategory, LaborRole, StaffMember,
-                      EquipmentItem, GlobalConfig]:
+                      EquipmentItem, GlobalConfig,
+                      # bookings admins (via OrgScopedAdmin)
+                      Lead, Account, Contact, Quote]:
             ma = self._ma(model)
             self.assertIn("organisation", ma.get_list_display(self.req), model.__name__)
             self.assertIn("organisation", ma.get_list_filter(self.req), model.__name__)
@@ -40,6 +43,9 @@ class TestAdminOrgVisibility(TestCase):
             AllocationRule: "role__organisation",
             EquipmentReservation: "equipment__organisation",
             CategoryConstraint: "category__organisation",
+            # bookings records scoped through a parent
+            Invoice: "event__organisation",
+            Payment: "invoice__event__organisation",
         }
         for model, path in cases.items():
             self.assertIn(path, self._ma(model).get_list_filter(self.req), model.__name__)

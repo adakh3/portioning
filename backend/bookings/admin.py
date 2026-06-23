@@ -10,6 +10,7 @@ from django.http import FileResponse
 from django.contrib.staticfiles import finders
 
 from users.models import User
+from users.admin_mixins import OrgVisibleAdminMixin
 from .models import (
     Account, Contact, Venue, Lead, ProductLine, Quote,
     AddOnProduct, AddOnVariant, BookingLineItem,
@@ -29,8 +30,10 @@ from .services.lead_import import (
 
 # --- Org-scoped admin mixin ---
 
-class OrgScopedAdmin(admin.ModelAdmin):
-    """Base admin that scopes querysets to the logged-in user's org (unless superuser)."""
+class OrgScopedAdmin(OrgVisibleAdminMixin, admin.ModelAdmin):
+    """Base admin that scopes querysets to the logged-in user's org (unless
+    superuser), and surfaces the owning org as a column + filter (via the mixin)
+    so a superuser can tell tenants apart on every bookings changelist."""
     org_field = 'organisation'
 
     def get_queryset(self, request):
@@ -65,7 +68,8 @@ class AccountAdmin(OrgScopedAdmin):
 
 @admin.register(Contact)
 class ContactAdmin(OrgScopedAdmin):
-    org_field = 'account__organisation'
+    # Contact is org-scoped directly now (person-first); was account__organisation.
+    org_field = 'organisation'
 
     list_display = ['name', 'account', 'role', 'email', 'phone', 'is_primary']
     list_filter = ['role', 'is_primary']

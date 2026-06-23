@@ -16,7 +16,7 @@ merged) everything *looked* global. A shared `OrgVisibleAdminMixin`
 category constraints) filter via their parent's org path.
 
 ## Acceptance criteria
-- [ ] Each org-scoped changelist (Dishes, Dish categories, Menu templates, Labor roles, Staff, Equipment, Rules) shows the **Organisation** of every row.
+- [ ] Every org-scoped changelist shows the **Organisation** of each row — both the catalog apps (Dishes, Dish categories, Menu templates, Labor roles, Staff, Equipment, Rules) **and the bookings apps** (Leads, Accounts, Contacts, Quotes, Invoices, Payments, choice options, add-on products, venues, …) via the shared `OrgScopedAdmin` base.
 - [ ] Each has an **organisation** filter in the right sidebar to narrow to one org.
 - [ ] The natural first column (e.g. name) stays the clickable link; list_editable still works.
 - [ ] Adding a record requires choosing an Organisation (the FK is required), so a row can't be created org-less.
