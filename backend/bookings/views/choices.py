@@ -35,17 +35,19 @@ class LeadStatusOptionListView(OrgQuerySetMixin, generics.ListAPIView):
     serializer_class = LeadStatusOptionSerializer
 
 
-def _unique_status_value(org, label):
-    """Generate a stable, unique key for a new status from its label."""
-    base = (slugify(label).replace('-', '_') or 'status')[:50]
-    existing = set(
-        LeadStatusOption.objects.filter(organisation=org).values_list('value', flat=True)
-    )
+def _unique_choice_value(model, org, label, fallback='option'):
+    """Generate a stable, unique key for a new choice option from its label."""
+    base = (slugify(label).replace('-', '_') or fallback)[:50]
+    existing = set(model.objects.filter(organisation=org).values_list('value', flat=True))
     value, i = base, 2
     while value in existing:
         value = f"{base}_{i}"[:50]
         i += 1
     return value
+
+
+def _unique_status_value(org, label):
+    return _unique_choice_value(LeadStatusOption, org, label, fallback='status')
 
 
 def _enforce_singletons(instance):
@@ -106,3 +108,43 @@ class LostReasonOptionListView(OrgQuerySetMixin, generics.ListAPIView):
 class MealTypeOptionListView(OrgQuerySetMixin, generics.ListAPIView):
     queryset = MealTypeOption.objects.filter(is_active=True)
     serializer_class = MealTypeOptionSerializer
+
+
+# --- Simple choice-option management (Settings, manager/owner) ---
+
+def make_choice_manage_views(model, serializer_cls, fallback):
+    """Build (list+create, retrieve+update+destroy) management views for an
+    org-scoped choice-option list, so Settings can expose them in-app. Lists ALL
+    options (incl. inactive); create auto-generates a stable `value` from the
+    label; manager/owner only."""
+
+    class ManageListCreate(OrgQuerySetMixin, generics.ListCreateAPIView):
+        queryset = model.objects.all().order_by('sort_order', 'pk')
+        serializer_class = serializer_cls
+        permission_classes = [IsManagerOrOwner]
+
+        def perform_create(self, serializer):
+            org = get_request_org(self.request)
+            value = _unique_choice_value(model, org, serializer.validated_data.get('label', ''), fallback)
+            serializer.save(organisation=org, value=value)
+
+    class ManageDetail(OrgQuerySetMixin, generics.RetrieveUpdateDestroyAPIView):
+        queryset = model.objects.all()
+        serializer_class = serializer_cls
+        permission_classes = [IsManagerOrOwner]
+
+    ManageListCreate.__name__ = f'{model.__name__}ManageListCreateView'
+    ManageDetail.__name__ = f'{model.__name__}ManageDetailView'
+    return ManageListCreate, ManageDetail
+
+
+EventTypeManageListCreateView, EventTypeManageDetailView = make_choice_manage_views(
+    EventTypeOption, EventTypeOptionSerializer, 'event_type')
+SourceManageListCreateView, SourceManageDetailView = make_choice_manage_views(
+    SourceOption, SourceOptionSerializer, 'source')
+ServiceStyleManageListCreateView, ServiceStyleManageDetailView = make_choice_manage_views(
+    ServiceStyleOption, ServiceStyleOptionSerializer, 'service_style')
+MealTypeManageListCreateView, MealTypeManageDetailView = make_choice_manage_views(
+    MealTypeOption, MealTypeOptionSerializer, 'meal_type')
+LostReasonManageListCreateView, LostReasonManageDetailView = make_choice_manage_views(
+    LostReasonOption, LostReasonOptionSerializer, 'reason')

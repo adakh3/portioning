@@ -10,6 +10,7 @@ import { ValidatedInput } from "@/components/ui/validated-input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import LeadStatusesSettings from "@/components/LeadStatusesSettings";
+import ChoiceOptionsSettings from "@/components/ChoiceOptionsSettings";
 
 export default function SettingsPage() {
   const { data: settings, isLoading: loading, mutate: mutateSettings } = useSiteSettings();
@@ -240,6 +241,50 @@ export default function SettingsPage() {
       {/* Lead Statuses */}
       <div className="space-y-6 max-w-2xl mt-8">
         <LeadStatusesSettings />
+      </div>
+
+      {/* Other org choice lists */}
+      <div className="space-y-6 max-w-2xl mt-8">
+        <ChoiceOptionsSettings
+          title="Event Types"
+          base="/bookings/settings/event-types/"
+          swrKey="managed-event-types"
+          revalidateKey="event-types"
+          description="The event types selectable on leads, quotes and events (e.g. Wedding, Corporate)."
+          addPlaceholder="New event type…"
+        />
+        <ChoiceOptionsSettings
+          title="Lead Sources"
+          base="/bookings/settings/sources/"
+          swrKey="managed-sources"
+          revalidateKey="sources"
+          description="Where leads come from (e.g. Website, Referral, Instagram)."
+          addPlaceholder="New source…"
+        />
+        <ChoiceOptionsSettings
+          title="Service Styles"
+          base="/bookings/settings/service-styles/"
+          swrKey="managed-service-styles"
+          revalidateKey="service-styles"
+          description="How food is served (e.g. Buffet, Plated, Family style)."
+          addPlaceholder="New service style…"
+        />
+        <ChoiceOptionsSettings
+          title="Meal Types"
+          base="/bookings/settings/meal-types/"
+          swrKey="managed-meal-types"
+          revalidateKey="meal-types"
+          description="Selectable meal types (e.g. Lunch, Dinner)."
+          addPlaceholder="New meal type…"
+        />
+        <ChoiceOptionsSettings
+          title="Lost Reasons"
+          base="/bookings/settings/lost-reasons/"
+          swrKey="managed-lost-reasons"
+          revalidateKey="lost-reasons"
+          description="Reasons a lead is marked lost (shown when losing a lead)."
+          addPlaceholder="New lost reason…"
+        />
       </div>
 
       {/* Product Line Colours */}

@@ -1264,6 +1264,16 @@ export const api = {
     fetchApi<ChoiceOption>(`/bookings/settings/lead-statuses/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
   deleteLeadStatus: (id: number) =>
     fetchApi<void>(`/bookings/settings/lead-statuses/${id}/`, { method: "DELETE" }),
+  // Generic management for the simple choice-option lists (event types, sources,
+  // service styles, meal types, lost reasons). `base` is the management endpoint,
+  // e.g. "/bookings/settings/sources/".
+  getManagedChoices: (base: string) => fetchList<ChoiceOption>(`${base}?page_size=all`),
+  createChoiceOption: (base: string, data: Partial<ChoiceOption>) =>
+    fetchApi<ChoiceOption>(base, { method: "POST", body: JSON.stringify(data) }),
+  updateChoiceOption: (base: string, id: number, data: Partial<ChoiceOption>) =>
+    fetchApi<ChoiceOption>(`${base}${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
+  deleteChoiceOption: (base: string, id: number) =>
+    fetchApi<void>(`${base}${id}/`, { method: "DELETE" }),
   getLostReasons: () => fetchList<ChoiceOption>("/bookings/lost-reasons/?page_size=all"),
   getMealTypes: () => fetchList<ChoiceOption>("/bookings/meal-types/?page_size=all"),
 

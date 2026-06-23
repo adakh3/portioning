@@ -17,6 +17,11 @@ from .choices import (
     ServiceStyleOptionListView, LeadStatusOptionListView,
     LeadStatusManageListCreateView, LeadStatusManageDetailView,
     LostReasonOptionListView, MealTypeOptionListView,
+    EventTypeManageListCreateView, EventTypeManageDetailView,
+    SourceManageListCreateView, SourceManageDetailView,
+    ServiceStyleManageListCreateView, ServiceStyleManageDetailView,
+    MealTypeManageListCreateView, MealTypeManageDetailView,
+    LostReasonManageListCreateView, LostReasonManageDetailView,
 )
 from .addons import AddOnProductListView
 from .reminders import (

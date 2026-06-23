@@ -124,6 +124,13 @@ export function useManagedLeadStatuses() {
   });
 }
 
+// Generic management list for a simple choice-option type (Settings).
+export function useManagedChoices(key: string, base: string) {
+  return useSWR<ChoiceOption[]>(key, () => api.getManagedChoices(base), {
+    revalidateOnFocus: false,
+  });
+}
+
 export function useLostReasons() {
   return useSWR<ChoiceOption[]>("lost-reasons", () => api.getLostReasons(), {
     dedupingInterval: 300000,

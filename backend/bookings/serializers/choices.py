@@ -9,6 +9,9 @@ from bookings.models.choices import (
 class ChoiceOptionSerializer(serializers.ModelSerializer):
     class Meta:
         fields = ['id', 'value', 'label', 'sort_order', 'is_active']
+        # `value` is the stored key (on leads/events/etc.); generated server-side
+        # from the label on create, never edited after (renaming the label is safe).
+        read_only_fields = ['value']
 
 
 class EventTypeOptionSerializer(ChoiceOptionSerializer):
