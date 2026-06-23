@@ -1,9 +1,10 @@
 from django.contrib import admin
+from users.admin_mixins import OrgVisibleAdminMixin
 from .models import DishCategory, Dish
 
 
 @admin.register(DishCategory)
-class DishCategoryAdmin(admin.ModelAdmin):
+class DishCategoryAdmin(OrgVisibleAdminMixin, admin.ModelAdmin):
     list_display = ['display_name', 'name', 'pool', 'unit', 'display_order',
                     'baseline_budget_grams', 'min_per_dish_grams', 'fixed_portion_grams',
                     'protein_is_additive', 'addition_surcharge', 'removal_discount']
@@ -15,7 +16,7 @@ class DishCategoryAdmin(admin.ModelAdmin):
 
 
 @admin.register(Dish)
-class DishAdmin(admin.ModelAdmin):
+class DishAdmin(OrgVisibleAdminMixin, admin.ModelAdmin):
     list_display = ['name', 'category', 'protein_type', 'default_portion_grams',
                     'popularity', 'cost_per_gram', 'selling_price_per_gram',
                     'selling_price_override', 'addition_surcharge', 'removal_discount',

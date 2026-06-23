@@ -1,4 +1,5 @@
 from django.contrib import admin
+from users.admin_mixins import OrgVisibleAdminMixin
 from .models import MenuTemplate, MenuDishPortion, MenuTemplatePriceTier
 
 
@@ -14,7 +15,7 @@ class MenuTemplatePriceTierInline(admin.TabularInline):
 
 
 @admin.register(MenuTemplate)
-class MenuTemplateAdmin(admin.ModelAdmin):
+class MenuTemplateAdmin(OrgVisibleAdminMixin, admin.ModelAdmin):
     list_display = ['name', 'menu_type', 'is_active', 'default_gents', 'default_ladies', 'created_at']
     list_filter = ['is_active', 'menu_type']
     search_fields = ['name']

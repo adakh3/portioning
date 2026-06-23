@@ -1,4 +1,5 @@
 from django.contrib.auth.models import AbstractUser, BaseUserManager
+from django.core.exceptions import ValidationError
 from django.db import models
 
 
@@ -62,3 +63,18 @@ class User(AbstractUser):
 
     def __str__(self):
         return self.email
+
+    def clean(self):
+        super().clean()
+        # Invariant: a user assigned to an organisation is a *tenant* user and must
+        # have NO admin access — neither staff (Django-admin login) nor superuser
+        # (cross-tenant god mode). Admin/system accounts must have no organisation.
+        # This is what stops an org user from ever reaching the Django panel.
+        if self.organisation_id and (self.is_staff or self.is_superuser):
+            raise ValidationError({
+                'organisation': (
+                    'A user assigned to an organisation is a tenant user and cannot have '
+                    'admin access. Either clear the organisation (to make it a system/admin '
+                    'account), or uncheck Staff status and Superuser status.'
+                ),
+            })

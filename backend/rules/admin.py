@@ -1,4 +1,6 @@
 from django.contrib import admin
+
+from users.admin_mixins import OrgVisibleAdminMixin
 from .models import (
     GlobalConfig, BudgetProfile, GuestProfile,
     CombinationRule, GlobalConstraint, CategoryConstraint,
@@ -6,37 +8,38 @@ from .models import (
 
 
 @admin.register(GlobalConfig)
-class GlobalConfigAdmin(admin.ModelAdmin):
+class GlobalConfigAdmin(OrgVisibleAdminMixin, admin.ModelAdmin):
     list_display = ['organisation', 'popularity_enabled', 'popularity_strength',
                     'protein_pool_ceiling_grams', 'dessert_pool_ceiling_grams',
                     'dish_growth_rate', 'absent_redistribution_fraction']
 
 
 @admin.register(BudgetProfile)
-class BudgetProfileAdmin(admin.ModelAdmin):
+class BudgetProfileAdmin(OrgVisibleAdminMixin, admin.ModelAdmin):
     list_display = ['name', 'organisation', 'protein_pool_ceiling_grams', 'dessert_pool_ceiling_grams', 'is_default']
     list_editable = ['is_default']
     filter_horizontal = ['categories']
 
 
 @admin.register(GuestProfile)
-class GuestProfileAdmin(admin.ModelAdmin):
+class GuestProfileAdmin(OrgVisibleAdminMixin, admin.ModelAdmin):
     list_display = ['name', 'organisation', 'portion_multiplier']
     list_editable = ['portion_multiplier']
 
 
 @admin.register(CombinationRule)
-class CombinationRuleAdmin(admin.ModelAdmin):
+class CombinationRuleAdmin(OrgVisibleAdminMixin, admin.ModelAdmin):
     list_display = ['description', 'organisation', 'reduction_factor', 'is_active']
     list_editable = ['is_active']
     filter_horizontal = ['categories']
 
 
 @admin.register(GlobalConstraint)
-class GlobalConstraintAdmin(admin.ModelAdmin):
+class GlobalConstraintAdmin(OrgVisibleAdminMixin, admin.ModelAdmin):
     list_display = ['organisation', 'max_total_food_per_person_grams', 'min_portion_per_dish_grams']
 
 
 @admin.register(CategoryConstraint)
-class CategoryConstraintAdmin(admin.ModelAdmin):
+class CategoryConstraintAdmin(OrgVisibleAdminMixin, admin.ModelAdmin):
+    org_field = 'category__organisation'
     list_display = ['category', 'min_portion_grams', 'max_portion_grams', 'max_total_category_grams']
