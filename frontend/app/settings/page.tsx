@@ -123,7 +123,7 @@ export default function SettingsPage() {
       </Button>
       <h1 className="text-2xl font-bold text-foreground mb-6">Settings</h1>
 
-      <div className="flex gap-1 border-b border-border mb-6 overflow-x-auto">
+      <div className="flex gap-1 border-b border-border mb-6 overflow-x-auto overflow-y-hidden">
         {SETTINGS_TABS.map((t) => (
           <button
             key={t.id}
