@@ -13,7 +13,7 @@ import BusinessSelect from "@/components/BusinessSelect";
 import VenueField from "@/components/VenueField";
 import { computeQuoteTotals, buildQuoteSavePayload, LineItemInput } from "@/lib/quoteTotals";
 import AddOnItemsEditor from "@/components/AddOnItemsEditor";
-import QuoteTotalsCard from "@/components/QuoteTotalsCard";
+import BookingTotalsCard from "@/components/BookingTotalsCard";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -46,7 +46,7 @@ export default function QuoteDetailPage() {
   const { data: accounts = [] } = useAccounts();
   const { data: orgContacts = [] } = useContacts();
   const { data: rawSettings } = useSiteSettings();
-  const settings = rawSettings || { currency_symbol: "£", currency_code: "GBP", date_format: "DD/MM/YYYY", default_price_per_head: "0.00", target_food_cost_percentage: "30.00", price_rounding_step: "50" };
+  const settings = rawSettings || { currency_symbol: "£", currency_code: "GBP", date_format: "DD/MM/YYYY", default_price_per_head: "0.00", target_food_cost_percentage: "30.00", price_rounding_step: "50", tax_label: "VAT", default_tax_rate: "0.2000" };
   const dateFormat = useDateFormat();
   const { data: eventTypes = [] } = useEventTypes();
   const { data: serviceStyles = [] } = useServiceStyles();
@@ -401,15 +401,17 @@ export default function QuoteDetailPage() {
           </Card>
 
           {/* Quote Total (tax rate + menu + additional items) */}
-          <QuoteTotalsCard
+          <BookingTotalsCard
+            title="Quote Total"
+            currencySymbol={cs}
             foodTotal={createTotals.food_total}
+            foodLabel={`Food / Menu (${formatCurrency(createData.price_per_head || 0, cs)}/head × ${createData.guest_count || 0} guests)`}
+            addOnsTotal={Math.round((createTotals.subtotal - createTotals.food_total) * 100) / 100}
             subtotal={createTotals.subtotal}
             taxAmount={createTotals.tax_amount}
             total={createTotals.total}
-            pricePerHead={createData.price_per_head}
-            guestCount={createData.guest_count}
+            taxLabel={settings.tax_label || "VAT"}
             taxPercent={(parseFloat(createData.tax_rate || "0") * 100).toFixed(0)}
-            currencySymbol={cs}
             taxRateField={
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">Tax Rate (%)</label>
@@ -875,15 +877,21 @@ export default function QuoteDetailPage() {
       </Card>
 
       {/* Quote Total (menu + additional items) */}
-      <QuoteTotalsCard
-        foodTotal={editing ? liveTotals.food_total : parseFloat(q.food_total)}
-        subtotal={editing ? liveTotals.subtotal : parseFloat(q.subtotal)}
+      {(() => {
+        const foodTotal = editing ? liveTotals.food_total : parseFloat(q.food_total);
+        const subtotal = editing ? liveTotals.subtotal : parseFloat(q.subtotal);
+        return (
+      <BookingTotalsCard
+        title="Quote Total"
+        currencySymbol={cs}
+        foodTotal={foodTotal}
+        foodLabel={`Food / Menu (${formatCurrency(editing ? editData.price_per_head : (q.price_per_head ?? 0), cs)}/head × ${editing ? editGuestCount : q.guest_count} guests)`}
+        addOnsTotal={Math.round((subtotal - foodTotal) * 100) / 100}
+        subtotal={subtotal}
         taxAmount={editing ? liveTotals.tax_amount : parseFloat(q.tax_amount)}
         total={editing ? liveTotals.total : parseFloat(q.total)}
-        pricePerHead={editing ? editData.price_per_head : (q.price_per_head ?? 0)}
-        guestCount={editing ? editGuestCount : q.guest_count}
+        taxLabel={settings.tax_label || "VAT"}
         taxPercent={editing ? parseFloat(editData.tax_rate || "0").toFixed(0) : (parseFloat(q.tax_rate) * 100).toFixed(0)}
-        currencySymbol={cs}
         taxRateField={editing ? (
           <div>
             <label className="block text-sm font-medium text-foreground mb-1">Tax Rate (%)</label>
@@ -891,6 +899,8 @@ export default function QuoteDetailPage() {
           </div>
         ) : undefined}
       />
+        );
+      })()}
 
       {editing && (
         <Card>

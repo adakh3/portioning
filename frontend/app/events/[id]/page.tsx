@@ -22,7 +22,8 @@ import {
   useMealTypes,
 } from "@/lib/hooks";
 import { formatDate, formatDateTime as sharedFormatDateTime } from "@/lib/dateFormat";
-import { LineItemInput, lineItemTotal } from "@/lib/quoteTotals";
+import { LineItemInput, lineItemTotal, computeBookingTotals } from "@/lib/quoteTotals";
+import BookingTotalsCard from "@/components/BookingTotalsCard";
 import AddOnItemsEditor from "@/components/AddOnItemsEditor";
 import MenuBuilder from "@/components/MenuBuilder";
 import CustomerSelect from "@/components/CustomerSelect";
@@ -1076,86 +1077,59 @@ export default function EventDetailPage() {
         </CardContent>
       </Card>
 
-      {/* Pricing Section */}
-      <Card>
-        <CardContent className="p-6">
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Pricing</h2>
-          {(() => {
-            const pph = editing ? parseFloat(formPricePerHead) || 0 : parseFloat(event?.price_per_head || "0");
-            const guests = editing ? formTotalGuests : ((event?.gents || 0) + (event?.ladies || 0));
-            const foodTotal = pph * guests;
-            const meals = editing ? formAdditionalMeals : (event?.additional_meals || []);
-            const mealsTotal = meals.reduce((sum, m) => sum + m.guest_count * (parseFloat(m.price_per_head || "0") || 0), 0);
-            const liItems = editing ? formLineItems : (event?.line_items || []);
-            const addOnsTotal = liItems.reduce((sum, li) => sum + lineItemTotal(li, guests), 0);
-            const taxable = editing ? formIsTaxable : (event?.is_taxable || false);
-            const taxRate = parseFloat(event?.tax_rate || settings.default_tax_rate) || 0;
-            // Tax applies to food + meals + TAXABLE add-ons only — same rule as the
-            // server engine (bookings/services/totals.py). Non-taxable items are in
-            // the subtotal but never taxed.
-            const taxableAddOns = liItems.filter((li) => li.is_taxable).reduce((sum, li) => sum + lineItemTotal(li, guests), 0);
-            const computedSubtotal = foodTotal + mealsTotal + addOnsTotal;
-            const computedTax = taxable ? (foodTotal + mealsTotal + taxableAddOns) * taxRate : 0;
-            // Editing → live preview; viewing → the server's stored totals (single
-            // source of truth, computed by the same engine).
-            const subtotal = editing ? computedSubtotal : parseFloat(event?.subtotal || "0");
-            const taxAmount = editing ? computedTax : parseFloat(event?.tax_amount || "0");
-            const grandTotal = editing ? (computedSubtotal + computedTax) : parseFloat(event?.total || "0");
+      {/* Pricing Section — shared BookingTotalsCard + engine (same as quotes) */}
+      {(() => {
+        const pph = editing ? parseFloat(formPricePerHead) || 0 : parseFloat(event?.price_per_head || "0");
+        const guests = editing ? formTotalGuests : ((event?.gents || 0) + (event?.ladies || 0));
+        const foodTotal = pph * guests;
+        const meals = editing ? formAdditionalMeals : (event?.additional_meals || []);
+        const mealsTotal = meals.reduce((sum, m) => sum + m.guest_count * (parseFloat(m.price_per_head || "0") || 0), 0);
+        const mealRows = meals
+          .map((m) => ({ m, total: m.guest_count * (parseFloat(m.price_per_head || "0") || 0) }))
+          .filter((r) => r.total > 0)
+          .map((r) => ({
+            label: `${r.m.label || "Additional Meal"} (${formatCurrency(r.m.price_per_head || "0", settings.currency_symbol)}/head × ${r.m.guest_count})`,
+            total: r.total,
+          }));
+        const liItems = editing ? formLineItems : (event?.line_items || []);
+        const addOnsTotal = liItems.reduce((sum, li) => sum + lineItemTotal(li, guests), 0);
+        const taxable = editing ? formIsTaxable : (event?.is_taxable || false);
+        const taxRate = parseFloat(event?.tax_rate || settings.default_tax_rate) || 0;
+        // One engine, same rule as quotes (tax on food + meals + taxable add-ons
+        // only). Editing → live preview; viewing → the server's stored totals.
+        const computed = computeBookingTotals(foodTotal + mealsTotal, liItems, guests, taxable ? taxRate : 0);
+        const subtotal = editing ? computed.subtotal : parseFloat(event?.subtotal || "0");
+        const taxAmount = editing ? computed.tax_amount : parseFloat(event?.tax_amount || "0");
+        const grandTotal = editing ? computed.total : parseFloat(event?.total || "0");
 
-            return (
-              <div className="space-y-4">
-                <div className="border border-border rounded-lg divide-y divide-border">
-                  <div className="flex justify-between px-4 py-2 text-sm">
-                    <span className="text-muted-foreground">Food ({formatCurrency(pph, settings.currency_symbol)}/head × {guests} guests)</span>
-                    <span className="font-medium text-foreground">{formatCurrency(foodTotal, settings.currency_symbol)}</span>
-                  </div>
-                  {meals.map((m, i) => {
-                    const mTotal = m.guest_count * (parseFloat(m.price_per_head || "0") || 0);
-                    return mTotal > 0 ? (
-                      <div key={i} className="flex justify-between px-4 py-2 text-sm">
-                        <span className="text-muted-foreground">{m.label || "Additional Meal"} ({formatCurrency(m.price_per_head || "0", settings.currency_symbol)}/head × {m.guest_count})</span>
-                        <span className="font-medium text-foreground">{formatCurrency(mTotal, settings.currency_symbol)}</span>
-                      </div>
-                    ) : null;
-                  })}
-                  {addOnsTotal !== 0 && (
-                    <div className="flex justify-between px-4 py-2 text-sm">
-                      <span className="text-muted-foreground">Add-on items</span>
-                      <span className="font-medium text-foreground">{formatCurrency(addOnsTotal, settings.currency_symbol)}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between px-4 py-2 text-sm font-medium">
-                    <span className="text-foreground">Subtotal</span>
-                    <span className="text-foreground">{formatCurrency(subtotal, settings.currency_symbol)}</span>
-                  </div>
-                  <div className="flex justify-between items-center px-4 py-2 text-sm">
-                    <span className="text-muted-foreground flex items-center gap-2">
-                      {editing ? (
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={formIsTaxable}
-                            onChange={(e) => setFormIsTaxable(e.target.checked)}
-                            className="rounded border-input"
-                          />
-                          {settings.tax_label} ({(taxRate * 100).toFixed(0)}%)
-                        </label>
-                      ) : (
-                        <span>{settings.tax_label} ({(taxRate * 100).toFixed(0)}%){!taxable && " — not applied"}</span>
-                      )}
-                    </span>
-                    <span className="font-medium text-foreground">{taxable ? formatCurrency(taxAmount, settings.currency_symbol) : "—"}</span>
-                  </div>
-                  <div className="flex justify-between px-4 py-3 text-base font-bold bg-muted/30">
-                    <span className="text-foreground">Total</span>
-                    <span className="text-foreground">{formatCurrency(grandTotal, settings.currency_symbol)}</span>
-                  </div>
-                </div>
-              </div>
-            );
-          })()}
-        </CardContent>
-      </Card>
+        return (
+          <BookingTotalsCard
+            title="Pricing"
+            currencySymbol={settings.currency_symbol}
+            foodTotal={foodTotal}
+            foodLabel={`Food (${formatCurrency(pph, settings.currency_symbol)}/head × ${guests} guests)`}
+            meals={mealRows}
+            addOnsTotal={addOnsTotal}
+            subtotal={subtotal}
+            taxAmount={taxAmount}
+            total={grandTotal}
+            taxLabel={settings.tax_label}
+            taxPercent={(taxRate * 100).toFixed(0)}
+            taxApplied={taxable}
+            taxControl={editing ? (
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formIsTaxable}
+                  onChange={(e) => setFormIsTaxable(e.target.checked)}
+                  className="rounded border-input"
+                />
+                {settings.tax_label} ({(taxRate * 100).toFixed(0)}%)
+              </label>
+            ) : undefined}
+          />
+        );
+      })()}
 
       {/* Staffing and Invoices sections hidden from salesperson view (REL-289) */}
       {/* These remain accessible via /staff and /invoices pages */}

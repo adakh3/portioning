@@ -17,6 +17,13 @@ The event page no longer re-implements the math — in view mode it shows the se
 totals; while editing it shows a live preview using the **same rule** (tax on food + meals +
 taxable items only).
 
+The **frontend** is unified the same way: `lib/quoteTotals.ts: computeBookingTotals(foodTotal,
+lineItems, guestCount, taxRate)` mirrors the backend engine and is used by **both** the quote
+and event pages (`computeQuoteTotals` is a thin wrapper over it). Both pages render the **same**
+detailed breakdown via the shared `components/BookingTotalsCard.tsx` — Food → (additional meals,
+events only) → Add-on items → Subtotal → Tax → Total — so quotes and events look and add up
+identically.
+
 ## The rule (single source of truth)
 - **Subtotal** = food (price/head × guests) + additional meals + all add-on line items.
 - **Taxable base** = food + meals + **taxable** add-on items only (non-taxable items are in the
@@ -50,5 +57,10 @@ taxable items only).
 **Steps:** Create a deposit invoice from an event.
 **Expected:** The invoice's subtotal/tax/total reflect the event's real totals, not zeros.
 
+### TC5 — Quote & event breakdown look identical
+**Steps:** Open a quote and an event, each with a per-head price and add-on items.
+**Expected:** Both show the same detailed pricing box (Food → Add-on items → Subtotal → Tax → Total); the event additionally lists any additional-meal rows. The numbers match what the server stored.
+
 ## Automated coverage
 - Backend: `bookings/test_totals.py` — the engine (food/items/taxable-vs-non-taxable/discount/rounding/zero), Quote integration, Event integration (incl. additional meals, non-taxable events).
+- Frontend: `lib/quoteTotals.test.ts` — `computeBookingTotals` (meals-in-foodTotal, non-taxable rate 0, parity with `computeQuoteTotals`); `components/BookingTotalsCard.test.tsx` — the shared breakdown (food/meals/add-on/tax-not-applied rows).

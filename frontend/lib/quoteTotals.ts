@@ -15,16 +15,19 @@ export interface LineItemInput {
   sort_order?: number;
 }
 
-export interface QuoteTotals {
+export interface BookingTotals {
   food_total: number;
   subtotal: number;
   tax_amount: number;
   total: number;
 }
 
+/** @deprecated alias — use BookingTotals (quotes and events share one shape). */
+export type QuoteTotals = BookingTotals;
+
 const round2 = (n: number): number => Math.round((n + Number.EPSILON) * 100) / 100;
 
-/** Line total — mirrors QuoteLineItem.save() in the backend. */
+/** Line total — mirrors BookingLineItem.save() in the backend. */
 export function lineItemTotal(item: LineItemInput, guestCount: number): number {
   const qty = Number(item.quantity) || 0;
   const price = Number(item.unit_price) || 0;
@@ -34,32 +37,48 @@ export function lineItemTotal(item: LineItemInput, guestCount: number): number {
 }
 
 /**
- * Compute quote totals. `taxRate` is a DECIMAL fraction (0.2 = 20%), matching
- * how the backend stores it; the caller converts from any percent input.
- * Mirrors Quote.recalculate_totals(): food (price/head × guests) goes into the
- * taxable subtotal; line items split by is_taxable; tax applies to taxable only.
+ * The single source of truth for booking totals on the frontend — mirrors the
+ * backend engine `bookings/services/totals.py: compute_booking_totals`. Used by
+ * BOTH quotes and events so the number never differs between screens.
+ *
+ * `foodTotal` already includes any additional meals (the caller sums them, as
+ * the backend does). `taxRate` is the EFFECTIVE decimal fraction (0.2 = 20%);
+ * pass 0 when the booking isn't taxable. Food + taxable line items form the
+ * taxable base; non-taxable items sit in the subtotal but are never taxed.
+ */
+export function computeBookingTotals(
+  foodTotal: number,
+  lineItems: LineItemInput[],
+  guestCount: number,
+  taxRate: number,
+): BookingTotals {
+  const food = round2(foodTotal || 0);
+  let taxable = food;
+  let nonTaxable = 0;
+  for (const item of lineItems) {
+    const lt = lineItemTotal(item, guestCount);
+    if (item.is_taxable) taxable += lt;
+    else nonTaxable += lt;
+  }
+  const subtotal = round2(taxable + nonTaxable);
+  const tax_amount = round2(taxable * (taxRate || 0));
+  return { food_total: food, subtotal, tax_amount, total: round2(subtotal + tax_amount) };
+}
+
+/**
+ * Quote convenience wrapper over {@link computeBookingTotals}: food = price/head
+ * × guests (quotes have no additional meals). `taxRate` is a decimal fraction.
  */
 export function computeQuoteTotals(
   pricePerHead: number | string | null | undefined,
   guestCount: number | string | null | undefined,
   taxRate: number | string | null | undefined,
   lineItems: LineItemInput[],
-): QuoteTotals {
+): BookingTotals {
   const price = Number(pricePerHead) || 0;
   const guests = Number(guestCount) || 0;
-  const rate = Number(taxRate) || 0;
-
   const food = price > 0 ? round2(price * guests) : 0;
-  let taxable = food;
-  let nonTaxable = 0;
-  for (const item of lineItems) {
-    const lt = lineItemTotal(item, guests);
-    if (item.is_taxable) taxable += lt;
-    else nonTaxable += lt;
-  }
-  const subtotal = round2(taxable + nonTaxable);
-  const tax_amount = round2(taxable * rate);
-  return { food_total: food, subtotal, tax_amount, total: round2(subtotal + tax_amount) };
+  return computeBookingTotals(food, lineItems, guests, Number(taxRate) || 0);
 }
 
 export interface QuoteEditData {

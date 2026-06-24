@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeQuoteTotals, buildQuoteSavePayload, lineItemTotal, LineItemInput } from "./quoteTotals";
+import { computeQuoteTotals, computeBookingTotals, buildQuoteSavePayload, lineItemTotal, LineItemInput } from "./quoteTotals";
 
 const item = (over: Partial<LineItemInput>): LineItemInput => ({
   category: "rental",
@@ -52,6 +52,30 @@ describe("computeQuoteTotals", () => {
 
   it("zero/blank price yields no food cost", () => {
     expect(computeQuoteTotals("", 100, 0.2, []).food_total).toBe(0);
+  });
+});
+
+describe("computeBookingTotals (shared engine — quotes & events)", () => {
+  it("foodTotal already includes meals; tax on food + taxable items only", () => {
+    // event-style: food 1000 + meals 300 = 1300 foodTotal, +200 taxable, +100 non-taxable
+    const t = computeBookingTotals(1300, [
+      item({ unit: "flat", quantity: 1, unit_price: 200, is_taxable: true }),
+      item({ unit: "flat", quantity: 1, unit_price: 100, is_taxable: false }),
+    ], 50, 0.15);
+    // taxable = 1300 + 200 = 1500; subtotal = 1600; tax = 1500*0.15 = 225
+    expect(t).toEqual({ food_total: 1300, subtotal: 1600, tax_amount: 225, total: 1825 });
+  });
+
+  it("passing rate 0 (not taxable) yields no tax", () => {
+    const t = computeBookingTotals(1000, [item({ unit: "flat", unit_price: 100 })], 20, 0);
+    expect(t).toEqual({ food_total: 1000, subtotal: 1100, tax_amount: 0, total: 1100 });
+  });
+
+  it("matches computeQuoteTotals for the same inputs (no meals)", () => {
+    const items = [item({ unit: "each", quantity: 10, unit_price: 5, is_taxable: true })];
+    expect(computeBookingTotals(50 * 100, items, 100, 0.2)).toEqual(
+      computeQuoteTotals(50, 100, 0.2, items),
+    );
   });
 });
 
