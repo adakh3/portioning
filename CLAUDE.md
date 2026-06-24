@@ -40,6 +40,7 @@ npm run dev
 ## Important Rules
 
 - **Any change to calculation logic** (engine, pools, categories, baselines, ceilings) **must also update PORTIONING_LOGIC.md** to keep documentation in sync with the code.
+- **Booking totals are computed on the backend (source of truth) AND mirrored on the frontend for live preview.** Any change to the totals math must update **all three together** — `backend/bookings/services/totals.py`, `frontend/lib/quoteTotals.ts`, and the shared spec `docs/calculation-golden-cases.json` (both engines' tests assert against it). See **`docs/CALCULATION_PARITY.md`**.
 - **Any change to PORTIONING_LOGIC.md** must also update **`frontend/app/help/page.tsx`** — the help page is static content distilled from the logic doc.
 - **Any change to seed data** (new dishes, menus, categories, rules, cost data, surcharges, etc.) **must regenerate `backend/seed.json`** by running: `cd backend && python manage.py dumpdata users.Organisation dishes menus rules bookings.OrgSettings bookings.ProductLine staff.LaborRole staff.AllocationRule equipment.EquipmentItem --indent 2 -o seed.json`
 - **Seeding strategy**: All choice options (including workflow states like LeadStatusOption and LostReasonOption) are seeded **only when a new org is created**, via the `post_save` signal in `users/signals.py`. No data migrations should bulk-seed choice options. Non-workflow choice options (event types, sources, service styles, meal types, arrangements, beverages) are org-specific and configured via admin UI only.

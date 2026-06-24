@@ -1,6 +1,8 @@
 """Booking totals — the single source of truth (bookings/services/totals.py),
 used by quotes and events. These guard the money math that has regressed before:
 food + all line items (taxable/non-taxable/discount) + tax."""
+import json
+import os
 from decimal import Decimal
 
 from django.test import TestCase
@@ -9,11 +11,37 @@ from bookings.models import BookingLineItem
 from bookings.services.totals import compute_booking_totals
 from bookings.tests import make_quote, _make_org
 
+# Shared cross-language spec — the SAME file is loaded by the frontend mirror's
+# tests (frontend/lib/quoteTotals.test.ts). See docs/CALCULATION_PARITY.md.
+GOLDEN_CASES_PATH = os.path.join(
+    os.path.dirname(__file__), "..", "..", "docs", "calculation-golden-cases.json"
+)
+
 
 class _Item:
     def __init__(self, line_total, is_taxable=True):
         self.line_total = Decimal(str(line_total))
         self.is_taxable = is_taxable
+
+
+class TestGoldenCaseParity(TestCase):
+    """Run the shared golden cases through the backend engine. The frontend
+    mirror runs the SAME file through its engine — together they lock parity
+    across the two languages. Changing the rule means updating the golden file,
+    which forces both engines to conform."""
+
+    def test_backend_matches_golden_cases(self):
+        with open(GOLDEN_CASES_PATH) as f:
+            data = json.load(f)
+        for case in data["cases"]:
+            items = [_Item(i["line_total"], i["is_taxable"]) for i in case["items"]]
+            t = compute_booking_totals(
+                Decimal(case["food_total"]), items, Decimal(case["tax_rate"])
+            )
+            exp = case["expected"]
+            self.assertEqual(t.subtotal, Decimal(exp["subtotal"]), case["name"])
+            self.assertEqual(t.tax_amount, Decimal(exp["tax_amount"]), case["name"])
+            self.assertEqual(t.total, Decimal(exp["total"]), case["name"])
 
 
 class TestComputeBookingTotals(TestCase):

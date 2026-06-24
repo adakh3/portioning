@@ -1,0 +1,68 @@
+{
+  "_comment": "SHARED SPEC for booking totals — the single source of truth for the MATH, consumed by BOTH the backend engine (bookings/services/totals.py, via bookings/test_totals.py) and the frontend mirror (lib/quoteTotals.ts, via lib/quoteTotals.test.ts). Each case feeds food_total + line items (each with a precomputed line_total and is_taxable) + tax_rate (decimal fraction) and asserts the resulting subtotal/tax_amount/total. food_total already includes any additional meals. tax applies to food + taxable items only. Change the rule => update this file => BOTH engine tests must conform. See docs/CALCULATION_PARITY.md.",
+  "cases": [
+    {
+      "name": "food_only_with_tax",
+      "food_total": "1000.00",
+      "items": [],
+      "tax_rate": "0.20",
+      "expected": { "subtotal": "1000.00", "tax_amount": "200.00", "total": "1200.00" }
+    },
+    {
+      "name": "taxable_and_non_taxable_items",
+      "food_total": "0",
+      "items": [
+        { "line_total": "100", "is_taxable": true },
+        { "line_total": "50", "is_taxable": false }
+      ],
+      "tax_rate": "0.10",
+      "expected": { "subtotal": "150.00", "tax_amount": "10.00", "total": "160.00" }
+    },
+    {
+      "name": "food_plus_items_tax_only_on_food_and_taxable",
+      "food_total": "1000",
+      "items": [
+        { "line_total": "200", "is_taxable": true },
+        { "line_total": "100", "is_taxable": false }
+      ],
+      "tax_rate": "0.20",
+      "expected": { "subtotal": "1300.00", "tax_amount": "240.00", "total": "1540.00" }
+    },
+    {
+      "name": "discount_reduces_subtotal_and_taxable_base",
+      "food_total": "0",
+      "items": [
+        { "line_total": "500", "is_taxable": true },
+        { "line_total": "-100", "is_taxable": true }
+      ],
+      "tax_rate": "0.20",
+      "expected": { "subtotal": "400.00", "tax_amount": "80.00", "total": "480.00" }
+    },
+    {
+      "name": "event_food_includes_meals",
+      "food_total": "1300",
+      "items": [
+        { "line_total": "200", "is_taxable": true },
+        { "line_total": "100", "is_taxable": false }
+      ],
+      "tax_rate": "0.15",
+      "expected": { "subtotal": "1600.00", "tax_amount": "225.00", "total": "1825.00" }
+    },
+    {
+      "name": "not_taxable_rate_zero",
+      "food_total": "1000",
+      "items": [
+        { "line_total": "100", "is_taxable": true }
+      ],
+      "tax_rate": "0",
+      "expected": { "subtotal": "1100.00", "tax_amount": "0.00", "total": "1100.00" }
+    },
+    {
+      "name": "rounding_to_two_places",
+      "food_total": "33.33",
+      "items": [],
+      "tax_rate": "0.175",
+      "expected": { "subtotal": "33.33", "tax_amount": "5.83", "total": "39.16" }
+    }
+  ]
+}

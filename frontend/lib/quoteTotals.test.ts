@@ -1,4 +1,6 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "fs";
+import { resolve } from "path";
 import { computeQuoteTotals, computeBookingTotals, buildQuoteSavePayload, lineItemTotal, LineItemInput } from "./quoteTotals";
 
 const item = (over: Partial<LineItemInput>): LineItemInput => ({
@@ -57,6 +59,30 @@ describe("computeQuoteTotals", () => {
   it("zero/blank price yields no food cost", () => {
     expect(computeQuoteTotals("", 100, 0.2, []).food_total).toBe(0);
   });
+});
+
+// Shared cross-language spec — the SAME file is loaded by the backend engine's
+// tests (backend/bookings/test_totals.py). See docs/CALCULATION_PARITY.md.
+const golden = JSON.parse(
+  // Vitest runs with cwd = frontend/, so the repo-root docs dir is one up.
+  readFileSync(resolve(process.cwd(), "../docs/calculation-golden-cases.json"), "utf-8"),
+) as { cases: { name: string; food_total: string; items: { line_total: string; is_taxable: boolean }[]; tax_rate: string; expected: { subtotal: string; tax_amount: string; total: string } }[] };
+
+describe("golden-case parity with the backend engine", () => {
+  // Each precomputed line_total is fed as a flat qty-1 line so lineItemTotal
+  // reproduces it; the frontend engine must then match the backend's expected.
+  for (const c of golden.cases) {
+    it(c.name, () => {
+      const items: LineItemInput[] = c.items.map((i) => ({
+        category: "fee", description: "x", quantity: 1, unit: "flat",
+        unit_price: Number(i.line_total), is_taxable: i.is_taxable,
+      }));
+      const t = computeBookingTotals(Number(c.food_total), items, 0, Number(c.tax_rate));
+      expect(t.subtotal).toBeCloseTo(Number(c.expected.subtotal), 2);
+      expect(t.tax_amount).toBeCloseTo(Number(c.expected.tax_amount), 2);
+      expect(t.total).toBeCloseTo(Number(c.expected.total), 2);
+    });
+  }
 });
 
 describe("computeBookingTotals (shared engine — quotes & events)", () => {
