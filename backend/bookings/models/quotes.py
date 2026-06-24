@@ -122,19 +122,12 @@ class Quote(OrgScopedModel, models.Model):
         return Decimal('0.00')
 
     def recalculate_totals(self):
-        items = self.line_items.all()
-        taxable_subtotal = Decimal('0.00')
-        non_taxable_subtotal = Decimal('0.00')
-        for item in items:
-            if item.is_taxable:
-                taxable_subtotal += item.line_total
-            else:
-                non_taxable_subtotal += item.line_total
-        # Add food/menu cost (price per head × guest count)
-        taxable_subtotal += self.food_total
-        self.subtotal = taxable_subtotal + non_taxable_subtotal
-        self.tax_amount = (taxable_subtotal * self.tax_rate).quantize(Decimal('0.01'))
-        self.total = self.subtotal + self.tax_amount
+        # Shared engine — same math for quotes and events. See bookings/services/totals.py.
+        from bookings.services.totals import compute_booking_totals
+        totals = compute_booking_totals(self.food_total, self.line_items.all(), self.tax_rate)
+        self.subtotal = totals.subtotal
+        self.tax_amount = totals.tax_amount
+        self.total = totals.total
         self.save(update_fields=['subtotal', 'tax_amount', 'total', 'updated_at'])
 
     @property

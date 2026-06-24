@@ -155,9 +155,14 @@ class BookingLineItem(models.Model):
         super().save(*args, **kwargs)
         if self.quote_id:
             self.quote.recalculate_totals()
+        elif self.event_id:
+            self.event.recalculate_totals()
 
     def delete(self, *args, **kwargs):
         quote = self.quote if self.quote_id else None
+        event = self.event if self.event_id else None
         super().delete(*args, **kwargs)
         if quote is not None:
             quote.recalculate_totals()
+        elif event is not None:
+            event.recalculate_totals()

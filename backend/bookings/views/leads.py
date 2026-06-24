@@ -544,6 +544,8 @@ class LeadWonView(APIView):
             product=lead.product,
             booking_date=booking_date,
             price_per_head=price_per_head,
+            tax_rate=(quote.tax_rate if quote else 0),
+            is_taxable=bool(quote and quote.tax_rate and quote.tax_rate > 0),
             status=event_status,
             based_on_template=based_on_template,
             created_by=user,
@@ -571,6 +573,7 @@ class LeadWonView(APIView):
             from bookings.views.quotes import _copy_line_items_to_event
             _copy_line_items_to_event(quote, event)
 
+        event.recalculate_totals()  # food + copied line items + tax
         return event
 
 

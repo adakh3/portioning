@@ -83,6 +83,15 @@ class Event(OrgScopedModel, models.Model):
     booking_date = models.DateField(null=True, blank=True, help_text='Date the client confirmed/booked')
     status = models.CharField(max_length=20, choices=EventStatus.choices, default=EventStatus.TENTATIVE)
     is_taxable = models.BooleanField(default=False, help_text='Whether tax applies to this event')
+    tax_rate = models.DecimalField(
+        max_digits=5, decimal_places=4, default=Decimal('0'),
+        help_text='Tax rate as a fraction (0.20 = 20%); applied only when is_taxable.',
+    )
+    # Money totals (food + add-on line items + tax) — computed by recalculate_totals
+    # via the shared engine (bookings/services/totals.py), same as quotes.
+    subtotal = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+    tax_amount = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+    total = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
 
     # Timeline
     setup_time = models.DateTimeField(null=True, blank=True)
@@ -100,6 +109,29 @@ class Event(OrgScopedModel, models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.date})"
+
+    @property
+    def food_total(self):
+        """Taxable food/menu cost: main menu (price_per_head × guests) + any
+        additional meals (their own price_per_head × guest_count)."""
+        total = Decimal('0.00')
+        pph = self.price_per_head
+        if pph and pph > 0:
+            total += pph * ((self.gents or 0) + (self.ladies or 0))
+        for meal in self.additional_meals.all():
+            if meal.price_per_head and meal.guest_count:
+                total += meal.price_per_head * meal.guest_count
+        return total.quantize(Decimal('0.01'))
+
+    def recalculate_totals(self):
+        # Shared engine — identical math to quotes. See bookings/services/totals.py.
+        from bookings.services.totals import compute_booking_totals
+        rate = self.tax_rate if self.is_taxable else Decimal('0')
+        totals = compute_booking_totals(self.food_total, self.line_items.all(), rate)
+        self.subtotal = totals.subtotal
+        self.tax_amount = totals.tax_amount
+        self.total = totals.total
+        self.save(update_fields=['subtotal', 'tax_amount', 'total'])
 
 
 class EventConstraintOverride(models.Model):

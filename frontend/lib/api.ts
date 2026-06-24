@@ -636,6 +636,11 @@ export interface EventData {
   status: string;
   status_display: string;
   is_taxable: boolean;
+  tax_rate: string;
+  // Computed totals (food + add-on line items + tax) — server-side via the shared engine.
+  subtotal: string;
+  tax_amount: string;
+  total: string;
   // Timeline
   setup_time: string | null;
   guest_arrival_time: string | null;

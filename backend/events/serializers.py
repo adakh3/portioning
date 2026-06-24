@@ -106,7 +106,8 @@ class EventSerializer(OrgScopedModelSerializer):
                   'venue', 'venue_name', 'venue_address',
                   'product', 'product_name',
                   'event_type', 'meal_type', 'service_style', 'booking_date', 'price_per_head',
-                  'status', 'status_display', 'is_taxable',
+                  'status', 'status_display', 'is_taxable', 'tax_rate',
+                  'subtotal', 'tax_amount', 'total',
                   # Timeline
                   'setup_time', 'guest_arrival_time', 'meal_time', 'end_time',
                   # Guest counts
@@ -114,7 +115,7 @@ class EventSerializer(OrgScopedModelSerializer):
                   # Nested
                   'additional_meals',
                   'source_quote_id', 'shifts', 'equipment_reservations', 'invoices']
-        read_only_fields = ['created_at']
+        read_only_fields = ['created_at', 'subtotal', 'tax_amount', 'total']
         extra_kwargs = {
             'notes': {'max_length': 5000},
             'kitchen_instructions': {'max_length': 5000},
@@ -133,6 +134,11 @@ class EventSerializer(OrgScopedModelSerializer):
         dish_comments_data = validated_data.pop('dish_comments', [])
         line_items_data = validated_data.pop('line_items', [])
         meals_data = validated_data.pop('additional_meals', [])
+        # Default the tax rate to the org's standard rate so a taxable event taxes
+        # consistently with quotes / the rest of the app.
+        if 'tax_rate' not in validated_data and validated_data.get('organisation'):
+            from bookings.models import OrgSettings
+            validated_data['tax_rate'] = OrgSettings.for_org(validated_data['organisation']).default_tax_rate
         event = Event.objects.create(**validated_data)
         if dishes:
             event.dishes.set(dishes)
@@ -143,6 +149,7 @@ class EventSerializer(OrgScopedModelSerializer):
         self._save_line_items(event, line_items_data)
         for meal in meals_data:
             self._create_meal(event, meal)
+        event.recalculate_totals()  # food + meals + line items + tax (shared engine)
         return event
 
     def update(self, instance, validated_data):
@@ -195,6 +202,7 @@ class EventSerializer(OrgScopedModelSerializer):
                     portion_grams=p['grams_per_person'],
                 )
 
+        instance.recalculate_totals()  # food + meals + line items + tax (shared engine)
         return instance
 
     @staticmethod

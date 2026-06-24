@@ -374,10 +374,10 @@ export default function EventDetailPage() {
         invoice_type: "deposit",
         issue_date: today.toISOString().split("T")[0],
         due_date: dueDate.toISOString().split("T")[0],
-        subtotal: "0.00",
-        tax_rate: "0.2000",
-        tax_amount: "0.00",
-        total: "0.00",
+        subtotal: event.subtotal,
+        tax_rate: event.tax_rate,
+        tax_amount: event.tax_amount,
+        total: event.total,
       });
       await mutateEvent();
     } catch (e: unknown) {
@@ -1088,11 +1088,19 @@ export default function EventDetailPage() {
             const mealsTotal = meals.reduce((sum, m) => sum + m.guest_count * (parseFloat(m.price_per_head || "0") || 0), 0);
             const liItems = editing ? formLineItems : (event?.line_items || []);
             const addOnsTotal = liItems.reduce((sum, li) => sum + lineItemTotal(li, guests), 0);
-            const subtotal = foodTotal + mealsTotal + addOnsTotal;
             const taxable = editing ? formIsTaxable : (event?.is_taxable || false);
-            const taxRate = parseFloat(settings.default_tax_rate) || 0;
-            const taxAmount = taxable ? subtotal * taxRate : 0;
-            const grandTotal = subtotal + taxAmount;
+            const taxRate = parseFloat(event?.tax_rate || settings.default_tax_rate) || 0;
+            // Tax applies to food + meals + TAXABLE add-ons only — same rule as the
+            // server engine (bookings/services/totals.py). Non-taxable items are in
+            // the subtotal but never taxed.
+            const taxableAddOns = liItems.filter((li) => li.is_taxable).reduce((sum, li) => sum + lineItemTotal(li, guests), 0);
+            const computedSubtotal = foodTotal + mealsTotal + addOnsTotal;
+            const computedTax = taxable ? (foodTotal + mealsTotal + taxableAddOns) * taxRate : 0;
+            // Editing → live preview; viewing → the server's stored totals (single
+            // source of truth, computed by the same engine).
+            const subtotal = editing ? computedSubtotal : parseFloat(event?.subtotal || "0");
+            const taxAmount = editing ? computedTax : parseFloat(event?.tax_amount || "0");
+            const grandTotal = editing ? (computedSubtotal + computedTax) : parseFloat(event?.total || "0");
 
             return (
               <div className="space-y-4">
