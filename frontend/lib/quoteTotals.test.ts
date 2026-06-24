@@ -44,6 +44,10 @@ describe("computeQuoteTotals", () => {
     expect(lineItemTotal(item({ unit: "per_guest", unit_price: 12.5 }), 50)).toBe(625);
   });
 
+  it("per_hour unit is quantity × price (hours × rate, not scaled by guests)", () => {
+    expect(lineItemTotal(item({ unit: "per_hour", quantity: 6, unit_price: 18 }), 50)).toBe(108);
+  });
+
   it("discount line is negative", () => {
     expect(
       lineItemTotal(item({ category: "discount", unit: "flat", quantity: 1, unit_price: 100 }), 10),

@@ -104,6 +104,8 @@ class QuoteTransitionView(APIView):
                 service_style=quote.service_style,
                 booking_date=quote.accepted_at.date() if quote.accepted_at else None,
                 price_per_head=quote.price_per_head,
+                tax_rate=quote.tax_rate or 0,
+                is_taxable=bool(quote.tax_rate and quote.tax_rate > 0),
                 status='confirmed',
                 based_on_template=quote.based_on_template,
                 created_by=user,
@@ -130,6 +132,10 @@ class QuoteTransitionView(APIView):
 
             # Carry the add-on line items across to the event (previously dropped).
             _copy_line_items_to_event(quote, event)
+
+            # Recompute via the shared engine so the event total matches the
+            # quote even when there are no add-on items (food-only quotes).
+            event.recalculate_totals()
 
             quote.event = event
             quote.save(update_fields=['event', 'updated_at'])

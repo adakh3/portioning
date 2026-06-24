@@ -213,6 +213,14 @@ class TestBookingLineItemCalculation(TestCase):
         )
         self.assertEqual(item.line_total, Decimal("-100.00"))
 
+    def test_per_hour_calculation(self):
+        # per_hour behaves like quantity × unit_price (hours × rate); not scaled by guests.
+        item = BookingLineItem.objects.create(
+            quote=self.quote, category="labor", description="Bar staff",
+            quantity=Decimal("6"), unit="per_hour", unit_price=Decimal("18.00"),
+        )
+        self.assertEqual(item.line_total, Decimal("108.00"))
+
     def test_exactly_one_parent_constraint(self):
         from django.db.utils import IntegrityError
         from events.models import Event
@@ -780,6 +788,43 @@ class TestQuoteAPI(TestCase):
         self.assertEqual(len(items), 1)
         self.assertEqual(items[0].description, "Chairs")
         self.assertIsNone(items[0].quote_id)
+
+    def test_accept_event_total_matches_quote(self):
+        # The converted event's totals must equal the quote's (same engine).
+        quote = make_quote(org=self.org, account=self.account, primary_contact=self.contact,
+                           guest_count=100, price_per_head=Decimal("30.00"), tax_rate=Decimal("0.20"))
+        BookingLineItem.objects.create(
+            quote=quote, category="rental", description="Tables",
+            quantity=Decimal("10"), unit="each", unit_price=Decimal("50.00"), is_taxable=True)
+        BookingLineItem.objects.create(
+            quote=quote, category="fee", description="Service",
+            quantity=Decimal("1"), unit="flat", unit_price=Decimal("200.00"), is_taxable=False)
+        quote.refresh_from_db()
+        res = self.client.post(f"/api/bookings/quotes/{quote.id}/transition/",
+                               {"status": "accepted"}, format="json")
+        self.assertEqual(res.status_code, 200, res.content)
+        quote.refresh_from_db()
+        event = quote.event
+        self.assertEqual(event.subtotal, quote.subtotal)
+        self.assertEqual(event.tax_amount, quote.tax_amount)
+        self.assertEqual(event.total, quote.total)
+        self.assertTrue(event.total > 0)
+
+    def test_accept_food_only_quote_event_total_matches(self):
+        # Regression: a food-only quote (no add-on items) used to convert to an
+        # event with a £0 total because totals were only recalculated as a
+        # side-effect of copying line items.
+        quote = make_quote(org=self.org, account=self.account, primary_contact=self.contact,
+                           guest_count=200, price_per_head=Decimal("25.00"), tax_rate=Decimal("0.20"))
+        quote.recalculate_totals()  # as the serializer does on save
+        quote.refresh_from_db()
+        self.assertEqual(quote.total, Decimal("6000.00"))  # 5000 food + 1000 tax
+        res = self.client.post(f"/api/bookings/quotes/{quote.id}/transition/",
+                               {"status": "accepted"}, format="json")
+        self.assertEqual(res.status_code, 200, res.content)
+        quote.refresh_from_db()
+        self.assertEqual(quote.event.total, quote.total)
+        self.assertEqual(quote.event.total, Decimal("6000.00"))
 
     def test_event_api_saves_line_items(self):
         res = self.client.post("/api/events/", {
