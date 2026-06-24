@@ -35,6 +35,7 @@ class UserManager(BaseUserManager):
 class User(AbstractUser):
     ROLE_CHOICES = [
         ("owner", "Owner"),
+        ("admin", "Admin"),
         ("manager", "Manager"),
         ("chef", "Chef"),
         ("salesperson", "Salesperson"),

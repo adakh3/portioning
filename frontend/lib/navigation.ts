@@ -16,7 +16,7 @@ export const departments: Department[] = [
     name: "Sales",
     icon: "briefcase",
     pages: [
-      { label: "Dashboard", href: "/", roles: ["manager", "owner"] },
+      { label: "Dashboard", href: "/", roles: ["manager", "admin", "owner"] },
       { label: "Leads", href: "/leads" },
       { label: "Follow-ups", href: "/follow-ups" },
       { label: "Quotes", href: "/quotes" },
@@ -50,8 +50,8 @@ export const departments: Department[] = [
     name: "Admin",
     icon: "settings",
     pages: [
-      { label: "Settings", href: "/settings" },
-      { label: "Team", href: "/team", roles: ["owner"] },
+      { label: "Settings", href: "/settings", roles: ["owner", "admin"] },
+      { label: "Team", href: "/team", roles: ["owner", "admin"] },
     ],
   },
 ];

@@ -7,7 +7,7 @@ from bookings.models.choices import (
     EventTypeOption, SourceOption, ServiceStyleOption, LeadStatusOption,
     LostReasonOption, MealTypeOption,
 )
-from bookings.permissions import IsManagerOrOwner
+from bookings.permissions import IsAdminOrOwner
 from bookings.serializers.choices import (
     EventTypeOptionSerializer, SourceOptionSerializer,
     ServiceStyleOptionSerializer, LeadStatusOptionSerializer,
@@ -68,7 +68,7 @@ class LeadStatusManageListCreateView(OrgQuerySetMixin, generics.ListCreateAPIVie
     (including inactive) so they can be reactivated."""
     queryset = LeadStatusOption.objects.all().order_by('sort_order', 'pk')
     serializer_class = LeadStatusOptionSerializer
-    permission_classes = [IsManagerOrOwner]
+    permission_classes = [IsAdminOrOwner]
 
     def perform_create(self, serializer):
         org = get_request_org(self.request)
@@ -80,7 +80,7 @@ class LeadStatusManageListCreateView(OrgQuerySetMixin, generics.ListCreateAPIVie
 class LeadStatusManageDetailView(OrgQuerySetMixin, generics.RetrieveUpdateDestroyAPIView):
     queryset = LeadStatusOption.objects.all()
     serializer_class = LeadStatusOptionSerializer
-    permission_classes = [IsManagerOrOwner]
+    permission_classes = [IsAdminOrOwner]
 
     def perform_update(self, serializer):
         instance = serializer.save()
@@ -121,7 +121,7 @@ def make_choice_manage_views(model, serializer_cls, fallback):
     class ManageListCreate(OrgQuerySetMixin, generics.ListCreateAPIView):
         queryset = model.objects.all().order_by('sort_order', 'pk')
         serializer_class = serializer_cls
-        permission_classes = [IsManagerOrOwner]
+        permission_classes = [IsAdminOrOwner]
 
         def perform_create(self, serializer):
             org = get_request_org(self.request)
@@ -131,7 +131,7 @@ def make_choice_manage_views(model, serializer_cls, fallback):
     class ManageDetail(OrgQuerySetMixin, generics.RetrieveUpdateDestroyAPIView):
         queryset = model.objects.all()
         serializer_class = serializer_cls
-        permission_classes = [IsManagerOrOwner]
+        permission_classes = [IsAdminOrOwner]
 
     ManageListCreate.__name__ = f'{model.__name__}ManageListCreateView'
     ManageDetail.__name__ = f'{model.__name__}ManageDetailView'

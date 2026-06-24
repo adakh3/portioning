@@ -231,30 +231,52 @@ class OrganisationListView(APIView):
 
 
 class UserManageListCreateView(generics.ListCreateAPIView):
-    """GET/POST /api/auth/users/ — owner-only user management."""
+    """GET/POST /api/auth/users/ — admin/owner user management. Only the owner
+    (or a superuser) may create an owner account."""
     serializer_class = UserManageSerializer
 
     def get_permissions(self):
-        from bookings.permissions import IsOwner
-        return [IsOwner()]
+        from bookings.permissions import IsAdminOrOwner
+        return [IsAdminOrOwner()]
 
     def get_queryset(self):
         org = getattr(self.request, 'organisation', None) or self.request.user.organisation
         return User.objects.filter(organisation=org).order_by('first_name', 'last_name')
 
     def perform_create(self, serializer):
+        from rest_framework.exceptions import PermissionDenied
+        from bookings.permissions import is_owner_actor
+        if serializer.validated_data.get('role') == 'owner' and not is_owner_actor(self.request.user):
+            raise PermissionDenied('Only the owner can create an owner account.')
         org = getattr(self.request, 'organisation', None) or self.request.user.organisation
         serializer.save(organisation=org)
 
 
 class UserManageDetailView(generics.RetrieveUpdateAPIView):
-    """GET/PATCH /api/auth/users/<pk>/ — owner-only user management."""
+    """GET/PATCH /api/auth/users/<pk>/ — admin/owner user management. Only the
+    owner (or a superuser) may edit the owner account or assign the owner role."""
     serializer_class = UserManageSerializer
 
     def get_permissions(self):
-        from bookings.permissions import IsOwner
-        return [IsOwner()]
+        from bookings.permissions import IsAdminOrOwner
+        return [IsAdminOrOwner()]
 
     def get_queryset(self):
         org = getattr(self.request, 'organisation', None) or self.request.user.organisation
         return User.objects.filter(organisation=org)
+
+    def update(self, request, *args, **kwargs):
+        from bookings.permissions import is_owner_actor
+        target = self.get_object()
+        if not is_owner_actor(request.user):
+            if target.role == 'owner':
+                return Response(
+                    {'detail': 'Only the owner can edit the owner account.'},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+            if request.data.get('role') == 'owner':
+                return Response(
+                    {'detail': 'Only the owner can assign the owner role.'},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+        return super().update(request, *args, **kwargs)

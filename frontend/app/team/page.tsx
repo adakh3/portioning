@@ -30,11 +30,13 @@ const ROLES = [
   { value: "salesperson", label: "Salesperson" },
   { value: "manager", label: "Manager" },
   { value: "chef", label: "Chef" },
+  { value: "admin", label: "Admin" },
   { value: "owner", label: "Owner" },
 ];
 
 const roleBadgeVariant: Record<string, "default" | "secondary" | "info" | "warning"> = {
   owner: "default",
+  admin: "warning",
   manager: "info",
   salesperson: "secondary",
   chef: "warning",
@@ -53,9 +55,13 @@ export default function TeamPage() {
   const [error, setError] = useState("");
   const [initialForm, setInitialForm] = useState({ first_name: "", last_name: "", email: "", role: "salesperson", password: "", product_lines: [] as number[] });
 
-  // Redirect non-owners
+  // Owner or admin can manage the team; only the owner (or a superuser) may
+  // create/edit the owner account.
+  const canManageOwner = user?.role === "owner" || user?.is_superuser === true;
+
+  // Redirect users who can't manage the team
   useEffect(() => {
-    if (user && user.role !== "owner") {
+    if (user && !["owner", "admin"].includes(user.role)) {
       router.replace("/");
     }
   }, [user, router]);
@@ -120,7 +126,7 @@ export default function TeamPage() {
     } catch { /* ignore */ }
   }
 
-  if (user?.role !== "owner") return null;
+  if (user && !["owner", "admin"].includes(user.role)) return null;
 
   return (
     <div>
@@ -181,10 +187,11 @@ export default function TeamPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-2">
-                        <Button variant="outline" size="sm" onClick={() => openEdit(u)}>
+                        <Button variant="outline" size="sm" onClick={() => openEdit(u)}
+                          disabled={u.role === "owner" && !canManageOwner}>
                           Edit
                         </Button>
-                        {u.id !== user?.id && (
+                        {u.id !== user?.id && !(u.role === "owner" && !canManageOwner) && (
                           <Button
                             variant={u.is_active ? "outline" : "default"}
                             size="sm"
@@ -244,7 +251,7 @@ export default function TeamPage() {
                 onChange={(e) => { const v = e.target.value; setForm((f) => ({ ...f, role: v })); }}
                 className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               >
-                {ROLES.map((r) => (
+                {ROLES.filter((r) => r.value !== "owner" || canManageOwner).map((r) => (
                   <option key={r.value} value={r.value}>{r.label}</option>
                 ))}
               </select>

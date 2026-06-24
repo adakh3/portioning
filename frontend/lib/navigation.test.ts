@@ -65,3 +65,30 @@ describe("getActiveDepartment", () => {
     expect(getActiveDepartment("/")?.name).toBe("Sales");
   });
 });
+
+describe("role gating for admin settings", () => {
+  const admin = departments.find((d) => d.name === "Admin")!;
+  const sales = departments.find((d) => d.name === "Sales")!;
+  const labels = (role?: string, dept = admin) => getVisiblePages(dept.pages, role).map((p) => p.label);
+
+  it("hides Settings and Team from manager / salesperson / chef", () => {
+    for (const role of ["manager", "salesperson", "chef"]) {
+      expect(labels(role)).not.toContain("Settings");
+      expect(labels(role)).not.toContain("Team");
+    }
+  });
+
+  it("shows Settings and Team to admin and owner", () => {
+    for (const role of ["admin", "owner"]) {
+      expect(labels(role)).toContain("Settings");
+      expect(labels(role)).toContain("Team");
+    }
+  });
+
+  it("shows Dashboard to manager/admin/owner but not salesperson", () => {
+    expect(labels("salesperson", sales)).not.toContain("Dashboard");
+    for (const role of ["manager", "admin", "owner"]) {
+      expect(labels(role, sales)).toContain("Dashboard");
+    }
+  });
+});

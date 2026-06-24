@@ -16,6 +16,7 @@ here. Keep it test-focused — numbered cases with concrete steps and expected r
 | Superuser org-switcher | [superuser-org-switcher.md](superuser-org-switcher.md) | Built — awaiting manual sign-off |
 | Org choice-lists in Settings | [org-choice-lists.md](org-choice-lists.md) | Built — awaiting manual sign-off |
 | Settings page — tabs + General config | [settings-page.md](settings-page.md) | Built — awaiting manual sign-off |
+| Roles — admin tier (admin ≠ manager) | [roles-admin-tier.md](roles-admin-tier.md) | Built — awaiting manual sign-off |
 
 ## Template
 

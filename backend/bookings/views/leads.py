@@ -14,7 +14,7 @@ from bookings.models.choices import LeadStatusOption
 from bookings.serializers import LeadSerializer, QuoteSerializer
 from bookings.serializers.leads import ProductLineSerializer, LeadListSerializer
 from bookings.activity import log_activity, log_field_changes, TRACKED_FIELDS
-from bookings.permissions import IsManagerOrOwner, is_salesperson
+from bookings.permissions import IsManagerOrOwner, IsAdminOrOwner, is_salesperson
 
 
 class UserListView(generics.ListAPIView):
@@ -47,10 +47,10 @@ class ProductLineDetailView(generics.RetrieveUpdateAPIView):
 
 
 class ProductLineManageListCreateView(generics.ListCreateAPIView):
-    """Manage product lines from Settings (manager/owner). Lists ALL (incl.
+    """Manage product lines from Settings (admin/owner). Lists ALL (incl.
     inactive) so they can be reactivated."""
     serializer_class = ProductLineSerializer
-    permission_classes = [IsManagerOrOwner]
+    permission_classes = [IsAdminOrOwner]
 
     def get_queryset(self):
         return apply_org_filter(ProductLine.objects.all().order_by('name'), self.request)
@@ -61,7 +61,7 @@ class ProductLineManageListCreateView(generics.ListCreateAPIView):
 
 class ProductLineManageDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = ProductLineSerializer
-    permission_classes = [IsManagerOrOwner]
+    permission_classes = [IsAdminOrOwner]
 
     def get_queryset(self):
         return apply_org_filter(ProductLine.objects.all(), self.request)

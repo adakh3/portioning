@@ -1,26 +1,47 @@
 from rest_framework import permissions
 
+# Role tiers. A superuser maps to owner (full access everywhere).
+ADMIN_ROLES = ('admin', 'owner')               # org settings / configuration
+MANAGER_ROLES = ('manager', 'admin', 'owner')  # operational management
+
+
+def _allowed(request, roles):
+    user = getattr(request, 'user', None)
+    if not (user and user.is_authenticated):
+        return False
+    if getattr(user, 'is_superuser', False):
+        return True  # superuser maps to owner
+    return getattr(user, 'role', '') in roles
+
 
 class IsManagerOrOwner(permissions.BasePermission):
-    """Only allow users with role 'manager' or 'owner'."""
+    """Manager, admin or owner (or superuser) — operational management."""
 
     def has_permission(self, request, view):
-        return (
-            request.user
-            and request.user.is_authenticated
-            and getattr(request.user, 'role', '') in ('manager', 'owner')
-        )
+        return _allowed(request, MANAGER_ROLES)
+
+
+class IsAdminOrOwner(permissions.BasePermission):
+    """Admin or owner (or superuser) — org settings / configuration. Plain
+    managers are excluded (they don't see admin settings)."""
+
+    def has_permission(self, request, view):
+        return _allowed(request, ADMIN_ROLES)
 
 
 class IsOwner(permissions.BasePermission):
-    """Only allow users with role 'owner'."""
+    """Owner only (or superuser)."""
 
     def has_permission(self, request, view):
-        return (
-            request.user
-            and request.user.is_authenticated
-            and getattr(request.user, 'role', '') == 'owner'
-        )
+        return _allowed(request, ('owner',))
+
+
+def is_owner_actor(user):
+    """True if the user may manage the owner account (owner or superuser)."""
+    return bool(
+        user and user.is_authenticated
+        and (getattr(user, 'is_superuser', False) or getattr(user, 'role', '') == 'owner')
+    )
 
 
 def is_salesperson(user):
