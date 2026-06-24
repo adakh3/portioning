@@ -1049,6 +1049,14 @@ export const api = {
   getProductLines: () => fetchList<ProductLine>("/bookings/product-lines/?page_size=all"),
   updateProductLine: (id: number, data: Partial<ProductLine>) =>
     fetchApi<ProductLine>(`/bookings/product-lines/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
+  // Management (manager/owner) — includes inactive lines; supports create/delete.
+  getManagedProductLines: () => fetchList<ProductLine>("/bookings/settings/product-lines/?page_size=all"),
+  createProductLine: (data: Partial<ProductLine>) =>
+    fetchApi<ProductLine>("/bookings/settings/product-lines/", { method: "POST", body: JSON.stringify(data) }),
+  updateManagedProductLine: (id: number, data: Partial<ProductLine>) =>
+    fetchApi<ProductLine>(`/bookings/settings/product-lines/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
+  deleteProductLine: (id: number) =>
+    fetchApi<void>(`/bookings/settings/product-lines/${id}/`, { method: "DELETE" }),
   getUsers: () => fetchList<AuthUser>("/bookings/users/?page_size=all"),
 
   // User management (owner-only)

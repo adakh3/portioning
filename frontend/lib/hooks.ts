@@ -89,6 +89,13 @@ export function useProductLines() {
   });
 }
 
+// Management list for Settings — includes inactive product lines.
+export function useManagedProductLines() {
+  return useSWR<ProductLine[]>("managed-product-lines", () => api.getManagedProductLines(), {
+    revalidateOnFocus: false,
+  });
+}
+
 export function useEventTypes() {
   return useSWR<ChoiceOption[]>("event-types", () => api.getEventTypes(), {
     dedupingInterval: 300000,

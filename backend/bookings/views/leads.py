@@ -46,6 +46,35 @@ class ProductLineDetailView(generics.RetrieveUpdateAPIView):
         return apply_org_filter(ProductLine.objects.all(), self.request)
 
 
+class ProductLineManageListCreateView(generics.ListCreateAPIView):
+    """Manage product lines from Settings (manager/owner). Lists ALL (incl.
+    inactive) so they can be reactivated."""
+    serializer_class = ProductLineSerializer
+    permission_classes = [IsManagerOrOwner]
+
+    def get_queryset(self):
+        return apply_org_filter(ProductLine.objects.all().order_by('name'), self.request)
+
+    def perform_create(self, serializer):
+        serializer.save(organisation=get_request_org(self.request))
+
+
+class ProductLineManageDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = ProductLineSerializer
+    permission_classes = [IsManagerOrOwner]
+
+    def get_queryset(self):
+        return apply_org_filter(ProductLine.objects.all(), self.request)
+
+    def perform_destroy(self, instance):
+        from rest_framework import serializers as drf_serializers
+        if Lead.objects.filter(organisation=instance.organisation, product=instance).exists():
+            raise drf_serializers.ValidationError(
+                'Cannot delete a product line that leads are using — deactivate it instead.'
+            )
+        instance.delete()
+
+
 LEAD_ORDERING_FIELDS = {
     'created_at', '-created_at',
     'event_date', '-event_date',

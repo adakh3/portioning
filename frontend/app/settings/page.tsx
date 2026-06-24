@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { api, ProductLine, SiteSettingsData } from "@/lib/api";
-import { useSiteSettings, useProductLines, revalidate } from "@/lib/hooks";
+import { api, SiteSettingsData } from "@/lib/api";
+import { useSiteSettings } from "@/lib/hooks";
 import { useQueryState } from "@/lib/useQueryState";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import LeadStatusesSettings from "@/components/LeadStatusesSettings";
 import ChoiceOptionsSettings from "@/components/ChoiceOptionsSettings";
+import ProductLinesSettings from "@/components/ProductLinesSettings";
 
 // default_tax_rate is stored as a fraction (0.20 = 20%); show it as a percentage.
 const pctFromFraction = (f: string) => String(Math.round(Number(f || 0) * 10000) / 100);
@@ -46,6 +47,9 @@ export default function SettingsPage() {
     price_rounding_step: "50",
     quotation_terms: "",
   });
+  // JSON snapshot of the form as last synced from the server — used to detect
+  // unsaved changes reliably (independent of how `settings` is recomputed).
+  const [savedSnapshot, setSavedSnapshot] = useState<string | null>(null);
 
   // WhatsApp toggle state (separate save)
   const [waEnabled, setWaEnabled] = useState(false);
@@ -55,7 +59,7 @@ export default function SettingsPage() {
 
   useEffect(() => {
     if (settings) {
-      setFormData({
+      const f = {
         currency_symbol: settings.currency_symbol,
         currency_code: settings.currency_code,
         date_format: settings.date_format || "DD/MM/YYYY",
@@ -66,7 +70,9 @@ export default function SettingsPage() {
         target_food_cost_percentage: settings.target_food_cost_percentage,
         price_rounding_step: settings.price_rounding_step || "50",
         quotation_terms: settings.quotation_terms || "",
-      });
+      };
+      setFormData(f);
+      setSavedSnapshot(JSON.stringify(f));
       setWaEnabled(settings.whatsapp_enabled || false);
     }
   }, [settings]);
@@ -78,6 +84,7 @@ export default function SettingsPage() {
     setSuccess("");
     try {
       await api.updateSiteSettings(formData);
+      setSavedSnapshot(JSON.stringify(formData)); // form is now clean
       mutateSettings();
       setSuccess("Settings saved successfully.");
       setTimeout(() => setSuccess(""), 3000);
@@ -105,19 +112,7 @@ export default function SettingsPage() {
     }
   }
 
-  const baseline = settings && {
-    currency_symbol: settings.currency_symbol,
-    currency_code: settings.currency_code,
-    date_format: settings.date_format || "DD/MM/YYYY",
-    timezone: settings.timezone || "",
-    tax_label: settings.tax_label || "",
-    default_tax_rate: settings.default_tax_rate || "",
-    default_price_per_head: settings.default_price_per_head,
-    target_food_cost_percentage: settings.target_food_cost_percentage,
-    price_rounding_step: settings.price_rounding_step || "50",
-    quotation_terms: settings.quotation_terms || "",
-  };
-  const dirty = baseline ? JSON.stringify(baseline) !== JSON.stringify(formData) : false;
+  const dirty = savedSnapshot !== null && JSON.stringify(formData) !== savedSnapshot;
 
   if (loading) return <p className="text-muted-foreground">Loading settings...</p>;
 
@@ -381,7 +376,7 @@ export default function SettingsPage() {
 
       {tab === "branding" && (
       <div className="space-y-6 max-w-2xl">
-        <ProductLineColours />
+        <ProductLinesSettings />
       </div>
       )}
 
@@ -469,62 +464,3 @@ function WhatsAppSettings({ settings, onSave }: { settings: SiteSettingsData | u
   );
 }
 
-const DEFAULT_PALETTE = ["#EF4444", "#F59E0B", "#10B981", "#3B82F6", "#8B5CF6", "#EC4899", "#6366F1", "#14B8A6"];
-
-function ProductLineColours() {
-  const { data: productLines = [], mutate } = useProductLines();
-  const [saving, setSaving] = useState<number | null>(null);
-
-  async function handleColourChange(pl: ProductLine, colour: string) {
-    setSaving(pl.id);
-    try {
-      await api.updateProductLine(pl.id, { colour });
-      revalidate("product-lines");
-      mutate();
-    } catch { /* silently fail */ }
-    finally { setSaving(null); }
-  }
-
-  if (productLines.length === 0) return null;
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Product Line Colours</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <p className="text-xs text-muted-foreground mb-4">
-          Colours are used on the calendar and lead kanban to visually distinguish products.
-        </p>
-        <div className="space-y-3">
-          {productLines.map((pl) => (
-            <div key={pl.id} className="flex items-center gap-3">
-              <input
-                type="color"
-                value={pl.colour || "#6B7280"}
-                onChange={(e) => handleColourChange(pl, e.target.value)}
-                disabled={saving === pl.id}
-                className="h-9 w-9 rounded-md border border-input cursor-pointer p-0.5"
-              />
-              <span className="text-sm text-foreground">{pl.name}</span>
-              {saving === pl.id && (
-                <span className="text-xs text-muted-foreground">Saving...</span>
-              )}
-              <div className="flex gap-1 ml-auto">
-                {DEFAULT_PALETTE.map((c) => (
-                  <button
-                    key={c}
-                    onClick={() => handleColourChange(pl, c)}
-                    className="h-5 w-5 rounded-full border border-border hover:ring-2 hover:ring-ring transition-shadow"
-                    style={{ backgroundColor: c }}
-                    title={c}
-                  />
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      </CardContent>
-    </Card>
-  );
-}

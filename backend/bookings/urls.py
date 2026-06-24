@@ -5,7 +5,7 @@ from bookings.views import (
     ContactListCreateView, ContactDetailView,
     CustomerListCreateView, CustomerDetailView,
     VenueListCreateView, VenueDetailView,
-    UserListView, ProductLineListView, ProductLineDetailView, LeadListCreateView, LeadDetailView, LeadTransitionView, LeadCreateQuoteView, LeadWonView, LeadCreateEventView, LeadBulkUpdateView, LeadActivityView, LeadAutoAssignView, LeadKanbanView,
+    UserListView, ProductLineListView, ProductLineDetailView, ProductLineManageListCreateView, ProductLineManageDetailView, LeadListCreateView, LeadDetailView, LeadTransitionView, LeadCreateQuoteView, LeadWonView, LeadCreateEventView, LeadBulkUpdateView, LeadActivityView, LeadAutoAssignView, LeadKanbanView,
     DashboardStatsView, MyDashboardStatsView,
     QuoteListCreateView, QuoteDetailView, QuoteTransitionView,
     QuoteLineItemListCreateView, QuoteLineItemDetailView,
@@ -49,6 +49,8 @@ urlpatterns = [
     # Product Lines & Leads
     path('bookings/product-lines/', ProductLineListView.as_view(), name='product-line-list'),
     path('bookings/product-lines/<int:pk>/', ProductLineDetailView.as_view(), name='product-line-detail'),
+    path('bookings/settings/product-lines/', ProductLineManageListCreateView.as_view(), name='product-line-manage-list'),
+    path('bookings/settings/product-lines/<int:pk>/', ProductLineManageDetailView.as_view(), name='product-line-manage-detail'),
     path('bookings/leads/', LeadListCreateView.as_view(), name='lead-list'),
     path('bookings/leads/kanban/', LeadKanbanView.as_view(), name='lead-kanban'),
     path('bookings/leads/auto-assign/', LeadAutoAssignView.as_view(), name='lead-auto-assign'),
