@@ -2,6 +2,7 @@
 
 import { Suspense, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useQuotes, useSiteSettings, useDateFormat } from "@/lib/hooks";
 import { formatDate } from "@/lib/dateFormat";
 import { formatCurrency } from "@/lib/utils";
@@ -10,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 const STATUS_BADGE_VARIANT: Record<string, "secondary" | "info" | "success" | "warning" | "destructive"> = {
   draft: "secondary",
@@ -21,6 +23,15 @@ const STATUS_BADGE_VARIANT: Record<string, "secondary" | "info" | "success" | "w
 
 const STATUSES = ["all", "draft", "sent", "accepted", "expired", "declined"];
 
+type SortField = "customer" | "event_date" | "guest_count" | "total" | "created_at";
+const SORT_COLUMNS: { field: SortField; label: string; align?: "right" }[] = [
+  { field: "customer", label: "Customer" },
+  { field: "event_date", label: "Event Date" },
+  { field: "guest_count", label: "Guests" },
+  { field: "total", label: "Total", align: "right" },
+  { field: "created_at", label: "Created" },
+];
+
 export default function QuotesPage() {
   return (
     <Suspense>
@@ -30,14 +41,51 @@ export default function QuotesPage() {
 }
 
 function QuotesContent() {
+  const router = useRouter();
   const [filter, setFilter] = useQueryState("status", "all");
   const [search, setSearch] = useState("");
+  const [sortField, setSortField] = useState<SortField>("created_at");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const { data: quotes = [], error: loadError, isLoading: loading } = useQuotes(filter);
   const { data: rawSettings } = useSiteSettings();
   const settings = rawSettings || { currency_symbol: "£", currency_code: "GBP", date_format: "DD/MM/YYYY", default_price_per_head: "0.00", target_food_cost_percentage: "30.00", price_rounding_step: "50" };
   const dateFormat = useDateFormat();
 
+  function toggleSort(f: SortField) {
+    if (sortField === f) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortField(f); setSortDir(f === "customer" ? "asc" : "desc"); }
+  }
+
   if (loadError) return <p className="text-destructive">Error: {loadError.message}</p>;
+
+  const customerOf = (q: typeof quotes[number]) => q.contact_name || q.account_name || "";
+  const s = search.toLowerCase();
+  const filtered = search
+    ? quotes.filter((q) =>
+        q.account_name?.toLowerCase().includes(s) ||
+        q.contact_name?.toLowerCase().includes(s) ||
+        q.contact_email?.toLowerCase().includes(s) ||
+        q.contact_phone?.toLowerCase().includes(s) ||
+        q.venue_name?.toLowerCase().includes(s) ||
+        `${q.id}`.includes(s)
+      )
+    : quotes;
+
+  const sorted = [...filtered].sort((a, b) => {
+    let av: string | number = "", bv: string | number = "";
+    switch (sortField) {
+      case "customer": av = customerOf(a).toLowerCase(); bv = customerOf(b).toLowerCase(); break;
+      case "event_date": av = a.event_date || ""; bv = b.event_date || ""; break;
+      case "guest_count": av = a.guest_count || 0; bv = b.guest_count || 0; break;
+      case "total": av = Number(a.total) || 0; bv = Number(b.total) || 0; break;
+      case "created_at": av = a.created_at || ""; bv = b.created_at || ""; break;
+    }
+    if (av < bv) return sortDir === "asc" ? -1 : 1;
+    if (av > bv) return sortDir === "asc" ? 1 : -1;
+    return 0;
+  });
+
+  const arrow = (f: SortField) => (sortField === f ? (sortDir === "asc" ? " ↑" : " ↓") : "");
 
   return (
     <div>
@@ -51,21 +99,21 @@ function QuotesContent() {
       <div className="flex flex-wrap items-end gap-2 mb-4">
         <Input
           type="text"
-          placeholder="Search..."
+          placeholder="Search customer, venue, #..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-48"
+          className="w-56"
         />
         <div className="flex gap-2 overflow-x-auto">
-          {STATUSES.map((s) => (
+          {STATUSES.map((st) => (
             <Button
-              key={s}
-              variant={filter === s ? "default" : "outline"}
+              key={st}
+              variant={filter === st ? "default" : "outline"}
               size="sm"
-              onClick={() => setFilter(s)}
-              className={filter === s ? "bg-foreground text-background hover:bg-foreground/90" : "capitalize"}
+              onClick={() => setFilter(st)}
+              className={filter === st ? "bg-foreground text-background hover:bg-foreground/90" : "capitalize"}
             >
-              <span className="capitalize">{s}</span>
+              <span className="capitalize">{st}</span>
             </Button>
           ))}
         </div>
@@ -73,56 +121,50 @@ function QuotesContent() {
 
       {loading ? (
         <p className="text-muted-foreground">Loading quotes...</p>
-      ) : (() => {
-        const s = search.toLowerCase();
-        const filtered = search
-          ? quotes.filter((q) =>
-              q.account_name?.toLowerCase().includes(s) ||
-              q.contact_name?.toLowerCase().includes(s) ||
-              q.contact_email?.toLowerCase().includes(s) ||
-              q.contact_phone?.toLowerCase().includes(s) ||
-              q.venue_name?.toLowerCase().includes(s) ||
-              `${q.id}`.includes(s)
-            )
-          : quotes;
-        return filtered.length === 0 ? (
+      ) : sorted.length === 0 ? (
         <p className="text-muted-foreground">No quotes found.</p>
       ) : (
-        <div className="space-y-3">
-          {filtered.map((quote) => (
-            <Link
-              key={quote.id}
-              href={`/quotes/${quote.id}`}
-              className="block"
-            >
-              <Card className="hover:border-primary/30 transition-colors">
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-semibold text-foreground">
-                          Quote #{quote.id} v{quote.version}
-                        </h3>
-                        <Badge variant={STATUS_BADGE_VARIANT[quote.status] || "secondary"}>
-                          {quote.status_display}
-                        </Badge>
-                      </div>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        {quote.contact_name || quote.account_name || "—"} &middot; {formatDate(quote.event_date, dateFormat)} &middot; {quote.guest_count} guests
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-semibold text-foreground">{formatCurrency(quote.total, settings.currency_symbol)}</p>
-                      <p className="text-xs text-muted-foreground">{formatDate(quote.created_at, dateFormat)}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
-          ))}
-        </div>
-      );
-      })()}
+        <Card>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  {SORT_COLUMNS.map((c) => (
+                    <TableHead
+                      key={c.field}
+                      onClick={() => toggleSort(c.field)}
+                      className={`cursor-pointer select-none whitespace-nowrap ${c.align === "right" ? "text-right" : ""}`}
+                    >
+                      {c.label}{arrow(c.field)}
+                    </TableHead>
+                  ))}
+                  <TableHead className="whitespace-nowrap">Status</TableHead>
+                  <TableHead className="whitespace-nowrap text-muted-foreground">Quote</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {sorted.map((q) => (
+                  <TableRow
+                    key={q.id}
+                    className="cursor-pointer"
+                    onClick={() => router.push(`/quotes/${q.id}`)}
+                  >
+                    <TableCell className="font-medium">{customerOf(q) || "—"}</TableCell>
+                    <TableCell className="whitespace-nowrap">{q.event_date ? formatDate(q.event_date, dateFormat) : "—"}</TableCell>
+                    <TableCell>{q.guest_count}</TableCell>
+                    <TableCell className="text-right font-medium whitespace-nowrap">{formatCurrency(q.total, settings.currency_symbol)}</TableCell>
+                    <TableCell className="whitespace-nowrap text-muted-foreground text-xs">{formatDate(q.created_at, dateFormat)}</TableCell>
+                    <TableCell>
+                      <Badge variant={STATUS_BADGE_VARIANT[q.status] || "secondary"}>{q.status_display}</Badge>
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap text-muted-foreground text-xs">#{q.id} · v{q.version}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
