@@ -74,7 +74,11 @@ export default function TeamPage() {
     finally { setLoading(false); }
   }
 
-  useEffect(() => { loadUsers(); }, []);
+  // Wait until auth is ready (user loaded) before fetching — otherwise the
+  // first request races the auth bootstrap and returns empty.
+  useEffect(() => {
+    if (user && ["owner", "admin"].includes(user.role)) loadUsers();
+  }, [user]);
 
   function openCreate() {
     setEditingUser(null);
