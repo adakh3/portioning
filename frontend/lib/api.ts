@@ -426,6 +426,8 @@ export interface Quote {
   accepted_at: string | null;
   event: number | null;
   event_id: number | null;
+  created_by: number | null;
+  created_by_name: string | null;
   line_items: QuoteLineItem[];
   created_at: string;
   updated_at: string;

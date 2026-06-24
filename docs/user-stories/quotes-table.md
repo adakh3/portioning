@@ -11,10 +11,10 @@ a useful primary identifier. Replaced with a Leads-style table; the quote number
 a secondary muted column. Quotes are loaded in full, so search/sort are client-side.
 
 ## Acceptance criteria
-- [ ] Quotes render in a table with columns: **Customer**, Event Date, Guests, Total, Created, Status, and a muted **Quote** (#id · vN) reference.
-- [ ] Clicking a row opens that quote.
-- [ ] Column headers (Customer, Event Date, Guests, Total, Created) sort the list; clicking again toggles direction; default is newest-created first.
-- [ ] Status filter chips and the search box still work (search matches customer, venue, and quote #).
+- [ ] Quotes render in a table with columns: **Customer**, **Salesperson** (who created it), Event Date, Guests, Total, Created, Status (tinted pill), and a muted **Quote** (#id · vN) reference.
+- [ ] Clicking a row opens that quote. The table is read-only (no inline editing).
+- [ ] Column headers (Customer, Salesperson, Event Date, Guests, Total, Created) sort the list; clicking again toggles direction; default is newest-created first.
+- [ ] Filters mirror the Leads page (where applicable): status chips, search (customer/venue/salesperson/#), and **Salesperson / Product / Event Type** dropdowns + an **event-date range**. Styling matches the Leads table.
 
 ## Manual test cases
 

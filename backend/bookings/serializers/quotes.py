@@ -46,6 +46,7 @@ class QuoteSerializer(OrgScopedModelSerializer):
     is_editable = serializers.BooleanField(read_only=True)
     lead_name = serializers.SerializerMethodField()
     event_id = serializers.SerializerMethodField()
+    created_by_name = serializers.SerializerMethodField()
 
     food_total = serializers.SerializerMethodField()
 
@@ -82,11 +83,13 @@ class QuoteSerializer(OrgScopedModelSerializer):
             'notes', 'internal_notes',
             'sent_at', 'accepted_at',
             'event', 'event_id',
+            'created_by', 'created_by_name',
             'line_items', 'created_at', 'updated_at',
         ]
         read_only_fields = [
             'status', 'subtotal', 'tax_amount', 'total',
             'sent_at', 'accepted_at', 'event',
+            'created_by',
             'created_at', 'updated_at',
         ]
         extra_kwargs = {
@@ -129,6 +132,12 @@ class QuoteSerializer(OrgScopedModelSerializer):
 
     def get_event_id(self, obj):
         return obj.event_id
+
+    def get_created_by_name(self, obj):
+        u = obj.created_by
+        if not u:
+            return None
+        return (u.get_full_name() or "").strip() or u.email
 
     def get_lead_name(self, obj):
         try:
