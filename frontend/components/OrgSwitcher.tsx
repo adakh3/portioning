@@ -20,9 +20,9 @@ export default function OrgSwitcher() {
 
   if (!user?.is_superuser) return null;
 
-  const current = user.all_orgs ? "All orgs" : user.organisation?.name ?? "—";
+  const current = user.organisation?.name ?? "Pick an org";
 
-  async function choose(orgId: number | "all" | null) {
+  async function choose(orgId: number | null) {
     setOpen(false);
     setBusy(true);
     try {
@@ -49,28 +49,14 @@ export default function OrgSwitcher() {
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
           <div className="absolute right-0 mt-1 z-20 w-56 max-h-80 overflow-auto rounded-md border border-border bg-popover shadow-md p-1">
-            <button
-              type="button"
-              onClick={() => choose("all")}
-              className={`w-full text-left px-2 py-1.5 text-sm rounded hover:bg-muted ${user.all_orgs ? "font-semibold" : ""}`}
-            >
-              All orgs
-            </button>
-            <button
-              type="button"
-              onClick={() => choose(null)}
-              className="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-muted text-muted-foreground"
-            >
-              My own org
-            </button>
-            <div className="my-1 border-t border-border" />
+            <p className="text-xs text-muted-foreground px-2 py-1">View one organisation</p>
             {orgs.map((o) => (
               <button
                 key={o.id}
                 type="button"
                 onClick={() => choose(o.id)}
                 className={`w-full text-left px-2 py-1.5 text-sm rounded hover:bg-muted truncate ${
-                  !user.all_orgs && user.organisation?.id === o.id ? "font-semibold" : ""
+                  user.organisation?.id === o.id ? "font-semibold" : ""
                 }`}
               >
                 {o.name}

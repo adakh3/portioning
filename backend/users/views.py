@@ -178,13 +178,10 @@ class SwitchOrgView(APIView):
         org_id = request.data.get('org_id')
 
         if org_id == 'all':
-            # Explicit all-orgs mode
-            request.session['org_override'] = '__all__'
-            request.organisation = None
-            request._org_all_override = True
-            audit_logger.info(
-                "Superuser %s (pk=%s) switched to all-orgs mode",
-                request.user.email, request.user.pk,
+            # All-orgs mode is disabled — a superuser views exactly one org at a time.
+            return Response(
+                {"detail": "All-orgs mode is disabled. Select a single organisation."},
+                status=status.HTTP_400_BAD_REQUEST,
             )
         elif org_id is None:
             # Clear override — back to own org

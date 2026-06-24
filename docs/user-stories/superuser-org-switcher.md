@@ -16,9 +16,9 @@ updates the active context and **revalidates all data** so the whole app reflect
 
 ## Acceptance criteria
 - [ ] The switcher appears in the top nav **only for superusers**; normal users never see it.
-- [ ] It shows the current context: an org name, or "All orgs".
-- [ ] The menu lists **All orgs**, **My own org**, and every active org.
-- [ ] Choosing an option switches context and the app's data refreshes to that org (no manual reload).
+- [ ] It shows the current context: an org name (or "Pick an org" if none selected).
+- [ ] The menu lists **every active org** — exactly **one org at a time**. There is **no "all orgs"** option (it's disabled, and the API rejects `org_id="all"` with 400).
+- [ ] Choosing an org switches context and the app's data refreshes to that org (no manual reload).
 - [ ] A non-superuser hitting the switch endpoint is rejected (403) — enforced server-side.
 
 ## Manual test cases
@@ -36,13 +36,9 @@ updates the active context and **revalidates all data** so the whole app reflect
 **Expected:** The label updates to that org; navigate to Leads/Quotes/Dishes — you now
 see **that org's** data only.
 
-### TC4 — All orgs
-**Steps:** Open the switcher → **All orgs**.
-**Expected:** Cross-tenant views show everything (where the app supports it); label reads "All orgs".
-
-### TC5 — Back to own org
-**Steps:** Open the switcher → **My own org**.
-**Expected:** Context returns to the superuser's own org.
+### TC4 — No all-orgs
+**Steps:** Open the switcher.
+**Expected:** Only individual orgs are listed — no "All orgs" (and no "My own org") option. You always view exactly one org.
 
 ### TC6 — Persistence
 **Steps:** Switch to an org, then reload the app.

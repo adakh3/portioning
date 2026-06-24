@@ -307,13 +307,12 @@ class TestSuperuserOrgSwitch(OrgIsolationTestBase):
         resp = client.post("/api/auth/switch-org/", {"org_id": 99999})
         self.assertEqual(resp.status_code, 404)
 
-    def test_switch_org_all_returns_all_orgs_flag(self):
-        """Switching to 'all' sets the all_orgs flag in response."""
+    def test_switch_org_all_is_rejected(self):
+        """All-orgs mode is disabled — a superuser views one org at a time."""
         client = APIClient()
         client.force_authenticate(user=self.superuser)
         resp = client.post("/api/auth/switch-org/", {"org_id": "all"})
-        self.assertEqual(resp.status_code, 200)
-        self.assertTrue(resp.data.get("all_orgs", False))
+        self.assertEqual(resp.status_code, 400)
 
     def test_switch_org_to_specific_org(self):
         """Switching to a specific org returns that org in response."""

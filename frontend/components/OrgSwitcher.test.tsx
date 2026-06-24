@@ -38,12 +38,14 @@ describe("OrgSwitcher", () => {
     await waitFor(() => expect(switchOrg).toHaveBeenCalledWith(2));
   });
 
-  it("offers All orgs and own-org options", async () => {
-    mockUser = { is_superuser: true, all_orgs: true, organisation: null };
+  it("never offers an all-orgs option (one org at a time)", async () => {
+    mockUser = { is_superuser: true, all_orgs: false, organisation: null };
     render(<OrgSwitcher />);
-    expect(screen.getByText("All orgs")).toBeTruthy(); // shown as current
+    expect(screen.getByText("Pick an org")).toBeTruthy(); // no active org yet
     fireEvent.click(screen.getByTitle(/switch the org/i));
-    fireEvent.click(screen.getByText("My own org"));
-    await waitFor(() => expect(switchOrg).toHaveBeenCalledWith(null));
+    expect(screen.queryByText("All orgs")).toBeNull();
+    expect(screen.queryByText("My own org")).toBeNull();
+    fireEvent.click(await screen.findByText("Hanif Rajput"));
+    await waitFor(() => expect(switchOrg).toHaveBeenCalledWith(1));
   });
 });
