@@ -13,6 +13,7 @@ from unittest.mock import patch
 from django.test import TestCase
 from django.utils import timezone
 from rest_framework.test import APIClient
+from rest_framework_simplejwt.tokens import RefreshToken
 
 from users.models import Organisation, User
 
@@ -234,6 +235,61 @@ class WebhookHandlerTests(TestCase):
             {"id": "evt_2", "type": "invoice.paid", "data": {"object": {}}})
         self.sub.refresh_from_db()
         self.assertEqual(self.sub.status, "trialing")
+
+
+class SubscriptionGateTests(TestCase):
+    """The middleware paywall. Uses real JWT cookies (not force_authenticate,
+    which bypasses middleware) so the gate actually resolves the user."""
+
+    GATED = "/api/dishes/"  # a normal authenticated endpoint behind the gate
+
+    def setUp(self):
+        self.org = Organisation.objects.create(name="GateCo", slug="gateco", country="PK")
+        self.user = User.objects.create(email="u@x.com", role="owner",
+                                        organisation=self.org, is_active=True)
+
+    def cookie_client(self, user):
+        c = APIClient()
+        c.cookies['access_token'] = str(RefreshToken.for_user(user).access_token)
+        return c
+
+    def expire_trial(self):
+        sub = self.org.subscription
+        sub.trial_ends_at = timezone.now() - timedelta(days=1)
+        sub.save()
+
+    def test_live_trial_can_access(self):
+        res = self.cookie_client(self.user).get(self.GATED)
+        self.assertEqual(res.status_code, 200, res.content)
+
+    def test_expired_trial_is_blocked_402(self):
+        self.expire_trial()
+        res = self.cookie_client(self.user).get(self.GATED)
+        self.assertEqual(res.status_code, 402)
+        self.assertEqual(res.json()["detail"], "subscription_required")
+
+    def test_billing_endpoints_stay_reachable_when_blocked(self):
+        self.expire_trial()
+        res = self.cookie_client(self.user).get(SUBSCRIPTION)
+        self.assertEqual(res.status_code, 200)
+        self.assertFalse(res.json()["has_access"])
+
+    def test_auth_endpoints_stay_reachable_when_blocked(self):
+        self.expire_trial()
+        res = self.cookie_client(self.user).get("/api/auth/me/")
+        self.assertEqual(res.status_code, 200)
+
+    def test_superuser_bypasses_gate(self):
+        su = User.objects.create(email="su@x.com", is_superuser=True,
+                                 is_staff=True, is_active=True, organisation=self.org)
+        self.expire_trial()
+        res = self.cookie_client(su).get(self.GATED)
+        self.assertEqual(res.status_code, 200, res.content)
+
+    def test_anonymous_request_is_not_402(self):
+        # No token: the gate leaves it alone; the view returns 401, not 402.
+        res = APIClient().get(self.GATED)
+        self.assertIn(res.status_code, (401, 403))
 
 
 class WebhookViewTests(TestCase):

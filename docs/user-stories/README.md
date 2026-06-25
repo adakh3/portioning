@@ -19,7 +19,7 @@ here. Keep it test-focused — numbered cases with concrete steps and expected r
 | Roles — admin tier (admin ≠ manager) | [roles-admin-tier.md](roles-admin-tier.md) | Built — awaiting manual sign-off |
 | Quotes list — table view | [quotes-table.md](quotes-table.md) | Built — awaiting manual sign-off |
 | Booking totals — shared engine (quotes + events) | [booking-totals.md](booking-totals.md) | Built — awaiting manual sign-off |
-| Subscription billing (Stripe) | [subscription-billing.md](subscription-billing.md) | Backend + frontend built — access gating pending |
+| Subscription billing (Stripe) | [subscription-billing.md](subscription-billing.md) | Built (backend + frontend + access gating) — awaiting manual sign-off |
 
 ## Template
 

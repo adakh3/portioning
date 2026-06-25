@@ -84,12 +84,25 @@ function sanitizeError(status: number, text: string): string {
   return text.length > 200 ? text.slice(0, 200) + "…" : text;
 }
 
+// When the backend gate returns 402 (inactive subscription), send the user to
+// the billing page so they can subscribe. The billing page's own calls are
+// exempt from the gate, so this never loops.
+function redirectToBilling() {
+  if (typeof window !== "undefined" && window.location.pathname !== "/billing") {
+    window.location.href = "/billing";
+  }
+}
+
 async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     credentials: "include",
     headers: buildHeaders(options),
     ...options,
   });
+  if (res.status === 402) {
+    redirectToBilling();
+    throw new Error("subscription_required");
+  }
   if (res.status === 401 && !path.startsWith("/auth/")) {
     const refreshed = await tryRefresh();
     if (refreshed) {

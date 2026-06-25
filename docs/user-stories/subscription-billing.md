@@ -96,6 +96,14 @@ test mode fires `customer.subscription.created`.
 1. Move the subscription to `past_due`, then `canceled` (via portal or CLI).
 **Expected:** `has_access` true while `past_due`, false once `canceled`.
 
+### TC6 — Gate blocks an expired org and redirects to billing
+**Steps:**
+1. Expire an org's trial (admin: set `trial_ends_at` to the past).
+2. As a member of that org, load any normal page (e.g. Leads).
+**Expected:** API calls return `402`; the app redirects to `/billing`. The
+`/billing` page itself still loads, and Subscribe / login still work. A superuser
+is never blocked.
+
 ## Frontend
 `/billing` page (owner-gated nav link under Admin) — shows the current plan with
 a status pill, a trial countdown ("5 days left in your free trial"), and:
@@ -107,8 +115,21 @@ a status pill, a trial countdown ("5 days left in your free trial"), and:
 Uses hosted Checkout, so the frontend never handles card data and needs no
 Stripe publishable key — it just follows the URL the backend returns.
 
+## Access gating
+`payments.middleware.SubscriptionGateMiddleware` enforces `has_access` on every
+`/api/` request (it runs for all views regardless of their `permission_classes`,
+so the paywall can't be skipped). It resolves the user from the JWT cookie
+itself (auth is cookie-JWT, so `request.user` is anonymous at middleware time).
+
+- **Blocked** (HTTP `402`, body `{detail: "subscription_required"}`): any org
+  whose subscription is inactive (expired trial / `none` / `canceled` / `unpaid`).
+- **Exempt:** `/api/auth/*` (so you can log in), `/api/billing/*` (so a
+  locked-out org can still reach checkout/portal/status + the webhook),
+  `/api/admin/*`, and `OPTIONS` preflights.
+- **Never gated:** superusers (platform staff).
+- **Frontend:** `fetchApi` intercepts `402` and redirects to `/billing` (the
+  billing page's own calls are exempt, so it never loops).
+
 ## Still to build
-- Access gating/middleware that enforces `has_access` on protected endpoints
-  (incl. a friendly "trial expired — subscribe" redirect to `/billing`).
 - A superuser-facing UI for extending trials (Django admin works today).
 - `stripe listen` / webhook secret wiring in deployment.
