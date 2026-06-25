@@ -19,7 +19,7 @@ here. Keep it test-focused — numbered cases with concrete steps and expected r
 | Roles — admin tier (admin ≠ manager) | [roles-admin-tier.md](roles-admin-tier.md) | Built — awaiting manual sign-off |
 | Quotes list — table view | [quotes-table.md](quotes-table.md) | Built — awaiting manual sign-off |
 | Booking totals — shared engine (quotes + events) | [booking-totals.md](booking-totals.md) | Built — awaiting manual sign-off |
-| Commission & target tracking (from the CRM) | [commission.md](commission.md) | Backend built — awaiting frontend + manual sign-off |
+| Commission & target tracking (from the CRM) | [commission.md](commission.md) | Built (backend + My Commission page) — awaiting manual sign-off |
 
 ## Template
 

@@ -17,6 +17,7 @@ export const departments: Department[] = [
     icon: "briefcase",
     pages: [
       { label: "Dashboard", href: "/", roles: ["manager", "admin", "owner"] },
+      { label: "My Commission", href: "/commission" },
       { label: "Leads", href: "/leads" },
       { label: "Follow-ups", href: "/follow-ups" },
       { label: "Quotes", href: "/quotes" },

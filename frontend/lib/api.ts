@@ -908,6 +908,30 @@ export interface MyDashboardStats {
   status_distribution: { status: string; label: string; count: number }[];
 }
 
+export interface CommissionBandRow {
+  from_pct: string;
+  to_pct: string | null;
+  rate: string;
+  revenue_in_band: string;
+  commission: string;
+}
+
+export interface CommissionData {
+  period: string;
+  period_unit: string;
+  period_start: string;
+  period_end: string;
+  model: string;
+  revenue: string;
+  target: string;
+  attainment_pct: string;
+  commission: string;
+  deals: number;
+  lifetime_revenue: string;
+  lifetime_deals: number;
+  breakdown: CommissionBandRow[];
+}
+
 // Lead filter params
 export interface LeadFilters {
   search?: string;
@@ -1134,6 +1158,7 @@ export const api = {
     return fetchApi<DashboardStats>(`/bookings/dashboard/stats/?${params.toString()}`);
   },
   getMyDashboardStats: () => fetchApi<MyDashboardStats>("/bookings/dashboard/my-stats/"),
+  getMyCommission: () => fetchApi<CommissionData>("/bookings/commission/me/"),
   getLeadsKanban: (filters?: LeadFilters) => {
     const params = new URLSearchParams();
     if (filters) {

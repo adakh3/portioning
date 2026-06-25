@@ -26,6 +26,7 @@ import {
   ActivityLogEntry,
   DashboardStats,
   MyDashboardStats,
+  CommissionData,
   AllocationRule,
   StaffReportEntry,
   Reminder,
@@ -397,6 +398,14 @@ export function useMyDashboardStats() {
     "my-dashboard-stats",
     () => api.getMyDashboardStats(),
     { dedupingInterval: 30000 }
+  );
+}
+
+export function useMyCommission() {
+  return useSWR<CommissionData>(
+    "my-commission",
+    () => api.getMyCommission(),
+    { dedupingInterval: 60000 }
   );
 }
 
