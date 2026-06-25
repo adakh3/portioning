@@ -4,6 +4,7 @@ from .leads import UserListView, ProductLineListView, ProductLineDetailView, Pro
 from .dashboard import DashboardStatsView, MyDashboardStatsView
 from .commission import (
     MyCommissionView,
+    CommissionPlanManageListCreateView, CommissionPlanManageDetailView,
     CommissionBandManageListCreateView, CommissionBandManageDetailView,
     SalesTargetManageView,
 )

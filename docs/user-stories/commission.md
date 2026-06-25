@@ -21,12 +21,15 @@ Credit follows the event's **`assigned_to`** (a real, editable field):
 - An admin can reassign `assigned_to` to correct the credit. Existing events were backfilled
   the same way (migration `bookings/0046`).
 
-## Config (per org, on OrgSettings — admin-editable)
-- `commission_model`: `flat` | `accelerated`
-- `commission_flat_rate` (flat) and `CommissionBand` rows (accelerated; threshold% → rate, marginal)
-- `target_period`: `monthly` | `quarterly` | `yearly`
-- `commission_basis`: `event_date` (default) | `booking_date` — which date buckets an event into a period
-- per-rep `SalesTarget`
+## Config (admin-editable, Settings → Commission)
+- **Commission plans** (`CommissionPlan`, per org) — a named rate structure (e.g. by seniority):
+  `commission_model` (`flat` | `accelerated`), `commission_flat_rate`, and (accelerated) its
+  `CommissionBand` rows (threshold% → rate, marginal). Each org has a default plan (`is_default`).
+- **Each salesperson is assigned a plan** (`SalesTarget.plan`); unassigned reps use the org's
+  default plan. The rep's effective model/rate/bands come from their plan.
+- **Org-wide** on `OrgSettings`: `target_period` (`monthly`/`quarterly`/`yearly`) and
+  `commission_basis` (`event_date` default | `booking_date`).
+- Per-rep `SalesTarget.amount` (the target).
 
 ## Scope (v1)
 Derived live; no per-deal commission ledger. Endpoint: `GET /api/bookings/commission/me/`.

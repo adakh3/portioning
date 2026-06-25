@@ -590,10 +590,8 @@ export interface SiteSettingsData {
   quotation_terms: string;
   tax_label: string;
   default_tax_rate: string;
-  // Commission & targets
-  commission_model?: string;
+  // Commission & targets (model/rate are per-plan; choices kept for the plan form)
   commission_model_choices?: { value: string; label: string }[];
-  commission_flat_rate?: string;
   target_period?: string;
   target_period_choices?: { value: string; label: string }[];
   commission_basis?: string;
@@ -604,8 +602,17 @@ export interface SiteSettingsData {
   twilio_whatsapp_number?: string;
 }
 
+export interface CommissionPlanConfig {
+  id: number;
+  name: string;
+  commission_model: string;
+  commission_flat_rate: string;
+  is_default: boolean;
+}
+
 export interface CommissionBandConfig {
   id: number;
+  plan: number;
   min_attainment_pct: string;
   rate: string;
 }
@@ -614,6 +621,7 @@ export interface SalesTargetRow {
   id: number;
   user: number;
   user_name: string | null;
+  plan: number | null;
   amount: string;
 }
 
@@ -945,6 +953,7 @@ export interface CommissionData {
   period_start: string;
   period_end: string;
   model: string;
+  plan: string | null;
   basis: string;
   revenue: string;
   target: string;
@@ -1183,16 +1192,23 @@ export const api = {
   },
   getMyDashboardStats: () => fetchApi<MyDashboardStats>("/bookings/dashboard/my-stats/"),
   getMyCommission: () => fetchApi<CommissionData>("/bookings/commission/me/"),
+  getCommissionPlans: () => fetchList<CommissionPlanConfig>("/bookings/settings/commission-plans/?page_size=all"),
+  createCommissionPlan: (data: { name: string; commission_model: string; commission_flat_rate: string }) =>
+    fetchApi<CommissionPlanConfig>("/bookings/settings/commission-plans/", { method: "POST", body: JSON.stringify(data) }),
+  updateCommissionPlan: (id: number, data: Partial<CommissionPlanConfig>) =>
+    fetchApi<CommissionPlanConfig>(`/bookings/settings/commission-plans/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
+  deleteCommissionPlan: (id: number) =>
+    fetchApi<void>(`/bookings/settings/commission-plans/${id}/`, { method: "DELETE" }),
   getCommissionBands: () => fetchList<CommissionBandConfig>("/bookings/settings/commission-bands/?page_size=all"),
-  createCommissionBand: (data: { min_attainment_pct: string; rate: string }) =>
+  createCommissionBand: (data: { plan: number; min_attainment_pct: string; rate: string }) =>
     fetchApi<CommissionBandConfig>("/bookings/settings/commission-bands/", { method: "POST", body: JSON.stringify(data) }),
   updateCommissionBand: (id: number, data: Partial<CommissionBandConfig>) =>
     fetchApi<CommissionBandConfig>(`/bookings/settings/commission-bands/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
   deleteCommissionBand: (id: number) =>
     fetchApi<void>(`/bookings/settings/commission-bands/${id}/`, { method: "DELETE" }),
   getSalesTargets: () => fetchApi<SalesTargetRow[]>("/bookings/settings/sales-targets/"),
-  setSalesTarget: (user: number, amount: string) =>
-    fetchApi<SalesTargetRow>("/bookings/settings/sales-targets/", { method: "PUT", body: JSON.stringify({ user, amount }) }),
+  setSalesTarget: (user: number, data: { amount?: string; plan?: number | null }) =>
+    fetchApi<SalesTargetRow>("/bookings/settings/sales-targets/", { method: "PUT", body: JSON.stringify({ user, ...data }) }),
   getLeadsKanban: (filters?: LeadFilters) => {
     const params = new URLSearchParams();
     if (filters) {

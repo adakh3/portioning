@@ -26,9 +26,8 @@ class OrgSettingsSerializer(serializers.ModelSerializer):
             'tax_label', 'default_tax_rate',
             'default_price_per_head', 'target_food_cost_percentage', 'price_rounding_step',
             'quotation_terms',
-            # Commission & targets
-            'commission_model', 'commission_model_choices',
-            'commission_flat_rate',
+            # Commission & targets (model/rate are per-plan now; choices kept for the plan form)
+            'commission_model_choices',
             'target_period', 'target_period_choices',
             'commission_basis', 'commission_basis_choices',
             # WhatsApp (read-only config, org can only toggle enabled)

@@ -15,6 +15,11 @@ def create_org_defaults(sender, instance, created, **kwargs):
     from bookings.models.settings import OrgSettings
     OrgSettings.objects.get_or_create(organisation=instance)
 
+    from bookings.models import CommissionPlan
+    CommissionPlan.objects.get_or_create(
+        organisation=instance, is_default=True, defaults={'name': 'Default'},
+    )
+
     from bookings.models.choices import LeadStatusOption, LostReasonOption
 
     # Lead statuses carry colour + semantic flags (default/won/lost stage).

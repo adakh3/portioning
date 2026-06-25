@@ -7,8 +7,10 @@ from rest_framework import status, generics
 from users.mixins import get_request_org, apply_org_filter
 from users.models import User
 from bookings.permissions import IsAdminOrOwner
-from bookings.models import CommissionBand, SalesTarget
-from bookings.serializers.commission import CommissionBandSerializer, SalesTargetSerializer
+from bookings.models import CommissionPlan, CommissionBand, SalesTarget
+from bookings.serializers.commission import (
+    CommissionPlanSerializer, CommissionBandSerializer, SalesTargetSerializer,
+)
 from bookings.services.commission import commission_summary
 
 
@@ -40,6 +42,7 @@ class MyCommissionView(APIView):
             'period_start': s['period_start'],
             'period_end': s['period_end'],
             'model': s['model'],
+            'plan': s['plan'],
             'basis': s['basis'],
             'revenue': _money(s['revenue']),
             'target': _money(s['target']),
@@ -63,15 +66,41 @@ class MyCommissionView(APIView):
 
 # --- Admin config (Settings UI) ---
 
+class CommissionPlanManageListCreateView(generics.ListCreateAPIView):
+    """List + create commission plans for the org (admin/owner)."""
+    serializer_class = CommissionPlanSerializer
+    permission_classes = [IsAdminOrOwner]
+
+    def get_queryset(self):
+        return apply_org_filter(CommissionPlan.objects.all().order_by('name'), self.request)
+
+    def perform_create(self, serializer):
+        serializer.save(organisation=get_request_org(self.request))
+
+
+class CommissionPlanManageDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = CommissionPlanSerializer
+    permission_classes = [IsAdminOrOwner]
+
+    def get_queryset(self):
+        return apply_org_filter(CommissionPlan.objects.all(), self.request)
+
+    def perform_destroy(self, instance):
+        if instance.is_default:
+            from rest_framework import serializers as drf_serializers
+            raise drf_serializers.ValidationError('The default plan cannot be deleted.')
+        instance.delete()
+
+
 class CommissionBandManageListCreateView(generics.ListCreateAPIView):
-    """List + create commission bands for the org (admin/owner)."""
+    """List + create bands, scoped to a plan via ?plan=<id> (admin/owner)."""
     serializer_class = CommissionBandSerializer
     permission_classes = [IsAdminOrOwner]
 
     def get_queryset(self):
-        return apply_org_filter(
-            CommissionBand.objects.all().order_by('min_attainment_pct'), self.request,
-        )
+        qs = apply_org_filter(CommissionBand.objects.all().order_by('min_attainment_pct'), self.request)
+        plan = self.request.query_params.get('plan')
+        return qs.filter(plan_id=plan) if plan else qs
 
     def perform_create(self, serializer):
         serializer.save(organisation=get_request_org(self.request))
@@ -86,7 +115,7 @@ class CommissionBandManageDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 
 class SalesTargetManageView(APIView):
-    """List all sales targets, or upsert one for a user (admin/owner)."""
+    """List all sales targets, or upsert a user's target + plan (admin/owner)."""
     permission_classes = [IsAdminOrOwner]
 
     def get(self, request):
@@ -100,8 +129,14 @@ class SalesTargetManageView(APIView):
         if not User.objects.filter(pk=user_id, organisation=org).exists():
             return Response({'error': 'Invalid user for this organisation.'},
                             status=status.HTTP_400_BAD_REQUEST)
+        defaults = {'amount': amount or Decimal('0')}
+        if 'plan' in request.data:
+            plan_id = request.data.get('plan')
+            if plan_id and not CommissionPlan.objects.filter(pk=plan_id, organisation=org).exists():
+                return Response({'error': 'Invalid plan for this organisation.'},
+                                status=status.HTTP_400_BAD_REQUEST)
+            defaults['plan_id'] = plan_id or None
         target, _ = SalesTarget.objects.update_or_create(
-            organisation=org, user_id=user_id,
-            defaults={'amount': amount or Decimal('0')},
+            organisation=org, user_id=user_id, defaults=defaults,
         )
         return Response(SalesTargetSerializer(target).data)

@@ -14,7 +14,7 @@ from django.db.models import Sum
 from django.utils import timezone
 
 from bookings.commission import compute_commission
-from bookings.models import CommissionBand, OrgSettings, SalesTarget
+from bookings.models import CommissionPlan, OrgSettings, SalesTarget
 from events.models import Event
 
 # Statuses that represent a real, booked event (excludes tentative + cancelled).
@@ -22,6 +22,20 @@ EARNED_EVENT_STATUSES = ['confirmed', 'in_progress', 'completed']
 
 # Org's commission_basis -> the Event date field that buckets it into a period.
 BASIS_TO_DATE_FIELD = {'event_date': 'date', 'booking_date': 'booking_date'}
+
+
+def rep_plan(org, user):
+    """The commission plan a salesperson is on: their assigned plan, else the
+    org's default plan (else None)."""
+    st = (
+        SalesTarget.objects
+        .filter(organisation=org, user=user)
+        .select_related('plan')
+        .first()
+    )
+    if st and st.plan_id:
+        return st.plan
+    return CommissionPlan.objects.filter(organisation=org, is_default=True).first()
 
 
 def period_bounds(period, today):
@@ -83,18 +97,16 @@ def commission_summary(org, user, today=None):
         .values_list('amount', flat=True)
         .first()
     ) or Decimal('0')
-    bands = list(
-        CommissionBand.objects
-        .filter(organisation=org)
-        .order_by('min_attainment_pct')
-        .values_list('min_attainment_pct', 'rate')
-    )
+    plan = rep_plan(org, user)
+    if plan is not None:
+        model = plan.commission_model
+        flat_rate = plan.commission_flat_rate
+        bands = list(plan.bands.order_by('min_attainment_pct').values_list('min_attainment_pct', 'rate'))
+    else:
+        model, flat_rate, bands = 'flat', Decimal('0'), []
 
     result = compute_commission(
-        revenue, target,
-        model=settings.commission_model,
-        flat_rate=settings.commission_flat_rate,
-        bands=bands,
+        revenue, target, model=model, flat_rate=flat_rate, bands=bands,
     )
 
     lifetime_revenue, lifetime_deals = _event_revenue(org, user, date_field)
@@ -104,7 +116,8 @@ def commission_summary(org, user, today=None):
         'period_unit': settings.target_period,
         'period_start': start,
         'period_end': end,
-        'model': settings.commission_model,
+        'model': model,
+        'plan': plan.name if plan is not None else None,
         'basis': settings.commission_basis,
         'revenue': revenue,
         'target': target,

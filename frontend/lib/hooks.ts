@@ -27,6 +27,7 @@ import {
   DashboardStats,
   MyDashboardStats,
   CommissionData,
+  CommissionPlanConfig,
   CommissionBandConfig,
   SalesTargetRow,
   AllocationRule,
@@ -409,6 +410,12 @@ export function useMyCommission() {
     () => api.getMyCommission(),
     { dedupingInterval: 60000 }
   );
+}
+
+export function useCommissionPlans() {
+  return useSWR<CommissionPlanConfig[]>("commission-plans", () => api.getCommissionPlans(), {
+    revalidateOnFocus: false,
+  });
 }
 
 export function useCommissionBands() {

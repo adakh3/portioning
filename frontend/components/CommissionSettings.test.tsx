@@ -7,28 +7,30 @@ vi.mock("@/lib/hooks", () => ({
   useSiteSettings: () => ({
     data: {
       currency_symbol: "£",
-      commission_model: "accelerated",
-      commission_flat_rate: "5.00",
       target_period: "monthly",
       commission_basis: "event_date",
       commission_model_choices: [
         { value: "flat", label: "Flat rate" },
         { value: "accelerated", label: "Accelerated" },
       ],
-      target_period_choices: [{ value: "monthly", label: "Monthly" }],
-      commission_basis_choices: [
-        { value: "event_date", label: "Event date" },
-        { value: "booking_date", label: "Booking date" },
-      ],
+      target_period_choices: [{ value: "monthly", label: "Monthly" }, { value: "quarterly", label: "Quarterly" }],
+      commission_basis_choices: [{ value: "event_date", label: "Event date" }],
     },
     mutate,
   }),
+  useCommissionPlans: () => ({
+    data: [
+      { id: 1, name: "Default", commission_model: "flat", commission_flat_rate: "5.00", is_default: true },
+      { id: 2, name: "Senior", commission_model: "accelerated", commission_flat_rate: "0.00", is_default: false },
+    ],
+    mutate,
+  }),
   useCommissionBands: () => ({
-    data: [{ id: 1, min_attainment_pct: "0.00", rate: "4.00" }],
+    data: [{ id: 10, plan: 2, min_attainment_pct: "0.00", rate: "4.00" }],
     mutate,
   }),
   useSalesTargets: () => ({
-    data: [{ id: 1, user: 7, user_name: "Rep One", amount: "5000000.00" }],
+    data: [{ id: 1, user: 7, user_name: "Rep One", plan: null, amount: "5000000.00" }],
     mutate,
   }),
   useUsers: () => ({
@@ -40,12 +42,15 @@ vi.mock("@/lib/hooks", () => ({
 }));
 
 const updateSiteSettings = vi.fn().mockResolvedValue({});
-const createCommissionBand = vi.fn().mockResolvedValue({});
+const createCommissionPlan = vi.fn().mockResolvedValue({});
 const setSalesTarget = vi.fn().mockResolvedValue({});
 vi.mock("@/lib/api", () => ({
   api: {
     updateSiteSettings: (...a: unknown[]) => updateSiteSettings(...a),
-    createCommissionBand: (...a: unknown[]) => createCommissionBand(...a),
+    createCommissionPlan: (...a: unknown[]) => createCommissionPlan(...a),
+    updateCommissionPlan: vi.fn().mockResolvedValue({}),
+    deleteCommissionPlan: vi.fn().mockResolvedValue(undefined),
+    createCommissionBand: vi.fn().mockResolvedValue({}),
     updateCommissionBand: vi.fn().mockResolvedValue({}),
     deleteCommissionBand: vi.fn().mockResolvedValue(undefined),
     setSalesTarget: (...a: unknown[]) => setSalesTarget(...a),
@@ -56,43 +61,42 @@ import CommissionSettings from "./CommissionSettings";
 
 beforeEach(() => {
   updateSiteSettings.mockClear();
-  createCommissionBand.mockClear();
+  createCommissionPlan.mockClear();
   setSalesTarget.mockClear();
 });
 
-describe("CommissionSettings", () => {
-  it("shows the accelerated bands section with the existing band", () => {
+describe("CommissionSettings (plans)", () => {
+  it("lists plans and shows the accelerated plan's band", () => {
     render(<CommissionSettings />);
-    expect(screen.getByText("Accelerated bands")).toBeInTheDocument();
-    expect(screen.getByDisplayValue("4.00")).toBeInTheDocument(); // band rate
+    expect(screen.getByLabelText("Default name")).toHaveValue("Default");
+    expect(screen.getByLabelText("Senior name")).toHaveValue("Senior");
+    expect(screen.getByLabelText("rate %")).toHaveValue(4); // Senior's band rate
   });
 
-  it("only lists salespeople in targets (not the owner)", () => {
+  it("only lists salespeople (not the owner)", () => {
     render(<CommissionSettings />);
     expect(screen.getByText("Rep One")).toBeInTheDocument();
     expect(screen.queryByText("Boss X")).not.toBeInTheDocument();
   });
 
-  it("saves the model when changed", async () => {
+  it("creates a plan", async () => {
     render(<CommissionSettings />);
-    const selects = screen.getAllByRole("combobox");
-    fireEvent.change(selects[0], { target: { value: "flat" } });
-    await waitFor(() => expect(updateSiteSettings).toHaveBeenCalledWith({ commission_model: "flat" }));
+    fireEvent.change(screen.getByPlaceholderText(/New plan name/i), { target: { value: "Lead" } });
+    fireEvent.click(screen.getByText("+ Add plan"));
+    await waitFor(() => expect(createCommissionPlan).toHaveBeenCalledWith({
+      name: "Lead", commission_model: "flat", commission_flat_rate: "0",
+    }));
   });
 
-  it("adds a band", async () => {
+  it("assigns a plan to a salesperson", async () => {
     render(<CommissionSettings />);
-    fireEvent.change(screen.getByLabelText("new threshold"), { target: { value: "100" } });
-    fireEvent.change(screen.getByLabelText("new rate"), { target: { value: "7" } });
-    fireEvent.click(screen.getByText("+ Add band"));
-    await waitFor(() => expect(createCommissionBand).toHaveBeenCalledWith({ min_attainment_pct: "100", rate: "7" }));
+    fireEvent.change(screen.getByLabelText("Rep plan"), { target: { value: "2" } });
+    await waitFor(() => expect(setSalesTarget).toHaveBeenCalledWith(7, { plan: 2 }));
   });
 
-  it("sets a salesperson target on blur", async () => {
+  it("saves the org-wide period", async () => {
     render(<CommissionSettings />);
-    const input = screen.getByLabelText("Rep target");
-    fireEvent.change(input, { target: { value: "6000000" } });
-    fireEvent.blur(input);
-    await waitFor(() => expect(setSalesTarget).toHaveBeenCalledWith(7, "6000000"));
+    fireEvent.change(screen.getByLabelText("Target period"), { target: { value: "quarterly" } });
+    await waitFor(() => expect(updateSiteSettings).toHaveBeenCalledWith({ target_period: "quarterly" }));
   });
 });

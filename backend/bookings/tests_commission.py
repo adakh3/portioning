@@ -7,7 +7,7 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from bookings.commission import compute_commission, FLAT, ACCELERATED
-from bookings.models import CommissionBand, OrgSettings, SalesTarget
+from bookings.models import CommissionPlan, CommissionBand, OrgSettings, SalesTarget
 from bookings.services.commission import commission_summary, period_bounds
 from bookings.tests import _make_org
 from events.models import Event
@@ -156,18 +156,27 @@ class PeriodBoundsTests(TestCase):
 
 
 def _set_commission(org, *, model="flat", flat_rate="0", bands=None, period="monthly", basis="event_date"):
+    """Configure the org's default plan + period/basis (reps fall back to it)."""
     OrgSettings.objects.update_or_create(
         organisation=org,
-        defaults={
-            "commission_model": model,
-            "commission_flat_rate": Decimal(flat_rate),
-            "target_period": period,
-            "commission_basis": basis,
-        },
+        defaults={"target_period": period, "commission_basis": basis},
     )
-    CommissionBand.objects.filter(organisation=org).delete()
+    plan = _set_plan(org, is_default=True, name="Default", model=model, flat_rate=flat_rate, bands=bands)
+    return plan
+
+
+def _set_plan(org, *, name, model="flat", flat_rate="0", bands=None, is_default=False):
+    plan, _ = CommissionPlan.objects.get_or_create(
+        organisation=org, name=name, defaults={"is_default": is_default},
+    )
+    plan.commission_model = model
+    plan.commission_flat_rate = Decimal(flat_rate)
+    plan.is_default = is_default or plan.is_default
+    plan.save()
+    CommissionBand.objects.filter(plan=plan).delete()
     for pct, rate in (bands or []):
-        CommissionBand.objects.create(organisation=org, min_attainment_pct=Decimal(pct), rate=Decimal(rate))
+        CommissionBand.objects.create(organisation=org, plan=plan, min_attainment_pct=Decimal(pct), rate=Decimal(rate))
+    return plan
 
 
 def _event(org, user, total, *, date=None, booking_date=None, status="confirmed"):
@@ -256,6 +265,24 @@ class CommissionSummaryTests(TestCase):
         self.assertEqual(s["lifetime_revenue"], Decimal("3000000"))  # all-time
         self.assertEqual(s["lifetime_deals"], 2)
 
+    def test_rep_plan_overrides_the_default(self):
+        # default plan = 5% flat; a Senior plan = 10% flat; assign the rep to Senior.
+        _set_commission(self.org, model="flat", flat_rate="5")
+        senior = _set_plan(self.org, name="Senior", model="flat", flat_rate="10")
+        SalesTarget.objects.create(organisation=self.org, user=self.user, amount=Decimal("1000000"), plan=senior)
+        _event(self.org, self.user, "1000000", date=self.today)
+
+        s = commission_summary(self.org, self.user, today=self.today)
+        self.assertEqual(s["commission"], Decimal("100000"))  # 10%, not the default 5%
+        self.assertEqual(s["plan"], "Senior")
+
+    def test_unassigned_rep_uses_default_plan(self):
+        _set_commission(self.org, model="flat", flat_rate="5")
+        _event(self.org, self.user, "1000000", date=self.today)
+        s = commission_summary(self.org, self.user, today=self.today)
+        self.assertEqual(s["commission"], Decimal("50000"))  # default 5%
+        self.assertEqual(s["plan"], "Default")
+
 
 class MyCommissionAPITests(TestCase):
     URL = "/api/bookings/commission/me/"
@@ -299,26 +326,48 @@ class CommissionConfigAPITests(TestCase):
         self.client = APIClient()
         self.client.force_authenticate(user=self.owner)
 
+    def _default_plan(self):
+        return CommissionPlan.objects.get(organisation=self.org, is_default=True)
+
     def test_update_commission_settings(self):
+        # period + basis are org-wide; model/rate are per-plan now.
         res = self.client.patch("/api/bookings/settings/", {
-            "commission_model": "accelerated", "commission_flat_rate": "5.00",
             "target_period": "quarterly", "commission_basis": "booking_date",
         }, format="json")
         self.assertEqual(res.status_code, 200, res.content)
         s = OrgSettings.for_org(self.org)
-        self.assertEqual(s.commission_model, "accelerated")
         self.assertEqual(s.target_period, "quarterly")
         self.assertEqual(s.commission_basis, "booking_date")
-        # choices are exposed for the UI dropdowns
-        self.assertTrue(res.json()["commission_model_choices"])
+        self.assertTrue(res.json()["commission_model_choices"])  # for the plan form
+
+    def test_commission_plan_crud(self):
+        res = self.client.post("/api/bookings/settings/commission-plans/",
+                               {"name": "Senior", "commission_model": "accelerated", "commission_flat_rate": "0"},
+                               format="json")
+        self.assertEqual(res.status_code, 201, res.content)
+        plan_id = res.json()["id"]
+        self.assertFalse(res.json()["is_default"])
+
+        res = self.client.patch(f"/api/bookings/settings/commission-plans/{plan_id}/",
+                                {"commission_flat_rate": "8"}, format="json")
+        self.assertEqual(res.status_code, 200)
+
+        # the default plan cannot be deleted
+        default_id = self._default_plan().id
+        res = self.client.delete(f"/api/bookings/settings/commission-plans/{default_id}/")
+        self.assertEqual(res.status_code, 400)
+
+        res = self.client.delete(f"/api/bookings/settings/commission-plans/{plan_id}/")
+        self.assertEqual(res.status_code, 204)
 
     def test_commission_band_crud(self):
+        plan_id = self._default_plan().id
         res = self.client.post("/api/bookings/settings/commission-bands/",
-                               {"min_attainment_pct": "100", "rate": "7"}, format="json")
+                               {"plan": plan_id, "min_attainment_pct": "100", "rate": "7"}, format="json")
         self.assertEqual(res.status_code, 201, res.content)
         band_id = res.json()["id"]
 
-        res = self.client.get("/api/bookings/settings/commission-bands/?page_size=all")
+        res = self.client.get(f"/api/bookings/settings/commission-bands/?plan={plan_id}&page_size=all")
         self.assertEqual(len(res.json()), 1)
 
         res = self.client.patch(f"/api/bookings/settings/commission-bands/{band_id}/",
