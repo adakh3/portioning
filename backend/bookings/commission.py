@@ -37,8 +37,10 @@ def compute_commission(revenue, target, *, model, flat_rate, bands):
         attainment_pct   revenue / target * 100 (0 when target <= 0)
         breakdown        list of {from_pct, to_pct, rate, revenue_in_band, commission}
     """
-    revenue = _d(revenue)
-    target = _d(target)
+    # Clamp to non-negative — revenue/target are never negative in practice
+    # (won_quote.total >= 0), so this just hardens against bad config/data.
+    revenue = max(Decimal(0), _d(revenue))
+    target = max(Decimal(0), _d(target))
     attainment = (revenue / target * 100) if target > 0 else Decimal(0)
 
     # Flat — also the safe fallback when there are no bands or no target to

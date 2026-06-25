@@ -77,6 +77,59 @@ class CommissionEngineAcceleratedTests(TestCase):
         self.assertEqual(r["commission"], M("50000"))
 
 
+class CommissionEngineEdgeCaseTests(TestCase):
+    def test_lowest_band_above_zero_leaves_a_gap(self):
+        # Misconfigured: lowest band starts at 50% of target, so revenue below
+        # 50% of target earns nothing. target 5M, band starts at 2.5M.
+        bands = [(M("50"), M("5"))]
+        r = compute_commission(M("4000000"), M("5000000"), model=ACCELERATED, flat_rate=M("0"), bands=bands)
+        # only 4M - 2.5M = 1.5M is in the band
+        self.assertEqual(r["commission"], M("75000"))
+        self.assertEqual(len(r["breakdown"]), 1)
+        self.assertEqual(r["breakdown"][0]["revenue_in_band"], M("1500000"))
+
+    def test_revenue_below_lowest_band_earns_nothing(self):
+        bands = [(M("50"), M("5"))]  # starts at 2.5M
+        r = compute_commission(M("2000000"), M("5000000"), model=ACCELERATED, flat_rate=M("0"), bands=bands)
+        self.assertEqual(r["commission"], M("0"))
+        self.assertEqual(r["breakdown"], [])
+
+    def test_none_inputs_are_treated_as_zero(self):
+        r = compute_commission(None, None, model=FLAT, flat_rate=M("5"), bands=[])
+        self.assertEqual(r["commission"], M("0"))
+        self.assertEqual(r["attainment_pct"], M("0"))
+
+    def test_negative_revenue_is_clamped_to_zero(self):
+        r = compute_commission(M("-1000"), M("5000000"), model=FLAT, flat_rate=M("5"), bands=[])
+        self.assertEqual(r["commission"], M("0"))
+
+    def test_negative_target_is_clamped(self):
+        # negative target -> treated as no target -> flat fallback, no crash
+        r = compute_commission(M("1000000"), M("-5000000"), model=ACCELERATED, flat_rate=M("5"),
+                               bands=[(M("0"), M("4"))])
+        self.assertEqual(r["commission"], M("50000"))
+        self.assertEqual(r["attainment_pct"], M("0"))
+
+    def test_commission_is_exact_decimal_not_prerounded(self):
+        # 333.33 @ 5.55% = 18.499815 — engine keeps full precision; the view rounds.
+        r = compute_commission(M("333.33"), M("0"), model=FLAT, flat_rate=M("5.55"), bands=[])
+        self.assertEqual(r["commission"], M("18.499815"))
+
+
+class MoneyRoundingTests(TestCase):
+    def test_money_rounds_half_up_to_two_dp(self):
+        from bookings.views.commission import _money
+        self.assertEqual(_money(Decimal("18.499815")), "18.50")
+        self.assertEqual(_money(Decimal("18.494")), "18.49")
+        self.assertEqual(_money(Decimal("18.495")), "18.50")  # half up
+        self.assertEqual(_money(Decimal("0")), "0.00")
+
+    def test_pct_rounds_half_up_to_two_dp(self):
+        from bookings.views.commission import _pct
+        self.assertEqual(_pct(Decimal("83.333")), "83.33")
+        self.assertEqual(_pct(Decimal("120")), "120.00")
+
+
 class PeriodBoundsTests(TestCase):
     DAY = date(2026, 6, 15)
 
