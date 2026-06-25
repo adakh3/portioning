@@ -96,10 +96,19 @@ test mode fires `customer.subscription.created`.
 1. Move the subscription to `past_due`, then `canceled` (via portal or CLI).
 **Expected:** `has_access` true while `past_due`, false once `canceled`.
 
-## Still to build (not in this scaffold)
-- Frontend `/billing` page (trial countdown, "Subscribe", "Manage billing").
+## Frontend
+`/billing` page (owner-gated nav link under Admin) — shows the current plan with
+a status pill, a trial countdown ("5 days left in your free trial"), and:
+- **Subscribe** → `POST /api/billing/checkout/` → redirects to Stripe Checkout.
+- **Manage billing** → `POST /api/billing/portal/` → redirects to Stripe Portal.
+- Reads `?status=success|cancelled` on return to show a banner.
+- Non-owners see a read-only "only the owner can manage billing" message.
+
+Uses hosted Checkout, so the frontend never handles card data and needs no
+Stripe publishable key — it just follows the URL the backend returns.
+
+## Still to build
 - Access gating/middleware that enforces `has_access` on protected endpoints
-  (incl. a friendly "trial expired — subscribe" state).
-- A superuser-facing UI for extending trials (admin works today; an in-app
-  control could come later).
+  (incl. a friendly "trial expired — subscribe" redirect to `/billing`).
+- A superuser-facing UI for extending trials (Django admin works today).
 - `stripe listen` / webhook secret wiring in deployment.

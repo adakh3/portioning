@@ -924,6 +924,27 @@ export interface LeadFilters {
   page?: number;
 }
 
+export type SubscriptionStatus =
+  | "none"
+  | "trialing"
+  | "active"
+  | "past_due"
+  | "canceled"
+  | "unpaid"
+  | "incomplete"
+  | "incomplete_expired";
+
+export interface Subscription {
+  status: SubscriptionStatus;
+  plan_name: string;
+  current_period_end: string | null;
+  cancel_at_period_end: boolean;
+  trial_ends_at: string | null;
+  is_trialing: boolean;
+  trial_days_remaining: number;
+  has_access: boolean;
+}
+
 // API functions
 export const api = {
   // Auth
@@ -941,6 +962,21 @@ export const api = {
   getOrganisations: () => fetchApi<{ id: number; name: string }[]>("/auth/organisations/"),
   switchOrg: (orgId: number | "all" | null) =>
     fetchApi<AuthUser>("/auth/switch-org/", { method: "POST", body: JSON.stringify({ org_id: orgId }) }),
+
+  // Billing / subscription (SaaS plan for the org itself)
+  getSubscription: () => fetchApi<Subscription>("/billing/subscription/"),
+  startCheckout: (priceId?: string) =>
+    fetchApi<{ url: string }>("/billing/checkout/", {
+      method: "POST",
+      body: JSON.stringify(priceId ? { price_id: priceId } : {}),
+    }),
+  openBillingPortal: () =>
+    fetchApi<{ url: string }>("/billing/portal/", { method: "POST" }),
+  extendTrial: (orgId: number, days: number) =>
+    fetchApi<Subscription>(`/billing/extend-trial/${orgId}/`, {
+      method: "POST",
+      body: JSON.stringify({ days }),
+    }),
 
   getDishes: () => fetchList<Dish>("/dishes/?page_size=all"),
   getCategories: () => fetchList<DishCategory>("/categories/?page_size=all"),
