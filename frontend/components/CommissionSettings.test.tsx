@@ -77,6 +77,7 @@ describe("CommissionSettings (plans)", () => {
     render(<CommissionSettings />);
     expect(screen.getByText("Rep One")).toBeInTheDocument();
     expect(screen.queryByText("Boss X")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Rep target")).toHaveValue(5000000); // target amount shows
   });
 
   it("creates a plan", async () => {

@@ -187,7 +187,8 @@ export default function CommissionSettings() {
                       {plans.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                     </select>
                     <span className="text-xs text-muted-foreground">{cs}</span>
-                    <Input type="number" step="1" min="0" disabled={busy} defaultValue={t?.amount ?? ""} placeholder="0"
+                    <Input key={`amt-${u.id}-${t?.amount ?? "none"}`}
+                      type="number" step="1" min="0" disabled={busy} defaultValue={t?.amount ?? ""} placeholder="0"
                       onBlur={(e) => { const v = e.target.value; if (v !== (t?.amount ?? "")) setTarget(u.id, { amount: v || "0" }); }}
                       className="h-8 w-36" aria-label={`${u.first_name} target`} />
                   </div>
