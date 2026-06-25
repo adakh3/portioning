@@ -590,10 +590,31 @@ export interface SiteSettingsData {
   quotation_terms: string;
   tax_label: string;
   default_tax_rate: string;
+  // Commission & targets
+  commission_model?: string;
+  commission_model_choices?: { value: string; label: string }[];
+  commission_flat_rate?: string;
+  target_period?: string;
+  target_period_choices?: { value: string; label: string }[];
+  commission_basis?: string;
+  commission_basis_choices?: { value: string; label: string }[];
   // WhatsApp
   whatsapp_enabled?: boolean;
   twilio_configured?: boolean;
   twilio_whatsapp_number?: string;
+}
+
+export interface CommissionBandConfig {
+  id: number;
+  min_attainment_pct: string;
+  rate: string;
+}
+
+export interface SalesTargetRow {
+  id: number;
+  user: number;
+  user_name: string | null;
+  amount: string;
 }
 
 // Event type (updated with booking fields)
@@ -1160,6 +1181,16 @@ export const api = {
   },
   getMyDashboardStats: () => fetchApi<MyDashboardStats>("/bookings/dashboard/my-stats/"),
   getMyCommission: () => fetchApi<CommissionData>("/bookings/commission/me/"),
+  getCommissionBands: () => fetchList<CommissionBandConfig>("/bookings/settings/commission-bands/?page_size=all"),
+  createCommissionBand: (data: { min_attainment_pct: string; rate: string }) =>
+    fetchApi<CommissionBandConfig>("/bookings/settings/commission-bands/", { method: "POST", body: JSON.stringify(data) }),
+  updateCommissionBand: (id: number, data: Partial<CommissionBandConfig>) =>
+    fetchApi<CommissionBandConfig>(`/bookings/settings/commission-bands/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
+  deleteCommissionBand: (id: number) =>
+    fetchApi<void>(`/bookings/settings/commission-bands/${id}/`, { method: "DELETE" }),
+  getSalesTargets: () => fetchApi<SalesTargetRow[]>("/bookings/settings/sales-targets/"),
+  setSalesTarget: (user: number, amount: string) =>
+    fetchApi<SalesTargetRow>("/bookings/settings/sales-targets/", { method: "PUT", body: JSON.stringify({ user, amount }) }),
   getLeadsKanban: (filters?: LeadFilters) => {
     const params = new URLSearchParams();
     if (filters) {

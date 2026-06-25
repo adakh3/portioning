@@ -27,6 +27,8 @@ import {
   DashboardStats,
   MyDashboardStats,
   CommissionData,
+  CommissionBandConfig,
+  SalesTargetRow,
   AllocationRule,
   StaffReportEntry,
   Reminder,
@@ -407,6 +409,18 @@ export function useMyCommission() {
     () => api.getMyCommission(),
     { dedupingInterval: 60000 }
   );
+}
+
+export function useCommissionBands() {
+  return useSWR<CommissionBandConfig[]>("commission-bands", () => api.getCommissionBands(), {
+    revalidateOnFocus: false,
+  });
+}
+
+export function useSalesTargets() {
+  return useSWR<SalesTargetRow[]>("sales-targets", () => api.getSalesTargets(), {
+    revalidateOnFocus: false,
+  });
 }
 
 export function useAllocationRules() {
