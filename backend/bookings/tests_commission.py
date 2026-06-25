@@ -283,3 +283,77 @@ class MyCommissionAPITests(TestCase):
         self.assertEqual(data["deals"], 1)
         self.assertEqual(data["model"], "flat")
         self.assertEqual(data["basis"], "event_date")
+
+
+class CommissionConfigAPITests(TestCase):
+    def setUp(self):
+        self.org = _make_org()
+        self.owner = User.objects.create(
+            email="owner@example.com", first_name="Own", last_name="Er",
+            role="owner", organisation=self.org,
+        )
+        self.rep = User.objects.create(
+            email="rep3@example.com", first_name="R", last_name="P",
+            role="salesperson", organisation=self.org,
+        )
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.owner)
+
+    def test_update_commission_settings(self):
+        res = self.client.patch("/api/bookings/settings/", {
+            "commission_model": "accelerated", "commission_flat_rate": "5.00",
+            "target_period": "quarterly", "commission_basis": "booking_date",
+        }, format="json")
+        self.assertEqual(res.status_code, 200, res.content)
+        s = OrgSettings.for_org(self.org)
+        self.assertEqual(s.commission_model, "accelerated")
+        self.assertEqual(s.target_period, "quarterly")
+        self.assertEqual(s.commission_basis, "booking_date")
+        # choices are exposed for the UI dropdowns
+        self.assertTrue(res.json()["commission_model_choices"])
+
+    def test_commission_band_crud(self):
+        res = self.client.post("/api/bookings/settings/commission-bands/",
+                               {"min_attainment_pct": "100", "rate": "7"}, format="json")
+        self.assertEqual(res.status_code, 201, res.content)
+        band_id = res.json()["id"]
+
+        res = self.client.get("/api/bookings/settings/commission-bands/?page_size=all")
+        self.assertEqual(len(res.json()), 1)
+
+        res = self.client.patch(f"/api/bookings/settings/commission-bands/{band_id}/",
+                                {"rate": "9"}, format="json")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(CommissionBand.objects.get(pk=band_id).rate, Decimal("9"))
+
+        res = self.client.delete(f"/api/bookings/settings/commission-bands/{band_id}/")
+        self.assertEqual(res.status_code, 204)
+        self.assertFalse(CommissionBand.objects.filter(pk=band_id).exists())
+
+    def test_sales_target_upsert(self):
+        res = self.client.put("/api/bookings/settings/sales-targets/",
+                              {"user": self.rep.id, "amount": "5000000"}, format="json")
+        self.assertEqual(res.status_code, 200, res.content)
+        self.assertEqual(
+            SalesTarget.objects.get(organisation=self.org, user=self.rep).amount, Decimal("5000000"),
+        )
+        # second PUT updates, not duplicates
+        self.client.put("/api/bookings/settings/sales-targets/",
+                        {"user": self.rep.id, "amount": "6000000"}, format="json")
+        self.assertEqual(SalesTarget.objects.filter(organisation=self.org, user=self.rep).count(), 1)
+        self.assertEqual(
+            SalesTarget.objects.get(organisation=self.org, user=self.rep).amount, Decimal("6000000"),
+        )
+
+    def test_sales_target_rejects_user_from_another_org(self):
+        other = _make_org(slug="other-org")
+        outsider = User.objects.create(email="out@example.com", role="salesperson", organisation=other)
+        res = self.client.put("/api/bookings/settings/sales-targets/",
+                              {"user": outsider.id, "amount": "1"}, format="json")
+        self.assertEqual(res.status_code, 400)
+
+    def test_non_admin_is_forbidden(self):
+        self.client.force_authenticate(user=self.rep)
+        res = self.client.post("/api/bookings/settings/commission-bands/",
+                               {"min_attainment_pct": "0", "rate": "5"}, format="json")
+        self.assertEqual(res.status_code, 403)

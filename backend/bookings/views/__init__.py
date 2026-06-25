@@ -2,7 +2,11 @@ from .accounts import AccountListCreateView, AccountDetailView, ContactListCreat
 from .venues import VenueListCreateView, VenueDetailView
 from .leads import UserListView, ProductLineListView, ProductLineDetailView, ProductLineManageListCreateView, ProductLineManageDetailView, LeadListCreateView, LeadDetailView, LeadTransitionView, LeadConvertView, LeadCreateQuoteView, LeadWonView, LeadCreateEventView, LeadBulkUpdateView, LeadActivityView, LeadAutoAssignView, LeadKanbanView
 from .dashboard import DashboardStatsView, MyDashboardStatsView
-from .commission import MyCommissionView
+from .commission import (
+    MyCommissionView,
+    CommissionBandManageListCreateView, CommissionBandManageDetailView,
+    SalesTargetManageView,
+)
 from .quotes import (
     QuoteListCreateView, QuoteDetailView, QuoteTransitionView,
     QuoteLineItemListCreateView, QuoteLineItemDetailView,
