@@ -8,14 +8,15 @@ vi.mock("@/lib/hooks", () => ({
   useSiteSettings: () => ({ data: { currency_symbol: "£" } }),
 }));
 
-import CommissionPage from "./page";
+import MyTargetsPage from "./page";
 
-const FLAT_DATA = {
+const UNDER_TARGET = {
   period: "June 2026",
   period_unit: "monthly",
   period_start: "2026-06-01",
   period_end: "2026-07-01",
   model: "flat",
+  plan: "Default",
   basis: "event_date",
   revenue: "50000.00",
   target: "60000.00",
@@ -29,9 +30,10 @@ const FLAT_DATA = {
   ],
 };
 
-const ACCEL_DATA = {
-  ...FLAT_DATA,
+const OVER_TARGET = {
+  ...UNDER_TARGET,
   model: "accelerated",
+  plan: "Senior",
   revenue: "6000000.00",
   target: "5000000.00",
   attainment_pct: "120.00",
@@ -43,43 +45,43 @@ const ACCEL_DATA = {
 };
 
 beforeEach(() => {
-  commissionReturn = { data: FLAT_DATA, error: null, isLoading: false };
+  commissionReturn = { data: UNDER_TARGET, error: null, isLoading: false };
 });
 
-describe("Commission page", () => {
-  it("renders the heading, period and flat-rate badge", () => {
-    render(<CommissionPage />);
-    expect(screen.getByText("My Commission")).toBeInTheDocument();
-    expect(screen.getByText(/June 2026 · 3 events · by event date/)).toBeInTheDocument();
-    expect(screen.getByText("Flat rate")).toBeInTheDocument();
+describe("My Targets page", () => {
+  it("leads with the target — heading, period and attainment", () => {
+    render(<MyTargetsPage />);
+    expect(screen.getByText("My Targets")).toBeInTheDocument();
+    expect(screen.getByText("June 2026")).toBeInTheDocument();
+    expect(screen.getByText("83.3%")).toBeInTheDocument(); // attainment
+    expect(screen.getByText(/£10,000\.00 to go/)).toBeInTheDocument(); // under target
   });
 
-  it("shows the commission earned, formatted", () => {
-    render(<CommissionPage />);
+  it("mentions the commission earned", () => {
+    render(<MyTargetsPage />);
     expect(screen.getByText("Commission earned")).toBeInTheDocument();
     expect(screen.getAllByText("£2,500.00").length).toBeGreaterThan(0);
   });
 
-  it("renders the accelerated band breakdown", () => {
-    commissionReturn = { data: ACCEL_DATA, error: null, isLoading: false };
-    render(<CommissionPage />);
-    expect(screen.getByText("Accelerated")).toBeInTheDocument();
-    expect(screen.getByText("0% – 100%")).toBeInTheDocument();
-    expect(screen.getByText("100%+")).toBeInTheDocument();
-    expect(screen.getByText("7%")).toBeInTheDocument();
-    // total commission appears (emphasis card + table total)
+  it("shows over-achievement when past target", () => {
+    commissionReturn = { data: OVER_TARGET, error: null, isLoading: false };
+    render(<MyTargetsPage />);
+    expect(screen.getByText("120%")).toBeInTheDocument();
+    expect(screen.getByText(/20% over target/)).toBeInTheDocument();
+    expect(screen.getByText(/£1,000,000\.00 over target/)).toBeInTheDocument();
+    expect(screen.getByText("Senior")).toBeInTheDocument(); // plan badge
     expect(screen.getAllByText("£270,000.00").length).toBeGreaterThan(0);
   });
 
   it("shows a loading state", () => {
     commissionReturn = { data: undefined, error: null, isLoading: true };
-    render(<CommissionPage />);
-    expect(screen.getByText(/Loading commission/)).toBeInTheDocument();
+    render(<MyTargetsPage />);
+    expect(screen.getByText(/Loading/)).toBeInTheDocument();
   });
 
   it("shows an error state", () => {
     commissionReturn = { data: undefined, error: new Error("boom"), isLoading: false };
-    render(<CommissionPage />);
+    render(<MyTargetsPage />);
     expect(screen.getByText(/Error: boom/)).toBeInTheDocument();
   });
 });
