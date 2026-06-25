@@ -33,6 +33,7 @@ export default function CommissionSettings() {
   const cs = settings?.currency_symbol || "£";
   const modelChoices = settings?.commission_model_choices || [];
   const defaultPlanId = plans.find((p) => p.is_default)?.id;
+  const periodWord = ({ monthly: "month", quarterly: "quarter", yearly: "year" } as Record<string, string>)[settings?.target_period || "monthly"] || "period";
 
   const saveSetting = (data: Record<string, string>) =>
     run(async () => { await api.updateSiteSettings(data); await mutateSettings(); });
@@ -169,10 +170,14 @@ export default function CommissionSettings() {
         </CardContent>
       </Card>
 
-      {/* Salespeople: plan + target */}
+      {/* Targets: per-rep plan + target amount */}
       <Card>
-        <CardHeader><CardTitle>Salespeople</CardTitle></CardHeader>
+        <CardHeader><CardTitle>Targets</CardTitle></CardHeader>
         <CardContent>
+          <p className="text-xs text-muted-foreground mb-4">
+            Each salesperson&apos;s plan and their revenue target per <strong>{periodWord}</strong>
+            {" "}(set the period in <em>Period &amp; basis</em> above).
+          </p>
           {salespeople.length === 0 ? (
             <p className="text-muted-foreground text-sm">No salespeople in this organisation yet.</p>
           ) : (
