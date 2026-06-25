@@ -175,8 +175,8 @@ export default function CommissionSettings() {
         <CardHeader><CardTitle>Targets</CardTitle></CardHeader>
         <CardContent>
           <p className="text-xs text-muted-foreground mb-4">
-            Each salesperson&apos;s plan and their revenue target per <strong>{periodWord}</strong>
-            {" "}(set the period in <em>Period &amp; basis</em> above).
+            Each salesperson&apos;s plan, and a recurring revenue target that applies{" "}
+            <strong>every {periodWord}</strong> (change the period in <em>Period &amp; basis</em> above).
           </p>
           {salespeople.length === 0 ? (
             <p className="text-muted-foreground text-sm">No salespeople in this organisation yet.</p>
