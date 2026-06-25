@@ -23,8 +23,13 @@ category constraints) filter via their parent's org path.
 - [ ] Child records (shifts, equipment reservations, allocation rules, category constraints) can be filtered by their parent's org.
 - [ ] The **User** admin shows Organisation, Staff status, **Superuser status**, and Active, with filters — so elevated accounts are auditable at a glance.
 - [ ] A user with an **organisation cannot have Staff or Superuser** access (validation error) — a user with an org is a tenant user and can never reach the Django panel; admin/system accounts must have no org.
+- [ ] The **Organisation** admin shows **Active** status, filters by it, allows toggling `is_active` inline, and has bulk **Activate / Deactivate** actions. Deactivating an org **hides it from the app's org switcher** (`/auth/organisations/` lists only `is_active` orgs) without a hard delete — so orgs can be retired safely even when they own data.
 
 ## Manual test cases
+
+### TC0 — Retire an org from the switcher
+**Steps:** As superuser, Django admin → **Users → Organisations**. Note an org showing in the app's org switcher. Tick it → run **Deactivate selected organisations** (or untick **Active** inline and save).
+**Expected:** The org's **Active** turns off; reload the app — it no longer appears in the org switcher. Re-activating brings it back. (Note: the *Organisation Settings* list is a different table — editing it does not add/remove orgs.)
 
 ### TC1 — Org column on menus
 **Steps:** As superuser, open Django admin → **Menu templates**.

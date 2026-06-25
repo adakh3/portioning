@@ -37,7 +37,13 @@ class QuoteListCreateView(generics.ListCreateAPIView):
         serializer.save(created_by=user, organisation=get_request_org(self.request))
 
     def get_queryset(self):
-        qs = Quote.objects.select_related('account', 'venue', 'lead', 'event', 'based_on_template', 'primary_contact')
+        # select_related covers every FK the (list & detail) serializer reads:
+        # product_name -> product, created_by_name -> created_by, plus the rest.
+        # Without product/created_by the list view did 2×N extra queries.
+        qs = Quote.objects.select_related(
+            'account', 'venue', 'lead', 'event', 'based_on_template',
+            'primary_contact', 'product', 'created_by',
+        )
         # Only prefetch heavy relations for detail views
         if self.request.method != 'GET' or self.kwargs.get('pk'):
             qs = qs.prefetch_related('line_items', 'dishes')
@@ -58,7 +64,10 @@ class QuoteDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = QuoteSerializer
 
     def get_queryset(self):
-        qs = Quote.objects.select_related('account', 'venue', 'lead', 'event', 'based_on_template', 'primary_contact').prefetch_related('line_items', 'dishes')
+        qs = Quote.objects.select_related(
+            'account', 'venue', 'lead', 'event', 'based_on_template',
+            'primary_contact', 'product', 'created_by',
+        ).prefetch_related('line_items', 'dishes')
         return apply_org_filter(qs, self.request)
 
     def perform_update(self, serializer):

@@ -826,6 +826,35 @@ class TestQuoteAPI(TestCase):
         self.assertEqual(quote.event.total, quote.total)
         self.assertEqual(quote.event.total, Decimal("6000.00"))
 
+    def test_quote_list_avoids_n_plus_one(self):
+        # The list serializes product_name + created_by_name per row; without
+        # select_related on those FKs the query count grew with the row count.
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+        from bookings.models import ProductLine
+        from users.models import User
+
+        def add_quote(i):
+            pl = ProductLine.objects.create(organisation=self.org, name=f"Line {i}")
+            u = User.objects.create(email=f"sp{i}@ex.com", role="salesperson", organisation=self.org)
+            make_quote(org=self.org, account=self.account, primary_contact=self.contact,
+                       product=pl, created_by=u)
+
+        add_quote(1)
+        self.client.get("/api/bookings/quotes/")  # warm per-request/module caches
+        with CaptureQueriesContext(connection) as c1:
+            self.assertEqual(self.client.get("/api/bookings/quotes/").status_code, 200)
+        base = len(c1.captured_queries)
+
+        add_quote(2)
+        add_quote(3)
+        with CaptureQueriesContext(connection) as c2:
+            self.assertEqual(self.client.get("/api/bookings/quotes/").status_code, 200)
+        self.assertEqual(
+            len(c2.captured_queries), base,
+            "quote list query count grew with row count — N+1 regression",
+        )
+
     def test_event_api_saves_line_items(self):
         res = self.client.post("/api/events/", {
             "name": "Garden Party", "date": "2026-09-01", "gents": 40, "ladies": 40,

@@ -9,6 +9,7 @@ from users.models import Organisation, User
 SETTINGS_PATCH = "/api/bookings/settings/"
 LEAD_STATUS = "/api/bookings/settings/lead-statuses/"
 USERS = "/api/auth/users/"
+ORGANISATIONS = "/api/auth/organisations/"
 
 
 class TestRolePermissions(TestCase):
@@ -42,6 +43,16 @@ class TestRolePermissions(TestCase):
 
     def test_superuser_maps_to_owner_for_settings(self):
         self.assertEqual(self._c(self.su).patch(SETTINGS_PATCH, {"currency_symbol": "€"}, format="json").status_code, 200)
+
+    def test_org_switcher_list_excludes_inactive_orgs(self):
+        # Admin can deactivate an org; the switcher endpoint must then hide it.
+        Organisation.objects.create(name="Active Co", slug="active-co", country="PK", is_active=True)
+        Organisation.objects.create(name="Gone Co", slug="gone-co", country="PK", is_active=False)
+        res = self._c(self.su).get(ORGANISATIONS)
+        self.assertEqual(res.status_code, 200)
+        names = [o["name"] for o in res.json()]
+        self.assertIn("Active Co", names)
+        self.assertNotIn("Gone Co", names)
 
     # --- user management (admin/owner; admin can't touch owner) ---
     def test_admin_can_create_non_owner(self):
