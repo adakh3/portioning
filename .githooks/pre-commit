@@ -1,0 +1,52 @@
+#!/bin/sh
+# Pre-commit hook: run backend + frontend tests before allowing a commit.
+# Worktree-aware: git worktrees don't have their own venv/, node_modules/, or
+# backend/.env (those are gitignored and live only in the main checkout). We run
+# the tests against the WORKTREE's code, but resolve dependencies from the MAIN
+# checkout, which is the parent of the shared git common dir.
+# Skip with: git commit --no-verify (use sparingly)
+#
+# This hook is version-controlled. Activate it with:
+#   git config core.hooksPath .githooks
+
+set -e
+
+# Code being committed lives in the current worktree...
+WORKTREE_ROOT="$(git rev-parse --show-toplevel)"
+
+# ...but venv/ and node_modules/ live in the main checkout. The git common dir
+# (e.g. /path/to/repo/.git) is shared by every worktree; its parent is main.
+COMMON_DIR="$(git rev-parse --git-common-dir)"
+case "$COMMON_DIR" in
+  /*) ;;                                  # already absolute
+  *) COMMON_DIR="$WORKTREE_ROOT/$COMMON_DIR" ;;
+esac
+MAIN_ROOT="$(cd "$(dirname "$COMMON_DIR")" && pwd)"
+
+echo "🧪 Running backend tests..."
+(
+  source "$MAIN_ROOT/venv/bin/activate"
+  cd "$WORKTREE_ROOT/backend"
+  # .env is gitignored and lives only in the main checkout, but settings.py
+  # loads it relative to the worktree's backend dir (and requires SECRET_KEY).
+  # Link the main checkout's in (self-healing — only happens once, in worktrees).
+  if [ ! -e .env ] && [ "$WORKTREE_ROOT" != "$MAIN_ROOT" ]; then
+    echo "  ↳ linking backend/.env from main checkout"
+    ln -s "$MAIN_ROOT/backend/.env" .env
+  fi
+  python manage.py test --parallel --verbosity=1
+)
+
+echo "🧪 Running frontend tests..."
+(
+  cd "$WORKTREE_ROOT/frontend"
+  # node_modules is gitignored, so a fresh worktree doesn't have one. Link the
+  # main checkout's in (self-healing — only happens once, and only in worktrees).
+  if [ ! -e node_modules ] && [ "$WORKTREE_ROOT" != "$MAIN_ROOT" ]; then
+    echo "  ↳ linking node_modules from main checkout"
+    ln -s "$MAIN_ROOT/frontend/node_modules" node_modules
+  fi
+  npx vitest run
+)
+
+echo "✅ All tests passed."

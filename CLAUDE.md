@@ -54,7 +54,7 @@ npm run dev
 ## Testing
 
 - **Any new feature or bug fix must include tests** — backend (Django `TestCase`) and frontend (Vitest + React Testing Library) as appropriate.
-- **A git pre-commit hook** (`.git/hooks/pre-commit`) runs both test suites automatically before every commit. If tests fail, the commit is blocked.
+- **A git pre-commit hook** (version-controlled at `.githooks/pre-commit`) runs both test suites automatically before every commit. If tests fail, the commit is blocked. **One-time activation per clone:** `git config core.hooksPath .githooks`. The hook is worktree-aware — it self-heals `venv`/`node_modules`/`backend/.env` from the main checkout, so it runs from worktrees too.
 
 ### Backend
 ```bash

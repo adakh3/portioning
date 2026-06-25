@@ -42,6 +42,27 @@ Calculations regress silently. Every money/total calculation must have unit test
 
 If you touch a calculation and there's no test for the case you changed, add it (Boy Scout rule).
 
+## Query efficiency (no N+1 on lists)
+
+Slow list pages here have repeatedly come from the same thing: a list serializer
+reads a related object (`product_name → product`, `created_by_name → created_by`,
+a nested set, …) while the view's queryset doesn't `select_related` /
+`prefetch_related` it — so the endpoint fires **one extra query per row**.
+
+Rules:
+
+- **Every FK/related a serializer reads must be on the queryset's
+  `select_related`/`prefetch_related`.** When you add such a field, update the
+  view queryset in the same change. Fix N+1 on the queryset — never by trimming
+  the field the UI needs.
+- **Every list endpoint needs an N+1 guard test.** Register it in
+  `backend/bookings/test_query_efficiency.py` with a one-row factory; the shared
+  helper `tests/base.py::assert_list_queries_constant` asserts the query count
+  does **not** grow as rows are added. A regression there fails the suite (and the
+  pre-commit hook) before it reaches prod.
+
+When you add a new list endpoint, add one entry to that registry.
+
 ## Where things live (quick map)
 
 - Tenancy/permissions: `users/` (`mixins.py`, `permissions` in `bookings/permissions.py`).
