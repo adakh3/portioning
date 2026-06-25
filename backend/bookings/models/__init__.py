@@ -10,3 +10,4 @@ from .activity import ActivityLog
 from .reminders import Reminder
 from .whatsapp import WhatsAppMessage
 from .locked_dates import LockedDate
+from .commission import CommissionBand, SalesTarget

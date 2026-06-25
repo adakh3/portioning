@@ -7,6 +7,7 @@ from bookings.views import (
     VenueListCreateView, VenueDetailView,
     UserListView, ProductLineListView, ProductLineDetailView, ProductLineManageListCreateView, ProductLineManageDetailView, LeadListCreateView, LeadDetailView, LeadTransitionView, LeadCreateQuoteView, LeadWonView, LeadCreateEventView, LeadBulkUpdateView, LeadActivityView, LeadAutoAssignView, LeadKanbanView,
     DashboardStatsView, MyDashboardStatsView,
+    MyCommissionView,
     QuoteListCreateView, QuoteDetailView, QuoteTransitionView,
     QuoteLineItemListCreateView, QuoteLineItemDetailView,
     QuotePDFView,
@@ -72,6 +73,7 @@ urlpatterns = [
     # Dashboard
     path('bookings/dashboard/stats/', DashboardStatsView.as_view(), name='dashboard-stats'),
     path('bookings/dashboard/my-stats/', MyDashboardStatsView.as_view(), name='my-dashboard-stats'),
+    path('bookings/commission/me/', MyCommissionView.as_view(), name='my-commission'),
 
     # Quotes & Line Items
     path('bookings/quotes/', QuoteListCreateView.as_view(), name='quote-list'),

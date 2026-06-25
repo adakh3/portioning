@@ -14,6 +14,17 @@ DATE_FORMAT_CHOICES = [
     ('MMM DD, YYYY', 'MMM DD, YYYY (e.g. Mar 14, 2026)'),
 ]
 
+COMMISSION_MODEL_CHOICES = [
+    ('flat', 'Flat rate'),
+    ('accelerated', 'Accelerated (banded by target attainment)'),
+]
+
+TARGET_PERIOD_CHOICES = [
+    ('monthly', 'Monthly'),
+    ('quarterly', 'Quarterly'),
+    ('yearly', 'Yearly'),
+]
+
 
 class OrgSettings(models.Model):
     objects = TenantManager()
@@ -58,6 +69,20 @@ class OrgSettings(models.Model):
     twilio_whatsapp_number = models.CharField(
         max_length=20, blank=True, default='',
         help_text='Twilio WhatsApp sender number, e.g. +14155238886',
+    )
+
+    # Commission & targets (per-org)
+    commission_model = models.CharField(
+        max_length=20, choices=COMMISSION_MODEL_CHOICES, default='flat',
+        help_text='Flat rate on all revenue, or accelerated bands keyed to target attainment.',
+    )
+    commission_flat_rate = models.DecimalField(
+        max_digits=5, decimal_places=2, default=Decimal('0.00'),
+        help_text='Commission rate % on all won revenue (used when model is flat).',
+    )
+    target_period = models.CharField(
+        max_length=20, choices=TARGET_PERIOD_CHOICES, default='monthly',
+        help_text='Period over which sales targets and commission are measured and reset.',
     )
 
     class Meta:

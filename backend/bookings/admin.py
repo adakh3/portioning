@@ -22,6 +22,7 @@ from .models import (
     Reminder,
     WhatsAppMessage,
     LockedDate,
+    CommissionBand, SalesTarget,
 )
 from .services.lead_import import (
     load_xlsx, load_csv, parse_rows, validate_rows, flag_duplicates, commit_rows, ImportRow,
@@ -488,6 +489,21 @@ class LockedDateAdmin(OrgScopedAdmin):
     list_filter = ['organisation']
     search_fields = ['reason']
     readonly_fields = ['created_at']
+
+
+@admin.register(CommissionBand)
+class CommissionBandAdmin(OrgScopedAdmin):
+    list_display = ['organisation', 'min_attainment_pct', 'rate']
+    list_filter = ['organisation']
+    ordering = ['organisation', 'min_attainment_pct']
+
+
+@admin.register(SalesTarget)
+class SalesTargetAdmin(OrgScopedAdmin):
+    list_display = ['user', 'amount', 'organisation', 'updated_at']
+    list_filter = ['organisation']
+    search_fields = ['user__email', 'user__first_name', 'user__last_name']
+    readonly_fields = ['updated_at']
 
 # Inject one-line model descriptions on the admin index.
 import portioning.admin_descriptions  # noqa: E402,F401
