@@ -20,6 +20,7 @@ import {
   useEventTypes,
   useServiceStyles,
   useMealTypes,
+  useUsers,
 } from "@/lib/hooks";
 import { formatDate, formatDateTime as sharedFormatDateTime } from "@/lib/dateFormat";
 import { LineItemInput, lineItemTotal, computeBookingTotals } from "@/lib/quoteTotals";
@@ -68,6 +69,8 @@ export default function EventDetailPage() {
   const { data: orgContacts = [] } = useContacts();
   const { data: laborRoles = [] } = useLaborRoles();
   const { data: staffList = [] } = useStaff();
+  const { data: users = [] } = useUsers();
+  const salespeople = users.filter((u) => u.role === "salesperson");
   const { data: rawSettings } = useSiteSettings();
   const settings = rawSettings || { currency_symbol: "\u00A3", currency_code: "GBP", date_format: "DD/MM/YYYY", default_price_per_head: "0.00", target_food_cost_percentage: "30.00", price_rounding_step: "50", tax_label: "VAT", default_tax_rate: "0.2000" };
   const dateFormat = useDateFormat();
@@ -285,6 +288,19 @@ export default function EventDetailPage() {
     setEditing(false);
   };
 
+  const handleAssign = async (value: string) => {
+    if (!event) return;
+    setSaving(true);
+    try {
+      await api.updateEvent(event.id, { assigned_to: value ? Number(value) : null } as Partial<EventData>);
+      await mutateEvent();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Reassign failed");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleStatusTransition = async (newStatus: string) => {
     if (!event) return;
     setSaving(true);
@@ -470,6 +486,21 @@ export default function EventDetailPage() {
                 <Badge variant={statusBadgeVariant[event!.status] || "secondary"} className="whitespace-nowrap">
                   {event!.status_display || event!.status}
                 </Badge>
+              )}
+              {!isNew && (
+                <select
+                  value={event!.assigned_to ?? ""}
+                  disabled={saving}
+                  onChange={(e) => handleAssign(e.target.value)}
+                  title="Salesperson credited for this event (drives commission)"
+                  className="flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  aria-label="Assigned salesperson"
+                >
+                  <option value="">Unassigned</option>
+                  {salespeople.map((u) => (
+                    <option key={u.id} value={u.id}>{u.first_name} {u.last_name}</option>
+                  ))}
+                </select>
               )}
             </div>
             <div className="flex gap-2 flex-shrink-0">

@@ -644,6 +644,8 @@ export interface EventData {
   account_name: string | null;
   product: number | null;
   product_name: string | null;
+  assigned_to: number | null;
+  assigned_to_name: string | null;
   primary_contact: number | null;
   contact_name: string | null;
   venue: number | null;
