@@ -549,6 +549,7 @@ class LeadWonView(APIView):
             status=event_status,
             based_on_template=based_on_template,
             created_by=user,
+            assigned_to=(lead.assigned_to or user),
             organisation=lead.organisation,
         )
 

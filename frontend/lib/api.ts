@@ -922,6 +922,7 @@ export interface CommissionData {
   period_start: string;
   period_end: string;
   model: string;
+  basis: string;
   revenue: string;
   target: string;
   attainment_pct: string;

@@ -7,9 +7,10 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from bookings.commission import compute_commission, FLAT, ACCELERATED
-from bookings.models import CommissionBand, Lead, OrgSettings, Quote, SalesTarget
+from bookings.models import CommissionBand, OrgSettings, SalesTarget
 from bookings.services.commission import commission_summary, period_bounds
-from bookings.tests import _make_org, make_account, make_quote
+from bookings.tests import _make_org
+from events.models import Event
 from users.models import User
 
 
@@ -154,13 +155,14 @@ class PeriodBoundsTests(TestCase):
         self.assertEqual((start, end), (date(2026, 12, 1), date(2027, 1, 1)))
 
 
-def _set_commission(org, *, model="flat", flat_rate="0", bands=None, period="monthly"):
+def _set_commission(org, *, model="flat", flat_rate="0", bands=None, period="monthly", basis="event_date"):
     OrgSettings.objects.update_or_create(
         organisation=org,
         defaults={
             "commission_model": model,
             "commission_flat_rate": Decimal(flat_rate),
             "target_period": period,
+            "commission_basis": basis,
         },
     )
     CommissionBand.objects.filter(organisation=org).delete()
@@ -168,13 +170,12 @@ def _set_commission(org, *, model="flat", flat_rate="0", bands=None, period="mon
         CommissionBand.objects.create(organisation=org, min_attainment_pct=Decimal(pct), rate=Decimal(rate))
 
 
-def _won_lead(org, user, account, total, when):
-    quote = make_quote(org=org, account=account)
-    Quote.objects.filter(pk=quote.pk).update(total=Decimal(str(total)))
-    return Lead.objects.create(
-        organisation=org, assigned_to=user, account=account,
-        contact_name="Cust", source="", event_type="wedding",
-        status="won", won_at=when, won_quote=quote,
+def _event(org, user, total, *, date=None, booking_date=None, status="confirmed"):
+    """A confirmed event with a fixed total, attributed to `user`."""
+    return Event.objects.create(
+        organisation=org, name="E", gents=50, ladies=50,
+        date=date or "2099-01-01", booking_date=booking_date,
+        assigned_to=user, status=status, total=Decimal(str(total)),
     )
 
 
@@ -185,15 +186,14 @@ class CommissionSummaryTests(TestCase):
             email="rep@example.com", first_name="Rep", last_name="One",
             role="salesperson", organisation=self.org,
         )
-        self.account = make_account(org=self.org)
-        self.now = timezone.now()
+        self.today = timezone.now().date()
 
     def test_flat_summary(self):
-        _set_commission(self.org, model="flat", flat_rate="5", period="monthly")
+        _set_commission(self.org, model="flat", flat_rate="5")
         SalesTarget.objects.create(organisation=self.org, user=self.user, amount=Decimal("5000000"))
-        _won_lead(self.org, self.user, self.account, "6000000", self.now)
+        _event(self.org, self.user, "6000000", date=self.today)
 
-        s = commission_summary(self.org, self.user, today=self.now.date())
+        s = commission_summary(self.org, self.user, today=self.today)
         self.assertEqual(s["revenue"], Decimal("6000000"))
         self.assertEqual(s["target"], Decimal("5000000"))
         self.assertEqual(s["commission"], Decimal("300000"))
@@ -201,21 +201,57 @@ class CommissionSummaryTests(TestCase):
         self.assertEqual(s["deals"], 1)
 
     def test_accelerated_summary(self):
-        _set_commission(self.org, model="accelerated", bands=[("0", "4"), ("100", "7")], period="monthly")
+        _set_commission(self.org, model="accelerated", bands=[("0", "4"), ("100", "7")])
         SalesTarget.objects.create(organisation=self.org, user=self.user, amount=Decimal("5000000"))
-        _won_lead(self.org, self.user, self.account, "6000000", self.now)
+        _event(self.org, self.user, "6000000", date=self.today)
 
-        s = commission_summary(self.org, self.user, today=self.now.date())
+        s = commission_summary(self.org, self.user, today=self.today)
         self.assertEqual(s["commission"], Decimal("270000"))  # 5M@4% + 1M@7%
 
-    def test_only_current_period_counts_but_lifetime_includes_all(self):
-        _set_commission(self.org, model="flat", flat_rate="5", period="monthly")
-        SalesTarget.objects.create(organisation=self.org, user=self.user, amount=Decimal("1000000"))
-        _won_lead(self.org, self.user, self.account, "1000000", self.now)             # this month
-        _won_lead(self.org, self.user, self.account, "2000000", self.now - timedelta(days=60))  # earlier
+    def test_tentative_and_cancelled_events_are_excluded(self):
+        _set_commission(self.org, model="flat", flat_rate="5")
+        _event(self.org, self.user, "1000000", date=self.today, status="confirmed")
+        _event(self.org, self.user, "9000000", date=self.today, status="tentative")
+        _event(self.org, self.user, "9000000", date=self.today, status="cancelled")
 
-        s = commission_summary(self.org, self.user, today=self.now.date())
-        self.assertEqual(s["revenue"], Decimal("1000000"))          # period only
+        s = commission_summary(self.org, self.user, today=self.today)
+        self.assertEqual(s["revenue"], Decimal("1000000"))  # only the confirmed one
+        self.assertEqual(s["deals"], 1)
+
+    def test_only_events_assigned_to_the_rep_count(self):
+        other = User.objects.create(
+            email="other@example.com", first_name="O", last_name="T",
+            role="salesperson", organisation=self.org,
+        )
+        _set_commission(self.org, model="flat", flat_rate="5")
+        _event(self.org, self.user, "1000000", date=self.today)
+        _event(self.org, other, "9000000", date=self.today)  # someone else's credit
+
+        s = commission_summary(self.org, self.user, today=self.today)
+        self.assertEqual(s["revenue"], Decimal("1000000"))
+
+    def test_commission_basis_event_date_vs_booking_date(self):
+        SalesTarget.objects.create(organisation=self.org, user=self.user, amount=Decimal("1000000"))
+        last_month = self.today.replace(day=1) - timedelta(days=1)
+        # Event takes place this month, but was booked last month.
+        _event(self.org, self.user, "1000000", date=self.today, booking_date=last_month)
+
+        _set_commission(self.org, model="flat", flat_rate="5", basis="event_date")
+        s = commission_summary(self.org, self.user, today=self.today)
+        self.assertEqual(s["revenue"], Decimal("1000000"))  # counts in the month it happens
+
+        _set_commission(self.org, model="flat", flat_rate="5", basis="booking_date")
+        s = commission_summary(self.org, self.user, today=self.today)
+        self.assertEqual(s["revenue"], Decimal("0"))  # booked last month -> not this period
+
+    def test_only_current_period_counts_but_lifetime_includes_all(self):
+        _set_commission(self.org, model="flat", flat_rate="5")
+        SalesTarget.objects.create(organisation=self.org, user=self.user, amount=Decimal("1000000"))
+        _event(self.org, self.user, "1000000", date=self.today)                    # this period
+        _event(self.org, self.user, "2000000", date=self.today - timedelta(days=60))  # earlier
+
+        s = commission_summary(self.org, self.user, today=self.today)
+        self.assertEqual(s["revenue"], Decimal("1000000"))           # period only
         self.assertEqual(s["deals"], 1)
         self.assertEqual(s["lifetime_revenue"], Decimal("3000000"))  # all-time
         self.assertEqual(s["lifetime_deals"], 2)
@@ -230,10 +266,9 @@ class MyCommissionAPITests(TestCase):
             email="rep2@example.com", first_name="Rep", last_name="Two",
             role="salesperson", organisation=self.org,
         )
-        self.account = make_account(org=self.org)
-        _set_commission(self.org, model="flat", flat_rate="5", period="monthly")
+        _set_commission(self.org, model="flat", flat_rate="5")
         SalesTarget.objects.create(organisation=self.org, user=self.user, amount=Decimal("5000000"))
-        _won_lead(self.org, self.user, self.account, "6000000", timezone.now())
+        _event(self.org, self.user, "6000000", date=timezone.now().date())
         self.client = APIClient()
         self.client.force_authenticate(user=self.user)
 
@@ -247,3 +282,4 @@ class MyCommissionAPITests(TestCase):
         self.assertEqual(data["attainment_pct"], "120.00")
         self.assertEqual(data["deals"], 1)
         self.assertEqual(data["model"], "flat")
+        self.assertEqual(data["basis"], "event_date")

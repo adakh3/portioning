@@ -25,6 +25,11 @@ TARGET_PERIOD_CHOICES = [
     ('yearly', 'Yearly'),
 ]
 
+COMMISSION_BASIS_CHOICES = [
+    ('event_date', 'Event date (when the event takes place)'),
+    ('booking_date', 'Booking date (when the event was confirmed)'),
+]
+
 
 class OrgSettings(models.Model):
     objects = TenantManager()
@@ -83,6 +88,10 @@ class OrgSettings(models.Model):
     target_period = models.CharField(
         max_length=20, choices=TARGET_PERIOD_CHOICES, default='monthly',
         help_text='Period over which sales targets and commission are measured and reset.',
+    )
+    commission_basis = models.CharField(
+        max_length=20, choices=COMMISSION_BASIS_CHOICES, default='event_date',
+        help_text='Which date attributes a confirmed event to a commission period.',
     )
 
     class Meta:

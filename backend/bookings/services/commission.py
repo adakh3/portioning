@@ -1,9 +1,11 @@
-"""Commission service — gathers won-deal revenue from the CRM and runs the
-pure commission engine (``bookings.commission``) to produce a salesperson's
+"""Commission service — gathers confirmed-event revenue from the CRM and runs
+the pure commission engine (``bookings.commission``) to produce a salesperson's
 period summary.
 
-Commission is derived live from CRM data: only deals recorded in the CRM count,
-which is the whole point — the CRM is where you get paid.
+Commission is based on **events**, not leads: a won lead is provisional, but a
+confirmed event is the real booking with real revenue (``Event.total``). Credit
+goes to the event's ``assigned_to`` (set from the lead's owner, or the creator
+for directly-created events, and editable by an admin to correct attribution).
 """
 from datetime import date
 from decimal import Decimal
@@ -12,7 +14,14 @@ from django.db.models import Sum
 from django.utils import timezone
 
 from bookings.commission import compute_commission
-from bookings.models import CommissionBand, Lead, OrgSettings, SalesTarget
+from bookings.models import CommissionBand, OrgSettings, SalesTarget
+from events.models import Event
+
+# Statuses that represent a real, booked event (excludes tentative + cancelled).
+EARNED_EVENT_STATUSES = ['confirmed', 'in_progress', 'completed']
+
+# Org's commission_basis -> the Event date field that buckets it into a period.
+BASIS_TO_DATE_FIELD = {'event_date': 'date', 'booking_date': 'booking_date'}
 
 
 def period_bounds(period, today):
@@ -43,17 +52,17 @@ def period_bounds(period, today):
     return start, end, start.strftime('%B %Y')
 
 
-def _won_revenue(org, user, start=None, end=None):
-    """(revenue, deal_count) of won deals for a rep, optionally bounded by
-    won_at date [start, end)."""
-    qs = Lead.objects.filter(
-        organisation=org, assigned_to=user, status='won',
+def _event_revenue(org, user, date_field, start=None, end=None):
+    """(revenue, event_count) of a rep's confirmed events, optionally bounded by
+    ``date_field`` in [start, end). Revenue is the sum of ``Event.total``."""
+    qs = Event.objects.filter(
+        organisation=org, assigned_to=user, status__in=EARNED_EVENT_STATUSES,
     )
     if start is not None:
-        qs = qs.filter(won_at__date__gte=start)
+        qs = qs.filter(**{f'{date_field}__gte': start})
     if end is not None:
-        qs = qs.filter(won_at__date__lt=end)
-    agg = qs.aggregate(revenue=Sum('won_quote__total'))
+        qs = qs.filter(**{f'{date_field}__lt': end})
+    agg = qs.aggregate(revenue=Sum('total'))
     return (agg['revenue'] or Decimal('0')), qs.count()
 
 
@@ -64,9 +73,10 @@ def commission_summary(org, user, today=None):
     for display)."""
     today = today or timezone.now().date()
     settings = OrgSettings.for_org(org)
+    date_field = BASIS_TO_DATE_FIELD.get(settings.commission_basis, 'date')
     start, end, label = period_bounds(settings.target_period, today)
 
-    revenue, deals = _won_revenue(org, user, start, end)
+    revenue, deals = _event_revenue(org, user, date_field, start, end)
     target = (
         SalesTarget.objects
         .filter(organisation=org, user=user)
@@ -87,7 +97,7 @@ def commission_summary(org, user, today=None):
         bands=bands,
     )
 
-    lifetime_revenue, lifetime_deals = _won_revenue(org, user)
+    lifetime_revenue, lifetime_deals = _event_revenue(org, user, date_field)
 
     return {
         'period': label,
@@ -95,6 +105,7 @@ def commission_summary(org, user, today=None):
         'period_start': start,
         'period_end': end,
         'model': settings.commission_model,
+        'basis': settings.commission_basis,
         'revenue': revenue,
         'target': target,
         'attainment_pct': result['attainment_pct'],

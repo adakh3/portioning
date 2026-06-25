@@ -16,6 +16,7 @@ const FLAT_DATA = {
   period_start: "2026-06-01",
   period_end: "2026-07-01",
   model: "flat",
+  basis: "event_date",
   revenue: "50000.00",
   target: "60000.00",
   attainment_pct: "83.33",
@@ -49,7 +50,7 @@ describe("Commission page", () => {
   it("renders the heading, period and flat-rate badge", () => {
     render(<CommissionPage />);
     expect(screen.getByText("My Commission")).toBeInTheDocument();
-    expect(screen.getByText(/June 2026 · 3 deals won/)).toBeInTheDocument();
+    expect(screen.getByText(/June 2026 · 3 events · by event date/)).toBeInTheDocument();
     expect(screen.getByText("Flat rate")).toBeInTheDocument();
   });
 

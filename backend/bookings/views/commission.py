@@ -36,6 +36,7 @@ class MyCommissionView(APIView):
             'period_start': s['period_start'],
             'period_end': s['period_end'],
             'model': s['model'],
+            'basis': s['basis'],
             'revenue': _money(s['revenue']),
             'target': _money(s['target']),
             'attainment_pct': _pct(s['attainment_pct']),

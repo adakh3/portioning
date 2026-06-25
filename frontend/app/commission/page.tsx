@@ -50,7 +50,7 @@ export default function CommissionPage() {
         <div>
           <h1 className="text-2xl font-bold text-foreground">My Commission</h1>
           <p className="text-muted-foreground mt-1">
-            {data.period} · {data.deals} {data.deals === 1 ? "deal" : "deals"} won
+            {data.period} · {data.deals} {data.deals === 1 ? "event" : "events"} · by {data.basis === "booking_date" ? "booking date" : "event date"}
           </p>
         </div>
         <Badge variant={data.model === "accelerated" ? "success" : "secondary"}>
