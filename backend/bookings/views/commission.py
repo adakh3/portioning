@@ -54,6 +54,7 @@ class MyCommissionView(APIView):
             'deals': s['deals'],
             'year_label': s['year_label'],
             'year_revenue': _money(s['year_revenue']),
+            'year_target': _money(s['year_target']),
             'year_deals': s['year_deals'],
             'breakdown': [
                 {

@@ -285,6 +285,7 @@ class CommissionSummaryTests(TestCase):
         self.assertEqual(s["year_revenue"], Decimal("3000000"))  # Jan–Dec 2026 (default calendar year)
         self.assertEqual(s["year_deals"], 2)
         self.assertEqual(s["year_label"], "2026")
+        self.assertEqual(s["year_target"], Decimal("1000000"))   # sum of FY2026 monthly cells (only June set)
 
     def test_fiscal_year_window_for_april_start(self):
         # Org runs an April–March financial year.

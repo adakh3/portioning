@@ -170,6 +170,12 @@ def commission_summary(org, user, today=None):
 
     year_start, year_end, year_label = fiscal_year_bounds(today, fiscal_start)
     year_revenue, year_deals = _event_revenue(org, user, date_field, year_start, year_end)
+    year_fy, _, _ = period_position(today, settings.target_period, fiscal_start)
+    year_target = (
+        SalesTarget.objects
+        .filter(organisation=org, user=user, period_type=settings.target_period, fiscal_year=year_fy)
+        .aggregate(s=Sum('amount'))['s']
+    ) or Decimal('0')
 
     return {
         'period': label,
@@ -187,5 +193,6 @@ def commission_summary(org, user, today=None):
         'deals': deals,
         'year_label': year_label,
         'year_revenue': year_revenue,
+        'year_target': year_target,
         'year_deals': year_deals,
     }

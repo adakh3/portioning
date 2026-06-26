@@ -987,6 +987,7 @@ export interface CommissionData {
   deals: number;
   year_label: string;
   year_revenue: string;
+  year_target: string;
   year_deals: number;
   breakdown: CommissionBandRow[];
 }
