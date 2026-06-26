@@ -89,3 +89,20 @@ lock-rate-at-win, lifetime *commission* (lifetime revenue is shown).
    **Expected:** a **Performance vs target** card lists each rep with a target, sorted by attainment, each with a progress bar, `%`, `revenue of target`, and the period label. Reps without a target are omitted. A 🎉 + green bar shows at/above 100%.
 3. Sign in as a salesperson and hit `/api/bookings/dashboard/stats/`.
    **Expected:** 403 (manager-only).
+
+### TC8 — Period-wise targets grid (seasonality)
+Targets are set per **period**, not as one flat number. The grid's shape follows
+the org's `target_period` + `fiscal_year_start_month`: yearly → 1 column, quarterly
+→ 4, monthly → 12; columns are labelled/ordered by the financial year (e.g. a July
+fiscal year shows Jul → Jun). A rep's row total is their annual target; a column
+total is the team's target for that period.
+1. Settings → Commission → period = Monthly, financial year = July. The **Targets**
+   grid shows rows = salespeople, 12 columns Jul…Jun, row totals + a Team totals row.
+2. Enter a rep's monthly figures (e.g. 7.5M Jul, 20M Dec). The row total updates.
+   **Expected:** `PUT /api/bookings/settings/sales-targets/ {user, fiscal_year, period_index, amount}`
+   upserts the cell; the rep's commission/attainment for the **current** month compares
+   revenue to **that month's** target (not a flat number).
+3. Change period to Quarterly → grid shows 4 columns; to Yearly → 1 column.
+4. Use the ◀ ▶ year nav to edit a different financial year (`?fiscal_year=YYYY`).
+5. Assign a rep's plan via the row's plan dropdown
+   (`PUT /api/bookings/settings/rep-plans/ {user, plan}`).

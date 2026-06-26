@@ -22,7 +22,7 @@ from .models import (
     Reminder,
     WhatsAppMessage,
     LockedDate,
-    CommissionPlan, CommissionBand, SalesTarget,
+    CommissionPlan, CommissionBand, SalesTarget, RepCommissionPlan,
 )
 from .services.lead_import import (
     load_xlsx, load_csv, parse_rows, validate_rows, flag_duplicates, commit_rows, ImportRow,
@@ -507,7 +507,15 @@ class CommissionBandAdmin(OrgScopedAdmin):
 
 @admin.register(SalesTarget)
 class SalesTargetAdmin(OrgScopedAdmin):
-    list_display = ['user', 'plan', 'amount', 'organisation', 'updated_at']
+    list_display = ['user', 'period_type', 'fiscal_year', 'period_index', 'amount', 'organisation', 'updated_at']
+    list_filter = ['organisation', 'period_type', 'fiscal_year']
+    search_fields = ['user__email', 'user__first_name', 'user__last_name']
+    readonly_fields = ['updated_at']
+
+
+@admin.register(RepCommissionPlan)
+class RepCommissionPlanAdmin(OrgScopedAdmin):
+    list_display = ['user', 'plan', 'organisation', 'updated_at']
     list_filter = ['organisation']
     search_fields = ['user__email', 'user__first_name', 'user__last_name']
     readonly_fields = ['updated_at']

@@ -29,7 +29,7 @@ import {
   CommissionData,
   CommissionPlanConfig,
   CommissionBandConfig,
-  SalesTargetRow,
+  SalesTargetGrid,
   AllocationRule,
   StaffReportEntry,
   Reminder,
@@ -424,8 +424,8 @@ export function useCommissionBands() {
   });
 }
 
-export function useSalesTargets() {
-  return useSWR<SalesTargetRow[]>("sales-targets", () => api.getSalesTargets(), {
+export function useSalesTargetGrid(fiscalYear?: number) {
+  return useSWR<SalesTargetGrid>(["sales-targets", fiscalYear ?? "current"], () => api.getSalesTargetGrid(fiscalYear), {
     revalidateOnFocus: false,
   });
 }

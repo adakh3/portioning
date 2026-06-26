@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { api, CommissionPlanConfig, CommissionBandConfig } from "@/lib/api";
 import {
-  useSiteSettings, useCommissionPlans, useCommissionBands, useSalesTargets, useUsers,
+  useSiteSettings, useCommissionPlans, useCommissionBands, useSalesTargetGrid,
 } from "@/lib/hooks";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,11 +17,11 @@ export default function CommissionSettings() {
   const { data: settings, mutate: mutateSettings } = useSiteSettings();
   const { data: plans = [], mutate: mutatePlans } = useCommissionPlans();
   const { data: bands = [], mutate: mutateBands } = useCommissionBands();
-  const { data: targets = [], mutate: mutateTargets } = useSalesTargets();
-  const { data: users = [] } = useUsers();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [newPlanName, setNewPlanName] = useState("");
+  const [fiscalYear, setFiscalYear] = useState<number | undefined>(undefined);
+  const { data: grid, mutate: mutateGrid } = useSalesTargetGrid(fiscalYear);
 
   async function run(fn: () => Promise<unknown>) {
     setBusy(true);
@@ -42,7 +42,7 @@ export default function CommissionSettings() {
   const patchPlan = (p: CommissionPlanConfig, data: Partial<CommissionPlanConfig>) =>
     run(async () => { await api.updateCommissionPlan(p.id, data); await mutatePlans(); });
   const removePlan = (p: CommissionPlanConfig) =>
-    run(async () => { await api.deleteCommissionPlan(p.id); await mutatePlans(); await mutateTargets(); });
+    run(async () => { await api.deleteCommissionPlan(p.id); await mutatePlans(); await mutateGrid(); });
   const addPlan = () => {
     const name = newPlanName.trim();
     if (!name) return;
@@ -65,11 +65,19 @@ export default function CommissionSettings() {
       await mutateBands();
     });
 
-  // targets
-  const salespeople = users.filter((u) => u.role === "salesperson");
-  const targetFor = (uid: number) => targets.find((t) => t.user === uid);
-  const setTarget = (uid: number, data: { amount?: string; plan?: number | null }) =>
-    run(async () => { await api.setSalesTarget(uid, data); await mutateTargets(); });
+  // targets (period grid)
+  const setRepPlan = (uid: number, plan: number | null) =>
+    run(async () => { await api.setRepPlan(uid, plan); await mutateGrid(); });
+  const setCell = (uid: number, index: number, amount: string) =>
+    run(async () => {
+      if (!grid) return;
+      await api.setSalesTargetCell(uid, grid.fiscal_year, index, amount);
+      await mutateGrid();
+    });
+  const colTotal = (index: number) =>
+    (grid?.reps || []).reduce((sum, r) => sum + (parseFloat(r.cells[index] || "0") || 0), 0);
+  const grandTotal = (grid?.reps || []).reduce((sum, r) => sum + (parseFloat(r.total) || 0), 0);
+  const fmt = (n: number) => `${cs}${Math.round(n).toLocaleString()}`;
 
   return (
     <div className="space-y-6">
@@ -179,35 +187,78 @@ export default function CommissionSettings() {
         </CardContent>
       </Card>
 
-      {/* Targets: per-rep plan + target amount */}
+      {/* Targets: per-rep plan + a period-wise grid (shape follows the period above) */}
       <Card>
-        <CardHeader><CardTitle>Targets</CardTitle></CardHeader>
+        <CardHeader>
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <CardTitle>Targets</CardTitle>
+            {grid && (
+              <div className="flex items-center gap-2 text-sm">
+                <Button variant="outline" size="sm" className="h-7 px-2" disabled={busy}
+                  onClick={() => setFiscalYear(grid.fiscal_year - 1)} aria-label="Previous year">◀</Button>
+                <span className="font-medium tabular-nums min-w-[64px] text-center">{grid.fiscal_year_label}</span>
+                <Button variant="outline" size="sm" className="h-7 px-2" disabled={busy}
+                  onClick={() => setFiscalYear(grid.fiscal_year + 1)} aria-label="Next year">▶</Button>
+              </div>
+            )}
+          </div>
+        </CardHeader>
         <CardContent>
           <p className="text-xs text-muted-foreground mb-4">
-            Each salesperson&apos;s plan, and a recurring revenue target that applies{" "}
-            <strong>every {periodWord}</strong> (change the period in <em>Period &amp; basis</em> above).
+            Each salesperson&apos;s plan and their revenue target per <strong>{periodWord}</strong>{" "}
+            (change the period &amp; financial-year start in <em>Period &amp; basis</em> above).
           </p>
-          {salespeople.length === 0 ? (
+          {!grid ? (
+            <p className="text-muted-foreground text-sm">Loading…</p>
+          ) : grid.reps.length === 0 ? (
             <p className="text-muted-foreground text-sm">No salespeople in this organisation yet.</p>
           ) : (
-            <div className="space-y-2">
-              {salespeople.map((u) => {
-                const t = targetFor(u.id);
-                return (
-                  <div key={u.id} className="flex items-center gap-3 border border-border rounded-md p-2 flex-wrap">
-                    <span className="text-sm flex-1 min-w-[120px]">{u.first_name} {u.last_name}</span>
-                    <select className={SELECT + " h-8"} disabled={busy} value={t?.plan ?? defaultPlanId ?? ""}
-                      onChange={(e) => setTarget(u.id, { plan: Number(e.target.value) })} aria-label={`${u.first_name} plan`}>
-                      {plans.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                    </select>
-                    <span className="text-xs text-muted-foreground">{cs}</span>
-                    <Input key={`amt-${u.id}-${t?.amount ?? "none"}`}
-                      type="number" step="1" min="0" disabled={busy} defaultValue={t?.amount ?? ""} placeholder="0"
-                      onBlur={(e) => { const v = e.target.value; if (v !== (t?.amount ?? "")) setTarget(u.id, { amount: v || "0" }); }}
-                      className="h-8 w-36" aria-label={`${u.first_name} target`} />
-                  </div>
-                );
-              })}
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm border-collapse">
+                <thead>
+                  <tr className="border-b border-border text-left">
+                    <th className="py-2 pr-3 font-medium text-muted-foreground sticky left-0 bg-card">Salesperson</th>
+                    <th className="py-2 px-2 font-medium text-muted-foreground">Plan</th>
+                    {grid.columns.map((c) => (
+                      <th key={c.index} className="py-2 px-2 font-medium text-muted-foreground text-right whitespace-nowrap">{c.label}</th>
+                    ))}
+                    <th className="py-2 pl-2 font-medium text-muted-foreground text-right border-l border-border">Annual</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {grid.reps.map((r) => (
+                    <tr key={r.user_id} className="border-b border-border last:border-0">
+                      <td className="py-1.5 pr-3 font-medium sticky left-0 bg-card whitespace-nowrap">{r.user_name}</td>
+                      <td className="py-1.5 px-2">
+                        <select className={SELECT + " h-8"} disabled={busy} value={r.plan ?? defaultPlanId ?? ""}
+                          onChange={(e) => setRepPlan(r.user_id, Number(e.target.value))} aria-label={`${r.user_name} plan`}>
+                          {plans.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                        </select>
+                      </td>
+                      {grid.columns.map((c) => (
+                        <td key={c.index} className="py-1.5 px-1">
+                          <Input
+                            key={`cell-${r.user_id}-${grid.fiscal_year}-${c.index}-${r.cells[c.index]}`}
+                            type="number" step="1" min="0" disabled={busy}
+                            defaultValue={parseFloat(r.cells[c.index] || "0") ? r.cells[c.index] : ""}
+                            placeholder="0"
+                            onBlur={(e) => { const v = e.target.value || "0"; if (v !== (r.cells[c.index] ?? "0")) setCell(r.user_id, c.index, v); }}
+                            className="h-8 w-28 text-right" aria-label={`${r.user_name} ${c.label}`} />
+                        </td>
+                      ))}
+                      <td className="py-1.5 pl-2 text-right font-semibold tabular-nums border-l border-border whitespace-nowrap">{fmt(parseFloat(r.total))}</td>
+                    </tr>
+                  ))}
+                  <tr className="border-t-2 border-border font-semibold">
+                    <td className="py-2 pr-3 sticky left-0 bg-card">Team</td>
+                    <td></td>
+                    {grid.columns.map((c) => (
+                      <td key={c.index} className="py-2 px-2 text-right tabular-nums whitespace-nowrap">{fmt(colTotal(c.index))}</td>
+                    ))}
+                    <td className="py-2 pl-2 text-right tabular-nums border-l border-border whitespace-nowrap">{fmt(grandTotal)}</td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           )}
         </CardContent>

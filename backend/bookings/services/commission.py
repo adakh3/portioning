@@ -7,6 +7,7 @@ confirmed event is the real booking with real revenue (``Event.total``). Credit
 goes to the event's ``assigned_to`` (set from the lead's owner, or the creator
 for directly-created events, and editable by an admin to correct attribution).
 """
+import calendar
 from datetime import date
 from decimal import Decimal
 
@@ -14,7 +15,7 @@ from django.db.models import Sum
 from django.utils import timezone
 
 from bookings.commission import compute_commission
-from bookings.models import CommissionPlan, OrgSettings, SalesTarget
+from bookings.models import CommissionPlan, OrgSettings, SalesTarget, RepCommissionPlan
 from events.models import Event
 
 # Statuses that represent a real, booked event (excludes tentative + cancelled).
@@ -23,19 +24,68 @@ EARNED_EVENT_STATUSES = ['confirmed', 'in_progress', 'completed']
 # Org's commission_basis -> the Event date field that buckets it into a period.
 BASIS_TO_DATE_FIELD = {'event_date': 'date', 'booking_date': 'booking_date'}
 
+# How many target cells make up a financial year for each period type.
+PERIOD_LENGTHS = {'monthly': 12, 'quarterly': 4, 'yearly': 1}
+
 
 def rep_plan(org, user):
     """The commission plan a salesperson is on: their assigned plan, else the
     org's default plan (else None)."""
-    st = (
-        SalesTarget.objects
+    rp = (
+        RepCommissionPlan.objects
         .filter(organisation=org, user=user)
         .select_related('plan')
         .first()
     )
-    if st and st.plan_id:
-        return st.plan
+    if rp and rp.plan_id:
+        return rp.plan
     return CommissionPlan.objects.filter(organisation=org, is_default=True).first()
+
+
+def period_position(today, period_type, fiscal_start=1):
+    """Locate ``today`` within the financial year as (fiscal_year, period_index,
+    period_count). ``fiscal_year`` is the calendar year the FY starts in;
+    ``period_index`` is 0-based from that start."""
+    fy_start, _, _ = fiscal_year_bounds(today, fiscal_start)
+    months_in = (today.year - fy_start.year) * 12 + (today.month - fy_start.month)
+    count = PERIOD_LENGTHS.get(period_type, 1)
+    if period_type == 'monthly':
+        index = months_in
+    elif period_type == 'quarterly':
+        index = months_in // 3
+    else:  # yearly
+        index = 0
+    return fy_start.year, index, count
+
+
+def rep_target(org, user, today, period_type, fiscal_start=1):
+    """The rep's target for the period containing ``today`` (0 if unset)."""
+    fy, index, _ = period_position(today, period_type, fiscal_start)
+    amount = (
+        SalesTarget.objects
+        .filter(organisation=org, user=user, period_type=period_type,
+                fiscal_year=fy, period_index=index)
+        .values_list('amount', flat=True)
+        .first()
+    )
+    return amount or Decimal('0')
+
+
+def fiscal_year_label(fiscal_start, fiscal_year):
+    """Human label for a financial year: '2026' for a calendar year, 'FY 2026/27'
+    for a fiscal one."""
+    if fiscal_start == 1:
+        return str(fiscal_year)
+    return f'FY {fiscal_year}/{(fiscal_year + 1) % 100:02d}'
+
+
+def period_labels(period_type, fiscal_start=1):
+    """Column labels for the targets grid, in financial-year order."""
+    if period_type == 'monthly':
+        return [calendar.month_abbr[(fiscal_start - 1 + i) % 12 + 1] for i in range(12)]
+    if period_type == 'quarterly':
+        return [f'Q{i + 1}' for i in range(4)]
+    return ['Year']
 
 
 def fiscal_year_bounds(today, start_month=1):
@@ -59,15 +109,16 @@ def period_bounds(period, today, fiscal_start=1):
         return fiscal_year_bounds(today, fiscal_start)
 
     if period == 'quarterly':
-        q_index = (today.month - 1) // 3          # 0..3
-        start_month = q_index * 3 + 1             # 1,4,7,10
-        start = date(today.year, start_month, 1)
-        end_month = start_month + 3
-        if end_month > 12:
-            end = date(today.year + 1, 1, 1)
-        else:
-            end = date(today.year, end_month, 1)
-        return start, end, f'Q{q_index + 1} {today.year}'
+        # Fiscal quarters: Q1 starts at the financial-year start month.
+        fy_start, _, _ = fiscal_year_bounds(today, fiscal_start)
+        months_in = (today.year - fy_start.year) * 12 + (today.month - fy_start.month)
+        q_index = months_in // 3                  # 0..3
+        start_abs = (fy_start.month - 1) + q_index * 3
+        start = date(fy_start.year + start_abs // 12, start_abs % 12 + 1, 1)
+        end_abs = start_abs + 3
+        end = date(fy_start.year + end_abs // 12, end_abs % 12 + 1, 1)
+        suffix = str(fy_start.year) if fiscal_start == 1 else fiscal_year_label(fiscal_start, fy_start.year)
+        return start, end, f'Q{q_index + 1} {suffix}'
 
     # monthly (default)
     start = date(today.year, today.month, 1)
@@ -104,12 +155,7 @@ def commission_summary(org, user, today=None):
     start, end, label = period_bounds(settings.target_period, today, fiscal_start)
 
     revenue, deals = _event_revenue(org, user, date_field, start, end)
-    target = (
-        SalesTarget.objects
-        .filter(organisation=org, user=user)
-        .values_list('amount', flat=True)
-        .first()
-    ) or Decimal('0')
+    target = rep_target(org, user, today, settings.target_period, fiscal_start)
     plan = rep_plan(org, user)
     if plan is not None:
         model = plan.commission_model

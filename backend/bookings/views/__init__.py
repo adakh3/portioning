@@ -6,7 +6,7 @@ from .commission import (
     MyCommissionView,
     CommissionPlanManageListCreateView, CommissionPlanManageDetailView,
     CommissionBandManageListCreateView, CommissionBandManageDetailView,
-    SalesTargetManageView,
+    SalesTargetGridView, RepPlanManageView,
 )
 from .quotes import (
     QuoteListCreateView, QuoteDetailView, QuoteTransitionView,

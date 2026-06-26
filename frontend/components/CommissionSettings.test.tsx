@@ -34,21 +34,25 @@ vi.mock("@/lib/hooks", () => ({
     data: [{ id: 10, plan: 2, min_attainment_pct: "0.00", rate: "4.00" }],
     mutate,
   }),
-  useSalesTargets: () => ({
-    data: [{ id: 1, user: 7, user_name: "Rep One", plan: null, amount: "5000000.00" }],
+  useSalesTargetGrid: () => ({
+    data: {
+      period_type: "monthly",
+      fiscal_year: 2026,
+      fiscal_year_label: "2026",
+      fiscal_start_month: 1,
+      columns: [{ index: 0, label: "Jan" }, { index: 1, label: "Feb" }],
+      reps: [
+        { user_id: 7, user_name: "Rep One", plan: null, cells: { 0: "5000000.00", 1: "6000000.00" }, total: "11000000.00" },
+      ],
+    },
     mutate,
-  }),
-  useUsers: () => ({
-    data: [
-      { id: 7, first_name: "Rep", last_name: "One", role: "salesperson" },
-      { id: 8, first_name: "Boss", last_name: "X", role: "owner" },
-    ],
   }),
 }));
 
 const updateSiteSettings = vi.fn().mockResolvedValue({});
 const createCommissionPlan = vi.fn().mockResolvedValue({});
-const setSalesTarget = vi.fn().mockResolvedValue({});
+const setRepPlan = vi.fn().mockResolvedValue({});
+const setSalesTargetCell = vi.fn().mockResolvedValue({});
 vi.mock("@/lib/api", () => ({
   api: {
     updateSiteSettings: (...a: unknown[]) => updateSiteSettings(...a),
@@ -58,7 +62,8 @@ vi.mock("@/lib/api", () => ({
     createCommissionBand: vi.fn().mockResolvedValue({}),
     updateCommissionBand: vi.fn().mockResolvedValue({}),
     deleteCommissionBand: vi.fn().mockResolvedValue(undefined),
-    setSalesTarget: (...a: unknown[]) => setSalesTarget(...a),
+    setRepPlan: (...a: unknown[]) => setRepPlan(...a),
+    setSalesTargetCell: (...a: unknown[]) => setSalesTargetCell(...a),
   },
 }));
 
@@ -67,7 +72,8 @@ import CommissionSettings from "./CommissionSettings";
 beforeEach(() => {
   updateSiteSettings.mockClear();
   createCommissionPlan.mockClear();
-  setSalesTarget.mockClear();
+  setRepPlan.mockClear();
+  setSalesTargetCell.mockClear();
 });
 
 describe("CommissionSettings (plans)", () => {
@@ -78,11 +84,22 @@ describe("CommissionSettings (plans)", () => {
     expect(screen.getByLabelText("rate %")).toHaveValue(4); // Senior's band rate
   });
 
-  it("only lists salespeople (not the owner)", () => {
+  it("shows the targets grid with the rep's period cells and annual total", () => {
     render(<CommissionSettings />);
     expect(screen.getByText("Rep One")).toBeInTheDocument();
-    expect(screen.queryByText("Boss X")).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Rep target")).toHaveValue(5000000); // target amount shows
+    expect(screen.getByText("Jan")).toBeInTheDocument();           // period column
+    expect(screen.getByText("Feb")).toBeInTheDocument();
+    expect(screen.getByLabelText("Rep One Jan")).toHaveValue(5000000); // a cell
+    expect(screen.getByText("2026")).toBeInTheDocument();          // fiscal-year label
+    expect(screen.getAllByText("£11,000,000").length).toBeGreaterThan(0); // annual total
+  });
+
+  it("edits a target cell", async () => {
+    render(<CommissionSettings />);
+    const cell = screen.getByLabelText("Rep One Feb");
+    fireEvent.change(cell, { target: { value: "7000000" } });
+    fireEvent.blur(cell);
+    await waitFor(() => expect(setSalesTargetCell).toHaveBeenCalledWith(7, 2026, 1, "7000000"));
   });
 
   it("creates a plan", async () => {
@@ -96,8 +113,8 @@ describe("CommissionSettings (plans)", () => {
 
   it("assigns a plan to a salesperson", async () => {
     render(<CommissionSettings />);
-    fireEvent.change(screen.getByLabelText("Rep plan"), { target: { value: "2" } });
-    await waitFor(() => expect(setSalesTarget).toHaveBeenCalledWith(7, { plan: 2 }));
+    fireEvent.change(screen.getByLabelText("Rep One plan"), { target: { value: "2" } });
+    await waitFor(() => expect(setRepPlan).toHaveBeenCalledWith(7, 2));
   });
 
   it("saves the org-wide period", async () => {

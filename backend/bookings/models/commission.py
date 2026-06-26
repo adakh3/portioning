@@ -4,7 +4,7 @@ from django.db import models
 
 from users.managers import TenantManager
 from users.model_mixins import OrgScopedModel
-from bookings.models.settings import COMMISSION_MODEL_CHOICES
+from bookings.models.settings import COMMISSION_MODEL_CHOICES, TARGET_PERIOD_CHOICES
 
 
 class CommissionPlan(OrgScopedModel, models.Model):
@@ -81,9 +81,44 @@ class CommissionBand(OrgScopedModel, models.Model):
         return f'≥{self.min_attainment_pct}% of target → {self.rate}%'
 
 
+class RepCommissionPlan(OrgScopedModel, models.Model):
+    """Which commission plan a salesperson is on (absent = the org's default plan).
+
+    Split out from the target so the plan is one fact per rep, independent of the
+    per-period target grid."""
+    objects = TenantManager()
+
+    organisation = models.ForeignKey(
+        'users.Organisation', on_delete=models.CASCADE, related_name='rep_commission_plans',
+    )
+    user = models.ForeignKey(
+        'users.User', on_delete=models.CASCADE, related_name='rep_commission_plan',
+    )
+    plan = models.ForeignKey(
+        'bookings.CommissionPlan', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='rep_assignments',
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['organisation', 'user'], name='uniq_org_user_rep_plan',
+            ),
+        ]
+
+    def __str__(self):
+        return f'{self.user_id} → {self.plan_id}'
+
+
 class SalesTarget(OrgScopedModel, models.Model):
-    """A salesperson's commission setup: their target amount per period and the
-    commission plan they're on (null = the org's default plan)."""
+    """One cell of the targets grid: a salesperson's revenue target for a single
+    period of a financial year.
+
+    The grid's shape follows the org's ``target_period`` (monthly → 12 cells,
+    quarterly → 4, yearly → 1) and ``fiscal_year_start_month``. ``fiscal_year`` is
+    the calendar year the financial year starts in; ``period_index`` is 0-based
+    from that start (0 = the first month/quarter of the financial year)."""
     objects = TenantManager()
 
     organisation = models.ForeignKey(
@@ -92,22 +127,28 @@ class SalesTarget(OrgScopedModel, models.Model):
     user = models.ForeignKey(
         'users.User', on_delete=models.CASCADE, related_name='sales_targets',
     )
-    plan = models.ForeignKey(
-        'bookings.CommissionPlan', on_delete=models.SET_NULL, null=True, blank=True,
-        related_name='targets',
+    period_type = models.CharField(
+        max_length=20, choices=TARGET_PERIOD_CHOICES, default='monthly',
+    )
+    fiscal_year = models.PositiveIntegerField(
+        help_text='Calendar year the financial year starts in.',
+    )
+    period_index = models.PositiveSmallIntegerField(
+        default=0, help_text='0-based period within the financial year (0 = first).',
     )
     amount = models.DecimalField(
         max_digits=14, decimal_places=2, default=Decimal('0.00'),
-        help_text='Revenue target per period for this salesperson.',
+        help_text='Revenue target for this rep in this period.',
     )
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         constraints = [
             models.UniqueConstraint(
-                fields=['organisation', 'user'], name='uniq_org_user_sales_target',
+                fields=['organisation', 'user', 'period_type', 'fiscal_year', 'period_index'],
+                name='uniq_org_user_target_cell',
             ),
         ]
 
     def __str__(self):
-        return f'{self.user_id} target {self.amount}'
+        return f'{self.user_id} {self.period_type} FY{self.fiscal_year} p{self.period_index} = {self.amount}'

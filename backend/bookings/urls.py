@@ -10,7 +10,7 @@ from bookings.views import (
     MyCommissionView,
     CommissionPlanManageListCreateView, CommissionPlanManageDetailView,
     CommissionBandManageListCreateView, CommissionBandManageDetailView,
-    SalesTargetManageView,
+    SalesTargetGridView, RepPlanManageView,
     QuoteListCreateView, QuoteDetailView, QuoteTransitionView,
     QuoteLineItemListCreateView, QuoteLineItemDetailView,
     QuotePDFView,
@@ -81,7 +81,8 @@ urlpatterns = [
     path('bookings/settings/commission-plans/<int:pk>/', CommissionPlanManageDetailView.as_view(), name='commission-plan-detail'),
     path('bookings/settings/commission-bands/', CommissionBandManageListCreateView.as_view(), name='commission-band-list'),
     path('bookings/settings/commission-bands/<int:pk>/', CommissionBandManageDetailView.as_view(), name='commission-band-detail'),
-    path('bookings/settings/sales-targets/', SalesTargetManageView.as_view(), name='sales-target-manage'),
+    path('bookings/settings/sales-targets/', SalesTargetGridView.as_view(), name='sales-target-grid'),
+    path('bookings/settings/rep-plans/', RepPlanManageView.as_view(), name='rep-plan-manage'),
 
     # Quotes & Line Items
     path('bookings/quotes/', QuoteListCreateView.as_view(), name='quote-list'),

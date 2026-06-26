@@ -7,8 +7,8 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from bookings.commission import compute_commission, FLAT, ACCELERATED
-from bookings.models import CommissionPlan, CommissionBand, OrgSettings, SalesTarget
-from bookings.services.commission import commission_summary, period_bounds
+from bookings.models import CommissionPlan, CommissionBand, OrgSettings, SalesTarget, RepCommissionPlan
+from bookings.services.commission import commission_summary, period_bounds, period_position
 from bookings.tests import _make_org
 from events.models import Event
 from users.models import User
@@ -179,6 +179,24 @@ def _set_plan(org, *, name, model="flat", flat_rate="0", bands=None, is_default=
     return plan
 
 
+def _set_target(org, user, amount, today=None):
+    """Set the rep's target cell for the period containing ``today`` (matches the
+    org's configured target_period + fiscal-year start)."""
+    today = today or timezone.now().date()
+    s = OrgSettings.for_org(org)
+    fy, idx, _ = period_position(today, s.target_period, s.fiscal_year_start_month)
+    SalesTarget.objects.update_or_create(
+        organisation=org, user=user, period_type=s.target_period,
+        fiscal_year=fy, period_index=idx, defaults={"amount": Decimal(str(amount))},
+    )
+
+
+def _assign_plan(org, user, plan):
+    RepCommissionPlan.objects.update_or_create(
+        organisation=org, user=user, defaults={"plan": plan},
+    )
+
+
 def _event(org, user, total, *, date=None, booking_date=None, status="confirmed"):
     """A confirmed event with a fixed total, attributed to `user`."""
     return Event.objects.create(
@@ -199,7 +217,7 @@ class CommissionSummaryTests(TestCase):
 
     def test_flat_summary(self):
         _set_commission(self.org, model="flat", flat_rate="5")
-        SalesTarget.objects.create(organisation=self.org, user=self.user, amount=Decimal("5000000"))
+        _set_target(self.org, self.user, "5000000")
         _event(self.org, self.user, "6000000", date=self.today)
 
         s = commission_summary(self.org, self.user, today=self.today)
@@ -211,7 +229,7 @@ class CommissionSummaryTests(TestCase):
 
     def test_accelerated_summary(self):
         _set_commission(self.org, model="accelerated", bands=[("0", "4"), ("100", "7")])
-        SalesTarget.objects.create(organisation=self.org, user=self.user, amount=Decimal("5000000"))
+        _set_target(self.org, self.user, "5000000")
         _event(self.org, self.user, "6000000", date=self.today)
 
         s = commission_summary(self.org, self.user, today=self.today)
@@ -240,7 +258,7 @@ class CommissionSummaryTests(TestCase):
         self.assertEqual(s["revenue"], Decimal("1000000"))
 
     def test_commission_basis_event_date_vs_booking_date(self):
-        SalesTarget.objects.create(organisation=self.org, user=self.user, amount=Decimal("1000000"))
+        _set_target(self.org, self.user, "1000000")
         last_month = self.today.replace(day=1) - timedelta(days=1)
         # Event takes place this month, but was booked last month.
         _event(self.org, self.user, "1000000", date=self.today, booking_date=last_month)
@@ -255,7 +273,7 @@ class CommissionSummaryTests(TestCase):
 
     def test_only_current_period_counts_but_year_includes_whole_year(self):
         _set_commission(self.org, model="flat", flat_rate="5")
-        SalesTarget.objects.create(organisation=self.org, user=self.user, amount=Decimal("1000000"))
+        _set_target(self.org, self.user, "1000000", today=date(2026, 6, 26))
         today = date(2026, 6, 26)
         _event(self.org, self.user, "1000000", date=today)                # this period (June)
         _event(self.org, self.user, "2000000", date=date(2026, 2, 10))    # earlier this calendar year
@@ -272,7 +290,7 @@ class CommissionSummaryTests(TestCase):
         # Org runs an April–March financial year.
         _set_commission(self.org, model="flat", flat_rate="5")
         OrgSettings.objects.filter(organisation=self.org).update(fiscal_year_start_month=4)
-        SalesTarget.objects.create(organisation=self.org, user=self.user, amount=Decimal("1000000"))
+        _set_target(self.org, self.user, "1000000", today=date(2026, 6, 26))
         today = date(2026, 6, 26)                                         # FY 2026/27 (starts Apr 2026)
         _event(self.org, self.user, "1000000", date=date(2026, 5, 1))     # in FY 2026/27
         _event(self.org, self.user, "2000000", date=date(2026, 3, 31))    # in prior FY 2025/26
@@ -287,7 +305,8 @@ class CommissionSummaryTests(TestCase):
         # default plan = 5% flat; a Senior plan = 10% flat; assign the rep to Senior.
         _set_commission(self.org, model="flat", flat_rate="5")
         senior = _set_plan(self.org, name="Senior", model="flat", flat_rate="10")
-        SalesTarget.objects.create(organisation=self.org, user=self.user, amount=Decimal("1000000"), plan=senior)
+        _set_target(self.org, self.user, "1000000")
+        _assign_plan(self.org, self.user, senior)
         _event(self.org, self.user, "1000000", date=self.today)
 
         s = commission_summary(self.org, self.user, today=self.today)
@@ -312,7 +331,7 @@ class MyCommissionAPITests(TestCase):
             role="salesperson", organisation=self.org,
         )
         _set_commission(self.org, model="flat", flat_rate="5")
-        SalesTarget.objects.create(organisation=self.org, user=self.user, amount=Decimal("5000000"))
+        _set_target(self.org, self.user, "5000000")
         _event(self.org, self.user, "6000000", date=timezone.now().date())
         self.client = APIClient()
         self.client.force_authenticate(user=self.user)
@@ -397,26 +416,50 @@ class CommissionConfigAPITests(TestCase):
         self.assertEqual(res.status_code, 204)
         self.assertFalse(CommissionBand.objects.filter(pk=band_id).exists())
 
-    def test_sales_target_upsert(self):
-        res = self.client.put("/api/bookings/settings/sales-targets/",
-                              {"user": self.rep.id, "amount": "5000000"}, format="json")
+    def test_sales_target_cell_upsert(self):
+        res = self.client.put(
+            "/api/bookings/settings/sales-targets/",
+            {"user": self.rep.id, "fiscal_year": 2026, "period_index": 0, "amount": "5000000"},
+            format="json",
+        )
+        self.assertEqual(res.status_code, 200, res.content)
+        cell = SalesTarget.objects.get(organisation=self.org, user=self.rep, fiscal_year=2026, period_index=0)
+        self.assertEqual(cell.amount, Decimal("5000000"))
+        # second PUT updates the same cell, not duplicates
+        self.client.put(
+            "/api/bookings/settings/sales-targets/",
+            {"user": self.rep.id, "fiscal_year": 2026, "period_index": 0, "amount": "6000000"},
+            format="json",
+        )
+        cells = SalesTarget.objects.filter(organisation=self.org, user=self.rep, fiscal_year=2026, period_index=0)
+        self.assertEqual(cells.count(), 1)
+        self.assertEqual(cells.first().amount, Decimal("6000000"))
+
+    def test_sales_target_grid_get(self):
+        res = self.client.get("/api/bookings/settings/sales-targets/?fiscal_year=2026")
+        self.assertEqual(res.status_code, 200, res.content)
+        data = res.json()
+        self.assertEqual(data["period_type"], "monthly")
+        self.assertEqual(len(data["columns"]), 12)
+        self.assertTrue(any(r["user_id"] == self.rep.id for r in data["reps"]))
+
+    def test_rep_plan_assignment(self):
+        plan = self._default_plan()
+        res = self.client.put("/api/bookings/settings/rep-plans/",
+                              {"user": self.rep.id, "plan": plan.id}, format="json")
         self.assertEqual(res.status_code, 200, res.content)
         self.assertEqual(
-            SalesTarget.objects.get(organisation=self.org, user=self.rep).amount, Decimal("5000000"),
-        )
-        # second PUT updates, not duplicates
-        self.client.put("/api/bookings/settings/sales-targets/",
-                        {"user": self.rep.id, "amount": "6000000"}, format="json")
-        self.assertEqual(SalesTarget.objects.filter(organisation=self.org, user=self.rep).count(), 1)
-        self.assertEqual(
-            SalesTarget.objects.get(organisation=self.org, user=self.rep).amount, Decimal("6000000"),
+            RepCommissionPlan.objects.get(organisation=self.org, user=self.rep).plan_id, plan.id,
         )
 
     def test_sales_target_rejects_user_from_another_org(self):
         other = _make_org(slug="other-org")
         outsider = User.objects.create(email="out@example.com", role="salesperson", organisation=other)
-        res = self.client.put("/api/bookings/settings/sales-targets/",
-                              {"user": outsider.id, "amount": "1"}, format="json")
+        res = self.client.put(
+            "/api/bookings/settings/sales-targets/",
+            {"user": outsider.id, "fiscal_year": 2026, "period_index": 0, "amount": "1"},
+            format="json",
+        )
         self.assertEqual(res.status_code, 400)
 
     def test_non_admin_is_forbidden(self):
@@ -442,7 +485,7 @@ class DashboardTargetAttainmentAPITests(TestCase):
             role="salesperson", organisation=self.org,
         )
         _set_commission(self.org, model="flat", flat_rate="5")
-        SalesTarget.objects.create(organisation=self.org, user=self.rep, amount=Decimal("5000000"))
+        _set_target(self.org, self.rep, "5000000")
         _event(self.org, self.rep, "6000000", date=timezone.now().date())
         self.client = APIClient()
 
