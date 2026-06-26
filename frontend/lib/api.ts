@@ -619,12 +619,24 @@ export interface CommissionBandConfig {
   rate: string;
 }
 
-export interface SalesTargetRow {
-  id: number;
-  user: number;
-  user_name: string | null;
+export interface TargetColumn {
+  index: number;
+  label: string;
+}
+export interface TargetRepRow {
+  user_id: number;
+  user_name: string;
   plan: number | null;
-  amount: string;
+  cells: Record<number, string>; // period_index -> amount
+  total: string;
+}
+export interface SalesTargetGrid {
+  period_type: string;
+  fiscal_year: number;
+  fiscal_year_label: string;
+  fiscal_start_month: number;
+  columns: TargetColumn[];
+  reps: TargetRepRow[];
 }
 
 // Event type (updated with booking fields)
@@ -975,6 +987,7 @@ export interface CommissionData {
   deals: number;
   year_label: string;
   year_revenue: string;
+  year_target: string;
   year_deals: number;
   breakdown: CommissionBandRow[];
 }
@@ -1220,9 +1233,12 @@ export const api = {
     fetchApi<CommissionBandConfig>(`/bookings/settings/commission-bands/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
   deleteCommissionBand: (id: number) =>
     fetchApi<void>(`/bookings/settings/commission-bands/${id}/`, { method: "DELETE" }),
-  getSalesTargets: () => fetchApi<SalesTargetRow[]>("/bookings/settings/sales-targets/"),
-  setSalesTarget: (user: number, data: { amount?: string; plan?: number | null }) =>
-    fetchApi<SalesTargetRow>("/bookings/settings/sales-targets/", { method: "PUT", body: JSON.stringify({ user, ...data }) }),
+  getSalesTargetGrid: (fiscalYear?: number) =>
+    fetchApi<SalesTargetGrid>(`/bookings/settings/sales-targets/${fiscalYear ? `?fiscal_year=${fiscalYear}` : ""}`),
+  setSalesTargetCell: (user: number, fiscal_year: number, period_index: number, amount: string) =>
+    fetchApi<{ ok: boolean }>("/bookings/settings/sales-targets/", { method: "PUT", body: JSON.stringify({ user, fiscal_year, period_index, amount }) }),
+  setRepPlan: (user: number, plan: number | null) =>
+    fetchApi<{ ok: boolean }>("/bookings/settings/rep-plans/", { method: "PUT", body: JSON.stringify({ user, plan }) }),
   getLeadsKanban: (filters?: LeadFilters) => {
     const params = new URLSearchParams();
     if (filters) {

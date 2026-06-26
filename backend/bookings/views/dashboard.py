@@ -11,8 +11,8 @@ from bookings.models.activity import ActivityLog
 from bookings.models.choices import LeadStatusOption
 from bookings.models import Reminder
 from bookings.permissions import IsManagerOrOwner
-from bookings.models import SalesTarget
-from bookings.services.commission import commission_summary
+from bookings.models import SalesTarget, OrgSettings
+from bookings.services.commission import commission_summary, period_position
 from bookings.views.commission import _money, _pct
 from users.mixins import get_request_org, apply_org_filter
 
@@ -351,14 +351,19 @@ class DashboardStatsView(APIView):
             for v in status_values
         ]
 
-        # ── Target attainment: each rep with a target, vs the org's target period ──
+        # ── Target attainment: one row per rep with a target for the CURRENT period ──
+        # Targets are stored per-period cells; show only the cell for the period we're
+        # in now (so a rep appears once, not once per month/quarter of the year).
         today = timezone.now().date()
-        target_qs = (
+        org_settings = OrgSettings.for_org(org)
+        pt = org_settings.target_period
+        cur_fy, cur_idx, _ = period_position(today, pt, org_settings.fiscal_year_start_month)
+        target_users = (
             apply_org_filter(SalesTarget.objects.select_related('user'), request)
-            .filter(amount__gt=0)
+            .filter(period_type=pt, fiscal_year=cur_fy, period_index=cur_idx, amount__gt=0)
         )
         target_attainment = []
-        for t in target_qs:
+        for t in target_users:
             s = commission_summary(org, t.user, today)
             name = f"{t.user.first_name} {t.user.last_name}".strip() or t.user.email
             target_attainment.append({

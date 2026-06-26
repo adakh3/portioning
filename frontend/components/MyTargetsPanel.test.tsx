@@ -32,6 +32,7 @@ const UNDER_TARGET = {
   deals: 3,
   year_label: "2026",
   year_revenue: "200000.00",
+  year_target: "400000.00",
   year_deals: 12,
   breakdown: [
     { from_pct: "0.00", to_pct: null, rate: "5.00", revenue_in_band: "50000.00", commission: "2500.00" },
@@ -85,6 +86,8 @@ describe("MyTargetsPanel", () => {
     expect(screen.getByText("This year")).toBeInTheDocument();
     expect(screen.getByText("2026")).toBeInTheDocument(); // year_label
     expect(screen.getByText("£200,000.00")).toBeInTheDocument(); // year_revenue
+    expect(screen.getByText(/of £400,000\.00 target/)).toBeInTheDocument(); // annual target
+    expect(screen.getByText(/50% of annual target/)).toBeInTheDocument(); // annual attainment
     expect(screen.getByText("12")).toBeInTheDocument(); // year_deals
   });
 

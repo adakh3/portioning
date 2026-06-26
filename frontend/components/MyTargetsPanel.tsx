@@ -148,7 +148,22 @@ export default function MyTargetsPanel() {
               <span className="text-xs font-medium tabular-nums text-muted-foreground">{data.year_label}</span>
             </div>
             <p className="text-3xl font-bold tabular-nums text-foreground">{formatCurrency(data.year_revenue, cs)}</p>
-            <p className="text-xs text-muted-foreground">revenue won</p>
+            <p className="text-xs text-muted-foreground">
+              revenue won{parseFloat(data.year_target) > 0 && <> of {formatCurrency(data.year_target, cs)} target</>}
+            </p>
+            {parseFloat(data.year_target) > 0 && (() => {
+              const yearAtt = (parseFloat(data.year_revenue) / parseFloat(data.year_target)) * 100;
+              const yfill = Math.max(0, Math.min(100, yearAtt));
+              const yover = yearAtt >= 100;
+              return (
+                <div className="mt-2">
+                  <Progress value={yfill} className="h-2 bg-primary/15" indicatorClassName={yover ? "bg-emerald-500" : undefined} />
+                  <p className={`mt-1 text-xs font-semibold tabular-nums ${yover ? "text-emerald-600" : "text-muted-foreground"}`}>
+                    {Number.isInteger(yearAtt) ? yearAtt : yearAtt.toFixed(1)}% of annual target{yover ? " 🎉" : ""}
+                  </p>
+                </div>
+              );
+            })()}
             <p className="mt-4 text-2xl font-bold text-foreground tabular-nums">{data.year_deals}</p>
             <p className="text-xs text-muted-foreground">events won</p>
           </CardContent>

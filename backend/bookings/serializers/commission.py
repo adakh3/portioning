@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from bookings.models import CommissionPlan, CommissionBand, SalesTarget
+from bookings.models import CommissionPlan, CommissionBand
 
 
 class CommissionPlanSerializer(serializers.ModelSerializer):
@@ -15,16 +15,3 @@ class CommissionBandSerializer(serializers.ModelSerializer):
         model = CommissionBand
         fields = ['id', 'plan', 'min_attainment_pct', 'rate']
         read_only_fields = ['id']
-
-
-class SalesTargetSerializer(serializers.ModelSerializer):
-    user_name = serializers.SerializerMethodField()
-
-    class Meta:
-        model = SalesTarget
-        fields = ['id', 'user', 'user_name', 'plan', 'amount']
-        read_only_fields = ['id']
-
-    def get_user_name(self, obj):
-        u = obj.user
-        return f"{u.first_name} {u.last_name}".strip() if u else None
