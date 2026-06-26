@@ -150,10 +150,16 @@ export default function Dashboard() {
       </div>
 
       {/* Team performance vs target — lead the manager dashboard with it */}
-      {targets.length > 0 && (
-        <Card>
-          <CardContent className="p-5">
-            <h2 className="text-sm font-semibold text-foreground mb-4">Performance vs target</h2>
+      <Card>
+        <CardContent className="p-5">
+          <h2 className="text-sm font-semibold text-foreground mb-4">Performance vs target</h2>
+          {targets.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No sales targets set yet. Add a target per rep in{" "}
+              <Link href="/settings" className="text-primary hover:underline">Settings → Commission</Link>{" "}
+              to track attainment here.
+            </p>
+          ) : (
             <div className="space-y-4">
               {targets.map((t) => {
                 const att = parseFloat(t.attainment_pct) || 0;
@@ -180,9 +186,9 @@ export default function Dashboard() {
                 );
               })}
             </div>
-          </CardContent>
-        </Card>
-      )}
+          )}
+        </CardContent>
+      </Card>
 
       {/* Lead Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
