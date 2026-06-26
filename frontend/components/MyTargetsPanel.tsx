@@ -64,45 +64,41 @@ export default function MyTargetsPanel() {
 
   return (
     <div className="space-y-4">
-      {/* Target — the focus, on the brand colour so it pops */}
+      {/* Target — a calm tinted wash so it reads as part of the dashboard */}
       <motion.div {...rise} transition={{ duration: 0.4 }}>
-        <div className="rounded-2xl bg-primary p-6 sm:p-8 text-primary-foreground shadow-md">
-          <p className="text-xs font-medium uppercase tracking-widest text-primary-foreground/60">{data.period}</p>
+        <div className="rounded-2xl bg-primary/10 p-6 sm:p-8 text-foreground shadow-sm">
+          <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">{data.period}</p>
 
           <div className="mt-3 flex flex-wrap items-end gap-x-3 gap-y-1">
-            <span className="text-7xl font-extrabold tabular-nums leading-none">
+            <span className="text-7xl font-extrabold tabular-nums leading-none text-primary">
               <CountUp end={attainment} duration={0.9} decimals={attDecimals} suffix="%" />
             </span>
-            <span className="mb-1.5 text-sm text-primary-foreground/70">of target</span>
-            <Badge variant="secondary" className="mb-1.5">{statusLabel}</Badge>
+            <span className="mb-1.5 text-sm text-muted-foreground">of target</span>
+            <Badge className="mb-1.5 border-transparent bg-background text-primary shadow-sm hover:bg-background">{statusLabel}</Badge>
           </div>
 
-          <Progress
-            value={animFill}
-            className="mt-6 h-3 bg-primary-foreground/20"
-            indicatorClassName="bg-primary-foreground"
-          />
-          <div className="mt-1.5 flex justify-between text-xs text-primary-foreground/70">
+          <Progress value={animFill} className="mt-6 h-3 bg-primary/15" />
+          <div className="mt-1.5 flex justify-between text-xs text-muted-foreground">
             <span className="tabular-nums">{formatCurrency(data.revenue, cs)} won</span>
             <span className="tabular-nums">target {formatCurrency(data.target, cs)}</span>
           </div>
           {hasTarget && (
-            <p className="mt-2 text-sm font-semibold tabular-nums text-primary-foreground/90">
+            <p className="mt-2 text-sm font-semibold tabular-nums text-primary">
               {over ? `${formatCurrency(overBy, cs)} over target 🎉` : `${formatCurrency(remaining, cs)} to go`}
             </p>
           )}
 
           {/* Reward */}
-          <div className="mt-7 flex flex-wrap items-center justify-between gap-4 border-t border-primary-foreground/20 pt-5">
+          <div className="mt-7 flex flex-wrap items-center justify-between gap-4 border-t border-primary/15 pt-5">
             <div>
-              <p className="text-xs uppercase tracking-wide text-primary-foreground/60">Commission earned</p>
-              <p className="text-4xl font-extrabold tabular-nums">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">Commission earned</p>
+              <p className="text-4xl font-extrabold tabular-nums text-foreground">
                 <CountUp end={parseFloat(data.commission)} duration={1.1} separator="," decimals={2} prefix={cs} />
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              {data.plan && <Badge variant="secondary">{data.plan}</Badge>}
-              <span className="text-xs text-primary-foreground/70">
+              {data.plan && <Badge className="border-transparent bg-background text-primary shadow-sm hover:bg-background">{data.plan}</Badge>}
+              <span className="text-xs text-muted-foreground">
                 {data.deals} {data.deals === 1 ? "event" : "events"} · by {basisWord}
               </span>
             </div>
