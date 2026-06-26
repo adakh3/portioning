@@ -22,6 +22,7 @@ import {
   useMealTypes,
   useUsers,
 } from "@/lib/hooks";
+import DealWonDialog from "@/components/DealWonDialog";
 import { formatDate, formatDateTime as sharedFormatDateTime } from "@/lib/dateFormat";
 import { LineItemInput, lineItemTotal, computeBookingTotals } from "@/lib/quoteTotals";
 import BookingTotalsCard from "@/components/BookingTotalsCard";
@@ -85,6 +86,7 @@ export default function EventDetailPage() {
   const loading = isNew ? false : eventLoading;
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [dealWon, setDealWon] = useState(false);
   const [editing, setEditing] = useState(isNew);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [formStatus, setFormStatus] = useState("tentative");
@@ -307,6 +309,7 @@ export default function EventDetailPage() {
     try {
       await api.updateEvent(event.id, { status: newStatus } as Partial<EventData>);
       await mutateEvent();
+      if (newStatus === "confirmed") setDealWon(true);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Status change failed");
     } finally {
@@ -1231,6 +1234,17 @@ export default function EventDetailPage() {
             {saving ? (isNew ? "Creating..." : "Saving...") : (isNew ? "Create Event" : "Save")}
           </Button>
         </div>
+      )}
+
+      {!isNew && event && (
+        <DealWonDialog
+          open={dealWon}
+          onClose={() => setDealWon(false)}
+          eventName={event.name}
+          repName={event.assigned_to_name}
+          revenue={event.total}
+          currencySymbol={settings.currency_symbol}
+        />
       )}
     </div>
   );

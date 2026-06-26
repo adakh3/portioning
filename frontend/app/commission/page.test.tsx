@@ -8,6 +8,13 @@ vi.mock("@/lib/hooks", () => ({
   useSiteSettings: () => ({ data: { currency_symbol: "£" } }),
 }));
 
+// Animation libs: render final values, no canvas in jsdom.
+vi.mock("canvas-confetti", () => ({ default: vi.fn() }));
+vi.mock("react-countup", () => ({
+  default: ({ end, prefix = "", suffix = "", decimals = 0 }: { end: number; prefix?: string; suffix?: string; decimals?: number }) =>
+    `${prefix}${Number(end).toLocaleString("en-US", { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}${suffix}`,
+}));
+
 import MyTargetsPage from "./page";
 
 const UNDER_TARGET = {

@@ -1,5 +1,10 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import { motion } from "framer-motion";
+import CountUp from "react-countup";
+import confetti from "canvas-confetti";
+
 import { useMyCommission, useSiteSettings } from "@/lib/hooks";
 import { formatCurrency } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
@@ -15,18 +20,36 @@ function pct(value: string | number): string {
   return `${Number.isInteger(n) ? n : n.toFixed(1)}%`;
 }
 
+const rise = {
+  initial: { opacity: 0, y: 12 },
+  animate: { opacity: 1, y: 0 },
+};
+
 export default function MyTargetsPage() {
   const { data, error, isLoading } = useMyCommission();
   const { data: settings } = useSiteSettings();
   const cs = settings?.currency_symbol || "£";
 
+  const attainment = data ? parseFloat(data.attainment_pct) || 0 : 0;
+  const fill = Math.max(0, Math.min(100, attainment));
+  const hasTarget = data ? parseFloat(data.target) > 0 : false;
+  const over = hasTarget && attainment >= 100;
+
+  // animate the bar from 0 → fill, and celebrate when over target
+  const [animFill, setAnimFill] = useState(0);
+  useEffect(() => {
+    const t = setTimeout(() => setAnimFill(fill), 120);
+    return () => clearTimeout(t);
+  }, [fill]);
+  useEffect(() => {
+    if (!over) return;
+    const t = setTimeout(() => confetti({ particleCount: 100, spread: 70, origin: { y: 0.4 } }), 450);
+    return () => clearTimeout(t);
+  }, [over]);
+
   if (error) return <p className="text-destructive">Error: {error.message}</p>;
   if (isLoading || !data) return <p className="text-muted-foreground">Loading…</p>;
 
-  const attainment = parseFloat(data.attainment_pct) || 0;
-  const fill = Math.max(0, Math.min(100, attainment));
-  const hasTarget = parseFloat(data.target) > 0;
-  const over = hasTarget && attainment >= 100;
   const overPct = Math.round(attainment - 100);
   const overBy = parseFloat(data.revenue) - parseFloat(data.target);
   const remaining = parseFloat(data.target) - parseFloat(data.revenue);
@@ -37,56 +60,57 @@ export default function MyTargetsPage() {
     : over
     ? (overPct >= 1 ? `${overPct}% over target 🎉` : "Target hit 🎉")
     : "in progress";
+  const attDecimals = Number.isInteger(attainment) ? 0 : 1;
 
   return (
     <div className="space-y-6 max-w-3xl">
       <h1 className="text-2xl font-bold text-foreground">My Targets</h1>
 
       {/* Target — the focus */}
-      <Card>
-        <CardContent className="p-6 sm:p-8">
-          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            {data.period}
-          </p>
+      <motion.div {...rise} transition={{ duration: 0.4 }}>
+        <Card>
+          <CardContent className="p-6 sm:p-8">
+            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{data.period}</p>
 
-          <div className="mt-2 flex flex-wrap items-end gap-x-3 gap-y-1">
-            <span className="text-6xl font-bold tabular-nums text-primary leading-none">
-              {pct(data.attainment_pct)}
-            </span>
-            <span className="mb-1 text-sm text-muted-foreground">of target</span>
-            <Badge variant={attainmentVariant} className="mb-1">{statusLabel}</Badge>
-          </div>
-
-          <Progress value={fill} className="mt-5 h-3" />
-          <div className="mt-1 flex justify-between text-xs text-muted-foreground">
-            <span className="tabular-nums">{formatCurrency(data.revenue, cs)} won</span>
-            <span className="tabular-nums">target {formatCurrency(data.target, cs)}</span>
-          </div>
-          {hasTarget && (
-            <p className={`mt-2 text-sm font-medium tabular-nums ${over ? "text-success" : "text-muted-foreground"}`}>
-              {over ? `${formatCurrency(overBy, cs)} over target` : `${formatCurrency(remaining, cs)} to go`}
-            </p>
-          )}
-
-          {/* Reward */}
-          <div className="mt-6 flex flex-wrap items-center justify-between gap-4 border-t border-border pt-4">
-            <div>
-              <p className="text-xs text-muted-foreground">Commission earned</p>
-              <p className="text-3xl font-bold tabular-nums text-foreground">
-                {formatCurrency(data.commission, cs)}
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              {data.plan && <Badge variant="secondary">{data.plan}</Badge>}
-              <span className="text-xs text-muted-foreground">
-                {data.deals} {data.deals === 1 ? "event" : "events"} · by {basisWord}
+            <div className="mt-2 flex flex-wrap items-end gap-x-3 gap-y-1">
+              <span className="text-6xl font-bold tabular-nums text-primary leading-none">
+                <CountUp end={attainment} duration={0.9} decimals={attDecimals} suffix="%" />
               </span>
+              <span className="mb-1 text-sm text-muted-foreground">of target</span>
+              <Badge variant={attainmentVariant} className="mb-1">{statusLabel}</Badge>
             </div>
-          </div>
-        </CardContent>
-      </Card>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Progress value={animFill} className="mt-5 h-3" />
+            <div className="mt-1 flex justify-between text-xs text-muted-foreground">
+              <span className="tabular-nums">{formatCurrency(data.revenue, cs)} won</span>
+              <span className="tabular-nums">target {formatCurrency(data.target, cs)}</span>
+            </div>
+            {hasTarget && (
+              <p className={`mt-2 text-sm font-medium tabular-nums ${over ? "text-success" : "text-muted-foreground"}`}>
+                {over ? `${formatCurrency(overBy, cs)} over target` : `${formatCurrency(remaining, cs)} to go`}
+              </p>
+            )}
+
+            {/* Reward */}
+            <div className="mt-6 flex flex-wrap items-center justify-between gap-4 border-t border-border pt-4">
+              <div>
+                <p className="text-xs text-muted-foreground">Commission earned</p>
+                <p className="text-3xl font-bold tabular-nums text-foreground">
+                  <CountUp end={parseFloat(data.commission)} duration={1.1} separator="," decimals={2} prefix={cs} />
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                {data.plan && <Badge variant="secondary">{data.plan}</Badge>}
+                <span className="text-xs text-muted-foreground">
+                  {data.deals} {data.deals === 1 ? "event" : "events"} · by {basisWord}
+                </span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </motion.div>
+
+      <motion.div {...rise} transition={{ duration: 0.4, delay: 0.1 }} className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* How commission was earned */}
         <Card className="md:col-span-2">
           <CardContent className="p-6">
@@ -130,7 +154,7 @@ export default function MyTargetsPage() {
             <p className="text-xs text-muted-foreground">events won</p>
           </CardContent>
         </Card>
-      </div>
+      </motion.div>
     </div>
   );
 }
