@@ -3,7 +3,7 @@ from rest_framework import serializers
 from bookings.models import OrgSettings
 from bookings.models.settings import (
     DATE_FORMAT_CHOICES, COMMISSION_MODEL_CHOICES, TARGET_PERIOD_CHOICES,
-    COMMISSION_BASIS_CHOICES,
+    COMMISSION_BASIS_CHOICES, FISCAL_YEAR_START_CHOICES,
 )
 
 
@@ -18,6 +18,7 @@ class OrgSettingsSerializer(serializers.ModelSerializer):
     commission_model_choices = serializers.SerializerMethodField()
     target_period_choices = serializers.SerializerMethodField()
     commission_basis_choices = serializers.SerializerMethodField()
+    fiscal_year_start_month_choices = serializers.SerializerMethodField()
 
     class Meta:
         model = OrgSettings
@@ -30,6 +31,7 @@ class OrgSettingsSerializer(serializers.ModelSerializer):
             'commission_model_choices',
             'target_period', 'target_period_choices',
             'commission_basis', 'commission_basis_choices',
+            'fiscal_year_start_month', 'fiscal_year_start_month_choices',
             # WhatsApp (read-only config, org can only toggle enabled)
             'whatsapp_enabled', 'twilio_configured', 'twilio_whatsapp_number',
         ]
@@ -45,3 +47,6 @@ class OrgSettingsSerializer(serializers.ModelSerializer):
 
     def get_commission_basis_choices(self, obj):
         return _choices(COMMISSION_BASIS_CHOICES)
+
+    def get_fiscal_year_start_month_choices(self, obj):
+        return _choices(FISCAL_YEAR_START_CHOICES)

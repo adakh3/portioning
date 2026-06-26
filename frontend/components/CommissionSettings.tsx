@@ -35,7 +35,7 @@ export default function CommissionSettings() {
   const defaultPlanId = plans.find((p) => p.is_default)?.id;
   const periodWord = ({ monthly: "month", quarterly: "quarter", yearly: "year" } as Record<string, string>)[settings?.target_period || "monthly"] || "period";
 
-  const saveSetting = (data: Record<string, string>) =>
+  const saveSetting = (data: Record<string, string | number>) =>
     run(async () => { await api.updateSiteSettings(data); await mutateSettings(); });
 
   // plans
@@ -93,6 +93,15 @@ export default function CommissionSettings() {
                 onChange={(e) => saveSetting({ commission_basis: e.target.value })}>
                 {(settings?.commission_basis_choices || []).map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
               </select>
+            </label>
+            <label className="text-sm">
+              <span className="block text-muted-foreground mb-1">Financial year starts</span>
+              <select className={SELECT + " w-full"} disabled={busy} value={String(settings?.fiscal_year_start_month ?? 1)}
+                onChange={(e) => saveSetting({ fiscal_year_start_month: Number(e.target.value) })}
+                aria-label="Financial year start month">
+                {(settings?.fiscal_year_start_month_choices || []).map((c) => <option key={c.value} value={String(c.value)}>{c.label}</option>)}
+              </select>
+              <span className="mt-1 block text-xs text-muted-foreground">Drives the “This year” total and yearly targets.</span>
             </label>
           </div>
         </CardContent>

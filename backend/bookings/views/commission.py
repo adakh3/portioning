@@ -49,8 +49,9 @@ class MyCommissionView(APIView):
             'attainment_pct': _pct(s['attainment_pct']),
             'commission': _money(s['commission']),
             'deals': s['deals'],
-            'lifetime_revenue': _money(s['lifetime_revenue']),
-            'lifetime_deals': s['lifetime_deals'],
+            'year_label': s['year_label'],
+            'year_revenue': _money(s['year_revenue']),
+            'year_deals': s['year_deals'],
             'breakdown': [
                 {
                     'from_pct': _pct(b['from_pct']),

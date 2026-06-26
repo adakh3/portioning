@@ -38,13 +38,25 @@ def rep_plan(org, user):
     return CommissionPlan.objects.filter(organisation=org, is_default=True).first()
 
 
-def period_bounds(period, today):
+def fiscal_year_bounds(today, start_month=1):
+    """Return (start_date, end_exclusive_date, label) of the financial year that
+    contains ``today``, where the year begins on the 1st of ``start_month``
+    (1 = calendar year)."""
+    if today.month >= start_month:
+        start = date(today.year, start_month, 1)
+    else:
+        start = date(today.year - 1, start_month, 1)
+    end = date(start.year + 1, start_month, 1)
+    label = str(start.year) if start_month == 1 else f'FY {start.year}/{(start.year + 1) % 100:02d}'
+    return start, end, label
+
+
+def period_bounds(period, today, fiscal_start=1):
     """Return (start_date, end_exclusive_date, label) for the period containing
-    ``today``. ``period`` is one of monthly / quarterly / yearly."""
+    ``today``. ``period`` is one of monthly / quarterly / yearly. The yearly
+    period honours ``fiscal_start`` (the org's financial-year start month)."""
     if period == 'yearly':
-        start = date(today.year, 1, 1)
-        end = date(today.year + 1, 1, 1)
-        return start, end, str(today.year)
+        return fiscal_year_bounds(today, fiscal_start)
 
     if period == 'quarterly':
         q_index = (today.month - 1) // 3          # 0..3
@@ -88,7 +100,8 @@ def commission_summary(org, user, today=None):
     today = today or timezone.now().date()
     settings = OrgSettings.for_org(org)
     date_field = BASIS_TO_DATE_FIELD.get(settings.commission_basis, 'date')
-    start, end, label = period_bounds(settings.target_period, today)
+    fiscal_start = settings.fiscal_year_start_month
+    start, end, label = period_bounds(settings.target_period, today, fiscal_start)
 
     revenue, deals = _event_revenue(org, user, date_field, start, end)
     target = (
@@ -109,7 +122,8 @@ def commission_summary(org, user, today=None):
         revenue, target, model=model, flat_rate=flat_rate, bands=bands,
     )
 
-    lifetime_revenue, lifetime_deals = _event_revenue(org, user, date_field)
+    year_start, year_end, year_label = fiscal_year_bounds(today, fiscal_start)
+    year_revenue, year_deals = _event_revenue(org, user, date_field, year_start, year_end)
 
     return {
         'period': label,
@@ -125,6 +139,7 @@ def commission_summary(org, user, today=None):
         'commission': result['commission'],
         'breakdown': result['breakdown'],
         'deals': deals,
-        'lifetime_revenue': lifetime_revenue,
-        'lifetime_deals': lifetime_deals,
+        'year_label': year_label,
+        'year_revenue': year_revenue,
+        'year_deals': year_deals,
     }

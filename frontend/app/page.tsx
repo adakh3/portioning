@@ -9,6 +9,7 @@ import { api, AutoAssignResult } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
 import {
   Dialog,
   DialogContent,
@@ -74,6 +75,7 @@ export default function Dashboard() {
   const kpis = stats?.kpis;
   const team = stats?.team_activity || [];
   const salespeople = stats?.salesperson_performance || [];
+  const targets = stats?.target_attainment || [];
   const unassignedRow = salespeople.find((sp) => sp.user_id === null);
   const hasUnassigned = (unassignedRow?.total_assigned ?? 0) > 0;
   const statusCols = stats?.status_columns || [];
@@ -231,6 +233,40 @@ export default function Dashboard() {
           </Card>
         );
       })()}
+
+      {targets.length > 0 && (
+        <Card>
+          <CardContent className="p-5">
+            <h2 className="text-sm font-semibold text-foreground mb-4">Performance vs target</h2>
+            <div className="space-y-4">
+              {targets.map((t) => {
+                const att = parseFloat(t.attainment_pct) || 0;
+                const fill = Math.max(0, Math.min(100, att));
+                const over = att >= 100;
+                return (
+                  <div key={t.user_id}>
+                    <div className="flex items-baseline justify-between gap-2 mb-1">
+                      <span className="text-sm font-medium text-foreground truncate">{t.user_name}</span>
+                      <span className={`text-sm font-semibold tabular-nums ${over ? "text-emerald-600" : "text-foreground"}`}>
+                        {Number.isInteger(att) ? att : att.toFixed(1)}%{over ? " 🎉" : ""}
+                      </span>
+                    </div>
+                    <Progress
+                      value={fill}
+                      className="h-2"
+                      indicatorClassName={over ? "bg-emerald-500" : undefined}
+                    />
+                    <div className="flex justify-between mt-1 text-xs text-muted-foreground tabular-nums">
+                      <span>{cs}{Math.round(parseFloat(t.revenue)).toLocaleString()} of {cs}{Math.round(parseFloat(t.target)).toLocaleString()}</span>
+                      <span>{t.period}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Salesperson Performance */}
       {(

@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from django.core.validators import MaxValueValidator
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from users.managers import TenantManager
 
@@ -28,6 +28,13 @@ TARGET_PERIOD_CHOICES = [
 COMMISSION_BASIS_CHOICES = [
     ('event_date', 'Event date (when the event takes place)'),
     ('booking_date', 'Booking date (when the event was confirmed)'),
+]
+
+# (month_number, label) — the month the org's financial year starts (1 = calendar year).
+FISCAL_YEAR_START_CHOICES = [
+    (1, 'January (calendar year)'), (2, 'February'), (3, 'March'), (4, 'April'),
+    (5, 'May'), (6, 'June'), (7, 'July'), (8, 'August'),
+    (9, 'September'), (10, 'October'), (11, 'November'), (12, 'December'),
 ]
 
 
@@ -92,6 +99,11 @@ class OrgSettings(models.Model):
     commission_basis = models.CharField(
         max_length=20, choices=COMMISSION_BASIS_CHOICES, default='event_date',
         help_text='Which date attributes a confirmed event to a commission period.',
+    )
+    fiscal_year_start_month = models.PositiveSmallIntegerField(
+        choices=FISCAL_YEAR_START_CHOICES, default=1,
+        validators=[MinValueValidator(1), MaxValueValidator(12)],
+        help_text="Month the financial year starts (1 = calendar year). Drives 'this year' and yearly targets.",
     )
 
     class Meta:

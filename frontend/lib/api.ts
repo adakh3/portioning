@@ -596,6 +596,8 @@ export interface SiteSettingsData {
   target_period_choices?: { value: string; label: string }[];
   commission_basis?: string;
   commission_basis_choices?: { value: string; label: string }[];
+  fiscal_year_start_month?: number;
+  fiscal_year_start_month_choices?: { value: number; label: string }[];
   // WhatsApp
   whatsapp_enabled?: boolean;
   twilio_configured?: boolean;
@@ -897,6 +899,16 @@ export interface SalespersonPerformance {
   stale_leads: number;
 }
 
+export interface TargetAttainment {
+  user_id: number;
+  user_name: string;
+  period: string;
+  revenue: string;
+  target: string;
+  attainment_pct: string;
+  commission: string;
+}
+
 export interface DashboardStats {
   lead_summary: {
     new_leads: number;
@@ -914,6 +926,7 @@ export interface DashboardStats {
     lost: number;
   }[];
   salesperson_performance: SalespersonPerformance[];
+  target_attainment: TargetAttainment[];
   status_columns: { value: string; label: string }[];
   lost_reasons: { reason: string; count: number }[];
   status_distribution: { status: string; label: string; count: number }[];
@@ -960,8 +973,9 @@ export interface CommissionData {
   attainment_pct: string;
   commission: string;
   deals: number;
-  lifetime_revenue: string;
-  lifetime_deals: number;
+  year_label: string;
+  year_revenue: string;
+  year_deals: number;
   breakdown: CommissionBandRow[];
 }
 

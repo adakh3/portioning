@@ -829,7 +829,8 @@ function LeadsContent() {
           <span className="text-sm font-medium">{selectedIds.size} selected</span>
           <div className="h-4 w-px bg-border" />
 
-          {/* Assign */}
+          {/* Assign — reassignment is a manager action */}
+          {!isSalesperson && (
           <div className="flex items-center gap-1">
             <Select value={bulkAction === "assign" ? bulkValue : ""} onValueChange={(v) => { setBulkAction("assign"); setBulkValue(v); }}>
               <SelectTrigger className="w-36 h-8 text-xs">
@@ -856,6 +857,7 @@ function LeadsContent() {
               </Button>
             )}
           </div>
+          )}
 
           {/* Status */}
           <div className="flex items-center gap-1">
@@ -912,16 +914,20 @@ function LeadsContent() {
             )}
           </div>
 
-          <div className="h-4 w-px bg-border" />
-          <Button
-            size="sm"
-            variant="destructive"
-            className="h-8 text-xs"
-            disabled={bulkLoading}
-            onClick={() => setShowDeleteConfirm(true)}
-          >
-            Delete
-          </Button>
+          {!isSalesperson && (
+            <>
+              <div className="h-4 w-px bg-border" />
+              <Button
+                size="sm"
+                variant="destructive"
+                className="h-8 text-xs"
+                disabled={bulkLoading}
+                onClick={() => setShowDeleteConfirm(true)}
+              >
+                Delete
+              </Button>
+            </>
+          )}
 
           <Button
             variant="ghost"

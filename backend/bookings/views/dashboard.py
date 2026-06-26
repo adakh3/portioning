@@ -11,6 +11,9 @@ from bookings.models.activity import ActivityLog
 from bookings.models.choices import LeadStatusOption
 from bookings.models import Reminder
 from bookings.permissions import IsManagerOrOwner
+from bookings.models import SalesTarget
+from bookings.services.commission import commission_summary
+from bookings.views.commission import _money, _pct
 from users.mixins import get_request_org, apply_org_filter
 
 
@@ -348,6 +351,27 @@ class DashboardStatsView(APIView):
             for v in status_values
         ]
 
+        # ── Target attainment: each rep with a target, vs the org's target period ──
+        today = timezone.now().date()
+        target_qs = (
+            apply_org_filter(SalesTarget.objects.select_related('user'), request)
+            .filter(amount__gt=0)
+        )
+        target_attainment = []
+        for t in target_qs:
+            s = commission_summary(org, t.user, today)
+            name = f"{t.user.first_name} {t.user.last_name}".strip() or t.user.email
+            target_attainment.append({
+                'user_id': t.user_id,
+                'user_name': name,
+                'period': s['period'],
+                'revenue': _money(s['revenue']),
+                'target': _money(s['target']),
+                'attainment_pct': _pct(s['attainment_pct']),
+                'commission': _money(s['commission']),
+            })
+        target_attainment.sort(key=lambda x: float(x['attainment_pct']), reverse=True)
+
         return Response({
             'lead_summary': {
                 'new_leads': new_leads,
@@ -358,6 +382,7 @@ class DashboardStatsView(APIView):
             },
             'team_activity': team_activity,
             'salesperson_performance': salesperson_performance,
+            'target_attainment': target_attainment,
             'status_columns': [{'value': v, 'label': status_labels[v]} for v in status_values],
             'lost_reasons': lost_reasons,
             'status_distribution': status_distribution,

@@ -219,6 +219,17 @@ class LeadBulkUpdateView(APIView):
             return Response({'error': 'action must be one of: assign, status, product, delete'}, status=status.HTTP_400_BAD_REQUEST)
 
         leads = apply_org_filter(Lead.objects.filter(id__in=ids), request)
+
+        # Salespeople may bulk-edit only their OWN leads, and may not reassign or
+        # delete in bulk — those are management actions.
+        if is_salesperson(request.user):
+            if action in ('assign', 'delete'):
+                return Response(
+                    {'error': 'Only managers can bulk reassign or delete leads.'},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+            leads = leads.filter(assigned_to=request.user)
+
         count = leads.count()
 
         if count == 0:

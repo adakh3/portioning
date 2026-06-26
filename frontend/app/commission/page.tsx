@@ -144,13 +144,16 @@ export default function MyTargetsPage() {
           </CardContent>
         </Card>
 
-        {/* Lifetime */}
+        {/* This year (org's financial year) */}
         <Card>
           <CardContent className="p-6">
-            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">Lifetime</h2>
-            <p className="text-3xl font-bold tabular-nums text-foreground">{formatCurrency(data.lifetime_revenue, cs)}</p>
+            <div className="mb-3 flex items-baseline justify-between gap-2">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">This year</h2>
+              <span className="text-xs font-medium tabular-nums text-muted-foreground">{data.year_label}</span>
+            </div>
+            <p className="text-3xl font-bold tabular-nums text-foreground">{formatCurrency(data.year_revenue, cs)}</p>
             <p className="text-xs text-muted-foreground">revenue won</p>
-            <p className="mt-4 text-2xl font-bold text-foreground tabular-nums">{data.lifetime_deals}</p>
+            <p className="mt-4 text-2xl font-bold text-foreground tabular-nums">{data.year_deals}</p>
             <p className="text-xs text-muted-foreground">events won</p>
           </CardContent>
         </Card>

@@ -29,6 +29,20 @@ class IsAdminOrOwner(permissions.BasePermission):
         return _allowed(request, ADMIN_ROLES)
 
 
+class IsAdminOrOwnerOrReadOnly(permissions.BasePermission):
+    """Any authenticated user may read; only admin/owner may write. Use for
+    org config catalogs that operational users must *read* (e.g. when building
+    an event) but only admins should *change* (equipment, labor roles, rules)."""
+
+    def has_permission(self, request, view):
+        user = getattr(request, 'user', None)
+        if not (user and user.is_authenticated):
+            return False
+        if request.method in permissions.SAFE_METHODS:
+            return True
+        return _allowed(request, ADMIN_ROLES)
+
+
 class IsOwner(permissions.BasePermission):
     """Owner only (or superuser)."""
 

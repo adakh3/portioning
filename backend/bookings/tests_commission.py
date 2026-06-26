@@ -253,17 +253,35 @@ class CommissionSummaryTests(TestCase):
         s = commission_summary(self.org, self.user, today=self.today)
         self.assertEqual(s["revenue"], Decimal("0"))  # booked last month -> not this period
 
-    def test_only_current_period_counts_but_lifetime_includes_all(self):
+    def test_only_current_period_counts_but_year_includes_whole_year(self):
         _set_commission(self.org, model="flat", flat_rate="5")
         SalesTarget.objects.create(organisation=self.org, user=self.user, amount=Decimal("1000000"))
-        _event(self.org, self.user, "1000000", date=self.today)                    # this period
-        _event(self.org, self.user, "2000000", date=self.today - timedelta(days=60))  # earlier
+        today = date(2026, 6, 26)
+        _event(self.org, self.user, "1000000", date=today)                # this period (June)
+        _event(self.org, self.user, "2000000", date=date(2026, 2, 10))    # earlier this calendar year
+        _event(self.org, self.user, "5000000", date=date(2025, 11, 1))    # last calendar year
 
-        s = commission_summary(self.org, self.user, today=self.today)
-        self.assertEqual(s["revenue"], Decimal("1000000"))           # period only
+        s = commission_summary(self.org, self.user, today=today)
+        self.assertEqual(s["revenue"], Decimal("1000000"))       # current month only
         self.assertEqual(s["deals"], 1)
-        self.assertEqual(s["lifetime_revenue"], Decimal("3000000"))  # all-time
-        self.assertEqual(s["lifetime_deals"], 2)
+        self.assertEqual(s["year_revenue"], Decimal("3000000"))  # Jan–Dec 2026 (default calendar year)
+        self.assertEqual(s["year_deals"], 2)
+        self.assertEqual(s["year_label"], "2026")
+
+    def test_fiscal_year_window_for_april_start(self):
+        # Org runs an April–March financial year.
+        _set_commission(self.org, model="flat", flat_rate="5")
+        OrgSettings.objects.filter(organisation=self.org).update(fiscal_year_start_month=4)
+        SalesTarget.objects.create(organisation=self.org, user=self.user, amount=Decimal("1000000"))
+        today = date(2026, 6, 26)                                         # FY 2026/27 (starts Apr 2026)
+        _event(self.org, self.user, "1000000", date=date(2026, 5, 1))     # in FY 2026/27
+        _event(self.org, self.user, "2000000", date=date(2026, 3, 31))    # in prior FY 2025/26
+        _event(self.org, self.user, "4000000", date=date(2027, 4, 1))     # in next FY 2027/28
+
+        s = commission_summary(self.org, self.user, today=today)
+        self.assertEqual(s["year_revenue"], Decimal("1000000"))  # only the May event falls in this FY
+        self.assertEqual(s["year_deals"], 1)
+        self.assertEqual(s["year_label"], "FY 2026/27")
 
     def test_rep_plan_overrides_the_default(self):
         # default plan = 5% flat; a Senior plan = 10% flat; assign the rep to Senior.
@@ -405,4 +423,52 @@ class CommissionConfigAPITests(TestCase):
         self.client.force_authenticate(user=self.rep)
         res = self.client.post("/api/bookings/settings/commission-bands/",
                                {"min_attainment_pct": "0", "rate": "5"}, format="json")
+        self.assertEqual(res.status_code, 403)
+
+
+class DashboardTargetAttainmentAPITests(TestCase):
+    """The manager dashboard surfaces each rep's progress to target."""
+
+    URL = "/api/bookings/dashboard/stats/"
+
+    def setUp(self):
+        self.org = _make_org()
+        self.owner = User.objects.create(
+            email="owner4@example.com", first_name="Own", last_name="Er",
+            role="owner", organisation=self.org,
+        )
+        self.rep = User.objects.create(
+            email="rep4@example.com", first_name="Rep", last_name="Four",
+            role="salesperson", organisation=self.org,
+        )
+        _set_commission(self.org, model="flat", flat_rate="5")
+        SalesTarget.objects.create(organisation=self.org, user=self.rep, amount=Decimal("5000000"))
+        _event(self.org, self.rep, "6000000", date=timezone.now().date())
+        self.client = APIClient()
+
+    def test_dashboard_includes_target_attainment(self):
+        self.client.force_authenticate(user=self.owner)
+        res = self.client.get(self.URL)
+        self.assertEqual(res.status_code, 200)
+        rows = res.json()["target_attainment"]
+        self.assertEqual(len(rows), 1)
+        row = rows[0]
+        self.assertEqual(row["user_id"], self.rep.id)
+        self.assertEqual(row["target"], "5000000.00")
+        self.assertEqual(row["revenue"], "6000000.00")
+        self.assertEqual(row["attainment_pct"], "120.00")
+
+    def test_reps_without_a_target_are_excluded(self):
+        # A second rep with no target should not appear.
+        User.objects.create(
+            email="rep5@example.com", first_name="No", last_name="Target",
+            role="salesperson", organisation=self.org,
+        )
+        self.client.force_authenticate(user=self.owner)
+        rows = self.client.get(self.URL).json()["target_attainment"]
+        self.assertEqual([r["user_id"] for r in rows], [self.rep.id])
+
+    def test_salesperson_cannot_see_team_dashboard(self):
+        self.client.force_authenticate(user=self.rep)
+        res = self.client.get(self.URL)
         self.assertEqual(res.status_code, 403)

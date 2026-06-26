@@ -70,3 +70,16 @@ lock-rate-at-win, lifetime *commission* (lifetime revenue is shown).
 1. One confirmed event, event date this month, booking date last month, total 1,000,000.
 2. basis = Event date → counts this period (revenue 1,000,000).
 3. basis = Booking date → does not count this period (revenue 0).
+
+### TC6 — "This year" card (calendar vs fiscal year)
+1. Settings → Commission → **Financial year starts** = January (calendar). Three confirmed events for the rep: this month, earlier this calendar year, and last calendar year.
+   **Expected:** the **This year** card on *My Targets* shows the sum of the two events in the current calendar year, label `2026`.
+2. Change **Financial year starts** = April. Reload *My Targets*.
+   **Expected:** the card now sums only events on/after 1 April of the current financial year; label `FY 2026/27`. Yearly targets follow the same window.
+
+### TC7 — Dashboard: performance vs target (manager)
+1. Sign in as a manager/owner. Ensure one or more reps have a non-zero `SalesTarget`.
+2. Open the **Dashboard**.
+   **Expected:** a **Performance vs target** card lists each rep with a target, sorted by attainment, each with a progress bar, `%`, `revenue of target`, and the period label. Reps without a target are omitted. A 🎉 + green bar shows at/above 100%.
+3. Sign in as a salesperson and hit `/api/bookings/dashboard/stats/`.
+   **Expected:** 403 (manager-only).

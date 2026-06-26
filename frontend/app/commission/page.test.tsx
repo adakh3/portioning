@@ -30,8 +30,9 @@ const UNDER_TARGET = {
   attainment_pct: "83.33",
   commission: "2500.00",
   deals: 3,
-  lifetime_revenue: "200000.00",
-  lifetime_deals: 12,
+  year_label: "2026",
+  year_revenue: "200000.00",
+  year_deals: 12,
   breakdown: [
     { from_pct: "0.00", to_pct: null, rate: "5.00", revenue_in_band: "50000.00", commission: "2500.00" },
   ],
@@ -78,6 +79,14 @@ describe("My Targets page", () => {
     expect(screen.getByText(/£1,000,000\.00 over target/)).toBeInTheDocument();
     expect(screen.getByText("Senior")).toBeInTheDocument(); // plan badge
     expect(screen.getAllByText("£270,000.00").length).toBeGreaterThan(0);
+  });
+
+  it("shows the year-to-date card with the org's year label", () => {
+    render(<MyTargetsPage />);
+    expect(screen.getByText("This year")).toBeInTheDocument();
+    expect(screen.getByText("2026")).toBeInTheDocument(); // year_label
+    expect(screen.getByText("£200,000.00")).toBeInTheDocument(); // year_revenue
+    expect(screen.getByText("12")).toBeInTheDocument(); // year_deals
   });
 
   it("shows a loading state", () => {

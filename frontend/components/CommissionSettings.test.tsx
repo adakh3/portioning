@@ -15,6 +15,11 @@ vi.mock("@/lib/hooks", () => ({
       ],
       target_period_choices: [{ value: "monthly", label: "Monthly" }, { value: "quarterly", label: "Quarterly" }],
       commission_basis_choices: [{ value: "event_date", label: "Event date" }],
+      fiscal_year_start_month: 1,
+      fiscal_year_start_month_choices: [
+        { value: 1, label: "January (calendar year)" },
+        { value: 4, label: "April" },
+      ],
     },
     mutate,
   }),
@@ -99,5 +104,11 @@ describe("CommissionSettings (plans)", () => {
     render(<CommissionSettings />);
     fireEvent.change(screen.getByLabelText("Target period"), { target: { value: "quarterly" } });
     await waitFor(() => expect(updateSiteSettings).toHaveBeenCalledWith({ target_period: "quarterly" }));
+  });
+
+  it("saves the financial year start as a number", async () => {
+    render(<CommissionSettings />);
+    fireEvent.change(screen.getByLabelText("Financial year start month"), { target: { value: "4" } });
+    await waitFor(() => expect(updateSiteSettings).toHaveBeenCalledWith({ fiscal_year_start_month: 4 }));
   });
 });
