@@ -42,7 +42,7 @@ function StatCard({ label, value, sub }: { label: string; value: string | number
 
 export default function Dashboard() {
   const { user } = useAuth();
-  const isManager = user?.role === "manager" || user?.role === "owner";
+  const isManager = user?.role === "manager" || user?.role === "owner" || user?.role === "admin";
   const [period, setPeriod] = useState<string>("all");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
