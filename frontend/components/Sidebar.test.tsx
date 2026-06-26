@@ -3,7 +3,7 @@ import { render, screen } from "@testing-library/react";
 
 let role = "salesperson";
 
-vi.mock("next/navigation", () => ({ usePathname: () => "/commission" }));
+vi.mock("next/navigation", () => ({ usePathname: () => "/leads" }));
 vi.mock("@/lib/auth", () => ({ useAuth: () => ({ user: { role } }) }));
 
 import Sidebar from "./Sidebar";

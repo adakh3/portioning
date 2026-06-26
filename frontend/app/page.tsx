@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import MyTargetsPanel from "@/components/MyTargetsPanel";
 import {
   Dialog,
   DialogContent,
@@ -430,6 +431,10 @@ export default function Dashboard() {
       </Dialog>
       </>
       )}
+
+      {/* Salesperson: lead with their target + commission (managers/admins get the
+          team-wide "Performance vs target" card above instead). */}
+      {!isManager && <MyTargetsPanel />}
 
       {/* Salesperson Dashboard */}
       {!isManager && myStats && (() => {

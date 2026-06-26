@@ -71,10 +71,16 @@ lock-rate-at-win, lifetime *commission* (lifetime revenue is shown).
 2. basis = Event date → counts this period (revenue 1,000,000).
 3. basis = Booking date → does not count this period (revenue 0).
 
+> **Where the rep sees their targets:** the gamified target/commission view (hero,
+> commission breakdown, "This year" card) renders at the **top of the dashboard**
+> for salespeople — there is no separate *My Targets* page (`/commission` redirects
+> to `/`). Managers/admins/owners do **not** see this personal panel; they get the
+> team-wide **Performance vs target** card (TC7) instead.
+
 ### TC6 — "This year" card (calendar vs fiscal year)
 1. Settings → Commission → **Financial year starts** = January (calendar). Three confirmed events for the rep: this month, earlier this calendar year, and last calendar year.
-   **Expected:** the **This year** card on *My Targets* shows the sum of the two events in the current calendar year, label `2026`.
-2. Change **Financial year starts** = April. Reload *My Targets*.
+   **Expected:** as a salesperson, the **This year** card at the top of the dashboard shows the sum of the two events in the current calendar year, label `2026`.
+2. Change **Financial year starts** = April. Reload the dashboard.
    **Expected:** the card now sums only events on/after 1 April of the current financial year; label `FY 2026/27`. Yearly targets follow the same window.
 
 ### TC7 — Dashboard: performance vs target (manager)
