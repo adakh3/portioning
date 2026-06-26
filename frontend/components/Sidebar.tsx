@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { departments, getActiveDepartment } from "@/lib/navigation";
+import { departments, getActiveDepartment, getVisiblePages } from "@/lib/navigation";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
@@ -49,8 +49,10 @@ export default function Sidebar() {
       {/* Departments */}
       <nav className="flex-1 py-3 space-y-1">
         {departments.map((dept) => {
+          const visiblePages = getVisiblePages(dept.pages, user?.role);
+          if (visiblePages.length === 0) return null; // hide depts the user can't access (e.g. Admin for salespeople)
           const isActive = activeDept?.name === dept.name;
-          const firstHref = dept.pages[0]?.href || "/";
+          const firstHref = visiblePages[0]?.href || "/";
           return (
             <Link
               key={dept.name}
