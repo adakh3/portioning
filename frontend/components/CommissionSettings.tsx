@@ -36,7 +36,13 @@ export default function CommissionSettings() {
   const periodWord = ({ monthly: "month", quarterly: "quarter", yearly: "year" } as Record<string, string>)[settings?.target_period || "monthly"] || "period";
 
   const saveSetting = (data: Record<string, string | number>) =>
-    run(async () => { await api.updateSiteSettings(data); await mutateSettings(); });
+    run(async () => {
+      await api.updateSiteSettings(data);
+      await mutateSettings();
+      // target_period / fiscal-year start change the grid's shape on the backend,
+      // but the grid's SWR key (fiscalYear) doesn't change — refetch it explicitly.
+      if ("target_period" in data || "fiscal_year_start_month" in data) await mutateGrid();
+    });
 
   // plans
   const patchPlan = (p: CommissionPlanConfig, data: Partial<CommissionPlanConfig>) =>

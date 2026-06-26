@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 
 const mutate = vi.fn();
+const mutateGrid = vi.fn();
 
 vi.mock("@/lib/hooks", () => ({
   useSiteSettings: () => ({
@@ -45,7 +46,7 @@ vi.mock("@/lib/hooks", () => ({
         { user_id: 7, user_name: "Rep One", plan: null, cells: { 0: "5000000.00", 1: "6000000.00" }, total: "11000000.00" },
       ],
     },
-    mutate,
+    mutate: mutateGrid,
   }),
 }));
 
@@ -74,6 +75,7 @@ beforeEach(() => {
   createCommissionPlan.mockClear();
   setRepPlan.mockClear();
   setSalesTargetCell.mockClear();
+  mutateGrid.mockClear();
 });
 
 describe("CommissionSettings (plans)", () => {
@@ -117,15 +119,18 @@ describe("CommissionSettings (plans)", () => {
     await waitFor(() => expect(setRepPlan).toHaveBeenCalledWith(7, 2));
   });
 
-  it("saves the org-wide period", async () => {
+  it("saves the org-wide period and refetches the grid (its shape changed)", async () => {
     render(<CommissionSettings />);
     fireEvent.change(screen.getByLabelText("Target period"), { target: { value: "quarterly" } });
     await waitFor(() => expect(updateSiteSettings).toHaveBeenCalledWith({ target_period: "quarterly" }));
+    // The grid's SWR key (fiscal year) doesn't change, so it must be revalidated explicitly.
+    await waitFor(() => expect(mutateGrid).toHaveBeenCalled());
   });
 
-  it("saves the financial year start as a number", async () => {
+  it("saves the financial year start as a number and refetches the grid", async () => {
     render(<CommissionSettings />);
     fireEvent.change(screen.getByLabelText("Financial year start month"), { target: { value: "4" } });
     await waitFor(() => expect(updateSiteSettings).toHaveBeenCalledWith({ fiscal_year_start_month: 4 }));
+    await waitFor(() => expect(mutateGrid).toHaveBeenCalled());
   });
 });

@@ -502,6 +502,21 @@ class DashboardTargetAttainmentAPITests(TestCase):
         self.assertEqual(row["revenue"], "6000000.00")
         self.assertEqual(row["attainment_pct"], "120.00")
 
+    def test_rep_with_many_period_cells_appears_once(self):
+        # Targets are per-period cells; filling the whole year must NOT produce one
+        # dashboard row per period — only the current period's cell counts.
+        s = OrgSettings.for_org(self.org)
+        fy, cur_idx, count = period_position(timezone.now().date(), s.target_period, s.fiscal_year_start_month)
+        for idx in range(count):
+            SalesTarget.objects.update_or_create(
+                organisation=self.org, user=self.rep, period_type=s.target_period,
+                fiscal_year=fy, period_index=idx, defaults={"amount": Decimal("5000000")},
+            )
+        self.client.force_authenticate(user=self.owner)
+        rows = self.client.get(self.URL).json()["target_attainment"]
+        self.assertEqual([r["user_id"] for r in rows], [self.rep.id])
+        self.assertEqual(rows[0]["target"], "5000000.00")  # the current period's cell, not the annual sum
+
     def test_reps_without_a_target_are_excluded(self):
         # A second rep with no target should not appear.
         User.objects.create(
