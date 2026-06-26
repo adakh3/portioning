@@ -28,6 +28,12 @@ npm install
 npm run dev
 ```
 
+### Running from a git worktree
+Worktrees under `.claude/worktrees/<name>/` don't share the dev environment with the main
+checkout. Tests run out of the box, but **running the app** needs a one-time setup per worktree
+(own empty DB → `migrate` + seed + a user; a **real** `npm install` because Turbopack rejects the
+hook's `node_modules` symlink; free ports 8000/3000). See **`docs/WORKTREE_SETUP.md`**.
+
 ## Key Conventions
 
 - **Python**: Django 5.x, DRF, SQLite for dev, PostgreSQL for prod

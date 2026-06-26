@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import LeadStatusesSettings from "@/components/LeadStatusesSettings";
 import ChoiceOptionsSettings from "@/components/ChoiceOptionsSettings";
 import ProductLinesSettings from "@/components/ProductLinesSettings";
+import CommissionSettings from "@/components/CommissionSettings";
 
 // default_tax_rate is stored as a fraction (0.20 = 20%); show it as a percentage.
 const pctFromFraction = (f: string) => String(Math.round(Number(f || 0) * 10000) / 100);
@@ -24,6 +25,7 @@ const SETTINGS_TABS = [
   { id: "pipeline", label: "Lead Pipeline" },
   { id: "options", label: "Options" },
   { id: "branding", label: "Product Lines" },
+  { id: "commission", label: "Commission" },
   { id: "integrations", label: "Integrations" },
 ] as const;
 
@@ -377,6 +379,12 @@ export default function SettingsPage() {
       {tab === "branding" && (
       <div className="space-y-6 max-w-2xl">
         <ProductLinesSettings />
+      </div>
+      )}
+
+      {tab === "commission" && (
+      <div className="space-y-6 max-w-3xl">
+        <CommissionSettings />
       </div>
       )}
 

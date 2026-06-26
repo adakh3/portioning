@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from django.core.validators import MaxValueValidator
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from users.managers import TenantManager
 
@@ -12,6 +12,29 @@ DATE_FORMAT_CHOICES = [
     ('DD MMM YYYY', 'DD MMM YYYY (e.g. 14 Mar 2026)'),
     ('DD MMM YY', 'DD MMM YY (e.g. 14 Mar 26)'),
     ('MMM DD, YYYY', 'MMM DD, YYYY (e.g. Mar 14, 2026)'),
+]
+
+COMMISSION_MODEL_CHOICES = [
+    ('flat', 'Flat rate'),
+    ('accelerated', 'Accelerated (banded by target attainment)'),
+]
+
+TARGET_PERIOD_CHOICES = [
+    ('monthly', 'Monthly'),
+    ('quarterly', 'Quarterly'),
+    ('yearly', 'Yearly'),
+]
+
+COMMISSION_BASIS_CHOICES = [
+    ('event_date', 'Event date (when the event takes place)'),
+    ('booking_date', 'Booking date (when the event was confirmed)'),
+]
+
+# (month_number, label) — the month the org's financial year starts (1 = calendar year).
+FISCAL_YEAR_START_CHOICES = [
+    (1, 'January (calendar year)'), (2, 'February'), (3, 'March'), (4, 'April'),
+    (5, 'May'), (6, 'June'), (7, 'July'), (8, 'August'),
+    (9, 'September'), (10, 'October'), (11, 'November'), (12, 'December'),
 ]
 
 
@@ -58,6 +81,29 @@ class OrgSettings(models.Model):
     twilio_whatsapp_number = models.CharField(
         max_length=20, blank=True, default='',
         help_text='Twilio WhatsApp sender number, e.g. +14155238886',
+    )
+
+    # Commission & targets (per-org)
+    commission_model = models.CharField(
+        max_length=20, choices=COMMISSION_MODEL_CHOICES, default='flat',
+        help_text='Flat rate on all revenue, or accelerated bands keyed to target attainment.',
+    )
+    commission_flat_rate = models.DecimalField(
+        max_digits=5, decimal_places=2, default=Decimal('0.00'),
+        help_text='Commission rate % on all won revenue (used when model is flat).',
+    )
+    target_period = models.CharField(
+        max_length=20, choices=TARGET_PERIOD_CHOICES, default='monthly',
+        help_text='Period over which sales targets and commission are measured and reset.',
+    )
+    commission_basis = models.CharField(
+        max_length=20, choices=COMMISSION_BASIS_CHOICES, default='event_date',
+        help_text='Which date attributes a confirmed event to a commission period.',
+    )
+    fiscal_year_start_month = models.PositiveSmallIntegerField(
+        choices=FISCAL_YEAR_START_CHOICES, default=1,
+        validators=[MinValueValidator(1), MaxValueValidator(12)],
+        help_text="Month the financial year starts (1 = calendar year). Drives 'this year' and yearly targets.",
     )
 
     class Meta:

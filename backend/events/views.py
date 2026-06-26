@@ -49,7 +49,11 @@ class EventListCreateView(generics.ListCreateAPIView):
                     'date': f'This date is locked: {reason}',
                 })
         user = self.request.user if self.request.user.is_authenticated else None
-        serializer.save(created_by=user, organisation=org)
+        serializer.save(
+            created_by=user,
+            organisation=org,
+            assigned_to=serializer.validated_data.get('assigned_to') or user,
+        )
 
     def get_queryset(self):
         _auto_advance_event_statuses(org=get_request_org(self.request))

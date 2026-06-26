@@ -1,16 +1,20 @@
 from rest_framework import generics
 
+from bookings.permissions import IsAdminOrOwnerOrReadOnly
 from users.mixins import OrgQuerySetMixin, OrgCreateMixin, get_request_org, is_superuser_without_org
 from .models import EquipmentItem, EquipmentReservation
 from .serializers import EquipmentItemSerializer, EquipmentReservationSerializer
 
 
 class EquipmentItemListCreateView(OrgQuerySetMixin, OrgCreateMixin, generics.ListCreateAPIView):
+    # Catalog config: anyone may read (to reserve), only admins may change.
+    permission_classes = [IsAdminOrOwnerOrReadOnly]
     queryset = EquipmentItem.objects.all()
     serializer_class = EquipmentItemSerializer
 
 
 class EquipmentItemDetailView(OrgQuerySetMixin, generics.RetrieveUpdateDestroyAPIView):
+    permission_classes = [IsAdminOrOwnerOrReadOnly]
     queryset = EquipmentItem.objects.all()
     serializer_class = EquipmentItemSerializer
 

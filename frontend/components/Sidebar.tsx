@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { departments, getActiveDepartment } from "@/lib/navigation";
+import { departments, getActiveDepartment, getVisiblePages } from "@/lib/navigation";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
@@ -33,7 +33,6 @@ const icons: Record<string, React.ReactNode> = {
 export default function Sidebar() {
   const pathname = usePathname();
   const { user } = useAuth();
-  const isManager = user?.role === "manager" || user?.role === "owner";
   const activeDept = getActiveDepartment(pathname);
 
   return (
@@ -49,8 +48,10 @@ export default function Sidebar() {
       {/* Departments */}
       <nav className="flex-1 py-3 space-y-1">
         {departments.map((dept) => {
+          const visiblePages = getVisiblePages(dept.pages, user?.role);
+          if (visiblePages.length === 0) return null; // hide depts the user can't access (e.g. Admin for salespeople)
           const isActive = activeDept?.name === dept.name;
-          const firstHref = dept.pages[0]?.href || "/";
+          const firstHref = visiblePages[0]?.href || "/";
           return (
             <Link
               key={dept.name}
@@ -72,26 +73,6 @@ export default function Sidebar() {
           );
         })}
       </nav>
-
-      {/* Dashboard link at bottom — manager/owner only */}
-      {isManager && (
-      <div className="border-t border-sidebar-border px-4 py-3">
-        <Link
-          href="/"
-          className={cn(
-            "flex items-center gap-3 text-sm transition-colors",
-            pathname === "/"
-              ? "text-sidebar-accent-foreground font-medium"
-              : "text-sidebar-foreground/50 hover:text-sidebar-accent-foreground"
-          )}
-        >
-          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
-          </svg>
-          Dashboard
-        </Link>
-      </div>
-      )}
     </aside>
   );
 }
