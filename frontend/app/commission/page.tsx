@@ -35,7 +35,6 @@ export default function MyTargetsPage() {
   const hasTarget = data ? parseFloat(data.target) > 0 : false;
   const over = hasTarget && attainment >= 100;
 
-  // animate the bar from 0 → fill, and celebrate when over target
   const [animFill, setAnimFill] = useState(0);
   useEffect(() => {
     const t = setTimeout(() => setAnimFill(fill), 120);
@@ -43,7 +42,7 @@ export default function MyTargetsPage() {
   }, [fill]);
   useEffect(() => {
     if (!over) return;
-    const t = setTimeout(() => confetti({ particleCount: 100, spread: 70, origin: { y: 0.4 } }), 450);
+    const t = setTimeout(() => confetti({ particleCount: 110, spread: 75, origin: { y: 0.35 } }), 450);
     return () => clearTimeout(t);
   }, [over]);
 
@@ -54,7 +53,6 @@ export default function MyTargetsPage() {
   const overBy = parseFloat(data.revenue) - parseFloat(data.target);
   const remaining = parseFloat(data.target) - parseFloat(data.revenue);
   const basisWord = data.basis === "booking_date" ? "booking date" : "event date";
-  const attainmentVariant = over ? "success" : attainment >= 80 ? "warning" : "secondary";
   const statusLabel = !hasTarget
     ? "no target set"
     : over
@@ -66,48 +64,50 @@ export default function MyTargetsPage() {
     <div className="space-y-6 max-w-3xl">
       <h1 className="text-2xl font-bold text-foreground">My Targets</h1>
 
-      {/* Target — the focus */}
+      {/* Target — the focus, on the brand colour so it pops */}
       <motion.div {...rise} transition={{ duration: 0.4 }}>
-        <Card>
-          <CardContent className="p-6 sm:p-8">
-            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{data.period}</p>
+        <div className="rounded-2xl bg-primary p-6 sm:p-8 text-primary-foreground shadow-md">
+          <p className="text-xs font-medium uppercase tracking-widest text-primary-foreground/60">{data.period}</p>
 
-            <div className="mt-2 flex flex-wrap items-end gap-x-3 gap-y-1">
-              <span className="text-6xl font-bold tabular-nums text-primary leading-none">
-                <CountUp end={attainment} duration={0.9} decimals={attDecimals} suffix="%" />
-              </span>
-              <span className="mb-1 text-sm text-muted-foreground">of target</span>
-              <Badge variant={attainmentVariant} className="mb-1">{statusLabel}</Badge>
-            </div>
+          <div className="mt-3 flex flex-wrap items-end gap-x-3 gap-y-1">
+            <span className="text-7xl font-extrabold tabular-nums leading-none">
+              <CountUp end={attainment} duration={0.9} decimals={attDecimals} suffix="%" />
+            </span>
+            <span className="mb-1.5 text-sm text-primary-foreground/70">of target</span>
+            <Badge variant="secondary" className="mb-1.5">{statusLabel}</Badge>
+          </div>
 
-            <Progress value={animFill} className="mt-5 h-3" />
-            <div className="mt-1 flex justify-between text-xs text-muted-foreground">
-              <span className="tabular-nums">{formatCurrency(data.revenue, cs)} won</span>
-              <span className="tabular-nums">target {formatCurrency(data.target, cs)}</span>
-            </div>
-            {hasTarget && (
-              <p className={`mt-2 text-sm font-medium tabular-nums ${over ? "text-success" : "text-muted-foreground"}`}>
-                {over ? `${formatCurrency(overBy, cs)} over target` : `${formatCurrency(remaining, cs)} to go`}
+          <Progress
+            value={animFill}
+            className="mt-6 h-3 bg-primary-foreground/20"
+            indicatorClassName="bg-primary-foreground"
+          />
+          <div className="mt-1.5 flex justify-between text-xs text-primary-foreground/70">
+            <span className="tabular-nums">{formatCurrency(data.revenue, cs)} won</span>
+            <span className="tabular-nums">target {formatCurrency(data.target, cs)}</span>
+          </div>
+          {hasTarget && (
+            <p className="mt-2 text-sm font-semibold tabular-nums text-primary-foreground/90">
+              {over ? `${formatCurrency(overBy, cs)} over target 🎉` : `${formatCurrency(remaining, cs)} to go`}
+            </p>
+          )}
+
+          {/* Reward */}
+          <div className="mt-7 flex flex-wrap items-center justify-between gap-4 border-t border-primary-foreground/20 pt-5">
+            <div>
+              <p className="text-xs uppercase tracking-wide text-primary-foreground/60">Commission earned</p>
+              <p className="text-4xl font-extrabold tabular-nums">
+                <CountUp end={parseFloat(data.commission)} duration={1.1} separator="," decimals={2} prefix={cs} />
               </p>
-            )}
-
-            {/* Reward */}
-            <div className="mt-6 flex flex-wrap items-center justify-between gap-4 border-t border-border pt-4">
-              <div>
-                <p className="text-xs text-muted-foreground">Commission earned</p>
-                <p className="text-3xl font-bold tabular-nums text-foreground">
-                  <CountUp end={parseFloat(data.commission)} duration={1.1} separator="," decimals={2} prefix={cs} />
-                </p>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                {data.plan && <Badge variant="secondary">{data.plan}</Badge>}
-                <span className="text-xs text-muted-foreground">
-                  {data.deals} {data.deals === 1 ? "event" : "events"} · by {basisWord}
-                </span>
-              </div>
             </div>
-          </CardContent>
-        </Card>
+            <div className="flex flex-wrap items-center gap-2">
+              {data.plan && <Badge variant="secondary">{data.plan}</Badge>}
+              <span className="text-xs text-primary-foreground/70">
+                {data.deals} {data.deals === 1 ? "event" : "events"} · by {basisWord}
+              </span>
+            </div>
+          </div>
+        </div>
       </motion.div>
 
       <motion.div {...rise} transition={{ duration: 0.4, delay: 0.1 }} className="grid grid-cols-1 md:grid-cols-3 gap-4">
