@@ -13,7 +13,7 @@ Running the **app** needs a one-time setup, because these are per-worktree or sh
 | `backend/.env` | gitignored | hook symlinks it from main; standalone: `cp <main>/backend/.env backend/.env` |
 | `frontend/node_modules` | gitignored | hook symlinks it from main (fine for tests), but **`next dev` / Turbopack rejects the out-of-root symlink** → for the dev server do a real install: `rm -f node_modules && npm install` |
 | `backend/db.sqlite3` | gitignored | **starts empty** — run `migrate` |
-| users & data | in the DB | **none by default** — load seed + create a login (below) |
+| users & data | in the DB | **none by default** — `loaddata seed.json` + `seed_demo` (below) |
 | ports 8000 / 3000 | — | collide with any other running instance; stop the other app, or use alternate ports (+ add the new frontend origin to `CORS_ALLOWED_ORIGINS`) |
 
 ## One-time setup
@@ -23,28 +23,37 @@ Running the **app** needs a one-time setup, because these are per-worktree or sh
 source venv/bin/activate
 cd .claude/worktrees/<name>/backend
 python manage.py migrate
-python manage.py loaddata seed.json     # reference data (org, dishes, settings, …)
-# NOTE: test_fixtures.json may be stale and fail to load — skip it if so.
+python manage.py loaddata seed.json     # reference data (dishes, menus, rules, settings, …)
+python manage.py seed_demo              # demo org + logins + commission data (see below)
 
 cd ../frontend
 rm -f node_modules && npm install        # real install — Turbopack needs it
 ```
 
-## Create an org-scoped login
+## Demo accounts & data — `seed_demo`
 
-`seed.json` does not include users. Create one tied to the seeded org:
+`seed.json` deliberately has **no users or transactional data**. So instead of hand-creating
+users in every worktree — which made each one diverge — run the **idempotent** `seed_demo`
+command:
 
-```python
-# python manage.py shell
-from users.models import User, Organisation
-org = Organisation.objects.first()
-u = User.objects.create(email='demo@demo.test', first_name='Demo', last_name='User',
-                        role='owner', organisation=org)
-u.set_password('changeme'); u.save()
+```bash
+python manage.py seed_demo            # into "Demo Co"
+python manage.py seed_demo --org "X"  # into a named org
 ```
 
-(`createsuperuser` also works, but a plain superuser has no org and sees org-scoped pages empty
-until it switches org — an org-scoped `owner`/`salesperson` is simpler for feature testing.)
+It produces the **same** state everywhere (re-running just resets it — safe to repeat):
+
+| Login | Password | Role |
+|---|---|---|
+| `owner@demo.test` | `Owner123!` | owner |
+| `admin@demo.test` | `Admin123!` | admin |
+| `manager@demo.test` | `Manager123!` | manager |
+| `rep@demo.test` | `Sales123!` | salesperson |
+| `rep2@demo.test` | `Sales123!` | salesperson |
+
+…plus monthly commission targets for the financial year, a confirmed event per rep (so the
+dashboard shows real attainment), and sample pipeline leads. **Test against these**, not
+hand-made accounts, so "works on mine" actually means something.
 
 ## Run
 
