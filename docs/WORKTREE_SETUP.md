@@ -13,7 +13,7 @@ Running the **app** needs a one-time setup, because these are per-worktree or sh
 | `backend/.env` | gitignored | hook symlinks it from main; standalone: `cp <main>/backend/.env backend/.env` |
 | `frontend/node_modules` | gitignored | hook symlinks it from main (fine for tests), but **`next dev` / Turbopack rejects the out-of-root symlink** → for the dev server do a real install: `rm -f node_modules && npm install` |
 | `backend/db.sqlite3` | gitignored | **starts empty** — run `migrate` |
-| users & data | in the DB | **none by default** — load seed + create a login (below) |
+| users & data | in the DB | **none by default** — `loaddata seed.json` + `seed_demo` (below) |
 | ports 8000 / 3000 | — | collide with any other running instance; stop the other app, or use alternate ports (+ add the new frontend origin to `CORS_ALLOWED_ORIGINS`) |
 
 ## One-time setup
@@ -32,9 +32,9 @@ rm -f node_modules && npm install        # real install — Turbopack needs it
 
 ## Demo accounts & data — `seed_demo`
 
-`seed.json` deliberately has **no users or transactional data**, and `test_fixtures.json` is
-often stale (schema drift makes `loaddata` fail). So instead of hand-creating users in every
-worktree — which made each one diverge — run the **idempotent** `seed_demo` command:
+`seed.json` deliberately has **no users or transactional data**. So instead of hand-creating
+users in every worktree — which made each one diverge — run the **idempotent** `seed_demo`
+command:
 
 ```bash
 python manage.py seed_demo            # into "Demo Co"
