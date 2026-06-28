@@ -85,9 +85,8 @@ describe("role gating for admin settings", () => {
     }
   });
 
-  it("shows Dashboard to manager/admin/owner but not salesperson", () => {
-    expect(labels("salesperson", sales)).not.toContain("Dashboard");
-    for (const role of ["manager", "admin", "owner"]) {
+  it("shows Dashboard to every role, including salespeople", () => {
+    for (const role of ["salesperson", "manager", "admin", "owner"]) {
       expect(labels(role, sales)).toContain("Dashboard");
     }
   });

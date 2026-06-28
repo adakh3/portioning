@@ -48,6 +48,11 @@ class Event(OrgScopedModel, models.Model):
         settings.AUTH_USER_MODEL, null=True, blank=True,
         on_delete=models.SET_NULL, related_name='created_events',
     )
+    assigned_to = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='assigned_events',
+        help_text='Salesperson who owns this event; drives commission attribution.',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     # Booking fields

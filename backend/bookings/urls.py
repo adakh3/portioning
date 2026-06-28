@@ -7,6 +7,10 @@ from bookings.views import (
     VenueListCreateView, VenueDetailView,
     UserListView, ProductLineListView, ProductLineDetailView, ProductLineManageListCreateView, ProductLineManageDetailView, LeadListCreateView, LeadDetailView, LeadTransitionView, LeadCreateQuoteView, LeadWonView, LeadCreateEventView, LeadBulkUpdateView, LeadActivityView, LeadAutoAssignView, LeadKanbanView,
     DashboardStatsView, MyDashboardStatsView,
+    MyCommissionView,
+    CommissionPlanManageListCreateView, CommissionPlanManageDetailView,
+    CommissionBandManageListCreateView, CommissionBandManageDetailView,
+    SalesTargetGridView, RepPlanManageView,
     QuoteListCreateView, QuoteDetailView, QuoteTransitionView,
     QuoteLineItemListCreateView, QuoteLineItemDetailView,
     QuotePDFView,
@@ -72,6 +76,13 @@ urlpatterns = [
     # Dashboard
     path('bookings/dashboard/stats/', DashboardStatsView.as_view(), name='dashboard-stats'),
     path('bookings/dashboard/my-stats/', MyDashboardStatsView.as_view(), name='my-dashboard-stats'),
+    path('bookings/commission/me/', MyCommissionView.as_view(), name='my-commission'),
+    path('bookings/settings/commission-plans/', CommissionPlanManageListCreateView.as_view(), name='commission-plan-list'),
+    path('bookings/settings/commission-plans/<int:pk>/', CommissionPlanManageDetailView.as_view(), name='commission-plan-detail'),
+    path('bookings/settings/commission-bands/', CommissionBandManageListCreateView.as_view(), name='commission-band-list'),
+    path('bookings/settings/commission-bands/<int:pk>/', CommissionBandManageDetailView.as_view(), name='commission-band-detail'),
+    path('bookings/settings/sales-targets/', SalesTargetGridView.as_view(), name='sales-target-grid'),
+    path('bookings/settings/rep-plans/', RepPlanManageView.as_view(), name='rep-plan-manage'),
 
     # Quotes & Line Items
     path('bookings/quotes/', QuoteListCreateView.as_view(), name='quote-list'),

@@ -7,6 +7,7 @@ from rest_framework import generics
 from rest_framework.views import APIView
 from rest_framework.response import Response
 
+from bookings.permissions import IsAdminOrOwnerOrReadOnly
 from users.mixins import OrgQuerySetMixin, OrgCreateMixin, get_request_org, is_superuser_without_org
 from .models import LaborRole, StaffMember, Shift, AllocationRule
 from .serializers import (
@@ -16,11 +17,14 @@ from .serializers import (
 
 
 class LaborRoleListCreateView(OrgQuerySetMixin, OrgCreateMixin, generics.ListCreateAPIView):
+    # Cost config: readable by operational users, writable only by admins.
+    permission_classes = [IsAdminOrOwnerOrReadOnly]
     queryset = LaborRole.objects.all()
     serializer_class = LaborRoleSerializer
 
 
 class LaborRoleDetailView(OrgQuerySetMixin, generics.RetrieveUpdateDestroyAPIView):
+    permission_classes = [IsAdminOrOwnerOrReadOnly]
     queryset = LaborRole.objects.all()
     serializer_class = LaborRoleSerializer
 
@@ -68,6 +72,7 @@ class ShiftDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 
 class AllocationRuleListCreateView(generics.ListCreateAPIView):
+    permission_classes = [IsAdminOrOwnerOrReadOnly]
     serializer_class = AllocationRuleSerializer
 
     def get_queryset(self):
@@ -81,6 +86,7 @@ class AllocationRuleListCreateView(generics.ListCreateAPIView):
 
 
 class AllocationRuleDetailView(generics.RetrieveUpdateDestroyAPIView):
+    permission_classes = [IsAdminOrOwnerOrReadOnly]
     serializer_class = AllocationRuleSerializer
 
     def get_queryset(self):

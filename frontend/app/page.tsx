@@ -9,6 +9,8 @@ import { api, AutoAssignResult } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
+import MyTargetsPanel from "@/components/MyTargetsPanel";
 import {
   Dialog,
   DialogContent,
@@ -41,7 +43,7 @@ function StatCard({ label, value, sub }: { label: string; value: string | number
 
 export default function Dashboard() {
   const { user } = useAuth();
-  const isManager = user?.role === "manager" || user?.role === "owner";
+  const isManager = user?.role === "manager" || user?.role === "owner" || user?.role === "admin";
   const [period, setPeriod] = useState<string>("all");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
@@ -74,6 +76,7 @@ export default function Dashboard() {
   const kpis = stats?.kpis;
   const team = stats?.team_activity || [];
   const salespeople = stats?.salesperson_performance || [];
+  const targets = stats?.target_attainment || [];
   const unassignedRow = salespeople.find((sp) => sp.user_id === null);
   const hasUnassigned = (unassignedRow?.total_assigned ?? 0) > 0;
   const statusCols = stats?.status_columns || [];
@@ -145,6 +148,47 @@ export default function Dashboard() {
           </div>
         )}
       </div>
+
+      {/* Team performance vs target — lead the manager dashboard with it */}
+      <Card>
+        <CardContent className="p-5">
+          <h2 className="text-sm font-semibold text-foreground mb-4">Performance vs target</h2>
+          {targets.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No sales targets set yet. Add a target per rep in{" "}
+              <Link href="/settings" className="text-primary hover:underline">Settings → Commission</Link>{" "}
+              to track attainment here.
+            </p>
+          ) : (
+            <div className="space-y-4">
+              {targets.map((t) => {
+                const att = parseFloat(t.attainment_pct) || 0;
+                const fill = Math.max(0, Math.min(100, att));
+                const over = att >= 100;
+                return (
+                  <div key={t.user_id}>
+                    <div className="flex items-baseline justify-between gap-2 mb-1">
+                      <span className="text-sm font-medium text-foreground truncate">{t.user_name}</span>
+                      <span className={`text-sm font-semibold tabular-nums ${over ? "text-emerald-600" : "text-foreground"}`}>
+                        {Number.isInteger(att) ? att : att.toFixed(1)}%{over ? " 🎉" : ""}
+                      </span>
+                    </div>
+                    <Progress
+                      value={fill}
+                      className="h-2"
+                      indicatorClassName={over ? "bg-emerald-500" : undefined}
+                    />
+                    <div className="flex justify-between mt-1 text-xs text-muted-foreground tabular-nums">
+                      <span>{cs}{Math.round(parseFloat(t.revenue)).toLocaleString()} of {cs}{Math.round(parseFloat(t.target)).toLocaleString()}</span>
+                      <span>{t.period}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Lead Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -394,6 +438,10 @@ export default function Dashboard() {
       </Dialog>
       </>
       )}
+
+      {/* Salesperson: lead with their target + commission (managers/admins get the
+          team-wide "Performance vs target" card above instead). */}
+      {!isManager && <MyTargetsPanel />}
 
       {/* Salesperson Dashboard */}
       {!isManager && myStats && (() => {

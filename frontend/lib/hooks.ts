@@ -26,6 +26,10 @@ import {
   ActivityLogEntry,
   DashboardStats,
   MyDashboardStats,
+  CommissionData,
+  CommissionPlanConfig,
+  CommissionBandConfig,
+  SalesTargetGrid,
   AllocationRule,
   StaffReportEntry,
   Reminder,
@@ -405,6 +409,32 @@ export function useMyDashboardStats() {
     () => api.getMyDashboardStats(),
     { dedupingInterval: 30000 }
   );
+}
+
+export function useMyCommission() {
+  return useSWR<CommissionData>(
+    "my-commission",
+    () => api.getMyCommission(),
+    { dedupingInterval: 60000 }
+  );
+}
+
+export function useCommissionPlans() {
+  return useSWR<CommissionPlanConfig[]>("commission-plans", () => api.getCommissionPlans(), {
+    revalidateOnFocus: false,
+  });
+}
+
+export function useCommissionBands() {
+  return useSWR<CommissionBandConfig[]>("commission-bands", () => api.getCommissionBands(), {
+    revalidateOnFocus: false,
+  });
+}
+
+export function useSalesTargetGrid(fiscalYear?: number) {
+  return useSWR<SalesTargetGrid>(["sales-targets", fiscalYear ?? "current"], () => api.getSalesTargetGrid(fiscalYear), {
+    revalidateOnFocus: false,
+  });
 }
 
 export function useAllocationRules() {
