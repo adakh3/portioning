@@ -39,13 +39,17 @@ def get_or_create_customer(subscription: Subscription) -> str:
 
 
 def create_checkout_session(subscription: Subscription, *, price_id: str,
-                            success_url: str, cancel_url: str):
+                            success_url: str, cancel_url: str,
+                            trial_period_days: int = None):
     """Create a Stripe Checkout Session for a subscription purchase.
 
-    Returns the Session object; the caller hands ``session.url`` to the browser.
+    When ``trial_period_days`` is set, Stripe starts the subscription in a
+    ``trialing`` state (card collected up front, no immediate charge) that
+    auto-converts to ``active`` when the trial ends. Returns the Session object;
+    the caller hands ``session.url`` to the browser.
     """
     customer_id = get_or_create_customer(subscription)
-    return _client().checkout.Session.create(
+    params = dict(
         mode='subscription',
         customer=customer_id,
         line_items=[{'price': price_id, 'quantity': 1}],
@@ -53,6 +57,9 @@ def create_checkout_session(subscription: Subscription, *, price_id: str,
         cancel_url=cancel_url,
         metadata={'organisation_id': subscription.organisation_id},
     )
+    if trial_period_days:
+        params['subscription_data'] = {'trial_period_days': trial_period_days}
+    return _client().checkout.Session.create(**params)
 
 
 def create_billing_portal_session(subscription: Subscription, *, return_url: str):

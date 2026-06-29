@@ -75,12 +75,16 @@ class CheckoutSessionView(APIView):
                             status=http_status.HTTP_400_BAD_REQUEST)
 
         sub = _get_or_create_subscription(org)
+        # First-ever subscription gets the card-required free trial; a returning
+        # org (e.g. resubscribing after cancel) does not get a second trial.
+        trial_days = settings.DEFAULT_TRIAL_DAYS if not sub.stripe_subscription_id else None
         try:
             session = stripe_gateway.create_checkout_session(
                 sub,
                 price_id=price_id,
                 success_url=f'{settings.FRONTEND_BASE_URL}/billing?status=success',
                 cancel_url=f'{settings.FRONTEND_BASE_URL}/billing?status=cancelled',
+                trial_period_days=trial_days,
             )
         except stripe.error.StripeError:
             logger.exception("Stripe checkout session failed for org=%s", org.id)

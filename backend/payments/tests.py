@@ -10,6 +10,7 @@ Subscription. Tests fetch that auto-created row via `org.subscription`.
 from datetime import datetime, timedelta, timezone as dt_timezone
 from unittest.mock import patch
 
+from django.conf import settings
 from django.test import TestCase
 from django.utils import timezone
 from rest_framework.test import APIClient
@@ -44,14 +45,15 @@ class BillingTestBase(TestCase):
 
 
 class TrialSignupTests(TestCase):
-    def test_new_org_starts_on_free_trial(self):
+    def test_new_org_has_no_access_until_it_subscribes(self):
+        # Card-required trial: signup creates the billing row but grants no
+        # access. The org starts the (Stripe-managed) trial via Checkout.
         org = Organisation.objects.create(name="Fresh", slug="fresh", country="PK")
         sub = org.subscription  # created by signal
-        self.assertEqual(sub.status, SubscriptionStatus.TRIALING)
-        self.assertTrue(sub.has_access)
-        self.assertTrue(sub.is_trialing)
-        # Default trial is 7 days; `.days` floors, so ~6 remaining mid-window.
-        self.assertGreaterEqual(sub.trial_days_remaining, 6)
+        self.assertEqual(sub.status, SubscriptionStatus.NONE)
+        self.assertFalse(sub.has_access)
+        self.assertFalse(sub.is_trialing)
+        self.assertFalse(sub.has_billing_account)
 
 
 class SubscriptionModelTests(TestCase):
@@ -100,14 +102,14 @@ class SubscriptionModelTests(TestCase):
 
 
 class SubscriptionStatusViewTests(BillingTestBase):
-    def test_status_returns_trial_for_new_org(self):
+    def test_status_returns_no_access_for_new_org(self):
         res = self.client_for(self.manager).get(SUBSCRIPTION)
         self.assertEqual(res.status_code, 200)
         body = res.json()
-        self.assertEqual(body["status"], "trialing")
-        self.assertTrue(body["has_access"])
-        self.assertTrue(body["is_trialing"])
-        self.assertGreaterEqual(body["trial_days_remaining"], 6)
+        self.assertEqual(body["status"], "none")
+        self.assertFalse(body["has_access"])
+        self.assertFalse(body["is_trialing"])
+        self.assertFalse(body["has_billing_account"])
 
     def test_status_requires_auth(self):
         self.assertIn(APIClient().get(SUBSCRIPTION).status_code, (401, 403))
@@ -115,13 +117,28 @@ class SubscriptionStatusViewTests(BillingTestBase):
 
 class CheckoutViewTests(BillingTestBase):
     @patch("payments.views.stripe_gateway.create_checkout_session")
-    def test_owner_can_start_checkout(self, mock_create):
+    def test_owner_can_start_checkout_with_trial(self, mock_create):
         mock_create.return_value = {"url": "https://checkout.stripe.test/abc"}
         res = self.client_for(self.owner).post(
             CHECKOUT, {"price_id": "price_123"}, format="json")
         self.assertEqual(res.status_code, 200, res.content)
         self.assertEqual(res.json()["url"], "https://checkout.stripe.test/abc")
         mock_create.assert_called_once()
+        # First subscription → card-required free trial is requested.
+        self.assertEqual(mock_create.call_args.kwargs["trial_period_days"],
+                         settings.DEFAULT_TRIAL_DAYS)
+
+    @patch("payments.views.stripe_gateway.create_checkout_session")
+    def test_resubscribe_gets_no_second_trial(self, mock_create):
+        # An org that has had a subscription before doesn't get another trial.
+        sub = self.org.subscription
+        sub.stripe_subscription_id = "sub_old"
+        sub.save()
+        mock_create.return_value = {"url": "https://checkout.stripe.test/abc"}
+        res = self.client_for(self.owner).post(
+            CHECKOUT, {"price_id": "price_123"}, format="json")
+        self.assertEqual(res.status_code, 200, res.content)
+        self.assertIsNone(mock_create.call_args.kwargs["trial_period_days"])
 
     def test_manager_cannot_start_checkout(self):
         res = self.client_for(self.manager).post(
@@ -233,14 +250,14 @@ class WebhookHandlerTests(TestCase):
                               id="sub_other")
         webhook_handlers.handle_event(evt)
         self.sub.refresh_from_db()
-        # Our row is untouched — still on its trial.
-        self.assertEqual(self.sub.status, "trialing")
+        # Our row is untouched — still as created (no access).
+        self.assertEqual(self.sub.status, "none")
 
     def test_unhandled_event_type_is_noop(self):
         webhook_handlers.handle_event(
             {"id": "evt_2", "type": "invoice.paid", "data": {"object": {}}})
         self.sub.refresh_from_db()
-        self.assertEqual(self.sub.status, "trialing")
+        self.assertEqual(self.sub.status, "none")
 
     def test_real_stripe_object_payload_syncs(self):
         """Regression: live Stripe sends StripeObjects (not dicts). stripe>=15's
@@ -269,6 +286,18 @@ class WebhookHandlerTests(TestCase):
         self.assertEqual(self.sub.current_period_end,
                          datetime(2030, 1, 1, tzinfo=dt_timezone.utc))
 
+    def test_card_required_trial_syncs_trial_end_and_grants_access(self):
+        """A Stripe-managed trial arrives as status=trialing + trial_end; we
+        mirror trial_ends_at so the org has access during the trial."""
+        future = int((timezone.now() + timedelta(days=7)).timestamp())
+        evt = self._sub_event("customer.subscription.created",
+                              status="trialing", trial_end=future)
+        webhook_handlers.handle_event(evt)
+        self.sub.refresh_from_db()
+        self.assertEqual(self.sub.status, "trialing")
+        self.assertTrue(self.sub.is_trialing)
+        self.assertTrue(self.sub.has_access)
+
 
 class SubscriptionGateTests(TestCase):
     """The middleware paywall. Uses real JWT cookies (not force_authenticate,
@@ -280,6 +309,12 @@ class SubscriptionGateTests(TestCase):
         self.org = Organisation.objects.create(name="GateCo", slug="gateco", country="PK")
         self.user = User.objects.create(email="u@x.com", role="owner",
                                         organisation=self.org, is_active=True)
+        # New orgs have no access (card-required). Put this one on a live trial
+        # so the "can access" path is exercised; individual tests expire it.
+        sub = self.org.subscription
+        sub.status = SubscriptionStatus.TRIALING
+        sub.trial_ends_at = timezone.now() + timedelta(days=5)
+        sub.save()
 
     def cookie_client(self, user):
         c = APIClient()

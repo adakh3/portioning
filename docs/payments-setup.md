@@ -68,26 +68,34 @@ so you normally set this once. Always start the backend *after* the secret is in
 
 > Worktree note: running the app from a worktree needs a one-time setup (own DB, a real
 > `npm install`, free ports). See `docs/WORKTREE_SETUP.md`. Demo logins come from
-> `python manage.py seed_demo` (`owner@demo.test` / `Owner123!`).
+> `python manage.py seed_demo` (`owner@demo.test` / `Owner123!`). **`seed_demo` grants the
+> demo org an active subscription** so it isn't paywalled — to exercise the card wall,
+> sign up / create a *fresh* org instead.
 
 ## 5. Browser walk-through
 
-1. Log in as the **owner** (`owner@demo.test` / `Owner123!`).
-2. Go to **Settings → Billing** (owner-only tab; admins don't see it). You see the
-   trial countdown ("N days left in your free trial"). The standalone `/billing`
-   route also still works — it's the Stripe return + paywall redirect target.
-3. Click **Subscribe** → redirected to Stripe Checkout.
-4. Pay with test card **`4242 4242 4242 4242`**, any future expiry, any CVC/ZIP.
-5. You're redirected back to `/billing?status=success`. The webhook (`customer.subscription.created`)
-   flips the org to **active** — the trial banner is replaced by the active plan + renewal date.
-6. **Manage billing** → Stripe Billing Portal (cancel, update card). Canceling syncs the org to
-   `canceled`; `past_due` keeps access (dunning grace).
+The trial is **card-required** (Stripe-managed): a new org has no access until the owner
+starts the trial through Checkout. To see the wall, use a **fresh org** (the seeded Demo
+Co is granted access for convenience).
+
+1. As the owner of a brand-new org, load any page → you're redirected to billing
+   (**Settings → Billing**, owner-only tab; admins don't see it). The standalone `/billing`
+   route also works — it's the Stripe return + paywall redirect target.
+2. Click **Start your free trial** → redirected to Stripe Checkout.
+3. Enter test card **`4242 4242 4242 4242`**, any future expiry, any CVC/ZIP. The card is
+   collected but **not charged** (it's a trial).
+4. You're redirected back to `/billing?status=success`. The webhook
+   (`customer.subscription.created`, `status=trialing`) grants access — you see the trial
+   countdown + "your card will be charged when the trial ends". At day 7 Stripe charges and
+   the webhook flips it to **active**.
+5. **Manage billing** → Stripe Billing Portal (cancel before day 7 to avoid the charge,
+   update card). Canceling syncs the org to `canceled`; `past_due` keeps access (dunning).
 
 ### Test the gate
-- In Django admin set an org's `trial_ends_at` to the past → any app API call returns **402**
-  and the frontend redirects to `/billing`. `/billing` + login still work. Superusers are never gated.
-- Superuser can extend a trial: `POST /api/billing/extend-trial/<org_id>/` `{"days": 14}` (or the
-  admin "Extend free trial" bulk action). Non-superusers get 403.
+- A brand-new org (`status=none`) is paywalled: any app API call returns **402** and the
+  frontend redirects to `/billing`. `/billing` + login still work. Superusers are never gated.
+- Superuser can grant/extend a comp trial: `POST /api/billing/extend-trial/<org_id>/`
+  `{"days": 14}` (or the admin "Extend free trial" bulk action). Non-superusers get 403.
 
 ### Drive the webhook lifecycle without paying
 ```bash

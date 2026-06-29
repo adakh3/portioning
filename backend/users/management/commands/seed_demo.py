@@ -23,6 +23,7 @@ from bookings.models.choices import LeadStatusOption
 from bookings.models import Lead
 from bookings.services.commission import period_position, PERIOD_LENGTHS
 from events.models import Event
+from payments.models import Subscription, SubscriptionStatus
 from users.models import Organisation, User
 
 DEMO_TAG = "[demo]"  # marks rows this command owns, so re-runs can rebuild them cleanly
@@ -56,6 +57,15 @@ class Command(BaseCommand):
             name=org_name, defaults={"slug": slugify(org_name) or "demo-co"},
         )
         self.stdout.write(self.style.SUCCESS(f"{'Created' if created else 'Using'} org: {org_name}"))
+
+        # Billing is card-required, so a brand-new org has no access and would be
+        # paywalled. This is a dev/demo seed — grant the demo org an active
+        # subscription so the whole app is usable without going through Stripe.
+        sub, _ = Subscription.objects.get_or_create(organisation=org)
+        sub.status = SubscriptionStatus.ACTIVE
+        sub.plan_name = sub.plan_name or "Demo (seeded)"
+        sub.trial_ends_at = None
+        sub.save()
 
         # Org settings: monthly targets, commission by event date, calendar year.
         settings_obj = OrgSettings.for_org(org)

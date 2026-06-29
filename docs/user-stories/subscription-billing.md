@@ -11,20 +11,27 @@ so that my team can keep using the product, and I can manage or cancel my plan
 without contacting support.
 
 ## Acceptance criteria
-- [ ] Each organisation has exactly one `Subscription` row, **auto-created on
-      sign-up with a 7-day no-card free trial** (`status = trialing`). Stripe is
-      the source of truth for *paid* state; the row is a local mirror kept in
-      sync by webhooks.
+- [ ] The trial is **card-required**. Each organisation has exactly one
+      `Subscription` row, **created on sign-up with `status = none` (no access)**.
+      The owner starts a **Stripe-managed 7-day trial** via Checkout (card on
+      file); Stripe runs the trial and auto-converts it to `active` at day 7.
+      Stripe is the source of truth; the row is a local mirror kept in sync by
+      webhooks (including `trial_end` → `trial_ends_at`).
+- [ ] The free trial is granted **only on an org's first subscription** — a
+      returning org (resubscribing after cancel) is charged immediately, no
+      second trial.
 - [ ] Any authenticated member can read billing status (`GET /api/billing/subscription/`)
       so the app can gate features; only the **owner** can start checkout or open
       the billing portal.
 - [ ] `has_access` is true while on a **live trial** (`trialing` and
       `trial_ends_at` in the future) and for `active` / `past_due` (dunning);
       false for an **expired trial**, `none`, `unpaid`, `canceled`.
-- [ ] A **superuser** (platform staff) can extend any org's trial — via the API
-      (`POST /api/billing/extend-trial/<org_id>/`) or Django admin (editable
-      `trial_ends_at` + an "Extend free trial" bulk action). Extending an expired
-      trial grants a full fresh window.
+- [ ] `has_billing_account` (a Stripe customer exists) gates the **Manage
+      billing** button — there's nothing to manage before the first checkout.
+- [ ] A **superuser** (platform staff) can grant/extend an org's trial as a
+      local comp — via the API (`POST /api/billing/extend-trial/<org_id>/`) or
+      Django admin (editable `trial_ends_at` + an "Extend free trial" bulk
+      action). This is a local access grant independent of Stripe.
 - [ ] Trial length is configurable via `DEFAULT_TRIAL_DAYS` (default 7).
 - [ ] Webhook endpoint verifies Stripe's signature, ignores unknown event types,
       and never 500s back to Stripe.
@@ -51,33 +58,41 @@ DEFAULT_TRIAL_DAYS=7             # free-trial length on sign-up
 
 ## Manual test cases
 
-### TC1 — New org starts on a free trial
+### TC1 — New org has no access until it subscribes (card wall)
 **Steps:**
 1. Create a brand-new org (sign-up), then `GET /api/billing/subscription/`.
-**Expected:** 200; `status: "trialing"`, `has_access: true`, `trial_days_remaining`
-≈ 7. A `Subscription` row was auto-created by the sign-up signal.
+**Expected:** 200; `status: "none"`, `has_access: false`, `has_billing_account:
+false`. A `Subscription` row was created by the sign-up signal, but no trial is
+granted — loading any app page returns 402 and redirects to billing (Settings →
+Billing), which offers **Start your free trial**.
 
-### TC1b — Expired trial loses access
+### TC1b — Card-required trial grants access and auto-converts
 **Steps:**
-1. In Django admin, set an org's `trial_ends_at` to a past date.
+1. As the owner, **Start your free trial** → complete Stripe Checkout with test
+   card `4242…` (card collected; not charged yet).
 2. `GET /api/billing/subscription/`.
-**Expected:** `has_access: false`, `trial_days_remaining: 0` (status still
-`trialing`, but expired).
+**Expected:** `status: "trialing"`, `has_access: true`, `trial_days_remaining`
+≈ 7, `has_billing_account: true`. At day 7 Stripe charges the card and the
+webhook flips it to `active` (test by advancing the clock in a Stripe sandbox,
+or `stripe trigger`).
 
-### TC1c — Superuser extends a trial
+### TC1c — Superuser grants a comp trial
 **Steps:**
 1. As a superuser, `POST /api/billing/extend-trial/<org_id>/` with `{"days": 14}`
    (or use the admin "Extend free trial" action).
 2. `GET /api/billing/subscription/` for that org.
-**Expected:** `has_access: true` again; `trial_days_remaining` reflects the new
-window. A non-superuser calling the endpoint gets 403.
+**Expected:** `has_access: true` (a local grant, independent of Stripe);
+`trial_days_remaining` reflects the new window. A non-superuser gets 403.
 
-### TC2 — Owner starts checkout
+### TC2 — First checkout requests a trial; resubscribe does not
 **Steps:**
-1. Configure `STRIPE_PRICE_ID` (or pass `price_id`).
-2. As the owner, `POST /api/billing/checkout/`.
-**Expected:** 200 with a `url` to Stripe Checkout. Completing payment in Stripe
-test mode fires `customer.subscription.created`.
+1. Configure `STRIPE_PRICE_ID` (or pass `price_id`). As the owner of a *new* org,
+   `POST /api/billing/checkout/`.
+2. As the owner of an org that previously subscribed (has a `stripe_subscription_id`),
+   `POST /api/billing/checkout/`.
+**Expected:** Both return 200 with a Checkout `url`. The first session is created
+with `trial_period_days = DEFAULT_TRIAL_DAYS`; the second has no trial (charged
+immediately).
 
 ### TC3 — Non-owner is blocked
 **Steps:**

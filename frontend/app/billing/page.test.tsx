@@ -64,24 +64,30 @@ describe("BillingPage", () => {
     expect(screen.getByText("Free trial")).toBeTruthy();
   });
 
-  it("owner can subscribe — redirects to checkout url", async () => {
+  it("new org can start the card-required free trial — redirects to checkout", async () => {
     mockUser = { id: 1, role: "owner" };
-    mockSub = makeSub();
+    mockSub = makeSub({ status: "none", is_trialing: false, has_access: false });
     render(<BillingPage />);
-    fireEvent.click(screen.getByRole("button", { name: "Subscribe" }));
+    fireEvent.click(screen.getByRole("button", { name: "Start your free trial" }));
     await waitFor(() => expect(startCheckout).toHaveBeenCalled());
     await waitFor(() => expect(window.location.href).toBe("https://checkout.test/go"));
   });
 
-  it("expired trial prompts to subscribe and blocks access", () => {
+  it("expired/canceled with a prior account prompts to Subscribe", () => {
     mockUser = { id: 1, role: "owner" };
-    mockSub = makeSub({ is_trialing: false, has_access: false, trial_days_remaining: 0 });
+    mockSub = makeSub({
+      status: "canceled",
+      is_trialing: false,
+      has_access: false,
+      has_billing_account: true, // had a subscription before
+    });
     render(<BillingPage />);
-    expect(screen.getByText(/free trial has ended/i)).toBeTruthy();
+    // Returning customer subscribes (no second trial); can also manage billing.
     expect(screen.getByRole("button", { name: "Subscribe" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Manage billing" })).toBeTruthy();
   });
 
-  it("active plan shows Manage billing and renewal date", () => {
+  it("active plan shows Manage billing and renewal date, no CTA", () => {
     mockUser = { id: 1, role: "owner" };
     mockSub = makeSub({
       status: "active",
@@ -94,29 +100,34 @@ describe("BillingPage", () => {
     expect(screen.getByText("Active")).toBeTruthy();
     expect(screen.getByText(/Renews on/i)).toBeTruthy();
     expect(screen.getByRole("button", { name: "Manage billing" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Subscribe" })).toBeNull();
   });
 
-  it("hides Manage billing during a trial with no billing account", () => {
+  it("during a card-on-file trial shows Manage billing + charge note, no CTA", () => {
     mockUser = { id: 1, role: "owner" };
-    mockSub = makeSub({ has_billing_account: false }); // pure trial, never subscribed
+    mockSub = makeSub({ has_billing_account: true }); // Stripe-managed trial
     render(<BillingPage />);
-    expect(screen.getByRole("button", { name: "Subscribe" })).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Manage billing" })).toBeNull();
+    expect(screen.getByText(/left in your free trial/i)).toBeTruthy();
+    expect(screen.getByText(/card will be charged when the trial ends/i)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Manage billing" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Subscribe" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Start your free trial" })).toBeNull();
   });
 
   it("non-owner sees a read-only message, no buttons", () => {
     mockUser = { id: 2, role: "manager" };
-    mockSub = makeSub();
+    mockSub = makeSub({ status: "none", is_trialing: false, has_access: false });
     render(<BillingPage />);
     expect(screen.getByText(/Only the account owner can manage billing/i)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Start your free trial" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Subscribe" })).toBeNull();
   });
 
   it("shows a success banner after returning from checkout", () => {
     searchParamsString = "status=success";
     mockUser = { id: 1, role: "owner" };
-    mockSub = makeSub({ status: "active", is_trialing: false });
+    mockSub = makeSub({ status: "active", is_trialing: false, has_billing_account: true });
     render(<BillingPage />);
-    expect(screen.getByText(/Payment received/i)).toBeTruthy();
+    expect(screen.getByText(/all set/i)).toBeTruthy();
   });
 });

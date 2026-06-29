@@ -11,7 +11,6 @@ webhook handlers so the app can gate access without a round-trip to Stripe.
 """
 from datetime import timedelta
 
-from django.conf import settings
 from django.db import models
 from django.utils import timezone
 
@@ -99,13 +98,6 @@ class Subscription(models.Model):
         through Checkout). Gates the Billing Portal — there's nothing to manage
         on a pure free trial that never subscribed."""
         return bool(self.stripe_customer_id)
-
-    def start_trial(self, days=None):
-        """Begin a fresh no-card trial. Default length from settings."""
-        if days is None:
-            days = settings.DEFAULT_TRIAL_DAYS
-        self.status = SubscriptionStatus.TRIALING
-        self.trial_ends_at = timezone.now() + timedelta(days=days)
 
     def extend_trial(self, days):
         """Push the trial end out by ``days``, measured from the later of now or

@@ -63,6 +63,9 @@ def _sync_from_stripe_subscription(stripe_sub):
     sub.stripe_subscription_id = stripe_sub.get('id', '')
     sub.status = stripe_sub.get('status', SubscriptionStatus.NONE)
     sub.cancel_at_period_end = bool(stripe_sub.get('cancel_at_period_end'))
+    # Stripe-managed (card-required) trial: mirror its end so `is_trialing` /
+    # `has_access` grant access while trialing. Null once the trial is over.
+    sub.trial_ends_at = _ts_to_dt(stripe_sub.get('trial_end'))
 
     items = (stripe_sub.get('items') or {}).get('data') or []
     # current_period_end is top-level on older API versions and on the line item

@@ -77,8 +77,8 @@ export default function BillingPanel() {
     <div className="space-y-4">
       {checkoutResult === "success" && (
         <div className="rounded-md border border-success/30 bg-success/10 px-4 py-3 text-sm text-success">
-          Payment received — your subscription is being activated. It may take a
-          moment to show as active.
+          You&apos;re all set — your subscription is being set up. It may take a
+          moment to update.
         </div>
       )}
       {checkoutResult === "cancelled" && (
@@ -114,9 +114,23 @@ export default function BillingPanel() {
               left in your free trial (ends {formatDate(sub.trial_ends_at)}).
             </p>
           )}
+          {sub.is_trialing && sub.has_billing_account && (
+            <p className="text-sm text-muted-foreground">
+              Your card will be charged when the trial ends, unless you cancel
+              before then.
+            </p>
+          )}
           {trialExpired && (
             <p className="text-sm text-warning">
               Your free trial has ended. Subscribe to keep using the app.
+            </p>
+          )}
+
+          {/* No plan yet — invite them to start the card-required trial */}
+          {needsPlan && !sub.has_billing_account && !sub.is_trialing && (
+            <p className="text-sm">
+              Start your free trial to use the app — no charge until it ends, and
+              you can cancel anytime.
             </p>
           )}
 
@@ -137,14 +151,18 @@ export default function BillingPanel() {
           {/* Actions — owner only */}
           {isOwner ? (
             <div className="flex flex-wrap gap-3">
-              {needsPlan || sub.is_trialing ? (
+              {needsPlan && (
                 <Button
                   onClick={() => redirectTo("checkout")}
                   disabled={busy !== null}
                 >
-                  {busy === "checkout" ? "Redirecting…" : "Subscribe"}
+                  {busy === "checkout"
+                    ? "Redirecting…"
+                    : sub.has_billing_account
+                      ? "Subscribe"
+                      : "Start your free trial"}
                 </Button>
-              ) : null}
+              )}
               {sub.has_billing_account && (
                 <Button
                   variant="outline"
