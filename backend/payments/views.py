@@ -165,5 +165,9 @@ class StripeWebhookView(APIView):
         try:
             webhook_handlers.handle_event(event)
         except Exception:  # noqa: BLE001 — never 500 back to Stripe
-            logger.exception("Error handling Stripe event %s", event.get('id'))
+            try:
+                event_id = event['id']
+            except Exception:  # noqa: BLE001 — event may be a StripeObject/dict
+                event_id = None
+            logger.exception("Error handling Stripe event %s", event_id)
         return Response(status=http_status.HTTP_200_OK)

@@ -5,12 +5,28 @@ sync so the app can gate access without calling Stripe on every request. Handler
 are deliberately idempotent — Stripe retries deliveries, and may deliver out of
 order, so each one resolves the row by Stripe id and overwrites from the event.
 """
+import json
 import logging
 from datetime import datetime, timezone as dt_timezone
 
 from payments.models import Subscription, SubscriptionStatus
 
 logger = logging.getLogger('payments')
+
+
+def _to_plain_dict(obj):
+    """Normalise an event's data object to a plain, recursively-nested dict.
+
+    Real Stripe deliveries are ``StripeObject``s (stripe>=15: not a dict, no
+    ``.get`` and no ``to_dict_recursive``), whose ``str()`` is JSON. Tests pass
+    plain dicts, which fall straight through.
+    """
+    if isinstance(obj, dict):
+        return obj
+    try:
+        return json.loads(str(obj))
+    except (TypeError, ValueError):
+        return dict(obj.to_dict()) if hasattr(obj, 'to_dict') else obj
 
 
 def _ts_to_dt(ts):
@@ -47,9 +63,15 @@ def _sync_from_stripe_subscription(stripe_sub):
     sub.stripe_subscription_id = stripe_sub.get('id', '')
     sub.status = stripe_sub.get('status', SubscriptionStatus.NONE)
     sub.cancel_at_period_end = bool(stripe_sub.get('cancel_at_period_end'))
-    sub.current_period_end = _ts_to_dt(stripe_sub.get('current_period_end'))
 
     items = (stripe_sub.get('items') or {}).get('data') or []
+    # current_period_end is top-level on older API versions and on the line item
+    # on newer ones (2025-08+ "basil"). Prefer the top level, fall back to item.
+    period_end = stripe_sub.get('current_period_end')
+    if not period_end and items:
+        period_end = items[0].get('current_period_end')
+    sub.current_period_end = _ts_to_dt(period_end)
+
     if items:
         price = items[0].get('price') or {}
         sub.stripe_price_id = price.get('id', '') or sub.stripe_price_id
@@ -88,4 +110,4 @@ def handle_event(event):
     if handler is None:
         logger.debug("Ignoring unhandled Stripe event type: %s", event['type'])
         return
-    handler(event['data']['object'])
+    handler(_to_plain_dict(event['data']['object']))

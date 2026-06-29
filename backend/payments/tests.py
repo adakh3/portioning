@@ -236,6 +236,33 @@ class WebhookHandlerTests(TestCase):
         self.sub.refresh_from_db()
         self.assertEqual(self.sub.status, "trialing")
 
+    def test_real_stripe_object_payload_syncs(self):
+        """Regression: live Stripe sends StripeObjects (not dicts). stripe>=15's
+        StripeObject has no .get/.to_dict_recursive, so the handler must flatten
+        it first. A dict-only test mock would not catch this."""
+        import stripe
+        evt = self._sub_event("customer.subscription.created")
+        evt["data"]["object"] = stripe.StripeObject.construct_from(
+            evt["data"]["object"], "sk_test")
+        self.assertFalse(isinstance(evt["data"]["object"], dict))  # truly a StripeObject
+        webhook_handlers.handle_event(evt)
+        self.sub.refresh_from_db()
+        self.assertEqual(self.sub.status, "active")
+        self.assertEqual(self.sub.stripe_subscription_id, "sub_123")
+        self.assertEqual(self.sub.current_period_end,
+                         datetime(2030, 1, 1, tzinfo=dt_timezone.utc))
+
+    def test_period_end_falls_back_to_line_item(self):
+        """Newer API versions (2025-08 'basil') drop top-level current_period_end
+        and put it on the subscription item instead."""
+        evt = self._sub_event("customer.subscription.created")
+        del evt["data"]["object"]["current_period_end"]
+        evt["data"]["object"]["items"]["data"][0]["current_period_end"] = 1893456000
+        webhook_handlers.handle_event(evt)
+        self.sub.refresh_from_db()
+        self.assertEqual(self.sub.current_period_end,
+                         datetime(2030, 1, 1, tzinfo=dt_timezone.utc))
+
 
 class SubscriptionGateTests(TestCase):
     """The middleware paywall. Uses real JWT cookies (not force_authenticate,
