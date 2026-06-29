@@ -37,6 +37,7 @@ function makeSub(overrides: Partial<Subscription> = {}): Subscription {
     is_trialing: true,
     trial_days_remaining: 5,
     has_access: true,
+    has_billing_account: false,
     ...overrides,
   };
 }
@@ -87,11 +88,20 @@ describe("BillingPage", () => {
       is_trialing: false,
       plan_name: "Pro",
       current_period_end: "2030-02-01T00:00:00Z",
+      has_billing_account: true,
     });
     render(<BillingPage />);
     expect(screen.getByText("Active")).toBeTruthy();
     expect(screen.getByText(/Renews on/i)).toBeTruthy();
     expect(screen.getByRole("button", { name: "Manage billing" })).toBeTruthy();
+  });
+
+  it("hides Manage billing during a trial with no billing account", () => {
+    mockUser = { id: 1, role: "owner" };
+    mockSub = makeSub({ has_billing_account: false }); // pure trial, never subscribed
+    render(<BillingPage />);
+    expect(screen.getByRole("button", { name: "Subscribe" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Manage billing" })).toBeNull();
   });
 
   it("non-owner sees a read-only message, no buttons", () => {

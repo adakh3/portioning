@@ -93,6 +93,13 @@ class Subscription(models.Model):
         ``trial_ends_at``) returns False until they subscribe."""
         return self.status in PAID_ACCESS_STATUSES or self.is_trialing
 
+    @property
+    def has_billing_account(self):
+        """True once a Stripe customer exists for this org (i.e. they've been
+        through Checkout). Gates the Billing Portal — there's nothing to manage
+        on a pure free trial that never subscribed."""
+        return bool(self.stripe_customer_id)
+
     def start_trial(self, days=None):
         """Begin a fresh no-card trial. Default length from settings."""
         if days is None:

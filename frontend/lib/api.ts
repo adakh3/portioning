@@ -1040,6 +1040,7 @@ export interface Subscription {
   is_trialing: boolean;
   trial_days_remaining: number;
   has_access: boolean;
+  has_billing_account: boolean;
 }
 
 // API functions

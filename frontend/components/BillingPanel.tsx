@@ -145,7 +145,7 @@ export default function BillingPanel() {
                   {busy === "checkout" ? "Redirecting…" : "Subscribe"}
                 </Button>
               ) : null}
-              {sub.status !== "none" && (
+              {sub.has_billing_account && (
                 <Button
                   variant="outline"
                   onClick={() => redirectTo("portal")}

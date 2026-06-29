@@ -12,6 +12,7 @@ class SubscriptionSerializer(serializers.ModelSerializer):
     has_access = serializers.BooleanField(read_only=True)
     is_trialing = serializers.BooleanField(read_only=True)
     trial_days_remaining = serializers.IntegerField(read_only=True)
+    has_billing_account = serializers.BooleanField(read_only=True)
 
     class Meta:
         model = Subscription
@@ -24,5 +25,6 @@ class SubscriptionSerializer(serializers.ModelSerializer):
             'is_trialing',
             'trial_days_remaining',
             'has_access',
+            'has_billing_account',
         ]
         read_only_fields = fields

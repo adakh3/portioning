@@ -92,6 +92,12 @@ class SubscriptionModelTests(TestCase):
         self.sub.extend_trial(7)
         self.assertGreaterEqual(self.sub.trial_days_remaining, 9)
 
+    def test_has_billing_account_tracks_stripe_customer(self):
+        # A fresh trial has no Stripe customer yet — nothing to manage.
+        self.assertFalse(self.sub.has_billing_account)
+        self.sub.stripe_customer_id = "cus_abc"
+        self.assertTrue(self.sub.has_billing_account)
+
 
 class SubscriptionStatusViewTests(BillingTestBase):
     def test_status_returns_trial_for_new_org(self):
