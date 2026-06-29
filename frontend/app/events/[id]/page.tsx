@@ -28,9 +28,7 @@ import { LineItemInput, lineItemTotal, computeBookingTotals } from "@/lib/quoteT
 import BookingTotalsCard from "@/components/BookingTotalsCard";
 import AddOnItemsEditor from "@/components/AddOnItemsEditor";
 import MenuBuilder from "@/components/MenuBuilder";
-import CustomerSelect from "@/components/CustomerSelect";
-import BusinessSelect from "@/components/BusinessSelect";
-import VenueField from "@/components/VenueField";
+import BookingDetailsForm, { BookingDetailsValue } from "@/components/BookingDetailsForm";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -111,6 +109,32 @@ export default function EventDetailPage() {
   const [formServiceStyle, setFormServiceStyle] = useState("");
   const [formPricePerHead, setFormPricePerHead] = useState("");
   const [formNotes, setFormNotes] = useState("");
+  // Adapter between the event's individual form* states (FKs as number|null) and
+  // the shared BookingDetailsForm's string value. Gents/ladies stay out of it.
+  const bookingValue: BookingDetailsValue = {
+    contact: formContact != null ? String(formContact) : "",
+    is_b2b: formIsB2b,
+    account: formAccount != null ? String(formAccount) : "",
+    venue: formVenue != null ? String(formVenue) : "",
+    venue_address: formVenueAddress,
+    event_type: formEventType,
+    meal_type: formMealType,
+    service_style: formServiceStyle,
+    booking_date: formBookingDate,
+    notes: formNotes,
+  };
+  const applyBookingPatch = (patch: Partial<BookingDetailsValue>) => {
+    if (patch.contact !== undefined) setFormContact(patch.contact ? Number(patch.contact) : null);
+    if (patch.is_b2b !== undefined) setFormIsB2b(patch.is_b2b);
+    if (patch.account !== undefined) setFormAccount(patch.account ? Number(patch.account) : null);
+    if (patch.venue !== undefined) setFormVenue(patch.venue ? Number(patch.venue) : null);
+    if (patch.venue_address !== undefined) setFormVenueAddress(patch.venue_address);
+    if (patch.event_type !== undefined) setFormEventType(patch.event_type);
+    if (patch.meal_type !== undefined) setFormMealType(patch.meal_type);
+    if (patch.service_style !== undefined) setFormServiceStyle(patch.service_style);
+    if (patch.booking_date !== undefined) setFormBookingDate(patch.booking_date);
+    if (patch.notes !== undefined) setFormNotes(patch.notes);
+  };
   const [formKitchenInstructions, setFormKitchenInstructions] = useState("");
   const [formBanquetInstructions, setFormBanquetInstructions] = useState("");
   const [formSetupInstructions, setFormSetupInstructions] = useState("");
@@ -620,92 +644,15 @@ export default function EventDetailPage() {
         <CardContent className="p-6">
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Customer &amp; Venue</h2>
             {editing ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Customer *</label>
-                  <CustomerSelect required value={formContact != null ? String(formContact) : ""}
-                    onChange={(v) => setFormContact(v ? Number(v) : null)} />
-                </div>
-                <div>
-                  <label className="inline-flex items-center gap-2 text-sm font-medium text-foreground">
-                    <input type="checkbox" checked={formIsB2b} onChange={(e) => setFormIsB2b(e.target.checked)} />
-                    Business booking (B2B)
-                  </label>
-                  {formIsB2b && (
-                    <div className="mt-2">
-                      <label className="block text-sm font-medium text-foreground mb-1">Business *</label>
-                      <BusinessSelect required value={formAccount != null ? String(formAccount) : ""}
-                        onChange={(v) => setFormAccount(v ? Number(v) : null)} />
-                    </div>
-                  )}
-                </div>
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-foreground mb-1">Venue</label>
-                  <VenueField
-                    venue={formVenue != null ? String(formVenue) : ""}
-                    address={formVenueAddress}
-                    customerAddress={orgContacts.find((c) => c.id === formContact)?.address}
-                    onVenue={(v) => setFormVenue(v ? Number(v) : null)}
-                    onAddress={setFormVenueAddress}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Event Type</label>
-                  <select
-                    value={formEventType}
-                    onChange={(e) => setFormEventType(e.target.value)}
-                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  >
-                    <option value="">-- Select --</option>
-                    {Object.entries(eventTypeLabels).map(([key, label]) => (
-                      <option key={key} value={key}>{label}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Meal Type</label>
-                  <select
-                    value={formMealType}
-                    onChange={(e) => setFormMealType(e.target.value)}
-                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  >
-                    <option value="">-- Select --</option>
-                    {Object.entries(mealTypeLabels).map(([key, label]) => (
-                      <option key={key} value={key}>{label}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Service Style</label>
-                  <select
-                    value={formServiceStyle}
-                    onChange={(e) => setFormServiceStyle(e.target.value)}
-                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  >
-                    <option value="">-- Select --</option>
-                    {Object.entries(serviceStyleLabels).map(([key, label]) => (
-                      <option key={key} value={key}>{label}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Booking Date</label>
-                  <ValidatedInput
-                    type="date"
-                    value={formBookingDate}
-                    onChange={(e) => setFormBookingDate(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Notes</label>
-                  <Textarea
-                    value={formNotes}
-                    onChange={(e) => setFormNotes(e.target.value)}
-                    rows={2}
-                    maxLength={2000}
-                  />
-                </div>
-              </div>
+              <BookingDetailsForm
+                value={bookingValue}
+                onChange={applyBookingPatch}
+                eventTypes={eventTypesData}
+                mealTypes={mealTypesData}
+                serviceStyles={serviceStylesData}
+                customerAddress={orgContacts.find((c) => c.id === formContact)?.address}
+                showNotes
+              />
             ) : (
               <dl className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 <InfoRow label="Customer" value={event!.contact_name} />

@@ -8,9 +8,7 @@ import { useQuote, useAccounts, useContacts, useSiteSettings, useDateFormat, use
 import { formatDate } from "@/lib/dateFormat";
 import { formatCurrency } from "@/lib/utils";
 import MenuBuilder from "@/components/MenuBuilder";
-import CustomerSelect from "@/components/CustomerSelect";
-import BusinessSelect from "@/components/BusinessSelect";
-import VenueField from "@/components/VenueField";
+import BookingDetailsForm, { BookingDetailsValue } from "@/components/BookingDetailsForm";
 import { computeQuoteTotals, buildQuoteSavePayload, LineItemInput } from "@/lib/quoteTotals";
 import AddOnItemsEditor from "@/components/AddOnItemsEditor";
 import BookingTotalsCard from "@/components/BookingTotalsCard";
@@ -254,6 +252,23 @@ export default function QuoteDetailPage() {
   const setEdit = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setEditData({ ...editData, [field]: e.target.value });
 
+  // Adapters between the page's string form objects (primary_contact) and the
+  // shared BookingDetailsForm's value (contact). Field names otherwise match.
+  type BookingShape = {
+    primary_contact: string; is_b2b: boolean; account: string; venue: string; venue_address: string;
+    event_type: string; meal_type: string; service_style: string; booking_date: string; notes: string;
+  };
+  const toBdValue = (d: BookingShape): BookingDetailsValue => ({
+    contact: d.primary_contact, is_b2b: d.is_b2b, account: d.account,
+    venue: d.venue, venue_address: d.venue_address,
+    event_type: d.event_type, meal_type: d.meal_type, service_style: d.service_style,
+    booking_date: d.booking_date, notes: d.notes,
+  });
+  const fromBdPatch = (patch: Partial<BookingDetailsValue>): Partial<BookingShape> => {
+    const { contact, ...rest } = patch;
+    return contact !== undefined ? { ...rest, primary_contact: contact } : rest;
+  };
+
   const selectClass = "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring";
 
   // Create mode
@@ -278,10 +293,10 @@ export default function QuoteDetailPage() {
             </CardContent>
           </Card>
 
-          {/* Customer */}
+          {/* Customer & Event (shared booking details) */}
           <Card>
             <CardContent className="p-6">
-              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Customer</h2>
+              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Customer &amp; Event</h2>
               <div className="mb-4">
                 <label className="block text-sm font-medium text-foreground mb-1">Link to Lead</label>
                 <select value={createData.lead} onChange={handleLeadSelect} className={selectClass}>
@@ -293,75 +308,19 @@ export default function QuoteDetailPage() {
                   ))}
                 </select>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Customer *</label>
-                <CustomerSelect required value={createData.primary_contact}
-                  onChange={(v) => setCreateData((prev) => ({ ...prev, primary_contact: v }))} />
-              </div>
-              <div className="mt-4">
-                <label className="inline-flex items-center gap-2 text-sm font-medium text-foreground">
-                  <input type="checkbox" checked={createData.is_b2b}
-                    onChange={(e) => setCreateData((prev) => ({ ...prev, is_b2b: e.target.checked }))} />
-                  Business booking (B2B)
-                </label>
-                {createData.is_b2b && (
-                  <div className="mt-2">
-                    <label className="block text-sm font-medium text-foreground mb-1">Business *</label>
-                    <BusinessSelect required value={createData.account}
-                      onChange={(v) => setCreateData((prev) => ({ ...prev, account: v }))} />
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Event Details */}
-          <Card>
-            <CardContent className="p-6">
-              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Event Details</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Event Date *</label>
-                  <ValidatedInput type="date" required value={createData.event_date} onChange={setCreate("event_date")} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Event Type</label>
-                  <select value={createData.event_type} onChange={setCreate("event_type")} className={selectClass}>
-                    {eventTypes.map((et) => <option key={et.id} value={et.value}>{et.label}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Meal Type</label>
-                  <select value={createData.meal_type} onChange={setCreate("meal_type")} className={selectClass}>
-                    <option value="">-- Select --</option>
-                    {mealTypes.map((mt) => <option key={mt.id} value={mt.value}>{mt.label}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Booking Date</label>
-                  <ValidatedInput type="date" value={createData.booking_date} onChange={setCreate("booking_date")} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Service Style</label>
-                  <select value={createData.service_style} onChange={setCreate("service_style")} className={selectClass}>
-                    <option value="">-- Select --</option>
-                    {serviceStyles.map((ss) => <option key={ss.id} value={ss.value}>{ss.label}</option>)}
-                  </select>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Venue */}
-          <Card>
-            <CardContent className="p-6">
-              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Venue</h2>
-              <VenueField
-                venue={createData.venue}
-                address={createData.venue_address}
+              <BookingDetailsForm
+                value={toBdValue(createData)}
+                onChange={(patch) => setCreateData((prev) => ({ ...prev, ...fromBdPatch(patch) }))}
+                eventTypes={eventTypes}
+                mealTypes={mealTypes}
+                serviceStyles={serviceStyles}
                 customerAddress={orgContacts.find((c) => String(c.id) === createData.primary_contact)?.address}
-                onVenue={(v) => setCreateData((prev) => ({ ...prev, venue: v }))}
-                onAddress={(v) => setCreateData((prev) => ({ ...prev, venue_address: v }))}
+                eventDateSlot={
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1">Event Date *</label>
+                    <ValidatedInput type="date" required value={createData.event_date} onChange={setCreate("event_date")} />
+                  </div>
+                }
               />
             </CardContent>
           </Card>
@@ -575,84 +534,24 @@ export default function QuoteDetailPage() {
         </CardContent>
       </Card>
 
-      {/* Customer (editing) — mirrors the create form layout */}
+      {/* Customer & Event (editing) — shared booking details */}
       {editing && (
         <Card>
           <CardContent className="p-6">
-            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Customer</h2>
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Customer *</label>
-              <CustomerSelect required value={editData.primary_contact}
-                onChange={(v) => setEditData((prev) => ({ ...prev, primary_contact: v }))} />
-            </div>
-            <div className="mt-4">
-              <label className="inline-flex items-center gap-2 text-sm font-medium text-foreground">
-                <input type="checkbox" checked={editData.is_b2b}
-                  onChange={(e) => setEditData((prev) => ({ ...prev, is_b2b: e.target.checked }))} />
-                Business booking (B2B)
-              </label>
-              {editData.is_b2b && (
-                <div className="mt-2">
-                  <label className="block text-sm font-medium text-foreground mb-1">Business *</label>
-                  <BusinessSelect required value={editData.account}
-                    onChange={(v) => setEditData((prev) => ({ ...prev, account: v }))} />
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Event (editing) */}
-      {editing && (
-        <Card>
-          <CardContent className="p-6">
-            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Event Details</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Event Date *</label>
-                <ValidatedInput type="date" required value={editData.event_date} onChange={setEdit("event_date")} />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Event Type</label>
-                <select value={editData.event_type} onChange={setEdit("event_type")} className={selectClass}>
-                  {eventTypes.map((et) => <option key={et.id} value={et.value}>{et.label}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Meal Type</label>
-                <select value={editData.meal_type} onChange={setEdit("meal_type")} className={selectClass}>
-                  <option value="">-- None --</option>
-                  {mealTypes.map((mt) => <option key={mt.id} value={mt.value}>{mt.label}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Booking Date</label>
-                <ValidatedInput type="date" value={editData.booking_date} onChange={setEdit("booking_date")} />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Service Style</label>
-                <select value={editData.service_style} onChange={setEdit("service_style")} className={selectClass}>
-                  <option value="">-- None --</option>
-                  {serviceStyles.map((ss) => <option key={ss.id} value={ss.value}>{ss.label}</option>)}
-                </select>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Venue (editing) */}
-      {editing && (
-        <Card>
-          <CardContent className="p-6">
-            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Venue</h2>
-            <VenueField
-              venue={editData.venue}
-              address={editData.venue_address}
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Customer &amp; Event</h2>
+            <BookingDetailsForm
+              value={toBdValue(editData)}
+              onChange={(patch) => setEditData((prev) => ({ ...prev, ...fromBdPatch(patch) }))}
+              eventTypes={eventTypes}
+              mealTypes={mealTypes}
+              serviceStyles={serviceStyles}
               customerAddress={orgContacts.find((c) => String(c.id) === editData.primary_contact)?.address}
-              onVenue={(v) => setEditData((prev) => ({ ...prev, venue: v }))}
-              onAddress={(v) => setEditData((prev) => ({ ...prev, venue_address: v }))}
+              eventDateSlot={
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Event Date *</label>
+                  <ValidatedInput type="date" required value={editData.event_date} onChange={setEdit("event_date")} />
+                </div>
+              }
             />
           </CardContent>
         </Card>
