@@ -73,7 +73,9 @@ so you normally set this once. Always start the backend *after* the secret is in
 ## 5. Browser walk-through
 
 1. Log in as the **owner** (`owner@demo.test` / `Owner123!`).
-2. Go to **/billing** → you see the trial countdown ("N days left in your free trial").
+2. Go to **Settings → Billing** (owner-only tab; admins don't see it). You see the
+   trial countdown ("N days left in your free trial"). The standalone `/billing`
+   route also still works — it's the Stripe return + paywall redirect target.
 3. Click **Subscribe** → redirected to Stripe Checkout.
 4. Pay with test card **`4242 4242 4242 4242`**, any future expiry, any CVC/ZIP.
 5. You're redirected back to `/billing?status=success`. The webhook (`customer.subscription.created`)

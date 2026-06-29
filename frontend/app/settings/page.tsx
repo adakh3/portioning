@@ -4,7 +4,9 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { api, SiteSettingsData } from "@/lib/api";
 import { useSiteSettings } from "@/lib/hooks";
+import { useAuth } from "@/lib/auth";
 import { useQueryState } from "@/lib/useQueryState";
+import { settingsTabsFor } from "@/lib/settingsTabs";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,27 +17,22 @@ import LeadStatusesSettings from "@/components/LeadStatusesSettings";
 import ChoiceOptionsSettings from "@/components/ChoiceOptionsSettings";
 import ProductLinesSettings from "@/components/ProductLinesSettings";
 import CommissionSettings from "@/components/CommissionSettings";
+import BillingPanel from "@/components/BillingPanel";
 
 // default_tax_rate is stored as a fraction (0.20 = 20%); show it as a percentage.
 const pctFromFraction = (f: string) => String(Math.round(Number(f || 0) * 10000) / 100);
 const fractionFromPct = (p: string) => (Number(p || 0) / 100).toFixed(4);
 
-const SETTINGS_TABS = [
-  { id: "general", label: "General" },
-  { id: "pipeline", label: "Lead Pipeline" },
-  { id: "options", label: "Options" },
-  { id: "branding", label: "Product Lines" },
-  { id: "commission", label: "Commission" },
-  { id: "integrations", label: "Integrations" },
-] as const;
-
 export default function SettingsPage() {
   const { data: settings, isLoading: loading, mutate: mutateSettings } = useSiteSettings();
+  const { user } = useAuth();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [tabRaw, setTab] = useQueryState("tab", "general");
-  const tab = SETTINGS_TABS.some((t) => t.id === tabRaw) ? tabRaw : "general";
+  const isOwner = user?.role === "owner" || !!user?.is_superuser;
+  const tabs = settingsTabsFor(isOwner);
+  const tab = tabs.some((t) => t.id === tabRaw) ? tabRaw : "general";
 
   const [formData, setFormData] = useState({
     currency_symbol: "",
@@ -126,7 +123,7 @@ export default function SettingsPage() {
       <h1 className="text-2xl font-bold text-foreground mb-6">Settings</h1>
 
       <div className="flex gap-1 border-b border-border mb-6 overflow-x-auto overflow-y-hidden">
-        {SETTINGS_TABS.map((t) => (
+        {tabs.map((t) => (
           <button
             key={t.id}
             type="button"
@@ -391,6 +388,12 @@ export default function SettingsPage() {
       {tab === "integrations" && (
       <div className="space-y-6 max-w-2xl">
         <WhatsAppSettings settings={settings} onSave={() => mutateSettings()} />
+      </div>
+      )}
+
+      {tab === "billing" && (
+      <div className="space-y-6 max-w-2xl">
+        <BillingPanel />
       </div>
       )}
     </div>

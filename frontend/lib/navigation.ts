@@ -52,7 +52,6 @@ export const departments: Department[] = [
     pages: [
       { label: "Settings", href: "/settings", roles: ["owner", "admin"] },
       { label: "Team", href: "/team", roles: ["owner", "admin"] },
-      { label: "Billing", href: "/billing", roles: ["owner"] },
     ],
   },
 ];

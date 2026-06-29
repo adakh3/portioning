@@ -105,8 +105,13 @@ test mode fires `customer.subscription.created`.
 is never blocked.
 
 ## Frontend
-`/billing` page (owner-gated nav link under Admin) — shows the current plan with
-a status pill, a trial countdown ("5 days left in your free trial"), and:
+The billing UI lives in `components/BillingPanel.tsx` and is shown in two places:
+the **Settings → Billing** tab (the in-app entry point — an **owner-only** tab;
+admins reach Settings but not this tab) and the standalone **`/billing`** route
+(kept because it's the Stripe Checkout return target and the paywall redirect
+target — it only calls billing endpoints, which the gate exempts). It shows the
+current plan with a status pill, a trial countdown ("5 days left in your free
+trial"), and:
 - **Subscribe** → `POST /api/billing/checkout/` → redirects to Stripe Checkout.
 - **Manage billing** → `POST /api/billing/portal/` → redirects to Stripe Portal.
 - Reads `?status=success|cancelled` on return to show a banner.
