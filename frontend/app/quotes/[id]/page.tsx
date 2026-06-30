@@ -3,11 +3,12 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { api, Contact } from "@/lib/api";
+import { api, Contact, EventMealData } from "@/lib/api";
 import { useQuote, useAccounts, useContacts, useSiteSettings, useDateFormat, useEventTypes, useServiceStyles, useMealTypes, useAllLeads, revalidate } from "@/lib/hooks";
 import { formatDate } from "@/lib/dateFormat";
 import { formatCurrency } from "@/lib/utils";
 import MenuBuilder from "@/components/MenuBuilder";
+import AdditionalMealsEditor from "@/components/AdditionalMealsEditor";
 import BookingDetailsForm, { BookingDetailsValue } from "@/components/BookingDetailsForm";
 import { computeQuoteTotals, buildQuoteSavePayload, LineItemInput } from "@/lib/quoteTotals";
 import AddOnItemsEditor from "@/components/AddOnItemsEditor";
@@ -101,6 +102,9 @@ export default function QuoteDetailPage() {
   // Line items held locally and committed with the rest of the quote in one save
   const [editLineItems, setEditLineItems] = useState<LineItemInput[]>([]);
   const [createLineItems, setCreateLineItems] = useState<LineItemInput[]>([]);
+  // Additional meals (parity with events) — committed in the same save.
+  const [editMeals, setEditMeals] = useState<EventMealData[]>([]);
+  const [createMeals, setCreateMeals] = useState<EventMealData[]>([]);
 
   // Set default price from settings in create mode
   const defaultPriceApplied = useRef(false);
@@ -164,6 +168,10 @@ export default function QuoteDetailPage() {
         dish_ids: menuData.dish_ids,
         based_on_template: menuData.based_on_template,
         line_items: createLineItems,
+        additional_meals: createMeals.map((m) => ({
+          label: m.label, guest_count: m.guest_count, price_per_head: m.price_per_head || null,
+          dish_ids: m.dishes, based_on_template: m.based_on_template, meal_time: m.meal_time || null, notes: m.notes,
+        })),
       };
       const newQuote = await api.createQuote(data);
       revalidate("quotes");
@@ -200,6 +208,7 @@ export default function QuoteDetailPage() {
       is_taxable: li.is_taxable, sort_order: li.sort_order ?? 0,
     })));
     setMenuData({ dish_ids: quote.dishes || [], based_on_template: quote.based_on_template || null });
+    setEditMeals((quote.additional_meals || []).map((m) => ({ ...m })));
     setEditing(true);
   }
 
@@ -208,7 +217,7 @@ export default function QuoteDetailPage() {
     setSaving(true);
     setError("");
     try {
-      await api.updateQuote(quote.id, buildQuoteSavePayload(editData, menuData, editLineItems));
+      await api.updateQuote(quote.id, buildQuoteSavePayload(editData, menuData, editLineItems, editMeals));
       await mutateQuote();
       setEditing(false);
     } catch (err) {
@@ -275,7 +284,7 @@ export default function QuoteDetailPage() {
   if (isNew) {
     const createTotals = computeQuoteTotals(
       createData.price_per_head, createData.guest_count,
-      parseFloat(createData.tax_rate || "0"), createLineItems,
+      parseFloat(createData.tax_rate || "0"), createLineItems, createMeals,
     );
     return (
       <div className="space-y-6">
@@ -345,6 +354,16 @@ export default function QuoteDetailPage() {
               />
             </CardContent>
           </Card>
+
+          {/* Additional Meals */}
+          <AdditionalMealsEditor
+            meals={createMeals}
+            onChange={setCreateMeals}
+            editing
+            currencySymbol={cs}
+            dateFormat={dateFormat}
+            priceRoundingStep={Number(settings.price_rounding_step) || 50}
+          />
 
           {/* Additional Items */}
           <Card>
@@ -427,6 +446,7 @@ export default function QuoteDetailPage() {
   const liveTotals = computeQuoteTotals(
     editData.price_per_head, editData.guest_count,
     parseFloat(editData.tax_rate || "0") / 100, editLineItems,
+    editing ? editMeals : (q.additional_meals || []),
   );
 
   return (
@@ -727,6 +747,18 @@ export default function QuoteDetailPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Additional Meals */}
+      {(editing || (q.additional_meals || []).length > 0) && (
+        <AdditionalMealsEditor
+          meals={editing ? editMeals : (q.additional_meals || [])}
+          onChange={setEditMeals}
+          editing={editing}
+          currencySymbol={cs}
+          dateFormat={dateFormat}
+          priceRoundingStep={Number(settings.price_rounding_step) || 50}
+        />
       )}
 
       {/* Additional Items */}

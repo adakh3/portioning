@@ -2,6 +2,7 @@
 // previewed live while editing, and so the whole quote saves in one PATCH.
 // The server (bookings/models/quotes.py: recalculate_totals + QuoteLineItem.save)
 // remains the source of truth on save.
+import { EventMealData } from "@/lib/api";
 
 export interface LineItemInput {
   id?: number;
@@ -69,15 +70,26 @@ export function computeBookingTotals(
  * Quote convenience wrapper over {@link computeBookingTotals}: food = price/head
  * × guests (quotes have no additional meals). `taxRate` is a decimal fraction.
  */
+/** Food cost of additional meals: each meal's price_per_head × its own guests. */
+export function mealsFood(meals: { guest_count: number; price_per_head: string | null }[] | undefined): number {
+  let total = 0;
+  for (const m of meals || []) {
+    const price = Number(m.price_per_head) || 0;
+    if (price > 0 && m.guest_count) total += round2(price * m.guest_count);
+  }
+  return round2(total);
+}
+
 export function computeQuoteTotals(
   pricePerHead: number | string | null | undefined,
   guestCount: number | string | null | undefined,
   taxRate: number | string | null | undefined,
   lineItems: LineItemInput[],
+  meals?: { guest_count: number; price_per_head: string | null }[],
 ): BookingTotals {
   const price = Number(pricePerHead) || 0;
   const guests = Number(guestCount) || 0;
-  const food = price > 0 ? round2(price * guests) : 0;
+  const food = round2((price > 0 ? round2(price * guests) : 0) + mealsFood(meals));
   return computeBookingTotals(food, lineItems, guests, Number(taxRate) || 0);
 }
 
@@ -115,8 +127,18 @@ export function buildQuoteSavePayload(
   editData: QuoteEditData,
   menuData: QuoteMenuData,
   lineItems: LineItemInput[],
+  meals: EventMealData[] = [],
 ) {
   return {
+    additional_meals: meals.map((m) => ({
+      label: m.label,
+      guest_count: m.guest_count,
+      price_per_head: m.price_per_head || null,
+      dish_ids: m.dishes,
+      based_on_template: m.based_on_template,
+      meal_time: m.meal_time || null,
+      notes: m.notes,
+    })),
     primary_contact: editData.primary_contact ? Number(editData.primary_contact) : null,
     is_b2b: editData.is_b2b,
     account: editData.is_b2b && editData.account ? Number(editData.account) : null,

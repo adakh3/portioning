@@ -28,6 +28,7 @@ import { LineItemInput, lineItemTotal, computeBookingTotals } from "@/lib/quoteT
 import BookingTotalsCard from "@/components/BookingTotalsCard";
 import AddOnItemsEditor from "@/components/AddOnItemsEditor";
 import MenuBuilder from "@/components/MenuBuilder";
+import AdditionalMealsEditor from "@/components/AdditionalMealsEditor";
 import BookingDetailsForm, { BookingDetailsValue } from "@/components/BookingDetailsForm";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -888,145 +889,13 @@ export default function EventDetailPage() {
       </Card>
 
       {/* Additional Meals Section */}
-      <Card>
-        <CardContent className="p-6">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Additional Meals</h2>
-            {editing && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setFormAdditionalMeals([...formAdditionalMeals, {
-                  label: "",
-                  guest_count: 0,
-                  price_per_head: null,
-                  dishes: [],
-                  based_on_template: null,
-                  meal_time: null,
-                  notes: "",
-                }])}
-              >
-                + Add Meal
-              </Button>
-            )}
-          </div>
-          {formAdditionalMeals.length === 0 && !editing && (
-            <p className="text-sm text-muted-foreground">No additional meals.</p>
-          )}
-          {formAdditionalMeals.length === 0 && editing && (
-            <p className="text-sm text-muted-foreground">No additional meals added.</p>
-          )}
-          <div className="space-y-4">
-            {formAdditionalMeals.map((meal, idx) => (
-              <div key={idx} className="border border-border rounded-lg p-4 space-y-3">
-                <div className="flex items-center justify-between gap-2">
-                  {editing ? (
-                    <input
-                      type="text"
-                      placeholder="Meal label"
-                      value={meal.label}
-                      onChange={(e) => {
-                        const updated = [...formAdditionalMeals];
-                        updated[idx] = { ...updated[idx], label: e.target.value };
-                        setFormAdditionalMeals(updated);
-                      }}
-                      className="flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring flex-1"
-                    />
-                  ) : (
-                    <span className="font-medium text-foreground">{meal.label || "Untitled Meal"}</span>
-                  )}
-                  {editing && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="text-destructive"
-                      onClick={() => setFormAdditionalMeals(formAdditionalMeals.filter((_, i) => i !== idx))}
-                    >
-                      Remove
-                    </Button>
-                  )}
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-1">Guest Count</label>
-                    {editing ? (
-                      <ValidatedInput
-                        type="number"
-                        min={0}
-                        value={meal.guest_count}
-                        onChange={(e) => {
-                          const updated = [...formAdditionalMeals];
-                          updated[idx] = { ...updated[idx], guest_count: parseInt(e.target.value) || 0 };
-                          setFormAdditionalMeals(updated);
-                        }}
-                      />
-                    ) : (
-                      <span className="text-sm">{meal.guest_count}</span>
-                    )}
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-1">Meal Time</label>
-                    {editing ? (
-                      <ValidatedInput
-                        type="datetime-local"
-                        value={meal.meal_time ? meal.meal_time.slice(0, 16) : ""}
-                        onChange={(e) => {
-                          const updated = [...formAdditionalMeals];
-                          updated[idx] = { ...updated[idx], meal_time: e.target.value || null };
-                          setFormAdditionalMeals(updated);
-                        }}
-                      />
-                    ) : (
-                      <span className="text-sm">{meal.meal_time ? sharedFormatDateTime(meal.meal_time, dateFormat) : "\u2014"}</span>
-                    )}
-                  </div>
-                </div>
-                {editing && (
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-1">Notes</label>
-                    <Textarea
-                      value={meal.notes}
-                      onChange={(e) => {
-                        const updated = [...formAdditionalMeals];
-                        updated[idx] = { ...updated[idx], notes: e.target.value };
-                        setFormAdditionalMeals(updated);
-                      }}
-                      rows={2}
-                      placeholder="Special instructions for this meal..."
-                    />
-                  </div>
-                )}
-                {!editing && meal.notes && (
-                  <div>
-                    <label className="block text-sm font-medium text-muted-foreground mb-1">Notes</label>
-                    <p className="text-sm">{meal.notes}</p>
-                  </div>
-                )}
-                <MenuBuilder
-                  selectedDishIds={meal.dishes}
-                  basedOnTemplate={meal.based_on_template}
-                  onChange={(data) => {
-                    const updated = [...formAdditionalMeals];
-                    updated[idx] = { ...updated[idx], dishes: data.dish_ids, based_on_template: data.based_on_template };
-                    setFormAdditionalMeals(updated);
-                  }}
-                  pricePerHead={meal.price_per_head || ""}
-                  onPricePerHeadChange={editing ? (val) => {
-                    const updated = [...formAdditionalMeals];
-                    updated[idx] = { ...updated[idx], price_per_head: val || null };
-                    setFormAdditionalMeals(updated);
-                  } : undefined}
-                  guestCount={meal.guest_count}
-                  currencySymbol={settings.currency_symbol}
-                  disabled={!editing}
-                />
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+      <AdditionalMealsEditor
+        meals={formAdditionalMeals}
+        onChange={setFormAdditionalMeals}
+        editing={editing}
+        currencySymbol={settings.currency_symbol}
+        dateFormat={dateFormat}
+      />
 
       {/* Add-on items (arrangements, beverages, rentals, custom) */}
       <Card>

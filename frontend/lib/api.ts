@@ -429,6 +429,7 @@ export interface Quote {
   created_by: number | null;
   created_by_name: string | null;
   line_items: QuoteLineItem[];
+  additional_meals: EventMealData[];
   created_at: string;
   updated_at: string;
 }
@@ -1266,9 +1267,9 @@ export const api = {
     return fetchList<Quote>(`/bookings/quotes/${qs ? `?${qs}` : ""}`);
   },
   getQuote: (id: number) => fetchApi<Quote>(`/bookings/quotes/${id}/`),
-  createQuote: (data: Omit<Partial<Quote>, "line_items"> & { dish_ids?: number[]; line_items?: unknown[] }) =>
+  createQuote: (data: Omit<Partial<Quote>, "line_items" | "additional_meals"> & { dish_ids?: number[]; line_items?: unknown[]; additional_meals?: unknown[] }) =>
     fetchApi<Quote>("/bookings/quotes/", { method: "POST", body: JSON.stringify(data) }),
-  updateQuote: (id: number, data: Omit<Partial<Quote>, "line_items"> & { dish_ids?: number[]; line_items?: unknown[] }) =>
+  updateQuote: (id: number, data: Omit<Partial<Quote>, "line_items" | "additional_meals"> & { dish_ids?: number[]; line_items?: unknown[]; additional_meals?: unknown[] }) =>
     fetchApi<Quote>(`/bookings/quotes/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
   deleteQuote: (id: number) =>
     fetchApi<void>(`/bookings/quotes/${id}/`, { method: "DELETE" }),
