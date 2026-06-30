@@ -244,18 +244,16 @@ class TestBookingLineItemCalculation(TestCase):
         BookingLineItem.objects.create(
             quote=self.quote, category="food", description="Food",
             quantity=Decimal("1"), unit="flat", unit_price=Decimal("1000.00"),
-            is_taxable=True,
         )
         BookingLineItem.objects.create(
             quote=self.quote, category="rental", description="Tables",
             quantity=Decimal("5"), unit="each", unit_price=Decimal("50.00"),
-            is_taxable=False,
         )
         self.quote.refresh_from_db()
         self.assertEqual(self.quote.subtotal, Decimal("1250.00"))
-        # Tax only on taxable items: 1000 * 0.20 = 200
-        self.assertEqual(self.quote.tax_amount, Decimal("200.00"))
-        self.assertEqual(self.quote.total, Decimal("1450.00"))
+        # Tax on the whole subtotal: 1250 * 0.20 = 250
+        self.assertEqual(self.quote.tax_amount, Decimal("250.00"))
+        self.assertEqual(self.quote.total, Decimal("1500.00"))
 
     def test_delete_item_recalculates(self):
         item = BookingLineItem.objects.create(

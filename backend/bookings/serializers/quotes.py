@@ -18,7 +18,7 @@ class BookingLineItemSerializer(OrgScopedModelSerializer):
         model = BookingLineItem
         fields = [
             'id', 'quote', 'event', 'variant', 'category', 'description',
-            'quantity', 'unit', 'unit_price', 'is_taxable',
+            'quantity', 'unit', 'unit_price',
             'line_total', 'sort_order',
             'menu_item', 'equipment_item', 'labor_role',
             'created_at',

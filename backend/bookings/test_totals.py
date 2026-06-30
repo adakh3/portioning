@@ -34,7 +34,7 @@ class TestGoldenCaseParity(TestCase):
         with open(GOLDEN_CASES_PATH) as f:
             data = json.load(f)
         for case in data["cases"]:
-            items = [_Item(i["line_total"], i["is_taxable"]) for i in case["items"]]
+            items = [_Item(i["line_total"]) for i in case["items"]]
             t = compute_booking_totals(
                 Decimal(case["food_total"]), items, Decimal(case["tax_rate"])
             )
@@ -51,20 +51,18 @@ class TestComputeBookingTotals(TestCase):
         self.assertEqual(t.tax_amount, Decimal("200.00"))
         self.assertEqual(t.total, Decimal("1200.00"))
 
-    def test_taxable_and_non_taxable_items(self):
-        t = compute_booking_totals(Decimal("0"), [_Item("100", True), _Item("50", False)], Decimal("0.10"))
-        self.assertEqual(t.taxable_subtotal, Decimal("100.00"))
-        self.assertEqual(t.non_taxable_subtotal, Decimal("50.00"))
+    def test_items_taxed_on_whole_subtotal(self):
+        # Tax now applies to the whole subtotal — no per-line taxable split.
+        t = compute_booking_totals(Decimal("0"), [_Item("100"), _Item("50")], Decimal("0.10"))
         self.assertEqual(t.subtotal, Decimal("150.00"))
-        self.assertEqual(t.tax_amount, Decimal("10.00"))  # tax only on the taxable item
-        self.assertEqual(t.total, Decimal("160.00"))
+        self.assertEqual(t.tax_amount, Decimal("15.00"))  # 150 * 0.10
+        self.assertEqual(t.total, Decimal("165.00"))
 
-    def test_food_plus_items_tax_only_on_food_and_taxable(self):
-        t = compute_booking_totals(Decimal("1000"), [_Item("200", True), _Item("100", False)], Decimal("0.20"))
-        self.assertEqual(t.taxable_subtotal, Decimal("1200.00"))  # 1000 food + 200
+    def test_food_plus_items_whole_subtotal_taxed(self):
+        t = compute_booking_totals(Decimal("1000"), [_Item("200"), _Item("100")], Decimal("0.20"))
         self.assertEqual(t.subtotal, Decimal("1300.00"))
-        self.assertEqual(t.tax_amount, Decimal("240.00"))         # 1200 * 0.20
-        self.assertEqual(t.total, Decimal("1540.00"))
+        self.assertEqual(t.tax_amount, Decimal("260.00"))         # 1300 * 0.20
+        self.assertEqual(t.total, Decimal("1560.00"))
 
     def test_discount_reduces_subtotal(self):
         t = compute_booking_totals(Decimal("0"), [_Item("500", True), _Item("-100", True)], Decimal("0"))
@@ -95,11 +93,11 @@ class TestQuoteTotalsIntegration(TestCase):
         BookingLineItem.objects.create(quote=quote, category="discount", description="Promo",
                                        quantity=Decimal("1"), unit="flat", unit_price=Decimal("100.00"))
         quote.refresh_from_db()
-        # taxable = 3000 + 500 - 100 = 3400 ; non-taxable = 200 ; subtotal = 3600
-        # tax = 3400 * 0.20 = 680 ; total = 4280
+        # whole subtotal taxed: 3000 + 500 + 200 - 100 = 3600
+        # tax = 3600 * 0.20 = 720 ; total = 4320
         self.assertEqual(quote.subtotal, Decimal("3600.00"))
-        self.assertEqual(quote.tax_amount, Decimal("680.00"))
-        self.assertEqual(quote.total, Decimal("4280.00"))
+        self.assertEqual(quote.tax_amount, Decimal("720.00"))
+        self.assertEqual(quote.total, Decimal("4320.00"))
 
     def test_quote_total_includes_additional_meals(self):
         # Parity with events: a quote's food total now includes its additional meals.
@@ -141,11 +139,11 @@ class TestEventTotalsIntegration(TestCase):
         BookingLineItem.objects.create(event=event, category="fee", description="Travel",
                                        quantity=Decimal("1"), unit="flat", unit_price=Decimal("300.00"), is_taxable=False)
         event.refresh_from_db()
-        # taxable = 2000 + 200 = 2200 ; non-taxable = 300 ; subtotal = 2500
-        # tax = 2200 * 0.15 = 330 ; total = 2830
+        # whole subtotal taxed: food 2000 + 200 + 300 = 2500
+        # tax = 2500 * 0.15 = 375 ; total = 2875
         self.assertEqual(event.subtotal, Decimal("2500.00"))
-        self.assertEqual(event.tax_amount, Decimal("330.00"))
-        self.assertEqual(event.total, Decimal("2830.00"))
+        self.assertEqual(event.tax_amount, Decimal("375.00"))
+        self.assertEqual(event.total, Decimal("2875.00"))
 
     def test_event_not_taxable_has_no_tax(self):
         from events.models import Event

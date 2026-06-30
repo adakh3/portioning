@@ -204,7 +204,7 @@ export default function EventDetailPage() {
     setFormLineItems((data.line_items || []).map((li) => ({
       id: li.id, variant: li.variant, category: li.category, description: li.description,
       quantity: li.quantity, unit: li.unit, unit_price: li.unit_price,
-      is_taxable: li.is_taxable, sort_order: li.sort_order ?? 0,
+      sort_order: li.sort_order ?? 0,
     })));
     setFormIsTaxable(data.is_taxable || false);
     setFormAdditionalMeals(data.additional_meals || []);
@@ -279,7 +279,7 @@ export default function EventDetailPage() {
       line_items: formLineItems.map((li) => ({
         ...(li.id ? { id: li.id } : {}), variant: li.variant ?? null,
         category: li.category, description: li.description, quantity: li.quantity,
-        unit: li.unit, unit_price: li.unit_price, is_taxable: li.is_taxable, sort_order: li.sort_order ?? 0,
+        unit: li.unit, unit_price: li.unit_price, sort_order: li.sort_order ?? 0,
       })),
       additional_meals: formAdditionalMeals.map(({ label, guest_count, price_per_head, dishes, based_on_template, meal_time, notes }) => ({
         label, guest_count, price_per_head: price_per_head || null, dishes, dish_ids: dishes, based_on_template, meal_time: meal_time || null, notes,

@@ -205,7 +205,7 @@ export default function QuoteDetailPage() {
     setEditLineItems((quote.line_items || []).map((li) => ({
       id: li.id, variant: li.variant, category: li.category, description: li.description,
       quantity: li.quantity, unit: li.unit, unit_price: li.unit_price,
-      is_taxable: li.is_taxable, sort_order: li.sort_order ?? 0,
+      sort_order: li.sort_order ?? 0,
     })));
     setMenuData({ dish_ids: quote.dishes || [], based_on_template: quote.based_on_template || null });
     setEditMeals((quote.additional_meals || []).map((m) => ({ ...m })));

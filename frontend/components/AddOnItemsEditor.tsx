@@ -54,7 +54,6 @@ export default function AddOnItemsEditor({
     quantity: "1",
     unit: p.default_unit,
     unit_price: v.unit_price,
-    is_taxable: p.is_taxable,
   });
   const indexOfVariant = (id: number) => items.findIndex((it) => it.variant === id);
 
@@ -66,7 +65,6 @@ export default function AddOnItemsEditor({
     quantity: "1",
     unit: p.default_unit,
     unit_price: p.unit_price ?? "",
-    is_taxable: p.is_taxable,
   });
   const indexOfProduct = (p: AddOnProduct) =>
     items.findIndex((it) => !it.variant && it.description === p.name);
@@ -195,7 +193,7 @@ export default function AddOnItemsEditor({
             </select>
           )}
           <button type="button"
-            onClick={() => add({ variant: null, category: "fee", description: "", quantity: "1", unit: "each", unit_price: "", is_taxable: true })}
+            onClick={() => add({ variant: null, category: "fee", description: "", quantity: "1", unit: "each", unit_price: "" })}
             className="text-xs text-primary hover:underline">+ Custom item</button>
         </div>
 
@@ -208,7 +206,6 @@ export default function AddOnItemsEditor({
                 <th className="pb-2 font-medium">Qty</th>
                 <th className="pb-2 font-medium">Unit</th>
                 <th className="pb-2 font-medium">Price</th>
-                <th className="pb-2 font-medium text-center">Tax</th>
                 <th className="pb-2 font-medium text-right">Total</th>
                 <th className="pb-2"></th>
               </tr>
@@ -234,9 +231,6 @@ export default function AddOnItemsEditor({
                   </td>
                   <td className="py-1 pr-2 w-24">
                     <input type="number" step="0.01" min={0} className={`${cellInput} text-right`} value={it.unit_price} placeholder="0.00" onChange={(e) => update(i, "unit_price", e.target.value)} />
-                  </td>
-                  <td className="py-1 text-center">
-                    <input type="checkbox" checked={it.is_taxable} onChange={(e) => update(i, "is_taxable", e.target.checked)} className="rounded border-input" />
                   </td>
                   <td className="py-1 text-right font-medium whitespace-nowrap">{fmt(lineItemTotal(it, guestCount))}</td>
                   <td className="py-1 text-right">

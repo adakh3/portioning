@@ -12,7 +12,6 @@ export interface LineItemInput {
   quantity: number | string;
   unit: string; // 'per_guest' | 'per_hour' | 'flat' | 'each'
   unit_price: number | string;
-  is_taxable: boolean;
   sort_order?: number;
 }
 
@@ -44,8 +43,9 @@ export function lineItemTotal(item: LineItemInput, guestCount: number): number {
  *
  * `foodTotal` already includes any additional meals (the caller sums them, as
  * the backend does). `taxRate` is the EFFECTIVE decimal fraction (0.2 = 20%);
- * pass 0 when the booking isn't taxable. Food + taxable line items form the
- * taxable base; non-taxable items sit in the subtotal but are never taxed.
+ * pass 0 when the booking isn't taxable. Tax applies to the WHOLE subtotal
+ * (food + all line items) — a discount is a negative line, so it reduces the
+ * subtotal before tax. There is no per-line taxable/non-taxable split.
  */
 export function computeBookingTotals(
   foodTotal: number,
@@ -54,15 +54,10 @@ export function computeBookingTotals(
   taxRate: number,
 ): BookingTotals {
   const food = round2(foodTotal || 0);
-  let taxable = food;
-  let nonTaxable = 0;
-  for (const item of lineItems) {
-    const lt = lineItemTotal(item, guestCount);
-    if (item.is_taxable) taxable += lt;
-    else nonTaxable += lt;
-  }
-  const subtotal = round2(taxable + nonTaxable);
-  const tax_amount = round2(taxable * (taxRate || 0));
+  let items = 0;
+  for (const item of lineItems) items += lineItemTotal(item, guestCount);
+  const subtotal = round2(food + items);
+  const tax_amount = round2(subtotal * (taxRate || 0));
   return { food_total: food, subtotal, tax_amount, total: round2(subtotal + tax_amount) };
 }
 
@@ -165,7 +160,6 @@ export function buildQuoteSavePayload(
       quantity: li.quantity,
       unit: li.unit,
       unit_price: li.unit_price,
-      is_taxable: li.is_taxable,
       sort_order: li.sort_order ?? 0,
     })),
   };
