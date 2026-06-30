@@ -106,14 +106,16 @@ export default function QuoteDetailPage() {
   const [editMeals, setEditMeals] = useState<EventMealData[]>([]);
   const [createMeals, setCreateMeals] = useState<EventMealData[]>([]);
 
-  // Set default price from settings in create mode
+  // Default the per-head price from settings ONLY once a menu is chosen — otherwise
+  // a no-menu quote silently carries a phantom food charge (the Q-59 bug).
   const defaultPriceApplied = useRef(false);
   useEffect(() => {
-    if (isNew && rawSettings && parseFloat(rawSettings.default_price_per_head) > 0 && !defaultPriceApplied.current) {
+    const hasMenu = menuData.dish_ids.length > 0 || menuData.based_on_template !== null;
+    if (isNew && hasMenu && rawSettings && parseFloat(rawSettings.default_price_per_head) > 0 && !defaultPriceApplied.current) {
       setCreateData((prev) => ({ ...prev, price_per_head: rawSettings.default_price_per_head }));
       defaultPriceApplied.current = true;
     }
-  }, [isNew, rawSettings]);
+  }, [isNew, rawSettings, menuData]);
 
   const setCreate = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setCreateData({ ...createData, [field]: e.target.value });

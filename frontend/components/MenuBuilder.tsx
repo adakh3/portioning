@@ -370,6 +370,31 @@ export default function MenuBuilder({
         </p>
       )}
 
+      {/* Price per head — always visible & clearable, not gated on dishes (so a
+          no-menu booking can set or zero it; the dish-based helpers below only
+          suggest a value). */}
+      {onPricePerHeadChange && (
+        <div className="flex items-center gap-3 bg-muted border border-border rounded-lg px-4 py-2.5">
+          <label className="inline-flex items-center gap-1.5 text-sm">
+            <span className="text-muted-foreground">Price/head</span>
+            <span className="text-muted-foreground">{currencySymbol}</span>
+            <input
+              type="number"
+              step="0.01"
+              min={0}
+              value={pricePerHead || ""}
+              onChange={(e) => onPricePerHeadChange(e.target.value)}
+              placeholder="0.00"
+              disabled={disabled}
+              className="w-24 border border-input rounded px-2 py-1 text-sm text-right"
+            />
+          </label>
+          {!hasDishes && (
+            <span className="text-xs text-muted-foreground">No menu selected — set a price per head, or pick dishes for a suggestion.</span>
+          )}
+        </div>
+      )}
+
       {/* Pricing Summary Bar */}
       {hasDishes && (
         <>
@@ -379,21 +404,6 @@ export default function MenuBuilder({
               <span className="text-sm text-muted-foreground">
                 Enter guest count to see suggested pricing
               </span>
-              {onPricePerHeadChange && (
-                <label className="ml-auto inline-flex items-center gap-1.5 text-sm">
-                  <span className="text-muted-foreground">Price/head</span>
-                  <span className="text-muted-foreground">{currencySymbol}</span>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min={0}
-                    value={pricePerHead || ""}
-                    onChange={(e) => onPricePerHeadChange(e.target.value)}
-                    placeholder="0.00"
-                    className="w-24 border border-input rounded px-2 py-1 text-sm text-right"
-                  />
-                </label>
-              )}
             </div>
           ) : showTierPrice && tierPrice ? (
             /* Template, unmodified, has tier */
@@ -418,21 +428,6 @@ export default function MenuBuilder({
                 />
                 %
               </label>
-              {onPricePerHeadChange && (
-                <label className="ml-auto inline-flex items-center gap-1.5 text-sm">
-                  <span className="text-muted-foreground">Price/head</span>
-                  <span className="text-muted-foreground">{currencySymbol}</span>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min={0}
-                    value={pricePerHead || ""}
-                    onChange={(e) => onPricePerHeadChange(e.target.value)}
-                    placeholder="0.00"
-                    className="w-24 border border-input rounded px-2 py-1 text-sm text-right"
-                  />
-                </label>
-              )}
             </div>
           ) : showCalculateButton ? (
             /* Need to calculate */
@@ -470,21 +465,6 @@ export default function MenuBuilder({
                       />
                       %
                     </label>
-                    {onPricePerHeadChange && (
-                      <label className="ml-auto inline-flex items-center gap-1.5 text-sm">
-                        <span className="text-muted-foreground">Price/head</span>
-                        <span className="text-muted-foreground">{currencySymbol}</span>
-                        <input
-                          type="number"
-                          step="0.01"
-                          min={0}
-                          value={pricePerHead || ""}
-                          onChange={(e) => onPricePerHeadChange(e.target.value)}
-                          placeholder="0.00"
-                          className="w-24 border border-input rounded px-2 py-1 text-sm text-right"
-                        />
-                      </label>
-                    )}
                   </div>
                   {calculatedPrice.breakdown && calculatedPrice.breakdown.length > 0 && (
                     <div className="flex flex-wrap gap-2 text-xs">
@@ -528,21 +508,6 @@ export default function MenuBuilder({
                       ? "Menu modified — click to recalculate"
                       : "Click to compute price from engine"}
                   </span>
-                  {onPricePerHeadChange && (
-                    <label className="ml-auto inline-flex items-center gap-1.5 text-sm">
-                      <span className="text-muted-foreground">Price/head</span>
-                      <span className="text-muted-foreground">{currencySymbol}</span>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min={0}
-                        value={pricePerHead || ""}
-                        onChange={(e) => onPricePerHeadChange(e.target.value)}
-                        placeholder="0.00"
-                        className="w-24 border border-input rounded px-2 py-1 text-sm text-right"
-                      />
-                    </label>
-                  )}
                 </>
               )}
             </div>
