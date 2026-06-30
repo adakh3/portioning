@@ -772,6 +772,27 @@ class TestQuoteAPI(TestCase):
         self.account = make_account(org=self.org)
         self.contact = make_contact(account=self.account, org=self.org)
 
+    def test_create_quote_with_additional_meals(self):
+        # Quotes now carry additional meals (parity with events).
+        res = self.client.post("/api/bookings/quotes/", {
+            "primary_contact": self.contact.id,
+            "event_date": "2026-09-01",
+            "guest_count": 20,
+            "price_per_head": "50.00",
+            "tax_rate": "0",
+            "additional_meals": [
+                {"label": "Welcome drinks", "guest_count": 20, "price_per_head": "15.00"},
+            ],
+        }, format="json")
+        self.assertEqual(res.status_code, 201, res.content)
+        body = res.json()
+        self.assertEqual(len(body["additional_meals"]), 1)
+        self.assertEqual(body["additional_meals"][0]["label"], "Welcome drinks")
+        quote = Quote.objects.get(id=body["id"])
+        # food = 50*20 + meal 15*20 = 1300
+        self.assertEqual(quote.food_total, Decimal("1300.00"))
+        self.assertEqual(quote.subtotal, Decimal("1300.00"))
+
     def test_accept_carries_line_items_to_event(self):
         # Headline bug: accepting a quote used to drop its add-on items.
         quote = make_quote(org=self.org, account=self.account, primary_contact=self.contact)
