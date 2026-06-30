@@ -18,7 +18,7 @@ from rest_framework.test import APIClient
 
 from calculator.engine.calculator import calculate_portions
 from dishes.models import Dish
-from events.models import Event, EventDishComment, EventMeal, EventMealDishComment
+from events.models import Event, EventDishComment, BookingMeal, BookingMealDishComment
 from tests.base import get_test_user
 
 
@@ -102,7 +102,7 @@ class KitchenMealsCharacterizationTests(TestCase):
             additional_meals=[{"label": "Dinner", "guest_count": 100, "dish_ids": self.dish_ids[:1]}],
         )["id"])
         meal = ev.additional_meals.get()
-        EventMealDishComment.objects.create(
+        BookingMealDishComment.objects.create(
             meal=meal, dish_id=self.dish_ids[0], portion_grams=123.5, comment="extra",
         )
         res = self.client.get(f"/api/events/{ev.id}/")
@@ -126,7 +126,7 @@ class KitchenMealsCharacterizationTests(TestCase):
             ],
         }, format="json")
         self.assertEqual(res.status_code, 200, res.content)
-        labels = sorted(EventMeal.objects.filter(event_id=eid).values_list("label", flat=True))
+        labels = sorted(BookingMeal.objects.filter(event_id=eid).values_list("label", flat=True))
         self.assertEqual(labels, ["New A", "New B"])  # old meal gone
 
     # ── Auto-portioning on confirm (the critical kitchen behavior) ────────────

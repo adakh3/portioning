@@ -165,8 +165,19 @@ class EventDishComment(models.Model):
         return f"{self.event.name} - {self.dish.name}"
 
 
-class EventMeal(models.Model):
-    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='additional_meals')
+class BookingMeal(models.Model):
+    """An additional meal on a quote OR an event (exactly one) — welcome drinks,
+    breakfast, a second service — each with its own menu, price-per-head, time and
+    notes. Mirrors BookingLineItem's quote-XOR-event parent, so a meal belongs to
+    one booking and survives the quote→event conversion as a copy."""
+    quote = models.ForeignKey(
+        'bookings.Quote', null=True, blank=True,
+        on_delete=models.CASCADE, related_name='additional_meals',
+    )
+    event = models.ForeignKey(
+        Event, null=True, blank=True,
+        on_delete=models.CASCADE, related_name='additional_meals',
+    )
     label = models.CharField(max_length=100)
     guest_count = models.IntegerField(default=0, validators=[MinValueValidator(0), MaxValueValidator(50000)])
     price_per_head = models.DecimalField(
@@ -182,13 +193,22 @@ class EventMeal(models.Model):
 
     class Meta:
         ordering = ['id']
+        constraints = [
+            models.CheckConstraint(
+                name='bookingmeal_exactly_one_parent',
+                condition=(
+                    models.Q(quote__isnull=False, event__isnull=True)
+                    | models.Q(quote__isnull=True, event__isnull=False)
+                ),
+            ),
+        ]
 
     def __str__(self):
-        return f"{self.label} for {self.event.name}"
+        return f"{self.label} for {self.event or self.quote}"
 
 
-class EventMealDishComment(models.Model):
-    meal = models.ForeignKey(EventMeal, on_delete=models.CASCADE, related_name='dish_comments')
+class BookingMealDishComment(models.Model):
+    meal = models.ForeignKey(BookingMeal, on_delete=models.CASCADE, related_name='dish_comments')
     dish = models.ForeignKey('dishes.Dish', on_delete=models.CASCADE)
     comment = models.TextField(blank=True)
     portion_grams = models.FloatField(null=True, blank=True)

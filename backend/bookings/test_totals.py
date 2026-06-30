@@ -139,10 +139,10 @@ class TestEventTotalsIntegration(TestCase):
         self.assertEqual(event.total, Decimal("1100.00"))
 
     def test_event_total_includes_additional_meals(self):
-        from events.models import Event, EventMeal
+        from events.models import Event, BookingMeal
         event = Event.objects.create(organisation=self.org, name="E3", date="2026-09-01",
                                      gents=10, ladies=10, price_per_head=Decimal("50.00"), is_taxable=False)
-        EventMeal.objects.create(event=event, label="Sehri", guest_count=20, price_per_head=Decimal("15.00"))
+        BookingMeal.objects.create(event=event, label="Sehri", guest_count=20, price_per_head=Decimal("15.00"))
         event.recalculate_totals()
         event.refresh_from_db()
         # main food = 50*20 = 1000 + meal 15*20 = 300 -> 1300
