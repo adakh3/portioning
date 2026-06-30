@@ -55,6 +55,29 @@ def _fmt(value, cs='£'):
     return f'{cs}{value:,.2f}'
 
 
+def food_summary_text(price_per_head, guest_count, food_total, cs='£'):
+    """The 'X per head × N guests = total' food line, or None when there's no
+    food cost. Pure + unit-tested (the PDF has no text-extraction test path)."""
+    if not food_total or food_total <= 0:
+        return None
+    return f'{_fmt(price_per_head or 0, cs)} per head × {guest_count} guests = {_fmt(food_total, cs)}'
+
+
+def addon_cells(item, cs='£'):
+    """(category, description, rate, amount) display strings for one add-on row —
+    includes the category label (F3). Pure + unit-tested."""
+    unit = UNIT_LABELS.get(item.unit, item.unit)
+    desc = item.description
+    if item.quantity != 1:
+        desc += f'  ({item.quantity} × {unit})'
+    return (
+        CATEGORY_LABELS.get(item.category, item.category),
+        desc,
+        _fmt(item.unit_price, cs),
+        _fmt(item.line_total, cs),
+    )
+
+
 def _styles():
     """Build paragraph styles used throughout the PDF."""
     base = getSampleStyleSheet()
@@ -366,7 +389,7 @@ def generate_quote_pdf(quote):
     dish_names = list(quote.dishes.values_list('name', flat=True))
     has_food_total = quote.food_total and quote.food_total > 0
 
-    ITEM_COL_WIDTHS = [CONTENT_W * 0.60, CONTENT_W * 0.20, CONTENT_W * 0.20]
+    ADDON_COL_WIDTHS = [CONTENT_W * 0.18, CONTENT_W * 0.42, CONTENT_W * 0.20, CONTENT_W * 0.20]
     MENU_COL_W = CONTENT_W * 0.50
 
     if dish_names:
@@ -398,34 +421,34 @@ def generate_quote_pdf(quote):
             menu_style.append(('LINEBELOW', (0, i), (-1, i), 0.25, BORDER_LIGHT))
         menu_table.setStyle(TableStyle(menu_style))
         elements.append(menu_table)
+        if not has_food_total:
+            elements.append(Spacer(1, 6 * mm))
 
-        # Bold summary line below the menu — only when a per-head price is set.
-        # The menu itself always shows so a price-less quote still lists its food.
-        if has_food_total:
+    # Food/menu summary — shown whenever there's a food cost, even with no dish
+    # list (otherwise food_total sits silently in the subtotal — the Q-59 bug).
+    food_line = food_summary_text(quote.price_per_head, quote.guest_count, quote.food_total, cs)
+    if food_line:
+        if dish_names:
             elements.append(Spacer(1, 3 * mm))
-            elements.append(Paragraph(
-                f'<b>{_fmt(quote.price_per_head, cs)} per head × {quote.guest_count} guests = {_fmt(quote.food_total, cs)}</b>',
-                s['body'],
-            ))
+        else:
+            elements.append(_section_header([Paragraph('FOOD / MENU', s['section_title'])], [CONTENT_W]))
+        elements.append(Paragraph(f'<b>{food_line}</b>', s['body']))
         elements.append(Spacer(1, 6 * mm))
 
     # ── 4. Add-ons / Line Items ──
     line_items = list(quote.line_items.all())
     if line_items:
         addons_header = _section_header([
+            Paragraph('CATEGORY', s['section_title']),
             Paragraph('ADD-ONS / ADDITIONAL ITEMS', s['section_title']),
             Paragraph('RATE', s['section_title_right']),
             Paragraph('AMOUNT', s['section_title_right']),
-        ], ITEM_COL_WIDTHS)
+        ], ADDON_COL_WIDTHS)
         elements.append(addons_header)
 
         addon_rows = []
         for item in line_items:
-            cat = CATEGORY_LABELS.get(item.category, item.category)
-            unit = UNIT_LABELS.get(item.unit, item.unit)
-            desc = item.description
-            if item.quantity != 1:
-                desc += f'  ({item.quantity} × {unit})'
+            cat, desc, rate, amount = addon_cells(item, cs)
 
             amount_style = s['body_right']
             if item.category == 'discount':
@@ -435,12 +458,13 @@ def generate_quote_pdf(quote):
                 )
 
             addon_rows.append([
+                Paragraph(cat, s['body']),
                 Paragraph(desc, s['body']),
-                Paragraph(_fmt(item.unit_price, cs), s['body_right']),
-                Paragraph(_fmt(item.line_total, cs), amount_style),
+                Paragraph(rate, s['body_right']),
+                Paragraph(amount, amount_style),
             ])
 
-        addon_table = Table(addon_rows, colWidths=ITEM_COL_WIDTHS)
+        addon_table = Table(addon_rows, colWidths=ADDON_COL_WIDTHS)
         addon_style = [
             ('VALIGN', (0, 0), (-1, -1), 'TOP'),
             ('TOPPADDING', (0, 0), (-1, -1), 3),
