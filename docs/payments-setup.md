@@ -129,6 +129,30 @@ stripe trigger customer.subscription.deleted
 
 ## 6. Going to production
 
+### You can deploy this *before* Stripe is configured
+Existing orgs keep working with **no Stripe env vars set at all**. The subscription gate is
+purely local — `middleware.py` reads the `Subscription` row and computes `has_access` from
+local fields (`comped` / `status` / `trial_ends_at`); it never calls Stripe. Since the
+grandfather migration marks every existing org `comped=True`, they all pass the gate with
+zero Stripe involvement. (The whole backend test suite runs with empty Stripe keys and passes.)
+
+What *does* need Stripe configured is only the active billing actions, and they **degrade
+gracefully — never a 500**:
+- Start trial / Subscribe (`/api/billing/checkout/`) → `400 "No plan price configured."` if
+  `STRIPE_PRICE_ID` is unset, or `502` if the key is bad.
+- Manage billing (`/api/billing/portal/`) → same graceful handling.
+- Webhook → `400` on a missing/bad secret (moot — no webhooks arrive without Stripe).
+
+These only matter once you onboard *paying* customers, so the rollout can be:
+```
+Deploy (no STRIPE_* yet) → migrations grandfather all orgs → everyone keeps working
+Later → set STRIPE_* env vars → paid onboarding (card wall) goes live
+```
+**Caveat:** the `stripe` *Python package* must still be installed (it's in `requirements.txt`,
+imported at startup) — that's a normal `pip install -r requirements.txt`, independent of
+whether the API *keys* are set. Package installed → app boots; keys set → paid billing works;
+existing orgs need neither.
+
 - **Existing orgs are grandfathered.** Migration `payments/0003_grandfather_existing_orgs`
   marks every org that exists at deploy time `comped=True` (complimentary access), so the
   gate never locks out current beta / friendly users. New orgs created after deploy go
