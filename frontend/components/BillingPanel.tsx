@@ -69,7 +69,9 @@ export default function BillingPanel() {
     return <p className="text-muted-foreground">Loading billing…</p>;
   }
 
-  const meta = STATUS_META[sub.status] ?? STATUS_META.none;
+  const meta = sub.comped
+    ? { label: "Free", variant: "success" as BadgeVariant }
+    : (STATUS_META[sub.status] ?? STATUS_META.none);
   const trialExpired = sub.status === "trialing" && !sub.is_trialing;
   const needsPlan = !sub.has_access; // expired trial, none, canceled, unpaid…
 
@@ -99,12 +101,25 @@ export default function BillingPanel() {
             <Badge variant={meta.variant}>{meta.label}</Badge>
           </div>
           <CardDescription>
-            {sub.plan_name ? sub.plan_name : "No active paid plan yet."}
+            {sub.comped
+              ? "Complimentary access"
+              : sub.plan_name
+                ? sub.plan_name
+                : "No active paid plan yet."}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* Complimentary access — no billing actions needed */}
+          {sub.comped && (
+            <p className="text-sm">
+              Your organisation has{" "}
+              <span className="font-semibold">complimentary access</span> — no
+              payment needed.
+            </p>
+          )}
+
           {/* Trial state */}
-          {sub.is_trialing && (
+          {!sub.comped && sub.is_trialing && (
             <p className="text-sm">
               You have{" "}
               <span className="font-semibold">
@@ -148,8 +163,8 @@ export default function BillingPanel() {
             </p>
           )}
 
-          {/* Actions — owner only */}
-          {isOwner ? (
+          {/* Actions — owner only; comped orgs have nothing to manage */}
+          {sub.comped ? null : isOwner ? (
             <div className="flex flex-wrap gap-3">
               {needsPlan && (
                 <Button

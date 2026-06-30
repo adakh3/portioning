@@ -100,6 +100,17 @@ class SubscriptionModelTests(TestCase):
         self.sub.stripe_customer_id = "cus_abc"
         self.assertTrue(self.sub.has_billing_account)
 
+    def test_comped_grants_access_regardless_of_status(self):
+        # Complimentary (friendly/grandfathered) access overrides status.
+        self.sub.status = SubscriptionStatus.NONE
+        self.sub.trial_ends_at = None
+        self.assertFalse(self.sub.has_access)
+        self.sub.comped = True
+        self.assertTrue(self.sub.has_access)
+        # Even an otherwise-dead status stays accessible while comped.
+        self.sub.status = SubscriptionStatus.CANCELED
+        self.assertTrue(self.sub.has_access)
+
 
 class SubscriptionStatusViewTests(BillingTestBase):
     def test_status_returns_no_access_for_new_org(self):
@@ -110,6 +121,7 @@ class SubscriptionStatusViewTests(BillingTestBase):
         self.assertFalse(body["has_access"])
         self.assertFalse(body["is_trialing"])
         self.assertFalse(body["has_billing_account"])
+        self.assertFalse(body["comped"])
 
     def test_status_requires_auth(self):
         self.assertIn(APIClient().get(SUBSCRIPTION).status_code, (401, 403))
@@ -335,6 +347,16 @@ class SubscriptionGateTests(TestCase):
         res = self.cookie_client(self.user).get(self.GATED)
         self.assertEqual(res.status_code, 402)
         self.assertEqual(res.json()["detail"], "subscription_required")
+
+    def test_comped_org_can_access_without_a_plan(self):
+        # A grandfathered / friendly org with no plan still gets in.
+        sub = self.org.subscription
+        sub.status = SubscriptionStatus.NONE
+        sub.trial_ends_at = None
+        sub.comped = True
+        sub.save()
+        res = self.cookie_client(self.user).get(self.GATED)
+        self.assertEqual(res.status_code, 200, res.content)
 
     def test_billing_endpoints_stay_reachable_when_blocked(self):
         self.expire_trial()

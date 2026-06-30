@@ -129,6 +129,13 @@ stripe trigger customer.subscription.deleted
 
 ## 6. Going to production
 
+- **Existing orgs are grandfathered.** Migration `payments/0003_grandfather_existing_orgs`
+  marks every org that exists at deploy time `comped=True` (complimentary access), so the
+  gate never locks out current beta / friendly users. New orgs created after deploy go
+  through the card-required trial. To move a grandfathered org onto a paid plan later,
+  uncheck **comped** in admin (Subscriptions) — they'll hit the card wall on their next visit.
+- **Comp access** (`Subscription.comped`) is the home for friendly/free users going forward:
+  grant or revoke it per-org in Django admin (editable column + bulk actions).
 - **Webhook endpoint:** don't use `stripe listen` in prod. Create an endpoint in the
   Dashboard (Developers → Webhooks) pointing at `https://<your-domain>/api/billing/webhook/`,
   subscribe to `customer.subscription.created|updated|deleted`, and copy **its** signing

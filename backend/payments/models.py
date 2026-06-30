@@ -63,6 +63,15 @@ class Subscription(models.Model):
     # meaningful while ``status == TRIALING``.
     trial_ends_at = models.DateTimeField(null=True, blank=True)
 
+    # Complimentary ("comp") access — full access with no payment, indefinitely.
+    # Used for friendly/beta users and orgs grandfathered in before billing
+    # launched. Independent of Stripe status; toggle in admin.
+    comped = models.BooleanField(
+        default=False,
+        help_text="Complimentary free access (friendly/beta/grandfathered). "
+                  "Grants access regardless of subscription status.",
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -87,10 +96,15 @@ class Subscription(models.Model):
 
     @property
     def has_access(self):
-        """True when the org may use the product: paying, in dunning, or on a
-        live free trial. An expired trial (status still ``TRIALING`` but past
-        ``trial_ends_at``) returns False until they subscribe."""
-        return self.status in PAID_ACCESS_STATUSES or self.is_trialing
+        """True when the org may use the product: comped (complimentary),
+        paying, in dunning, or on a live free trial. An expired trial (status
+        still ``TRIALING`` but past ``trial_ends_at``) returns False until they
+        subscribe."""
+        return (
+            self.comped
+            or self.status in PAID_ACCESS_STATUSES
+            or self.is_trialing
+        )
 
     @property
     def has_billing_account(self):

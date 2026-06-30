@@ -26,5 +26,6 @@ class SubscriptionSerializer(serializers.ModelSerializer):
             'trial_days_remaining',
             'has_access',
             'has_billing_account',
+            'comped',
         ]
         read_only_fields = fields

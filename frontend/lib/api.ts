@@ -1041,6 +1041,7 @@ export interface Subscription {
   trial_days_remaining: number;
   has_access: boolean;
   has_billing_account: boolean;
+  comped: boolean;
 }
 
 // API functions

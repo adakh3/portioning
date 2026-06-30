@@ -38,6 +38,7 @@ function makeSub(overrides: Partial<Subscription> = {}): Subscription {
     trial_days_remaining: 5,
     has_access: true,
     has_billing_account: false,
+    comped: false,
     ...overrides,
   };
 }
@@ -112,6 +113,17 @@ describe("BillingPage", () => {
     expect(screen.getByRole("button", { name: "Manage billing" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Subscribe" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Start your free trial" })).toBeNull();
+  });
+
+  it("comped org shows complimentary access and no billing buttons", () => {
+    mockUser = { id: 1, role: "owner" };
+    mockSub = makeSub({ status: "none", is_trialing: false, has_access: true, comped: true });
+    render(<BillingPage />);
+    expect(screen.getByText(/no payment needed/i)).toBeTruthy();
+    expect(screen.getByText("Free")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Start your free trial" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Subscribe" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Manage billing" })).toBeNull();
   });
 
   it("non-owner sees a read-only message, no buttons", () => {

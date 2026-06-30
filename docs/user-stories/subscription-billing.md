@@ -32,6 +32,14 @@ without contacting support.
       local comp — via the API (`POST /api/billing/extend-trial/<org_id>/`) or
       Django admin (editable `trial_ends_at` + an "Extend free trial" bulk
       action). This is a local access grant independent of Stripe.
+- [ ] **Complimentary (comp) access**: `Subscription.comped` grants full access
+      with no payment, indefinitely (friendly/beta users). `has_access` is true
+      whenever `comped`, regardless of status. Toggle in admin (editable column +
+      "Grant/Revoke complimentary access" actions).
+- [ ] **Grandfathering**: a data migration (`0003_grandfather_existing_orgs`)
+      marks every org that exists at billing launch `comped=True`, so deploying
+      the gate never locks out existing users. New orgs (created after) go
+      through the card-required trial.
 - [ ] Trial length is configurable via `DEFAULT_TRIAL_DAYS` (default 7).
 - [ ] Webhook endpoint verifies Stripe's signature, ignores unknown event types,
       and never 500s back to Stripe.
