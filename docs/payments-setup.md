@@ -12,6 +12,18 @@ No card data ever touches the app, so there's **no publishable key on the fronte
 - Access gating: `payments.middleware.SubscriptionGateMiddleware` (402 → `/billing`)
 - User story + manual cases: `docs/user-stories/subscription-billing.md`
 
+## Onboarding (how a customer gets an account)
+
+**Admin-provisioned** — there is intentionally **no public self-serve signup yet**.
+You create the org + owner account in **Django admin** (or invite via the in-app
+**Team** page); the customer logs in, hits the card wall (402 → `/billing`), and
+starts the card-required trial there. A locked-out org can always reach `/billing`
+and login — the gate exempts `/api/auth/*` and `/api/billing/*` — so no Settings
+access is needed to pay.
+
+A public `/signup` page + unauthenticated `POST /api/auth/register` (org + owner →
+auto-login → `/billing`) is the future self-serve path; deferred for now.
+
 ---
 
 ## 1. Environment variables
