@@ -543,7 +543,7 @@ class LeadWonView(APIView):
 
         event = Event.objects.create(
             name=event_name,
-            date=lead.event_date or lead.created_at.date(),
+            event_date=lead.event_date or lead.created_at.date(),
             gents=guest_count // 2,
             ladies=guest_count - (guest_count // 2),
             account=account,

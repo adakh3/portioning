@@ -43,7 +43,7 @@ class EquipmentItem(models.Model):
 
     def available_on_date(self, date):
         reserved = self.reservations.filter(
-            event__date=date,
+            event__event_date=date,
         ).aggregate(total=models.Sum('quantity_out'))['total'] or 0
         return max(0, self.stock_quantity - reserved)
 

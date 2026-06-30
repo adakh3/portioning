@@ -102,7 +102,7 @@ class QuoteTransitionView(APIView):
             guest_count = quote.guest_count
             event = Event.objects.create(
                 name=event_name,
-                date=quote.event_date,
+                event_date=quote.event_date,
                 gents=guest_count // 2,
                 ladies=guest_count - (guest_count // 2),
                 account=quote.account,

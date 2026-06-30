@@ -31,7 +31,7 @@ class Event(OrgScopedModel, models.Model):
         on_delete=models.CASCADE, related_name='events',
     )
     name = models.CharField(max_length=200)
-    date = models.DateField()
+    event_date = models.DateField()
     gents = models.IntegerField(default=0, validators=[MinValueValidator(0), MaxValueValidator(50000)])
     ladies = models.IntegerField(default=0, validators=[MinValueValidator(0), MaxValueValidator(50000)])
     big_eaters = models.BooleanField(default=False)
@@ -110,10 +110,10 @@ class Event(OrgScopedModel, models.Model):
     final_count_due = models.DateField(null=True, blank=True)
 
     class Meta:
-        ordering = ['-date']
+        ordering = ['-event_date']
 
     def __str__(self):
-        return f"{self.name} ({self.date})"
+        return f"{self.name} ({self.event_date})"
 
     @property
     def food_total(self):

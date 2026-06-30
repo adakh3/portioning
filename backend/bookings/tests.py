@@ -224,7 +224,7 @@ class TestBookingLineItemCalculation(TestCase):
     def test_exactly_one_parent_constraint(self):
         from django.db.utils import IntegrityError
         from events.models import Event
-        event = Event.objects.create(organisation=self.org, name="E", date="2026-09-01", gents=25, ladies=25)
+        event = Event.objects.create(organisation=self.org, name="E", event_date="2026-09-01", gents=25, ladies=25)
         with self.assertRaises(IntegrityError):
             BookingLineItem.objects.create(
                 quote=self.quote, event=event, category="fee", description="bad",
@@ -233,7 +233,7 @@ class TestBookingLineItemCalculation(TestCase):
 
     def test_event_line_item_uses_event_guest_count(self):
         from events.models import Event
-        event = Event.objects.create(organisation=self.org, name="E", date="2026-09-01", gents=20, ladies=30)
+        event = Event.objects.create(organisation=self.org, name="E", event_date="2026-09-01", gents=20, ladies=30)
         item = BookingLineItem.objects.create(
             event=event, category="beverage", description="Soft drinks",
             quantity=Decimal("1"), unit="per_guest", unit_price=Decimal("2.00"),
@@ -276,7 +276,7 @@ class TestInvoicePayments(TestCase):
         # Need an Event for Invoice FK - use events app
         from events.models import Event
         self.event = Event.objects.create(
-            name="Test Event", date="2026-06-15", gents=50, ladies=50,
+            name="Test Event", event_date="2026-06-15", gents=50, ladies=50,
             organisation=self.org,
         )
         self.invoice = Invoice.objects.create(
@@ -339,7 +339,7 @@ class TestEquipmentAvailability(TestCase):
     def test_reserved_reduces_availability(self):
         from events.models import Event
         event = Event.objects.create(
-            name="Wedding", date="2026-06-15", gents=50, ladies=50,
+            name="Wedding", event_date="2026-06-15", gents=50, ladies=50,
             organisation=self.org,
         )
         from equipment.models import EquipmentReservation
@@ -1194,7 +1194,7 @@ class TestInvoiceAPI(TestCase):
         self.client = _authenticated_client()
         from events.models import Event
         self.event = Event.objects.create(
-            name="Gala Dinner", date="2026-08-01", gents=60, ladies=60,
+            name="Gala Dinner", event_date="2026-08-01", gents=60, ladies=60,
             organisation=self.org,
         )
 

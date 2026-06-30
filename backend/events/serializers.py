@@ -50,6 +50,9 @@ class BookingMealSerializer(serializers.ModelSerializer):
 
 
 class EventSerializer(OrgScopedModelSerializer):
+    # The model field is `event_date` (shared booking name); the API keeps exposing
+    # it as `date` for now — the frontend is realigned in the editor-unification step.
+    date = serializers.DateField(source='event_date')
     constraint_override = EventConstraintOverrideSerializer(required=False)
     dish_ids = serializers.PrimaryKeyRelatedField(
         many=True, source='dishes', queryset=Dish.objects.none(), write_only=True, required=False
@@ -243,6 +246,7 @@ EVENT_LIST_EXCLUDE = {
 
 class EventListSerializer(serializers.ModelSerializer):
     """Lighter serializer for event list views."""
+    date = serializers.DateField(source='event_date')
     account_name = serializers.CharField(source='account.name', read_only=True, default=None)
     contact_name = serializers.CharField(source='primary_contact.name', read_only=True, default=None)
     venue_name = serializers.CharField(source='venue.name', read_only=True, default=None)

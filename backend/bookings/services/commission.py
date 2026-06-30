@@ -22,7 +22,7 @@ from events.models import Event
 EARNED_EVENT_STATUSES = ['confirmed', 'in_progress', 'completed']
 
 # Org's commission_basis -> the Event date field that buckets it into a period.
-BASIS_TO_DATE_FIELD = {'event_date': 'date', 'booking_date': 'booking_date'}
+BASIS_TO_DATE_FIELD = {'event_date': 'event_date', 'booking_date': 'booking_date'}
 
 # How many target cells make up a financial year for each period type.
 PERIOD_LENGTHS = {'monthly': 12, 'quarterly': 4, 'yearly': 1}

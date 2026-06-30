@@ -111,7 +111,7 @@ class Command(BaseCommand):
                 )
             Event.objects.create(
                 organisation=org, name=f"{DEMO_TAG} {rep.first_name}'s event",
-                gents=50, ladies=50, date=today, assigned_to=rep,
+                gents=50, ladies=50, event_date=today, assigned_to=rep,
                 status="confirmed", total=this_month_revenue,
             )
         self.stdout.write(self.style.SUCCESS(

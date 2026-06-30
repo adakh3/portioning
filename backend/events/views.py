@@ -20,8 +20,8 @@ def _auto_advance_event_statuses(org=None):
     When called without org (e.g. from a cron command), advances all.
     """
     today = date.today()
-    confirmed_qs = Event.objects.filter(status=EventStatus.CONFIRMED, date__lte=today)
-    in_progress_qs = Event.objects.filter(status=EventStatus.IN_PROGRESS, date__lt=today)
+    confirmed_qs = Event.objects.filter(status=EventStatus.CONFIRMED, event_date__lte=today)
+    in_progress_qs = Event.objects.filter(status=EventStatus.IN_PROGRESS, event_date__lt=today)
     if org:
         confirmed_qs = confirmed_qs.filter(organisation=org)
         in_progress_qs = in_progress_qs.filter(organisation=org)
@@ -39,7 +39,7 @@ class EventListCreateView(generics.ListCreateAPIView):
 
     def perform_create(self, serializer):
         org = get_request_org(self.request)
-        event_date = serializer.validated_data.get('date')
+        event_date = serializer.validated_data.get('event_date')
         if event_date:
             locked = LockedDate.objects.filter(organisation=org, date=event_date).first()
             if locked:
@@ -179,7 +179,7 @@ class EventCalendarView(APIView):
         })
 
         for event in base_qs:
-            d = str(event.date)
+            d = str(event.event_date)
             guests = (event.gents or 0) + (event.ladies or 0)
 
             # Org-wide totals (always counted)
