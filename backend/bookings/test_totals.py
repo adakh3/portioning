@@ -101,6 +101,28 @@ class TestQuoteTotalsIntegration(TestCase):
         self.assertEqual(quote.tax_amount, Decimal("680.00"))
         self.assertEqual(quote.total, Decimal("4280.00"))
 
+    def test_quote_total_includes_additional_meals(self):
+        # Parity with events: a quote's food total now includes its additional meals.
+        from events.models import BookingMeal
+        quote = make_quote(org=self.org, guest_count=20,
+                           price_per_head=Decimal("50.00"), tax_rate=Decimal("0"))
+        BookingMeal.objects.create(quote=quote, label="Welcome drinks",
+                                   guest_count=20, price_per_head=Decimal("15.00"))
+        quote.recalculate_totals()
+        quote.refresh_from_db()
+        # main food = 50*20 = 1000 + meal 15*20 = 300 -> 1300
+        self.assertEqual(quote.subtotal, Decimal("1300.00"))
+        self.assertEqual(quote.total, Decimal("1300.00"))
+
+    def test_quote_not_taxable_has_no_tax(self):
+        quote = make_quote(org=self.org, guest_count=10,
+                           price_per_head=Decimal("50.00"), tax_rate=Decimal("0.20"),
+                           is_taxable=False)
+        quote.recalculate_totals()
+        quote.refresh_from_db()
+        self.assertEqual(quote.subtotal, Decimal("500.00"))
+        self.assertEqual(quote.tax_amount, Decimal("0.00"))
+
 
 class TestEventTotalsIntegration(TestCase):
     """Events total up via the SAME engine: food + add-on items + tax."""

@@ -60,20 +60,33 @@ class Quote(OrgScopedModel, models.Model):
         on_delete=models.SET_NULL, related_name='quotes',
     )
     guest_count = models.IntegerField(validators=[MinValueValidator(1), MaxValueValidator(50000)])
+    # Gender split (shared booking field, mirrors Event) — backfilled 50/50 from
+    # guest_count; the food total still uses guest_count until the editor sends the
+    # split directly (frontend unification step).
+    gents = models.IntegerField(default=0, validators=[MinValueValidator(0), MaxValueValidator(50000)])
+    ladies = models.IntegerField(default=0, validators=[MinValueValidator(0), MaxValueValidator(50000)])
+    big_eaters = models.BooleanField(default=False)
+    big_eaters_percentage = models.FloatField(default=20.0, help_text="Percentage to increase all portions when big_eaters is on")
     price_per_head = models.DecimalField(
         max_digits=10, decimal_places=2, null=True, blank=True,
-        validators=[MaxValueValidator(Decimal('9999999.99'))],
+        validators=[MinValueValidator(Decimal('0')), MaxValueValidator(Decimal('9999999.99'))],
         help_text='Food/menu price per head',
     )
-    event_type = models.CharField(max_length=50, default='other')
+    event_type = models.CharField(max_length=50, blank=True)
     meal_type = models.CharField(max_length=50, blank=True)
     booking_date = models.DateField(null=True, blank=True, help_text='Date the client confirmed/booked')
     service_style = models.CharField(max_length=50, blank=True)
+    # Timeline (shared booking field, mirrors Event)
+    setup_time = models.DateTimeField(null=True, blank=True)
+    guest_arrival_time = models.DateTimeField(null=True, blank=True)
+    meal_time = models.DateTimeField(null=True, blank=True)
+    end_time = models.DateTimeField(null=True, blank=True)
     valid_until = models.DateField(null=True, blank=True)
-    subtotal = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
+    is_taxable = models.BooleanField(default=True, help_text='Whether tax applies to this booking')
+    subtotal = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
     tax_rate = models.DecimalField(max_digits=5, decimal_places=4, default=Decimal('0.2000'))
-    tax_amount = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
-    total = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
+    tax_amount = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+    total = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
     event = models.OneToOneField(
         'events.Event', null=True, blank=True,
         on_delete=models.SET_NULL, related_name='source_quote',
@@ -117,14 +130,22 @@ class Quote(OrgScopedModel, models.Model):
 
     @property
     def food_total(self):
+        """Taxable food/menu cost: main menu (price_per_head × guests) + any
+        additional meals (their own price_per_head × guest_count). Same shape as
+        Event.food_total (the main meal still uses guest_count for quotes)."""
+        total = Decimal('0.00')
         if self.price_per_head and self.price_per_head > 0:
-            return (self.price_per_head * self.guest_count).quantize(Decimal('0.01'))
-        return Decimal('0.00')
+            total += self.price_per_head * self.guest_count
+        for meal in self.additional_meals.all():
+            if meal.price_per_head and meal.guest_count:
+                total += meal.price_per_head * meal.guest_count
+        return total.quantize(Decimal('0.01'))
 
     def recalculate_totals(self):
-        # Shared engine — same math for quotes and events. See bookings/services/totals.py.
+        # Shared engine — identical math to events. See bookings/services/totals.py.
         from bookings.services.totals import compute_booking_totals
-        totals = compute_booking_totals(self.food_total, self.line_items.all(), self.tax_rate)
+        rate = self.tax_rate if self.is_taxable else Decimal('0')
+        totals = compute_booking_totals(self.food_total, self.line_items.all(), rate)
         self.subtotal = totals.subtotal
         self.tax_amount = totals.tax_amount
         self.total = totals.total
