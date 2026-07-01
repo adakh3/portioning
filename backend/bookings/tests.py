@@ -93,6 +93,10 @@ def make_quote(org=None, account=None, primary_contact=None, **kwargs):
         "event_type": "wedding",
     }
     defaults.update(kwargs)
+    # Keep the gender split consistent with guest_count (the editor sends both).
+    gc = defaults["guest_count"]
+    defaults.setdefault("gents", gc // 2)
+    defaults.setdefault("ladies", gc - gc // 2)
     return Quote.objects.create(**defaults)
 
 

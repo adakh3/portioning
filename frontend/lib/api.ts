@@ -406,6 +406,10 @@ export interface Quote {
   product: number | null;
   product_name: string | null;
   guest_count: number;
+  gents: number;
+  ladies: number;
+  big_eaters: boolean;
+  big_eaters_percentage: number;
   price_per_head: string | null;
   food_total: string;
   event_type: string;

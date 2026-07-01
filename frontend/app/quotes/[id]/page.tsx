@@ -9,6 +9,7 @@ import { formatDate } from "@/lib/dateFormat";
 import { formatCurrency } from "@/lib/utils";
 import MenuBuilder from "@/components/MenuBuilder";
 import AdditionalMealsEditor from "@/components/AdditionalMealsEditor";
+import GuestCountField, { GuestCountValue } from "@/components/GuestCountField";
 import BookingDetailsForm, { BookingDetailsValue } from "@/components/BookingDetailsForm";
 import { computeQuoteTotals, buildQuoteSavePayload, LineItemInput } from "@/lib/quoteTotals";
 import AddOnItemsEditor from "@/components/AddOnItemsEditor";
@@ -60,7 +61,11 @@ export default function QuoteDetailPage() {
     is_b2b: false,
     account: "",
     event_date: "",
-    guest_count: "",
+    gents: 0,
+    ladies: 0,
+    custom_split: false,
+    big_eaters: false,
+    big_eaters_percentage: 0,
     price_per_head: "",
     venue: "",
     venue_address: "",
@@ -84,7 +89,11 @@ export default function QuoteDetailPage() {
     venue: "",
     venue_address: "",
     event_date: "",
-    guest_count: "",
+    gents: 0,
+    ladies: 0,
+    custom_split: false,
+    big_eaters: false,
+    big_eaters_percentage: 0,
     price_per_head: "",
     event_type: "other",
     meal_type: "",
@@ -137,7 +146,8 @@ export default function QuoteDetailPage() {
       is_b2b: isBusiness || prev.is_b2b,
       account: isBusiness ? String(selectedLead.account) : prev.account,
       event_date: selectedLead.event_date || prev.event_date,
-      guest_count: selectedLead.guest_estimate ? String(selectedLead.guest_estimate) : prev.guest_count,
+      gents: selectedLead.guest_estimate ? Math.ceil(selectedLead.guest_estimate / 2) : prev.gents,
+      ladies: selectedLead.guest_estimate ? Math.floor(selectedLead.guest_estimate / 2) : prev.ladies,
       event_type: selectedLead.event_type || prev.event_type,
       meal_type: selectedLead.meal_type || prev.meal_type,
       service_style: selectedLead.service_style || prev.service_style,
@@ -157,7 +167,11 @@ export default function QuoteDetailPage() {
         venue: createData.venue ? Number(createData.venue) : null,
         venue_address: createData.venue_address,
         event_date: createData.event_date,
-        guest_count: Number(createData.guest_count),
+        gents: createData.gents,
+        ladies: createData.ladies,
+        guest_count: createData.gents + createData.ladies,
+        big_eaters: createData.big_eaters,
+        big_eaters_percentage: createData.big_eaters_percentage,
         price_per_head: createData.price_per_head ? createData.price_per_head : null,
         event_type: createData.event_type,
         meal_type: createData.meal_type || undefined,
@@ -191,7 +205,13 @@ export default function QuoteDetailPage() {
       is_b2b: quote.is_b2b,
       account: quote.account ? String(quote.account) : "",
       event_date: quote.event_date,
-      guest_count: String(quote.guest_count),
+      gents: quote.gents,
+      ladies: quote.ladies,
+      custom_split: !(quote.gents + quote.ladies === 0
+        || (quote.gents === Math.ceil((quote.gents + quote.ladies) / 2)
+          && quote.ladies === Math.floor((quote.gents + quote.ladies) / 2))),
+      big_eaters: quote.big_eaters,
+      big_eaters_percentage: quote.big_eaters_percentage,
       price_per_head: quote.price_per_head || "",
       venue: quote.venue ? String(quote.venue) : "",
       venue_address: quote.venue_address || "",
@@ -285,7 +305,7 @@ export default function QuoteDetailPage() {
   // Create mode
   if (isNew) {
     const createTotals = computeQuoteTotals(
-      createData.price_per_head, createData.guest_count,
+      createData.price_per_head, createData.gents + createData.ladies,
       parseFloat(createData.tax_rate || "0"), createLineItems, createMeals,
     );
     return (
@@ -340,14 +360,16 @@ export default function QuoteDetailPage() {
           <Card>
             <CardContent className="p-6">
               <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Menu &amp; Pricing</h2>
-              <div className="mb-4 max-w-xs">
-                <label className="block text-sm font-medium text-foreground mb-1">Guest Count *</label>
-                <ValidatedInput type="number" required min={1} max={50000} value={createData.guest_count} onChange={setCreate("guest_count")} />
+              <div className="mb-4">
+                <GuestCountField
+                  value={{ gents: createData.gents, ladies: createData.ladies, custom_split: createData.custom_split, big_eaters: createData.big_eaters, big_eaters_percentage: createData.big_eaters_percentage }}
+                  onChange={(patch) => setCreateData((prev) => ({ ...prev, ...patch }))}
+                />
               </div>
               <MenuBuilder
                 selectedDishIds={menuData.dish_ids}
                 basedOnTemplate={menuData.based_on_template}
-                guestCount={createData.guest_count ? Number(createData.guest_count) : undefined}
+                guestCount={(createData.gents + createData.ladies) || undefined}
                 onChange={setMenuData}
                 pricePerHead={createData.price_per_head}
                 onPricePerHeadChange={(val) => setCreateData((prev) => ({ ...prev, price_per_head: val }))}
@@ -374,7 +396,7 @@ export default function QuoteDetailPage() {
               <AddOnItemsEditor
                 items={createLineItems}
                 onChange={setCreateLineItems}
-                guestCount={createData.guest_count ? Number(createData.guest_count) : 0}
+                guestCount={createData.gents + createData.ladies}
                 currencySymbol={cs}
               />
             </CardContent>
@@ -385,7 +407,7 @@ export default function QuoteDetailPage() {
             title="Quote Total"
             currencySymbol={cs}
             foodTotal={createTotals.food_total}
-            foodLabel={`Food / Menu (${formatCurrency(createData.price_per_head || 0, cs)}/head × ${createData.guest_count || 0} guests)`}
+            foodLabel={`Food / Menu (${formatCurrency(createData.price_per_head || 0, cs)}/head × ${createData.gents + createData.ladies} guests)`}
             addOnsTotal={Math.round((createTotals.subtotal - createTotals.food_total) * 100) / 100}
             subtotal={createTotals.subtotal}
             taxAmount={createTotals.tax_amount}
@@ -444,9 +466,9 @@ export default function QuoteDetailPage() {
 
   // At this point, quote is guaranteed to be defined
   const q = quote!;
-  const editGuestCount = editData.guest_count ? Number(editData.guest_count) : q.guest_count;
+  const editGuestCount = (editData.gents + editData.ladies) || q.guest_count;
   const liveTotals = computeQuoteTotals(
-    editData.price_per_head, editData.guest_count,
+    editData.price_per_head, editData.gents + editData.ladies,
     parseFloat(editData.tax_rate || "0") / 100, editLineItems,
     editing ? editMeals : (q.additional_meals || []),
   );
@@ -696,9 +718,11 @@ export default function QuoteDetailPage() {
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">{editing ? "Menu & Pricing" : "Menu"}</h2>
           {editing ? (
             <>
-              <div className="mb-4 max-w-xs">
-                <label className="block text-sm font-medium text-foreground mb-1">Guest Count *</label>
-                <ValidatedInput type="number" required min={1} max={50000} value={editData.guest_count} onChange={setEdit("guest_count")} />
+              <div className="mb-4">
+                <GuestCountField
+                  value={{ gents: editData.gents, ladies: editData.ladies, custom_split: editData.custom_split, big_eaters: editData.big_eaters, big_eaters_percentage: editData.big_eaters_percentage }}
+                  onChange={(patch) => setEditData((prev) => ({ ...prev, ...patch }))}
+                />
               </div>
               <MenuBuilder
                 selectedDishIds={menuData.dish_ids}

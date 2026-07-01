@@ -99,12 +99,13 @@ class QuoteTransitionView(APIView):
             who = quote.account.name if quote.account_id else (
                 quote.primary_contact.name if quote.primary_contact_id else 'Event')
             event_name = f"{who} — {quote.event_type}"
-            guest_count = quote.guest_count
             event = Event.objects.create(
                 name=event_name,
                 event_date=quote.event_date,
-                gents=guest_count // 2,
-                ladies=guest_count - (guest_count // 2),
+                gents=quote.gents,
+                ladies=quote.ladies,
+                big_eaters=quote.big_eaters,
+                big_eaters_percentage=quote.big_eaters_percentage,
                 account=quote.account,
                 is_b2b=quote.is_b2b,
                 primary_contact=quote.primary_contact,

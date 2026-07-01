@@ -93,7 +93,10 @@ export interface QuoteEditData {
   is_b2b: boolean;
   account: string;
   event_date: string;
-  guest_count: string;
+  gents: number;
+  ladies: number;
+  big_eaters: boolean;
+  big_eaters_percentage: number;
   price_per_head: string;
   venue: string;
   venue_address: string;
@@ -156,7 +159,11 @@ export function buildQuoteSavePayload(
     is_b2b: editData.is_b2b,
     account: editData.is_b2b && editData.account ? Number(editData.account) : null,
     event_date: editData.event_date,
-    guest_count: Number(editData.guest_count),
+    gents: editData.gents,
+    ladies: editData.ladies,
+    guest_count: editData.gents + editData.ladies,
+    big_eaters: editData.big_eaters,
+    big_eaters_percentage: editData.big_eaters_percentage,
     price_per_head: editData.price_per_head ? editData.price_per_head : null,
     venue: editData.venue ? Number(editData.venue) : null,
     venue_address: editData.venue_address,
