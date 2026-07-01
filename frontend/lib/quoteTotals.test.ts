@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import { resolve } from "path";
-import { computeQuoteTotals, computeBookingTotals, buildQuoteSavePayload, lineItemTotal, LineItemInput } from "./quoteTotals";
+import { computeQuoteTotals, computeBookingTotals, buildQuoteSavePayload, buildEventSavePayload, EventSaveInput, lineItemTotal, LineItemInput } from "./quoteTotals";
 
 const item = (over: Partial<LineItemInput>): LineItemInput => ({
   category: "rental",
@@ -140,5 +140,58 @@ describe("buildQuoteSavePayload", () => {
     const b2b = buildQuoteSavePayload({ ...editData, is_b2b: true, account: "9" }, menuData, []);
     expect(b2b.is_b2b).toBe(true);
     expect(b2b.account).toBe(9);
+  });
+});
+
+describe("buildEventSavePayload", () => {
+  const base: EventSaveInput = {
+    name: "Acme — 2026-09-01", date: "2026-09-01",
+    is_b2b: false, account: 9, primary_contact: 3,
+    venue: null, venue_address: "", event_type: "corporate", meal_type: "lunch",
+    booking_date: "", service_style: "buffet", price_per_head: "50.00", notes: "n",
+    kitchen_instructions: "k", banquet_instructions: "b", setup_instructions: "s",
+    gents: 25, ladies: 15, guaranteed_count: 40, final_count: null, final_count_due: "",
+    big_eaters: true, big_eaters_percentage: 30,
+    setup_time: "2026-09-01T09:00", guest_arrival_time: "", meal_time: "", end_time: "",
+    is_taxable: true,
+    dish_ids: [1, 2], based_on_template: null,
+    line_items: [{ id: 7, category: "rental", description: "Chairs", quantity: 2, unit: "each", unit_price: 100 }],
+    meals: [{ label: "Tea", guest_count: 40, price_per_head: "15.00", dishes: [3], based_on_template: null, meal_time: null, notes: "" }],
+  };
+
+  it("carries the event-only fields (split, timeline, counts, instructions)", () => {
+    const p = buildEventSavePayload(base);
+    expect(p).toMatchObject({
+      name: "Acme — 2026-09-01", date: "2026-09-01",
+      gents: 25, ladies: 15, big_eaters: true, big_eaters_percentage: 30,
+      guaranteed_count: 40, kitchen_instructions: "k", is_taxable: true,
+      setup_time: "2026-09-01T09:00",
+    });
+  });
+
+  it("blank optional times/dates/counts become null", () => {
+    const p = buildEventSavePayload(base);
+    expect(p.booking_date).toBeNull();
+    expect(p.guest_arrival_time).toBeNull();
+    expect(p.final_count_due).toBeNull();
+    expect(p.final_count).toBeNull();
+  });
+
+  it("only sends the business when B2B", () => {
+    expect(buildEventSavePayload(base).account).toBeNull();      // is_b2b false → account dropped
+    expect(buildEventSavePayload({ ...base, is_b2b: true }).account).toBe(9);
+  });
+
+  it("serializes meals with dish_ids (not the read-only dishes) — shared with quotes", () => {
+    const p = buildEventSavePayload(base);
+    expect(p.additional_meals).toEqual([
+      { label: "Tea", guest_count: 40, price_per_head: "15.00", dish_ids: [3], based_on_template: null, meal_time: null, notes: "" },
+    ]);
+  });
+
+  it("serializes line items without per-line taxability; preserves id", () => {
+    const p = buildEventSavePayload(base);
+    expect(p.line_items[0]).toMatchObject({ id: 7, category: "rental", description: "Chairs" });
+    expect(p.line_items[0]).not.toHaveProperty("is_taxable");
   });
 });

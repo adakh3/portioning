@@ -118,6 +118,33 @@ export interface QuoteMenuData {
  * dish-only save, per-line-item CRUD) — and crucially carries price_per_head
  * alongside the menu so the food cost actually reaches the totals.
  */
+/** Serialize add-on line items for a booking save (quote OR event). */
+export function buildLineItemsPayload(lineItems: LineItemInput[]) {
+  return lineItems.map((li) => ({
+    ...(li.id ? { id: li.id } : {}),
+    variant: li.variant ?? null,
+    category: li.category,
+    description: li.description,
+    quantity: li.quantity,
+    unit: li.unit,
+    unit_price: li.unit_price,
+    sort_order: li.sort_order ?? 0,
+  }));
+}
+
+/** Serialize additional meals for a booking save (quote OR event). */
+export function buildMealsPayload(meals: EventMealData[]) {
+  return meals.map((m) => ({
+    label: m.label,
+    guest_count: m.guest_count,
+    price_per_head: m.price_per_head || null,
+    dish_ids: m.dishes,
+    based_on_template: m.based_on_template,
+    meal_time: m.meal_time || null,
+    notes: m.notes,
+  }));
+}
+
 export function buildQuoteSavePayload(
   editData: QuoteEditData,
   menuData: QuoteMenuData,
@@ -125,15 +152,6 @@ export function buildQuoteSavePayload(
   meals: EventMealData[] = [],
 ) {
   return {
-    additional_meals: meals.map((m) => ({
-      label: m.label,
-      guest_count: m.guest_count,
-      price_per_head: m.price_per_head || null,
-      dish_ids: m.dishes,
-      based_on_template: m.based_on_template,
-      meal_time: m.meal_time || null,
-      notes: m.notes,
-    })),
     primary_contact: editData.primary_contact ? Number(editData.primary_contact) : null,
     is_b2b: editData.is_b2b,
     account: editData.is_b2b && editData.account ? Number(editData.account) : null,
@@ -152,15 +170,82 @@ export function buildQuoteSavePayload(
     internal_notes: editData.internal_notes,
     dish_ids: menuData.dish_ids,
     based_on_template: menuData.based_on_template,
-    line_items: lineItems.map((li) => ({
-      ...(li.id ? { id: li.id } : {}),
-      variant: li.variant ?? null,
-      category: li.category,
-      description: li.description,
-      quantity: li.quantity,
-      unit: li.unit,
-      unit_price: li.unit_price,
-      sort_order: li.sort_order ?? 0,
-    })),
+    line_items: buildLineItemsPayload(lineItems),
+    additional_meals: buildMealsPayload(meals),
+  };
+}
+
+/** The event save payload. Shares the line-item + meal serialization with quotes;
+ * adds the event-only fields (name, gents/ladies split, timeline, counts,
+ * kitchen instructions). Pure + unit-tested — the event editor calls this. */
+export interface EventSaveInput {
+  name: string;
+  date: string;
+  is_b2b: boolean;
+  account: number | null;
+  primary_contact: number | null;
+  venue: number | null;
+  venue_address: string;
+  event_type: string;
+  meal_type: string;
+  booking_date: string;
+  service_style: string;
+  price_per_head: string | null;
+  notes: string;
+  kitchen_instructions: string;
+  banquet_instructions: string;
+  setup_instructions: string;
+  gents: number;
+  ladies: number;
+  guaranteed_count: number | null;
+  final_count: number | null;
+  final_count_due: string;
+  big_eaters: boolean;
+  big_eaters_percentage: number;
+  setup_time: string;
+  guest_arrival_time: string;
+  meal_time: string;
+  end_time: string;
+  is_taxable: boolean;
+  dish_ids: number[];
+  based_on_template: number | null;
+  line_items: LineItemInput[];
+  meals: EventMealData[];
+}
+
+export function buildEventSavePayload(v: EventSaveInput) {
+  return {
+    name: v.name,
+    date: v.date,
+    is_b2b: v.is_b2b,
+    account: v.is_b2b ? v.account : null,
+    primary_contact: v.primary_contact,
+    venue: v.venue,
+    venue_address: v.venue_address,
+    event_type: v.event_type,
+    meal_type: v.meal_type,
+    booking_date: v.booking_date || null,
+    service_style: v.service_style,
+    price_per_head: v.price_per_head || null,
+    notes: v.notes,
+    kitchen_instructions: v.kitchen_instructions,
+    banquet_instructions: v.banquet_instructions,
+    setup_instructions: v.setup_instructions,
+    gents: v.gents,
+    ladies: v.ladies,
+    guaranteed_count: v.guaranteed_count,
+    final_count: v.final_count,
+    final_count_due: v.final_count_due || null,
+    big_eaters: v.big_eaters,
+    big_eaters_percentage: v.big_eaters_percentage,
+    setup_time: v.setup_time || null,
+    guest_arrival_time: v.guest_arrival_time || null,
+    meal_time: v.meal_time || null,
+    end_time: v.end_time || null,
+    is_taxable: v.is_taxable,
+    dish_ids: v.dish_ids,
+    based_on_template: v.based_on_template,
+    line_items: buildLineItemsPayload(v.line_items),
+    additional_meals: buildMealsPayload(v.meals),
   };
 }

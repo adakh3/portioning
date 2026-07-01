@@ -24,7 +24,7 @@ import {
 } from "@/lib/hooks";
 import DealWonDialog from "@/components/DealWonDialog";
 import { formatDate, formatDateTime as sharedFormatDateTime } from "@/lib/dateFormat";
-import { LineItemInput, lineItemTotal, computeBookingTotals } from "@/lib/quoteTotals";
+import { LineItemInput, lineItemTotal, computeBookingTotals, buildEventSavePayload } from "@/lib/quoteTotals";
 import BookingTotalsCard from "@/components/BookingTotalsCard";
 import AddOnItemsEditor from "@/components/AddOnItemsEditor";
 import MenuBuilder from "@/components/MenuBuilder";
@@ -247,17 +247,17 @@ export default function EventDetailPage() {
     setSaving(true);
     const customerName = orgContacts.find((c) => c.id === formContact)?.name
       || accounts.find((a) => a.id === formAccount)?.name || "Event";
-    const payload = {
+    const payload = buildEventSavePayload({
       name: `${customerName} — ${formDate}`,
       date: formDate,
       is_b2b: formIsB2b,
-      account: formIsB2b ? formAccount : null,
+      account: formAccount,
       primary_contact: formContact,
       venue: formVenue,
       venue_address: formVenueAddress,
       event_type: formEventType,
       meal_type: formMealType,
-      booking_date: formBookingDate || null,
+      booking_date: formBookingDate,
       service_style: formServiceStyle,
       price_per_head: formPricePerHead || null,
       notes: formNotes,
@@ -268,34 +268,25 @@ export default function EventDetailPage() {
       ladies: formLadies,
       guaranteed_count: formGuaranteed,
       final_count: formFinalCount,
-      final_count_due: formFinalCountDue || null,
+      final_count_due: formFinalCountDue,
       big_eaters: formBigEaters,
       big_eaters_percentage: formBigEatersPercent,
-      setup_time: formSetupTime || null,
-      guest_arrival_time: formArrivalTime || null,
-      meal_time: formMealTime || null,
-      end_time: formEndTime || null,
+      setup_time: formSetupTime,
+      guest_arrival_time: formArrivalTime,
+      meal_time: formMealTime,
+      end_time: formEndTime,
       is_taxable: formIsTaxable,
-      line_items: formLineItems.map((li) => ({
-        ...(li.id ? { id: li.id } : {}), variant: li.variant ?? null,
-        category: li.category, description: li.description, quantity: li.quantity,
-        unit: li.unit, unit_price: li.unit_price, sort_order: li.sort_order ?? 0,
-      })),
-      additional_meals: formAdditionalMeals.map(({ label, guest_count, price_per_head, dishes, based_on_template, meal_time, notes }) => ({
-        label, guest_count, price_per_head: price_per_head || null, dishes, dish_ids: dishes, based_on_template, meal_time: meal_time || null, notes,
-      })),
-    };
+      dish_ids: menuData.dish_ids,
+      based_on_template: menuData.based_on_template,
+      line_items: formLineItems,
+      meals: formAdditionalMeals,
+    });
     try {
       if (isNew) {
-        const created = await api.createEvent({
-          ...payload,
-          status: formStatus,
-          dish_ids: menuData.dish_ids,
-          based_on_template: menuData.based_on_template,
-        });
+        const created = await api.createEvent({ ...payload, status: formStatus });
         router.push(`/events/${created.id}`);
       } else {
-        await api.updateEvent(event!.id, payload as Partial<EventData>);
+        await api.updateEvent(event!.id, payload);
         await mutateEvent();
         setEditing(false);
       }

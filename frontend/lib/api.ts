@@ -1066,13 +1066,13 @@ export const api = {
     const qs = searchParams.toString();
     return fetchList<EventData>(`/events/${qs ? `?${qs}` : ""}`);
   },
-  createEvent: (data: Omit<Partial<EventData>, "line_items"> & { dish_ids?: number[]; dish_comments?: EventDishComment[]; line_items?: unknown[] }) =>
+  createEvent: (data: Omit<Partial<EventData>, "line_items" | "additional_meals"> & { dish_ids?: number[]; dish_comments?: EventDishComment[]; line_items?: unknown[]; additional_meals?: unknown[] }) =>
     fetchApi<EventData>("/events/", {
       method: "POST",
       body: JSON.stringify(data),
     }),
   getEvent: (id: number) => fetchApi<EventData>(`/events/${id}/`),
-  updateEvent: (id: number, data: Omit<Partial<EventData>, "line_items"> & { dish_ids?: number[]; dish_comments?: EventDishComment[]; line_items?: unknown[] }) =>
+  updateEvent: (id: number, data: Omit<Partial<EventData>, "line_items" | "additional_meals"> & { dish_ids?: number[]; dish_comments?: EventDishComment[]; line_items?: unknown[]; additional_meals?: unknown[] }) =>
     fetchApi<EventData>(`/events/${id}/`, {
       method: "PATCH",
       body: JSON.stringify(data),
