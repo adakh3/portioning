@@ -29,6 +29,7 @@ import BookingTotalsCard from "@/components/BookingTotalsCard";
 import AddOnItemsEditor from "@/components/AddOnItemsEditor";
 import MenuBuilder from "@/components/MenuBuilder";
 import AdditionalMealsEditor from "@/components/AdditionalMealsEditor";
+import GuestCountField, { GuestCountValue } from "@/components/GuestCountField";
 import BookingDetailsForm, { BookingDetailsValue } from "@/components/BookingDetailsForm";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -141,7 +142,6 @@ export default function EventDetailPage() {
   const [formSetupInstructions, setFormSetupInstructions] = useState("");
 
   // Guest form fields
-  const [formTotalGuests, setFormTotalGuests] = useState(0);
   const [formCustomSplit, setFormCustomSplit] = useState(false);
   const [formGents, setFormGents] = useState(0);
   const [formLadies, setFormLadies] = useState(0);
@@ -150,6 +150,15 @@ export default function EventDetailPage() {
   const [formFinalCountDue, setFormFinalCountDue] = useState("");
   const [formBigEaters, setFormBigEaters] = useState(false);
   const [formBigEatersPercent, setFormBigEatersPercent] = useState(0);
+  const totalGuests = formGents + formLadies;
+  // Adapter for the shared GuestCountField (canonical value = gents/ladies).
+  const applyGuestPatch = (patch: Partial<GuestCountValue>) => {
+    if (patch.gents !== undefined) setFormGents(patch.gents);
+    if (patch.ladies !== undefined) setFormLadies(patch.ladies);
+    if (patch.custom_split !== undefined) setFormCustomSplit(patch.custom_split);
+    if (patch.big_eaters !== undefined) setFormBigEaters(patch.big_eaters);
+    if (patch.big_eaters_percentage !== undefined) setFormBigEatersPercent(patch.big_eaters_percentage);
+  };
 
   // Timeline form fields
   const [formSetupTime, setFormSetupTime] = useState("");
@@ -187,7 +196,6 @@ export default function EventDetailPage() {
     setFormBanquetInstructions(data.banquet_instructions || "");
     setFormSetupInstructions(data.setup_instructions || "");
     const total = data.gents + data.ladies;
-    setFormTotalGuests(total);
     setFormGents(data.gents);
     setFormLadies(data.ladies);
     const is5050 = total === 0 || (data.gents === Math.ceil(total / 2) && data.ladies === Math.floor(total / 2));
@@ -700,98 +708,10 @@ export default function EventDetailPage() {
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Main Meal</h2>
             {editing ? (
               <div className="space-y-4">
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-1">Total Guests</label>
-                    <ValidatedInput
-                      type="number"
-                      min={1}
-                      max={100000}
-                      value={formTotalGuests || ""}
-                      onChange={(e) => {
-                        const total = Math.max(0, Number(e.target.value) || 0);
-                        setFormTotalGuests(total);
-                        if (formCustomSplit) {
-                          const prevTotal = formGents + formLadies;
-                          const ratio = prevTotal > 0 ? formGents / prevTotal : 0.5;
-                          const gents = Math.round(total * ratio);
-                          setFormGents(gents);
-                          setFormLadies(total - gents);
-                        } else {
-                          setFormGents(Math.ceil(total / 2));
-                          setFormLadies(Math.floor(total / 2));
-                        }
-                      }}
-                    />
-                  </div>
-                  <div className="flex items-end pb-1">
-                    <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={formCustomSplit}
-                        onChange={(e) => {
-                          const custom = e.target.checked;
-                          setFormCustomSplit(custom);
-                          if (!custom) {
-                            setFormGents(Math.ceil(formTotalGuests / 2));
-                            setFormLadies(Math.floor(formTotalGuests / 2));
-                          }
-                        }}
-                        className="rounded border-input"
-                      />
-                      Customise split
-                    </label>
-                  </div>
-                </div>
-                {formCustomSplit && (
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-foreground mb-1">Gents</label>
-                      <ValidatedInput
-                        type="number"
-                        min={0}
-                        max={formTotalGuests}
-                        value={formGents}
-                        onChange={(e) => {
-                          const gents = Math.max(0, Number(e.target.value) || 0);
-                          setFormGents(gents);
-                          setFormLadies(Math.max(0, formTotalGuests - gents));
-                        }}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-foreground mb-1">Ladies</label>
-                      <ValidatedInput
-                        type="number"
-                        min={0}
-                        max={formTotalGuests}
-                        value={formLadies}
-                        onChange={(e) => {
-                          const ladies = Math.max(0, Number(e.target.value) || 0);
-                          setFormLadies(ladies);
-                          setFormGents(Math.max(0, formTotalGuests - ladies));
-                        }}
-                      />
-                    </div>
-                  </div>
-                )}
-                {!formCustomSplit && formTotalGuests > 0 && (
-                  <p className="text-xs text-muted-foreground">
-                    Split: {Math.ceil(formTotalGuests / 2)} gents / {Math.floor(formTotalGuests / 2)} ladies
-                  </p>
-                )}
-                <div className="flex items-end pb-1">
-                  <label className="flex items-center gap-2 text-sm">
-                    <input type="checkbox" checked={formBigEaters} onChange={(e) => setFormBigEaters(e.target.checked)} className="rounded border-input text-primary focus:ring-ring" />
-                    <span className="font-medium text-foreground">Big Eaters</span>
-                  </label>
-                  {formBigEaters && (
-                    <div className="ml-4 flex items-center gap-1.5">
-                      <ValidatedInput type="number" min={0} max={100} value={formBigEatersPercent} onChange={(e) => setFormBigEatersPercent(Number(e.target.value))} className="w-20 h-8" />
-                      <span className="text-xs text-muted-foreground">%</span>
-                    </div>
-                  )}
-                </div>
+                <GuestCountField
+                  value={{ gents: formGents, ladies: formLadies, custom_split: formCustomSplit, big_eaters: formBigEaters, big_eaters_percentage: formBigEatersPercent }}
+                  onChange={applyGuestPatch}
+                />
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-foreground mb-1">Guaranteed Count</label>
@@ -830,7 +750,7 @@ export default function EventDetailPage() {
                       onChange={setMenuData}
                       pricePerHead={formPricePerHead}
                       onPricePerHeadChange={setFormPricePerHead}
-                      guestCount={formTotalGuests}
+                      guestCount={totalGuests}
                       currencySymbol={settings.currency_symbol}
                     />
                   ) : (
@@ -840,7 +760,7 @@ export default function EventDetailPage() {
                       onSave={handleMenuSave}
                       pricePerHead={formPricePerHead}
                       onPricePerHeadChange={setFormPricePerHead}
-                      guestCount={formTotalGuests}
+                      guestCount={totalGuests}
                       currencySymbol={settings.currency_symbol}
                       disabled={false}
                     />
@@ -896,7 +816,7 @@ export default function EventDetailPage() {
             <AddOnItemsEditor
               items={formLineItems}
               onChange={setFormLineItems}
-              guestCount={formTotalGuests}
+              guestCount={totalGuests}
               currencySymbol={settings.currency_symbol}
             />
           ) : (event!.line_items?.length ?? 0) > 0 ? (
@@ -921,7 +841,7 @@ export default function EventDetailPage() {
       {/* Pricing Section — shared BookingTotalsCard + engine (same as quotes) */}
       {(() => {
         const pph = editing ? parseFloat(formPricePerHead) || 0 : parseFloat(event?.price_per_head || "0");
-        const guests = editing ? formTotalGuests : ((event?.gents || 0) + (event?.ladies || 0));
+        const guests = editing ? totalGuests : ((event?.gents || 0) + (event?.ladies || 0));
         const foodTotal = pph * guests;
         const meals = editing ? formAdditionalMeals : (event?.additional_meals || []);
         const mealsTotal = meals.reduce((sum, m) => sum + m.guest_count * (parseFloat(m.price_per_head || "0") || 0), 0);
