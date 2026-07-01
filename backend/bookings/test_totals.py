@@ -168,3 +168,83 @@ class TestEventTotalsIntegration(TestCase):
         # main food = 50*20 = 1000 + meal 15*20 = 300 -> 1300
         self.assertEqual(event.subtotal, Decimal("1300.00"))
         self.assertEqual(event.total, Decimal("1300.00"))
+
+
+class TestTotalsReconciliation(TestCase):
+    """Guard the invariant Q-59 violated: everything in the subtotal is accounted
+    for, and the money adds up — subtotal = food_total + line items, tax = the
+    effective rate × the WHOLE subtotal, total = subtotal + tax. A regression
+    that hides a charge in the subtotal (the phantom food line) breaks this."""
+
+    def setUp(self):
+        self.org = _make_org()
+
+    def _assert_reconciles(self, booking, effective_rate):
+        booking.refresh_from_db()
+        items = sum((li.line_total for li in booking.line_items.all()), Decimal("0.00"))
+        self.assertEqual(booking.subtotal, booking.food_total + items,
+                         "subtotal must equal food_total + every line item")
+        self.assertEqual(booking.tax_amount, (booking.subtotal * effective_rate).quantize(Decimal("0.01")),
+                         "tax must be the effective rate × the whole subtotal")
+        self.assertEqual(booking.total, booking.subtotal + booking.tax_amount)
+
+    def test_q59_quote_reconciles(self):
+        # The real Q-59 shape at the model level: a per-head food charge + priced
+        # add-ons + a discount, taxed at 5% on the whole subtotal.
+        quote = make_quote(org=self.org, guest_count=40,
+                           price_per_head=Decimal("50.00"), tax_rate=Decimal("0.05"))
+        BookingLineItem.objects.create(quote=quote, category="beverage", description="Tea & Coffee",
+                                       quantity=Decimal("40"), unit="each", unit_price=Decimal("1200"))
+        BookingLineItem.objects.create(quote=quote, category="rental", description="Boxes",
+                                       quantity=Decimal("40"), unit="each", unit_price=Decimal("1880"))
+        BookingLineItem.objects.create(quote=quote, category="discount", description="Lumsum",
+                                       quantity=Decimal("1"), unit="flat", unit_price=Decimal("11200"))
+        quote.refresh_from_db()
+        self.assertEqual(quote.food_total, Decimal("2000.00"))   # 50 × 40 (must be visible on the PDF)
+        self.assertEqual(quote.subtotal, Decimal("114000.00"))   # 2000 + 48000 + 75200 - 11200
+        self.assertEqual(quote.tax_amount, Decimal("5700.00"))   # 5% of the whole subtotal
+        self.assertEqual(quote.total, Decimal("119700.00"))
+        self._assert_reconciles(quote, Decimal("0.05"))
+
+    def test_quote_with_meals_reconciles(self):
+        from events.models import BookingMeal
+        quote = make_quote(org=self.org, guest_count=20,
+                           price_per_head=Decimal("50"), tax_rate=Decimal("0.10"))
+        BookingMeal.objects.create(quote=quote, label="Welcome drinks", guest_count=20, price_per_head=Decimal("15"))
+        BookingLineItem.objects.create(quote=quote, category="rental", description="Chairs",
+                                       quantity=Decimal("1"), unit="flat", unit_price=Decimal("500"))
+        quote.recalculate_totals()
+        quote.refresh_from_db()
+        self.assertEqual(quote.food_total, Decimal("1300.00"))   # 50×20 main + 15×20 meal
+        self._assert_reconciles(quote, Decimal("0.10"))
+
+    def test_event_not_taxable_reconciles_at_zero_rate(self):
+        from events.models import Event
+        event = Event.objects.create(organisation=self.org, name="E", event_date="2026-09-01",
+                                     gents=25, ladies=25, price_per_head=Decimal("40"),
+                                     is_taxable=False, tax_rate=Decimal("0.15"))
+        BookingLineItem.objects.create(event=event, category="rental", description="X",
+                                       quantity=Decimal("1"), unit="flat", unit_price=Decimal("300"))
+        # is_taxable False → the effective rate is 0 even though tax_rate is 0.15.
+        self._assert_reconciles(event, Decimal("0"))
+
+    def test_discount_is_pre_tax(self):
+        # A discount is a negative line, so it reduces the subtotal *before* tax.
+        quote = make_quote(org=self.org, guest_count=10,
+                           price_per_head=Decimal("100"), tax_rate=Decimal("0.20"))
+        BookingLineItem.objects.create(quote=quote, category="discount", description="Promo",
+                                       quantity=Decimal("1"), unit="flat", unit_price=Decimal("200"))
+        quote.refresh_from_db()
+        self.assertEqual(quote.subtotal, Decimal("800.00"))     # 1000 food - 200
+        self.assertEqual(quote.tax_amount, Decimal("160.00"))   # 20% of the NET 800, not 1000
+        self._assert_reconciles(quote, Decimal("0.20"))
+
+    def test_big_eaters_does_not_change_food_total(self):
+        # big_eaters is a portioning modifier (grams), not a price multiplier.
+        from events.models import Event
+        plain = Event.objects.create(organisation=self.org, name="A", event_date="2026-09-01",
+                                     gents=10, ladies=10, price_per_head=Decimal("50"))
+        big = Event.objects.create(organisation=self.org, name="B", event_date="2026-09-01",
+                                   gents=10, ladies=10, price_per_head=Decimal("50"),
+                                   big_eaters=True, big_eaters_percentage=30.0)
+        self.assertEqual(plain.food_total, big.food_total)
