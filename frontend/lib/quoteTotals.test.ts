@@ -113,8 +113,9 @@ describe("buildQuoteSavePayload", () => {
     primary_contact: "3", is_b2b: false, account: "", event_date: "2026-09-01",
     gents: 50, ladies: 50, big_eaters: false, big_eaters_percentage: 0,
     price_per_head: "50.00", venue: "", venue_address: "", event_type: "wedding",
-    meal_type: "", booking_date: "", service_style: "", tax_rate: "20",
-    valid_until: "", notes: "", internal_notes: "",
+    meal_type: "", booking_date: "", service_style: "",
+    setup_time: "", guest_arrival_time: "", meal_time: "", end_time: "",
+    tax_rate: "20", valid_until: "", notes: "", internal_notes: "",
   };
   const menuData = { dish_ids: [1, 2], based_on_template: null };
 

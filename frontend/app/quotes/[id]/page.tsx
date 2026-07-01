@@ -10,6 +10,7 @@ import { formatCurrency } from "@/lib/utils";
 import MenuBuilder from "@/components/MenuBuilder";
 import AdditionalMealsEditor from "@/components/AdditionalMealsEditor";
 import GuestCountField, { GuestCountValue } from "@/components/GuestCountField";
+import BookingTimelineField from "@/components/BookingTimelineField";
 import BookingDetailsForm, { BookingDetailsValue } from "@/components/BookingDetailsForm";
 import { computeQuoteTotals, buildQuoteSavePayload, LineItemInput } from "@/lib/quoteTotals";
 import AddOnItemsEditor from "@/components/AddOnItemsEditor";
@@ -73,6 +74,10 @@ export default function QuoteDetailPage() {
     meal_type: "",
     booking_date: "",
     service_style: "",
+    setup_time: "",
+    guest_arrival_time: "",
+    meal_time: "",
+    end_time: "",
     tax_rate: "",
     valid_until: "",
     notes: "",
@@ -99,6 +104,10 @@ export default function QuoteDetailPage() {
     meal_type: "",
     booking_date: "",
     service_style: "",
+    setup_time: "",
+    guest_arrival_time: "",
+    meal_time: "",
+    end_time: "",
     tax_rate: "0.2000",
     valid_until: "",
     notes: "",
@@ -177,6 +186,10 @@ export default function QuoteDetailPage() {
         meal_type: createData.meal_type || undefined,
         booking_date: createData.booking_date || null,
         service_style: createData.service_style || undefined,
+        setup_time: createData.setup_time || null,
+        guest_arrival_time: createData.guest_arrival_time || null,
+        meal_time: createData.meal_time || null,
+        end_time: createData.end_time || null,
         tax_rate: createData.tax_rate,
         valid_until: createData.valid_until || null,
         notes: createData.notes,
@@ -219,6 +232,10 @@ export default function QuoteDetailPage() {
       meal_type: quote.meal_type || "",
       booking_date: quote.booking_date || "",
       service_style: quote.service_style || "",
+      setup_time: quote.setup_time ? quote.setup_time.slice(0, 16) : "",
+      guest_arrival_time: quote.guest_arrival_time ? quote.guest_arrival_time.slice(0, 16) : "",
+      meal_time: quote.meal_time ? quote.meal_time.slice(0, 16) : "",
+      end_time: quote.end_time ? quote.end_time.slice(0, 16) : "",
       tax_rate: String(Math.round(parseFloat(quote.tax_rate) * 10000) / 100),
       valid_until: quote.valid_until || "",
       notes: quote.notes,
@@ -388,6 +405,17 @@ export default function QuoteDetailPage() {
             dateFormat={dateFormat}
             priceRoundingStep={Number(settings.price_rounding_step) || 50}
           />
+
+          {/* Timeline */}
+          <Card>
+            <CardContent className="p-6">
+              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Timeline</h2>
+              <BookingTimelineField
+                value={{ setup_time: createData.setup_time, guest_arrival_time: createData.guest_arrival_time, meal_time: createData.meal_time, end_time: createData.end_time }}
+                onChange={(patch) => setCreateData((prev) => ({ ...prev, ...patch }))}
+              />
+            </CardContent>
+          </Card>
 
           {/* Additional Items */}
           <Card>
@@ -785,6 +813,19 @@ export default function QuoteDetailPage() {
           dateFormat={dateFormat}
           priceRoundingStep={Number(settings.price_rounding_step) || 50}
         />
+      )}
+
+      {/* Timeline (editing) */}
+      {editing && (
+        <Card>
+          <CardContent className="p-6">
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Timeline</h2>
+            <BookingTimelineField
+              value={{ setup_time: editData.setup_time, guest_arrival_time: editData.guest_arrival_time, meal_time: editData.meal_time, end_time: editData.end_time }}
+              onChange={(patch) => setEditData((prev) => ({ ...prev, ...patch }))}
+            />
+          </CardContent>
+        </Card>
       )}
 
       {/* Additional Items */}

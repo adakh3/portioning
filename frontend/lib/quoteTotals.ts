@@ -104,6 +104,10 @@ export interface QuoteEditData {
   meal_type: string;
   booking_date: string;
   service_style: string;
+  setup_time: string;
+  guest_arrival_time: string;
+  meal_time: string;
+  end_time: string;
   tax_rate: string; // percent string (e.g. "20") as shown in the form
   valid_until: string;
   notes: string;
@@ -171,6 +175,10 @@ export function buildQuoteSavePayload(
     meal_type: editData.meal_type || undefined,
     booking_date: editData.booking_date || null,
     service_style: editData.service_style || undefined,
+    setup_time: editData.setup_time || null,
+    guest_arrival_time: editData.guest_arrival_time || null,
+    meal_time: editData.meal_time || null,
+    end_time: editData.end_time || null,
     tax_rate: (parseFloat(editData.tax_rate || "0") / 100).toFixed(4),
     valid_until: editData.valid_until || null,
     notes: editData.notes,

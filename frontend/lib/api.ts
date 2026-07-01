@@ -410,6 +410,10 @@ export interface Quote {
   ladies: number;
   big_eaters: boolean;
   big_eaters_percentage: number;
+  setup_time: string | null;
+  guest_arrival_time: string | null;
+  meal_time: string | null;
+  end_time: string | null;
   price_per_head: string | null;
   food_total: string;
   event_type: string;

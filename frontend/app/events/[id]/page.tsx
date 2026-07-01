@@ -30,6 +30,7 @@ import AddOnItemsEditor from "@/components/AddOnItemsEditor";
 import MenuBuilder from "@/components/MenuBuilder";
 import AdditionalMealsEditor from "@/components/AdditionalMealsEditor";
 import GuestCountField, { GuestCountValue } from "@/components/GuestCountField";
+import BookingTimelineField from "@/components/BookingTimelineField";
 import BookingDetailsForm, { BookingDetailsValue } from "@/components/BookingDetailsForm";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -673,24 +674,15 @@ export default function EventDetailPage() {
         <CardContent className="p-6">
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Timeline</h2>
             {editing ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Setup Time</label>
-                  <ValidatedInput type="datetime-local" value={formSetupTime} onChange={(e) => setFormSetupTime(e.target.value)} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Guest Arrival Time</label>
-                  <ValidatedInput type="datetime-local" value={formArrivalTime} onChange={(e) => setFormArrivalTime(e.target.value)} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Meal Time</label>
-                  <ValidatedInput type="datetime-local" value={formMealTime} onChange={(e) => setFormMealTime(e.target.value)} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">End Time</label>
-                  <ValidatedInput type="datetime-local" value={formEndTime} onChange={(e) => setFormEndTime(e.target.value)} />
-                </div>
-              </div>
+              <BookingTimelineField
+                value={{ setup_time: formSetupTime, guest_arrival_time: formArrivalTime, meal_time: formMealTime, end_time: formEndTime }}
+                onChange={(patch) => {
+                  if (patch.setup_time !== undefined) setFormSetupTime(patch.setup_time);
+                  if (patch.guest_arrival_time !== undefined) setFormArrivalTime(patch.guest_arrival_time);
+                  if (patch.meal_time !== undefined) setFormMealTime(patch.meal_time);
+                  if (patch.end_time !== undefined) setFormEndTime(patch.end_time);
+                }}
+              />
             ) : (
               <dl className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <InfoRow label="Setup Time" value={formatDateTime(event!.setup_time)} />
