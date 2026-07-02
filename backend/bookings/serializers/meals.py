@@ -27,7 +27,10 @@ class BookingMealSerializer(serializers.ModelSerializer):
         model = BookingMeal
         fields = ['id', 'label', 'guest_count', 'price_per_head', 'dishes', 'dish_ids',
                   'based_on_template', 'meal_time', 'notes', 'dish_comments']
-        extra_kwargs = {'notes': {'max_length': 5000}}
+        extra_kwargs = {
+            'notes': {'max_length': 5000},
+            'label': {'required': False, 'allow_blank': True},
+        }
 
 
 def replace_meals(parent_field, parent_obj, meals_data):

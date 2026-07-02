@@ -19,6 +19,7 @@ export default function AdditionalMealsEditor({
   dateFormat,
   priceRoundingStep,
   defaultGuestCount = 0,
+  eventDate,
 }: {
   meals: EventMealData[];
   onChange: (meals: EventMealData[]) => void;
@@ -28,6 +29,8 @@ export default function AdditionalMealsEditor({
   priceRoundingStep?: number;
   /** New meals default their guest count to this (the booking's total guests). */
   defaultGuestCount?: number;
+  /** The booking's event date ("YYYY-MM-DD"); meal times are anchored to it. */
+  eventDate?: string;
 }) {
   const patch = (idx: number, fields: Partial<EventMealData>) =>
     onChange(meals.map((m, i) => (i === idx ? { ...m, ...fields } : m)));
@@ -99,9 +102,16 @@ export default function AdditionalMealsEditor({
                   <label className="block text-sm font-medium text-foreground mb-1">Meal Time</label>
                   {editing ? (
                     <ValidatedInput
-                      type="datetime-local"
-                      value={meal.meal_time ? meal.meal_time.slice(0, 16) : ""}
-                      onChange={(e) => patch(idx, { meal_time: e.target.value || null })}
+                      type="time"
+                      value={meal.meal_time && meal.meal_time.includes("T") ? meal.meal_time.slice(11, 16) : ""}
+                      disabled={!eventDate}
+                      onChange={(e) => {
+                        const time = e.target.value;
+                        if (!time) { patch(idx, { meal_time: null }); return; }
+                        const existingDate = meal.meal_time && meal.meal_time.includes("T") ? meal.meal_time.slice(0, 10) : "";
+                        const date = existingDate || eventDate || "";
+                        patch(idx, { meal_time: date ? `${date}T${time}` : null });
+                      }}
                     />
                   ) : (
                     <span className="text-sm">{meal.meal_time ? formatDateTime(meal.meal_time, dateFormat) : "—"}</span>

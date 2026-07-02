@@ -165,6 +165,10 @@ export default function QuoteDetailPage() {
 
   async function handleCreateQuoteSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!createData.event_date) {
+      setError("Please set the event date.");
+      return;
+    }
     setSaving(true);
     setError("");
     try {
@@ -373,6 +377,18 @@ export default function QuoteDetailPage() {
             </CardContent>
           </Card>
 
+          {/* Timeline */}
+          <Card>
+            <CardContent className="p-6">
+              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Timeline</h2>
+              <BookingTimelineField
+                eventDate={createData.event_date}
+                value={{ setup_time: createData.setup_time, guest_arrival_time: createData.guest_arrival_time, meal_time: createData.meal_time, end_time: createData.end_time }}
+                onChange={(patch) => setCreateData((prev) => ({ ...prev, ...patch }))}
+              />
+            </CardContent>
+          </Card>
+
           {/* Menu & Pricing */}
           <Card>
             <CardContent className="p-6">
@@ -396,18 +412,6 @@ export default function QuoteDetailPage() {
             </CardContent>
           </Card>
 
-          {/* Timeline */}
-          <Card>
-            <CardContent className="p-6">
-              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Timeline</h2>
-              <BookingTimelineField
-                eventDate={createData.event_date}
-                value={{ setup_time: createData.setup_time, guest_arrival_time: createData.guest_arrival_time, meal_time: createData.meal_time, end_time: createData.end_time }}
-                onChange={(patch) => setCreateData((prev) => ({ ...prev, ...patch }))}
-              />
-            </CardContent>
-          </Card>
-
           {/* Additional Meals */}
           <AdditionalMealsEditor
             meals={createMeals}
@@ -417,6 +421,7 @@ export default function QuoteDetailPage() {
             dateFormat={dateFormat}
             priceRoundingStep={Number(settings.price_rounding_step) || 50}
             defaultGuestCount={createData.gents + createData.ladies}
+            eventDate={createData.event_date}
           />
 
           {/* Additional Items */}
@@ -743,6 +748,20 @@ export default function QuoteDetailPage() {
         </Card>
       )}
 
+      {/* Timeline (editing) */}
+      {editing && (
+        <Card>
+          <CardContent className="p-6">
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Timeline</h2>
+            <BookingTimelineField
+              eventDate={editData.event_date}
+              value={{ setup_time: editData.setup_time, guest_arrival_time: editData.guest_arrival_time, meal_time: editData.meal_time, end_time: editData.end_time }}
+              onChange={(patch) => setEditData((prev) => ({ ...prev, ...patch }))}
+            />
+          </CardContent>
+        </Card>
+      )}
+
       {/* Menu */}
       <Card>
         <CardContent className="p-6">
@@ -806,20 +825,6 @@ export default function QuoteDetailPage() {
         </div>
       )}
 
-      {/* Timeline (editing) */}
-      {editing && (
-        <Card>
-          <CardContent className="p-6">
-            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Timeline</h2>
-            <BookingTimelineField
-              eventDate={editData.event_date}
-              value={{ setup_time: editData.setup_time, guest_arrival_time: editData.guest_arrival_time, meal_time: editData.meal_time, end_time: editData.end_time }}
-              onChange={(patch) => setEditData((prev) => ({ ...prev, ...patch }))}
-            />
-          </CardContent>
-        </Card>
-      )}
-
       {/* Additional Meals */}
       {(editing || (q.additional_meals || []).length > 0) && (
         <AdditionalMealsEditor
@@ -830,6 +835,7 @@ export default function QuoteDetailPage() {
           dateFormat={dateFormat}
           priceRoundingStep={Number(settings.price_rounding_step) || 50}
           defaultGuestCount={editData.gents + editData.ladies}
+          eventDate={editData.event_date}
         />
       )}
 

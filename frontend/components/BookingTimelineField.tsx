@@ -44,7 +44,7 @@ export default function BookingTimelineField({
       <ValidatedInput
         type="time"
         value={timePart(value[key])}
-        disabled={disabled}
+        disabled={disabled || !eventDate}
         onChange={(e) => setTime(key, e.target.value)}
       />
     </div>

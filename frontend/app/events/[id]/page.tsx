@@ -800,6 +800,7 @@ export default function EventDetailPage() {
         currencySymbol={settings.currency_symbol}
         dateFormat={dateFormat}
         defaultGuestCount={totalGuests}
+        eventDate={formDate}
       />
 
       {/* Add-on items (arrangements, beverages, rentals, custom) */}

@@ -416,6 +416,30 @@ def generate_quote_pdf(quote):
     elements.append(info_outer)
     elements.append(Spacer(1, 10 * mm))
 
+    # Timeline (setup / arrival / meal / end) — above the menu, mirroring the form.
+    timeline_items = [
+        ('Setup', quote.setup_time),
+        ('Guest Arrival', quote.guest_arrival_time),
+        ('Meal', quote.meal_time),
+        ('End', quote.end_time),
+    ]
+    timeline_rows = [
+        [Paragraph(f'{label} Time:', s['info_label']),
+         Paragraph(dt.strftime('%d %b %Y, %H:%M'), s['info_value'])]
+        for label, dt in timeline_items if dt
+    ]
+    if timeline_rows:
+        elements.append(_section_header([Paragraph('TIMELINE', s['section_title'])], [CONTENT_W]))
+        tl_table = Table(timeline_rows, colWidths=[CONTENT_W * 0.25, CONTENT_W * 0.75])
+        tl_table.setStyle(TableStyle([
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('TOPPADDING', (0, 0), (-1, -1), 2),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
+            ('LEFTPADDING', (0, 0), (-1, -1), 6),
+        ]))
+        elements.append(tl_table)
+        elements.append(Spacer(1, 6 * mm))
+
     # ── 3. Menu Items Table (2-column layout with summary row) ──
     dish_names = list(quote.dishes.values_list('name', flat=True))
     has_food_total = quote.food_total and quote.food_total > 0
@@ -467,31 +491,7 @@ def generate_quote_pdf(quote):
         elements.append(Paragraph(f'<b>{food_line}</b>', s['body']))
         elements.append(Spacer(1, 6 * mm))
 
-    # Timeline (setup / arrival / meal / end) — before the meals, mirroring the form.
-    timeline_items = [
-        ('Setup', quote.setup_time),
-        ('Guest Arrival', quote.guest_arrival_time),
-        ('Meal', quote.meal_time),
-        ('End', quote.end_time),
-    ]
-    timeline_rows = [
-        [Paragraph(f'{label} Time:', s['info_label']),
-         Paragraph(dt.strftime('%d %b %Y, %H:%M'), s['info_value'])]
-        for label, dt in timeline_items if dt
-    ]
-    if timeline_rows:
-        elements.append(_section_header([Paragraph('TIMELINE', s['section_title'])], [CONTENT_W]))
-        tl_table = Table(timeline_rows, colWidths=[CONTENT_W * 0.25, CONTENT_W * 0.75])
-        tl_table.setStyle(TableStyle([
-            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-            ('TOPPADDING', (0, 0), (-1, -1), 2),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
-            ('LEFTPADDING', (0, 0), (-1, -1), 6),
-        ]))
-        elements.append(tl_table)
-        elements.append(Spacer(1, 6 * mm))
-
-    # Additional meals — one line each, after the timeline.
+    # Additional meals — one line each.
     meal_lines = [t for m in quote.additional_meals.all() if (t := meal_line_text(m, cs))]
     if meal_lines:
         elements.append(_section_header([Paragraph('ADDITIONAL MEALS', s['section_title'])], [CONTENT_W]))

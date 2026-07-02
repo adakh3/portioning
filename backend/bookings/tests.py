@@ -807,6 +807,18 @@ class TestQuoteAPI(TestCase):
         self.assertEqual(res.status_code, 201, res.content)
         self.assertEqual(res.json()["line_items"][0]["description"], "")
 
+    def test_additional_meal_label_is_optional(self):
+        res = self.client.post("/api/bookings/quotes/", {
+            "primary_contact": self.contact.id,
+            "event_date": "2026-09-01", "guest_count": 20,
+            "additional_meals": [{
+                "label": "", "guest_count": 20, "price_per_head": "15",
+                "dish_ids": [], "notes": "",
+            }],
+        }, format="json")
+        self.assertEqual(res.status_code, 201, res.content)
+        self.assertEqual(res.json()["additional_meals"][0]["label"], "")
+
     def test_accept_carries_line_items_to_event(self):
         # Headline bug: accepting a quote used to drop its add-on items.
         quote = make_quote(org=self.org, account=self.account, primary_contact=self.contact)
