@@ -23,7 +23,7 @@ import {
   useUsers,
 } from "@/lib/hooks";
 import DealWonDialog from "@/components/DealWonDialog";
-import { formatDate, formatDateTime as sharedFormatDateTime } from "@/lib/dateFormat";
+import { formatDate, formatDateTime as sharedFormatDateTime, todayISO } from "@/lib/dateFormat";
 import { LineItemInput, lineItemTotal, computeBookingTotals, buildEventSavePayload } from "@/lib/quoteTotals";
 import BookingTotalsCard from "@/components/BookingTotalsCard";
 import AddOnItemsEditor from "@/components/AddOnItemsEditor";
@@ -100,7 +100,7 @@ export default function EventDetailPage() {
 
 
   // Form fields (used in edit mode)
-  const [formDate, setFormDate] = useState("");
+  const [formDate, setFormDate] = useState(isNew ? todayISO() : "");
   const [formAccount, setFormAccount] = useState<number | null>(null);
   const [formContact, setFormContact] = useState<number | null>(null);
   const [formIsB2b, setFormIsB2b] = useState(false);

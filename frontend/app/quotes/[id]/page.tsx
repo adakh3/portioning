@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { api, Contact, EventMealData } from "@/lib/api";
 import { useQuote, useAccounts, useContacts, useSiteSettings, useDateFormat, useEventTypes, useServiceStyles, useMealTypes, useAllLeads, revalidate } from "@/lib/hooks";
-import { formatDate } from "@/lib/dateFormat";
+import { formatDate, todayISO } from "@/lib/dateFormat";
 import { formatCurrency } from "@/lib/utils";
 import MenuBuilder from "@/components/MenuBuilder";
 import AdditionalMealsEditor from "@/components/AdditionalMealsEditor";
@@ -93,7 +93,7 @@ export default function QuoteDetailPage() {
     account: "",
     venue: "",
     venue_address: "",
-    event_date: "",
+    event_date: todayISO(),
     gents: 0,
     ladies: 0,
     custom_split: false,

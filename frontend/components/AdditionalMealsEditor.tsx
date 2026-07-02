@@ -1,7 +1,7 @@
 "use client";
 
 import { EventMealData } from "@/lib/api";
-import { formatDateTime } from "@/lib/dateFormat";
+import { formatDateTime, todayISO } from "@/lib/dateFormat";
 import MenuBuilder from "@/components/MenuBuilder";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -104,13 +104,12 @@ export default function AdditionalMealsEditor({
                     <ValidatedInput
                       type="time"
                       value={meal.meal_time && meal.meal_time.includes("T") ? meal.meal_time.slice(11, 16) : ""}
-                      disabled={!eventDate}
                       onChange={(e) => {
                         const time = e.target.value;
                         if (!time) { patch(idx, { meal_time: null }); return; }
                         const existingDate = meal.meal_time && meal.meal_time.includes("T") ? meal.meal_time.slice(0, 10) : "";
-                        const date = existingDate || eventDate || "";
-                        patch(idx, { meal_time: date ? `${date}T${time}` : null });
+                        const date = existingDate || eventDate || todayISO();
+                        patch(idx, { meal_time: `${date}T${time}` });
                       }}
                     />
                   ) : (

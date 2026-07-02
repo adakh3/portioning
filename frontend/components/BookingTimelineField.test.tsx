@@ -34,8 +34,12 @@ describe("BookingTimelineField", () => {
     expect(onChange).toHaveBeenCalledWith({ setup_time: "" });
   });
 
-  it("prompts for an event date when none is set", () => {
-    render(<BookingTimelineField value={base} onChange={() => {}} />);
-    expect(screen.getByText(/set the event date first/i)).toBeInTheDocument();
+  it("stays enabled without an event date and anchors the time to today", () => {
+    const onChange = vi.fn();
+    render(<BookingTimelineField value={base} onChange={onChange} />);
+    const inputs = screen.getAllByDisplayValue("");
+    expect(inputs[0]).not.toBeDisabled();
+    fireEvent.change(inputs[0], { target: { value: "20:00" } });
+    expect(onChange).toHaveBeenCalledWith({ setup_time: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T20:00$/) });
   });
 });

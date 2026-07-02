@@ -1,6 +1,7 @@
 "use client";
 
 import { ValidatedInput } from "@/components/ui/validated-input";
+import { todayISO } from "@/lib/dateFormat";
 
 export interface BookingTimelineValue {
   setup_time: string;         // "YYYY-MM-DDTHH:mm" (stored) or ""
@@ -32,10 +33,11 @@ export default function BookingTimelineField({
       onChange({ [key]: "" });
       return;
     }
-    // Keep the field's own date if it already has one, else anchor to the event date.
+    // Keep the field's own date if it already has one, else anchor to the event
+    // date; fall back to today so a time entered before the date isn't lost.
     const existingDate = value[key] && value[key].includes("T") ? value[key].slice(0, 10) : "";
-    const date = existingDate || eventDate || "";
-    onChange({ [key]: date ? `${date}T${time}` : "" });
+    const date = existingDate || eventDate || todayISO();
+    onChange({ [key]: `${date}T${time}` });
   };
 
   const field = (key: keyof BookingTimelineValue, label: string) => (
@@ -44,23 +46,18 @@ export default function BookingTimelineField({
       <ValidatedInput
         type="time"
         value={timePart(value[key])}
-        disabled={disabled || !eventDate}
+        disabled={disabled}
         onChange={(e) => setTime(key, e.target.value)}
       />
     </div>
   );
 
   return (
-    <>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {field("setup_time", "Setup Time")}
-        {field("guest_arrival_time", "Guest Arrival")}
-        {field("meal_time", "Meal Time")}
-        {field("end_time", "End Time")}
-      </div>
-      {!eventDate && (
-        <p className="text-xs text-muted-foreground mt-2">Set the event date first to record times.</p>
-      )}
-    </>
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      {field("setup_time", "Setup Time")}
+      {field("guest_arrival_time", "Guest Arrival")}
+      {field("meal_time", "Meal Time")}
+      {field("end_time", "End Time")}
+    </div>
   );
 }
