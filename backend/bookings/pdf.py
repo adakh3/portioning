@@ -14,7 +14,7 @@ from reportlab.platypus import (
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 
 from bookings.models.settings import OrgSettings
-from bookings.models.choices import EventTypeOption, ServiceStyleOption
+from bookings.models.choices import EventTypeOption, ServiceStyleOption, MealTypeOption
 
 
 # ── Colour palette ──
@@ -338,6 +338,13 @@ def generate_quote_pdf(quote):
             .values_list('label', flat=True).first()
             or quote.service_style
         )
+    mt_label = ''
+    if quote.meal_type:
+        mt_label = (
+            MealTypeOption.objects.filter(value=quote.meal_type, organisation=quote.organisation)
+            .values_list('label', flat=True).first()
+            or quote.meal_type
+        )
 
     RIGHT_COL_W = CONTENT_W * 0.48
     right_header = _section_header(
@@ -345,16 +352,27 @@ def generate_quote_pdf(quote):
         [RIGHT_COL_W],
     )
 
+    guests_text = str(quote.guest_count)
+    if quote.gents or quote.ladies:
+        guests_text += f' ({quote.gents} gents / {quote.ladies} ladies)'
     right_rows = [
-        ['Booking Date:', quote.created_at.strftime('%d %B %Y')],
+        ['Quote Date:', quote.created_at.strftime('%d %B %Y')],
         ['Quotation #:', f'Q-{quote.pk}'],
         ['Customer ID:', str(quote.primary_contact_id or quote.account_id or quote.pk)],
-        ['No. of Guests:', str(quote.guest_count)],
+        ['No. of Guests:', guests_text],
         ['Event Date:', quote.event_date.strftime('%d %B %Y')],
         ['Event Day:', quote.event_date.strftime('%A')],
     ]
+    if quote.booking_date:
+        right_rows.append(['Booking Date:', quote.booking_date.strftime('%d %B %Y')])
+    if mt_label:
+        right_rows.append(['Meal Type:', mt_label])
     if ss_label:
         right_rows.append(['Service Style:', ss_label])
+    if quote.big_eaters:
+        right_rows.append(['Big Eaters:', f'+{quote.big_eaters_percentage:.0f}%'])
+    if quote.valid_until:
+        right_rows.append(['Valid Until:', quote.valid_until.strftime('%d %B %Y')])
 
     right_info_data = [
         [Paragraph(r[0], s['info_label']), Paragraph(r[1], s['info_value'])]
@@ -494,7 +512,31 @@ def generate_quote_pdf(quote):
         elements.append(addon_table)
         elements.append(Spacer(1, 6 * mm))
 
-    # ── 5. Notes ──
+    # ── Timeline (setup / arrival / meal / end) — shown when any time is set ──
+    timeline_items = [
+        ('Setup', quote.setup_time),
+        ('Guest Arrival', quote.guest_arrival_time),
+        ('Meal', quote.meal_time),
+        ('End', quote.end_time),
+    ]
+    timeline_rows = [
+        [Paragraph(f'{label} Time:', s['info_label']),
+         Paragraph(dt.strftime('%d %b %Y, %H:%M'), s['info_value'])]
+        for label, dt in timeline_items if dt
+    ]
+    if timeline_rows:
+        elements.append(_section_header([Paragraph('TIMELINE', s['section_title'])], [CONTENT_W]))
+        tl_table = Table(timeline_rows, colWidths=[CONTENT_W * 0.25, CONTENT_W * 0.75])
+        tl_table.setStyle(TableStyle([
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('TOPPADDING', (0, 0), (-1, -1), 2),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
+            ('LEFTPADDING', (0, 0), (-1, -1), 6),
+        ]))
+        elements.append(tl_table)
+        elements.append(Spacer(1, 6 * mm))
+
+    # ── 5. Notes (customer-visible only; internal notes are never in the PDF) ──
     if quote.notes:
         elements.append(Spacer(1, 2 * mm))
         elements.append(Paragraph('<b>Notes:</b>', s['body_bold']))
