@@ -20,11 +20,11 @@ languages. This doc is how we stop that.
 ## The canonical rule (one definition of the math)
 
 - **food_total** = price/head × guests, **plus** any additional meals
-  (events only; the caller sums meals in before calling the engine).
-- **subtotal** = food_total + every add-on line item (taxable and non-taxable;
-  discounts are negative lines).
-- **taxable base** = food_total + **taxable** line items only.
-- **tax** = taxable_base × tax_rate, rounded to 2 dp.
+  (the caller sums meals in before calling the engine; both quotes and events).
+- **subtotal** = food_total + every add-on line item (discounts are negative
+  lines, so they reduce the subtotal).
+- **tax** = subtotal × tax_rate, rounded to 2 dp — tax applies to the **whole
+  subtotal**; there is no per-line taxable/non-taxable split.
   (Quotes use the quote's `tax_rate`; events use `tax_rate` when `is_taxable`,
   else 0.)
 - **total** = subtotal + tax.
@@ -35,7 +35,7 @@ Line-item totals: `per_guest` = unit_price × guest_count; `discount` =
 ## How parity is enforced — the golden-cases file
 
 `docs/calculation-golden-cases.json` is a **shared, language-neutral spec**:
-each case lists `food_total`, line items (precomputed `line_total` + `is_taxable`),
+each case lists `food_total`, line items (precomputed signed `line_total`),
 `tax_rate`, and the `expected` subtotal/tax/total.
 
 - The **backend** runs it through `compute_booking_totals` —

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import { resolve } from "path";
-import { computeQuoteTotals, computeBookingTotals, buildQuoteSavePayload, lineItemTotal, LineItemInput } from "./quoteTotals";
+import { computeQuoteTotals, computeBookingTotals, buildQuoteSavePayload, buildEventSavePayload, EventSaveInput, lineItemTotal, LineItemInput } from "./quoteTotals";
 
 const item = (over: Partial<LineItemInput>): LineItemInput => ({
   category: "rental",
@@ -9,7 +9,6 @@ const item = (over: Partial<LineItemInput>): LineItemInput => ({
   quantity: 1,
   unit: "each",
   unit_price: 0,
-  is_taxable: true,
   ...over,
 });
 
@@ -20,7 +19,7 @@ describe("computeQuoteTotals", () => {
     });
   });
 
-  it("applies tax to the taxable subtotal (food is taxable)", () => {
+  it("applies tax to the whole subtotal", () => {
     expect(computeQuoteTotals(50, 100, 0.2, [])).toEqual({
       food_total: 5000, subtotal: 5000, tax_amount: 1000, total: 6000,
     });
@@ -28,18 +27,18 @@ describe("computeQuoteTotals", () => {
 
   it("line items only, no per-head price", () => {
     const t = computeQuoteTotals(0, 100, 0, [
-      item({ unit: "each", quantity: 10, unit_price: 5, is_taxable: true }),
+      item({ unit: "each", quantity: 10, unit_price: 5 }),
     ]);
     expect(t).toEqual({ food_total: 0, subtotal: 50, tax_amount: 0, total: 50 });
   });
 
-  it("splits taxable vs non-taxable, taxes only taxable", () => {
+  it("taxes the whole subtotal (no per-line taxable split)", () => {
     const t = computeQuoteTotals(0, 50, 0.1, [
-      item({ unit: "flat", quantity: 1, unit_price: 200, is_taxable: true }),
-      item({ unit: "flat", quantity: 1, unit_price: 100, is_taxable: false }),
+      item({ unit: "flat", quantity: 1, unit_price: 200 }),
+      item({ unit: "flat", quantity: 1, unit_price: 100 }),
     ]);
-    // subtotal 300; tax = 10% of taxable 200 = 20; total 320
-    expect(t).toEqual({ food_total: 0, subtotal: 300, tax_amount: 20, total: 320 });
+    // subtotal 300; tax = 10% of 300 = 30; total 330
+    expect(t).toEqual({ food_total: 0, subtotal: 300, tax_amount: 30, total: 330 });
   });
 
   it("per_guest unit multiplies by guest count", () => {
@@ -50,7 +49,7 @@ describe("computeQuoteTotals", () => {
     expect(lineItemTotal(item({ unit: "per_hour", quantity: 6, unit_price: 18 }), 50)).toBe(108);
   });
 
-  it("discount line is negative", () => {
+  it("discount line is negative and reduces the taxed subtotal", () => {
     expect(
       lineItemTotal(item({ category: "discount", unit: "flat", quantity: 1, unit_price: 100 }), 10),
     ).toBe(-100);
@@ -66,7 +65,7 @@ describe("computeQuoteTotals", () => {
 const golden = JSON.parse(
   // Vitest runs with cwd = frontend/, so the repo-root docs dir is one up.
   readFileSync(resolve(process.cwd(), "../docs/calculation-golden-cases.json"), "utf-8"),
-) as { cases: { name: string; food_total: string; items: { line_total: string; is_taxable: boolean }[]; tax_rate: string; expected: { subtotal: string; tax_amount: string; total: string } }[] };
+) as { cases: { name: string; food_total: string; items: { line_total: string }[]; tax_rate: string; expected: { subtotal: string; tax_amount: string; total: string } }[] };
 
 describe("golden-case parity with the backend engine", () => {
   // Each precomputed line_total is fed as a flat qty-1 line so lineItemTotal
@@ -75,7 +74,7 @@ describe("golden-case parity with the backend engine", () => {
     it(c.name, () => {
       const items: LineItemInput[] = c.items.map((i) => ({
         category: "fee", description: "x", quantity: 1, unit: "flat",
-        unit_price: Number(i.line_total), is_taxable: i.is_taxable,
+        unit_price: Number(i.line_total),
       }));
       const t = computeBookingTotals(Number(c.food_total), items, 0, Number(c.tax_rate));
       expect(t.subtotal).toBeCloseTo(Number(c.expected.subtotal), 2);
@@ -86,14 +85,14 @@ describe("golden-case parity with the backend engine", () => {
 });
 
 describe("computeBookingTotals (shared engine — quotes & events)", () => {
-  it("foodTotal already includes meals; tax on food + taxable items only", () => {
-    // event-style: food 1000 + meals 300 = 1300 foodTotal, +200 taxable, +100 non-taxable
+  it("foodTotal already includes meals; tax on the whole subtotal", () => {
+    // event-style: food 1000 + meals 300 = 1300 foodTotal, + two add-on lines
     const t = computeBookingTotals(1300, [
-      item({ unit: "flat", quantity: 1, unit_price: 200, is_taxable: true }),
-      item({ unit: "flat", quantity: 1, unit_price: 100, is_taxable: false }),
+      item({ unit: "flat", quantity: 1, unit_price: 200 }),
+      item({ unit: "flat", quantity: 1, unit_price: 100 }),
     ], 50, 0.15);
-    // taxable = 1300 + 200 = 1500; subtotal = 1600; tax = 1500*0.15 = 225
-    expect(t).toEqual({ food_total: 1300, subtotal: 1600, tax_amount: 225, total: 1825 });
+    // subtotal = 1600; tax = 1600 * 0.15 = 240
+    expect(t).toEqual({ food_total: 1300, subtotal: 1600, tax_amount: 240, total: 1840 });
   });
 
   it("passing rate 0 (not taxable) yields no tax", () => {
@@ -102,7 +101,7 @@ describe("computeBookingTotals (shared engine — quotes & events)", () => {
   });
 
   it("matches computeQuoteTotals for the same inputs (no meals)", () => {
-    const items = [item({ unit: "each", quantity: 10, unit_price: 5, is_taxable: true })];
+    const items = [item({ unit: "each", quantity: 10, unit_price: 5 })];
     expect(computeBookingTotals(50 * 100, items, 100, 0.2)).toEqual(
       computeQuoteTotals(50, 100, 0.2, items),
     );
@@ -111,10 +110,12 @@ describe("computeBookingTotals (shared engine — quotes & events)", () => {
 
 describe("buildQuoteSavePayload", () => {
   const editData = {
-    primary_contact: "3", is_b2b: false, account: "", event_date: "2026-09-01", guest_count: "100",
+    primary_contact: "3", is_b2b: false, account: "", event_date: "2026-09-01",
+    gents: 50, ladies: 50, big_eaters: false, big_eaters_percentage: 0,
     price_per_head: "50.00", venue: "", venue_address: "", event_type: "wedding",
-    meal_type: "", booking_date: "", service_style: "", tax_rate: "20",
-    valid_until: "", notes: "", internal_notes: "",
+    meal_type: "", booking_date: "", service_style: "",
+    setup_time: "", guest_arrival_time: "", meal_time: "", end_time: "",
+    tax_rate: "20", valid_until: "", notes: "", internal_notes: "",
   };
   const menuData = { dish_ids: [1, 2], based_on_template: null };
 
@@ -141,5 +142,58 @@ describe("buildQuoteSavePayload", () => {
     const b2b = buildQuoteSavePayload({ ...editData, is_b2b: true, account: "9" }, menuData, []);
     expect(b2b.is_b2b).toBe(true);
     expect(b2b.account).toBe(9);
+  });
+});
+
+describe("buildEventSavePayload", () => {
+  const base: EventSaveInput = {
+    name: "Acme — 2026-09-01", date: "2026-09-01",
+    is_b2b: false, account: 9, primary_contact: 3,
+    venue: null, venue_address: "", event_type: "corporate", meal_type: "lunch",
+    booking_date: "", service_style: "buffet", price_per_head: "50.00", notes: "n",
+    kitchen_instructions: "k", banquet_instructions: "b", setup_instructions: "s",
+    gents: 25, ladies: 15, guaranteed_count: 40, final_count: null, final_count_due: "",
+    big_eaters: true, big_eaters_percentage: 30,
+    setup_time: "2026-09-01T09:00", guest_arrival_time: "", meal_time: "", end_time: "",
+    is_taxable: true,
+    dish_ids: [1, 2], based_on_template: null,
+    line_items: [{ id: 7, category: "rental", description: "Chairs", quantity: 2, unit: "each", unit_price: 100 }],
+    meals: [{ label: "Tea", guest_count: 40, price_per_head: "15.00", dishes: [3], based_on_template: null, meal_time: null, notes: "" }],
+  };
+
+  it("carries the event-only fields (split, timeline, counts, instructions)", () => {
+    const p = buildEventSavePayload(base);
+    expect(p).toMatchObject({
+      name: "Acme — 2026-09-01", date: "2026-09-01",
+      gents: 25, ladies: 15, big_eaters: true, big_eaters_percentage: 30,
+      guaranteed_count: 40, kitchen_instructions: "k", is_taxable: true,
+      setup_time: "2026-09-01T09:00",
+    });
+  });
+
+  it("blank optional times/dates/counts become null", () => {
+    const p = buildEventSavePayload(base);
+    expect(p.booking_date).toBeNull();
+    expect(p.guest_arrival_time).toBeNull();
+    expect(p.final_count_due).toBeNull();
+    expect(p.final_count).toBeNull();
+  });
+
+  it("only sends the business when B2B", () => {
+    expect(buildEventSavePayload(base).account).toBeNull();      // is_b2b false → account dropped
+    expect(buildEventSavePayload({ ...base, is_b2b: true }).account).toBe(9);
+  });
+
+  it("serializes meals with dish_ids (not the read-only dishes) — shared with quotes", () => {
+    const p = buildEventSavePayload(base);
+    expect(p.additional_meals).toEqual([
+      { label: "Tea", guest_count: 40, price_per_head: "15.00", dish_ids: [3], based_on_template: null, meal_time: null, notes: "" },
+    ]);
+  });
+
+  it("serializes line items without per-line taxability; preserves id", () => {
+    const p = buildEventSavePayload(base);
+    expect(p.line_items[0]).toMatchObject({ id: 7, category: "rental", description: "Chairs" });
+    expect(p.line_items[0]).not.toHaveProperty("is_taxable");
   });
 });

@@ -50,6 +50,17 @@ describe("MenuBuilder — price errors are surfaced", () => {
     expect(await screen.findByText(/\/head/)).toBeInTheDocument();
   });
 
+  it("shows the price-per-head input even with no dishes selected", () => {
+    // The Q-59 fix: the price input must be visible/clearable without a menu,
+    // so a phantom per-head charge can't hide.
+    render(
+      <MenuBuilder selectedDishIds={[]} basedOnTemplate={null} pricePerHead="50.00"
+        onPricePerHeadChange={() => {}} currencySymbol="PKR" />
+    );
+    expect(screen.getByDisplayValue("50.00")).toBeInTheDocument();
+    expect(screen.getByText(/No menu selected/i)).toBeInTheDocument();
+  });
+
   it("auto-fills price without an infinite update loop", async () => {
     h.priceEstimate.mockResolvedValue({ price_per_head: 1650, has_unpriced: true });
 

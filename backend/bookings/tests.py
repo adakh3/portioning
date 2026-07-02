@@ -93,6 +93,10 @@ def make_quote(org=None, account=None, primary_contact=None, **kwargs):
         "event_type": "wedding",
     }
     defaults.update(kwargs)
+    # Keep the gender split consistent with guest_count (the editor sends both).
+    gc = defaults["guest_count"]
+    defaults.setdefault("gents", gc // 2)
+    defaults.setdefault("ladies", gc - gc // 2)
     return Quote.objects.create(**defaults)
 
 
@@ -224,7 +228,7 @@ class TestBookingLineItemCalculation(TestCase):
     def test_exactly_one_parent_constraint(self):
         from django.db.utils import IntegrityError
         from events.models import Event
-        event = Event.objects.create(organisation=self.org, name="E", date="2026-09-01", gents=25, ladies=25)
+        event = Event.objects.create(organisation=self.org, name="E", event_date="2026-09-01", gents=25, ladies=25)
         with self.assertRaises(IntegrityError):
             BookingLineItem.objects.create(
                 quote=self.quote, event=event, category="fee", description="bad",
@@ -233,7 +237,7 @@ class TestBookingLineItemCalculation(TestCase):
 
     def test_event_line_item_uses_event_guest_count(self):
         from events.models import Event
-        event = Event.objects.create(organisation=self.org, name="E", date="2026-09-01", gents=20, ladies=30)
+        event = Event.objects.create(organisation=self.org, name="E", event_date="2026-09-01", gents=20, ladies=30)
         item = BookingLineItem.objects.create(
             event=event, category="beverage", description="Soft drinks",
             quantity=Decimal("1"), unit="per_guest", unit_price=Decimal("2.00"),
@@ -244,18 +248,16 @@ class TestBookingLineItemCalculation(TestCase):
         BookingLineItem.objects.create(
             quote=self.quote, category="food", description="Food",
             quantity=Decimal("1"), unit="flat", unit_price=Decimal("1000.00"),
-            is_taxable=True,
         )
         BookingLineItem.objects.create(
             quote=self.quote, category="rental", description="Tables",
             quantity=Decimal("5"), unit="each", unit_price=Decimal("50.00"),
-            is_taxable=False,
         )
         self.quote.refresh_from_db()
         self.assertEqual(self.quote.subtotal, Decimal("1250.00"))
-        # Tax only on taxable items: 1000 * 0.20 = 200
-        self.assertEqual(self.quote.tax_amount, Decimal("200.00"))
-        self.assertEqual(self.quote.total, Decimal("1450.00"))
+        # Tax on the whole subtotal: 1250 * 0.20 = 250
+        self.assertEqual(self.quote.tax_amount, Decimal("250.00"))
+        self.assertEqual(self.quote.total, Decimal("1500.00"))
 
     def test_delete_item_recalculates(self):
         item = BookingLineItem.objects.create(
@@ -276,7 +278,7 @@ class TestInvoicePayments(TestCase):
         # Need an Event for Invoice FK - use events app
         from events.models import Event
         self.event = Event.objects.create(
-            name="Test Event", date="2026-06-15", gents=50, ladies=50,
+            name="Test Event", event_date="2026-06-15", gents=50, ladies=50,
             organisation=self.org,
         )
         self.invoice = Invoice.objects.create(
@@ -339,7 +341,7 @@ class TestEquipmentAvailability(TestCase):
     def test_reserved_reduces_availability(self):
         from events.models import Event
         event = Event.objects.create(
-            name="Wedding", date="2026-06-15", gents=50, ladies=50,
+            name="Wedding", event_date="2026-06-15", gents=50, ladies=50,
             organisation=self.org,
         )
         from equipment.models import EquipmentReservation
@@ -772,6 +774,51 @@ class TestQuoteAPI(TestCase):
         self.account = make_account(org=self.org)
         self.contact = make_contact(account=self.account, org=self.org)
 
+    def test_create_quote_with_additional_meals(self):
+        # Quotes now carry additional meals (parity with events).
+        res = self.client.post("/api/bookings/quotes/", {
+            "primary_contact": self.contact.id,
+            "event_date": "2026-09-01",
+            "guest_count": 20,
+            "price_per_head": "50.00",
+            "tax_rate": "0",
+            "additional_meals": [
+                {"label": "Welcome drinks", "guest_count": 20, "price_per_head": "15.00"},
+            ],
+        }, format="json")
+        self.assertEqual(res.status_code, 201, res.content)
+        body = res.json()
+        self.assertEqual(len(body["additional_meals"]), 1)
+        self.assertEqual(body["additional_meals"][0]["label"], "Welcome drinks")
+        quote = Quote.objects.get(id=body["id"])
+        # food = 50*20 + meal 15*20 = 1300
+        self.assertEqual(quote.food_total, Decimal("1300.00"))
+        self.assertEqual(quote.subtotal, Decimal("1300.00"))
+
+    def test_line_item_description_is_optional(self):
+        res = self.client.post("/api/bookings/quotes/", {
+            "primary_contact": self.contact.id,
+            "event_date": "2026-09-01", "guest_count": 20,
+            "line_items": [{
+                "category": "fee", "description": "",
+                "quantity": "1", "unit": "flat", "unit_price": "500",
+            }],
+        }, format="json")
+        self.assertEqual(res.status_code, 201, res.content)
+        self.assertEqual(res.json()["line_items"][0]["description"], "")
+
+    def test_additional_meal_label_is_optional(self):
+        res = self.client.post("/api/bookings/quotes/", {
+            "primary_contact": self.contact.id,
+            "event_date": "2026-09-01", "guest_count": 20,
+            "additional_meals": [{
+                "label": "", "guest_count": 20, "price_per_head": "15",
+                "dish_ids": [], "notes": "",
+            }],
+        }, format="json")
+        self.assertEqual(res.status_code, 201, res.content)
+        self.assertEqual(res.json()["additional_meals"][0]["label"], "")
+
     def test_accept_carries_line_items_to_event(self):
         # Headline bug: accepting a quote used to drop its add-on items.
         quote = make_quote(org=self.org, account=self.account, primary_contact=self.contact)
@@ -1194,7 +1241,7 @@ class TestInvoiceAPI(TestCase):
         self.client = _authenticated_client()
         from events.models import Event
         self.event = Event.objects.create(
-            name="Gala Dinner", date="2026-08-01", gents=60, ladies=60,
+            name="Gala Dinner", event_date="2026-08-01", gents=60, ladies=60,
             organisation=self.org,
         )
 

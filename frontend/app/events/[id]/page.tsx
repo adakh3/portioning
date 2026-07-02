@@ -23,14 +23,15 @@ import {
   useUsers,
 } from "@/lib/hooks";
 import DealWonDialog from "@/components/DealWonDialog";
-import { formatDate, formatDateTime as sharedFormatDateTime } from "@/lib/dateFormat";
-import { LineItemInput, lineItemTotal, computeBookingTotals } from "@/lib/quoteTotals";
+import { formatDate, formatDateTime as sharedFormatDateTime, todayISO } from "@/lib/dateFormat";
+import { LineItemInput, lineItemTotal, computeBookingTotals, buildEventSavePayload } from "@/lib/quoteTotals";
 import BookingTotalsCard from "@/components/BookingTotalsCard";
 import AddOnItemsEditor from "@/components/AddOnItemsEditor";
 import MenuBuilder from "@/components/MenuBuilder";
-import CustomerSelect from "@/components/CustomerSelect";
-import BusinessSelect from "@/components/BusinessSelect";
-import VenueField from "@/components/VenueField";
+import AdditionalMealsEditor from "@/components/AdditionalMealsEditor";
+import GuestCountField, { GuestCountValue } from "@/components/GuestCountField";
+import BookingTimelineField from "@/components/BookingTimelineField";
+import BookingDetailsForm, { BookingDetailsValue } from "@/components/BookingDetailsForm";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -99,7 +100,7 @@ export default function EventDetailPage() {
 
 
   // Form fields (used in edit mode)
-  const [formDate, setFormDate] = useState("");
+  const [formDate, setFormDate] = useState(isNew ? todayISO() : "");
   const [formAccount, setFormAccount] = useState<number | null>(null);
   const [formContact, setFormContact] = useState<number | null>(null);
   const [formIsB2b, setFormIsB2b] = useState(false);
@@ -111,12 +112,37 @@ export default function EventDetailPage() {
   const [formServiceStyle, setFormServiceStyle] = useState("");
   const [formPricePerHead, setFormPricePerHead] = useState("");
   const [formNotes, setFormNotes] = useState("");
+  // Adapter between the event's individual form* states (FKs as number|null) and
+  // the shared BookingDetailsForm's string value. Gents/ladies stay out of it.
+  const bookingValue: BookingDetailsValue = {
+    contact: formContact != null ? String(formContact) : "",
+    is_b2b: formIsB2b,
+    account: formAccount != null ? String(formAccount) : "",
+    venue: formVenue != null ? String(formVenue) : "",
+    venue_address: formVenueAddress,
+    event_type: formEventType,
+    meal_type: formMealType,
+    service_style: formServiceStyle,
+    booking_date: formBookingDate,
+    notes: formNotes,
+  };
+  const applyBookingPatch = (patch: Partial<BookingDetailsValue>) => {
+    if (patch.contact !== undefined) setFormContact(patch.contact ? Number(patch.contact) : null);
+    if (patch.is_b2b !== undefined) setFormIsB2b(patch.is_b2b);
+    if (patch.account !== undefined) setFormAccount(patch.account ? Number(patch.account) : null);
+    if (patch.venue !== undefined) setFormVenue(patch.venue ? Number(patch.venue) : null);
+    if (patch.venue_address !== undefined) setFormVenueAddress(patch.venue_address);
+    if (patch.event_type !== undefined) setFormEventType(patch.event_type);
+    if (patch.meal_type !== undefined) setFormMealType(patch.meal_type);
+    if (patch.service_style !== undefined) setFormServiceStyle(patch.service_style);
+    if (patch.booking_date !== undefined) setFormBookingDate(patch.booking_date);
+    if (patch.notes !== undefined) setFormNotes(patch.notes);
+  };
   const [formKitchenInstructions, setFormKitchenInstructions] = useState("");
   const [formBanquetInstructions, setFormBanquetInstructions] = useState("");
   const [formSetupInstructions, setFormSetupInstructions] = useState("");
 
   // Guest form fields
-  const [formTotalGuests, setFormTotalGuests] = useState(0);
   const [formCustomSplit, setFormCustomSplit] = useState(false);
   const [formGents, setFormGents] = useState(0);
   const [formLadies, setFormLadies] = useState(0);
@@ -125,6 +151,15 @@ export default function EventDetailPage() {
   const [formFinalCountDue, setFormFinalCountDue] = useState("");
   const [formBigEaters, setFormBigEaters] = useState(false);
   const [formBigEatersPercent, setFormBigEatersPercent] = useState(0);
+  const totalGuests = formGents + formLadies;
+  // Adapter for the shared GuestCountField (canonical value = gents/ladies).
+  const applyGuestPatch = (patch: Partial<GuestCountValue>) => {
+    if (patch.gents !== undefined) setFormGents(patch.gents);
+    if (patch.ladies !== undefined) setFormLadies(patch.ladies);
+    if (patch.custom_split !== undefined) setFormCustomSplit(patch.custom_split);
+    if (patch.big_eaters !== undefined) setFormBigEaters(patch.big_eaters);
+    if (patch.big_eaters_percentage !== undefined) setFormBigEatersPercent(patch.big_eaters_percentage);
+  };
 
   // Timeline form fields
   const [formSetupTime, setFormSetupTime] = useState("");
@@ -162,7 +197,6 @@ export default function EventDetailPage() {
     setFormBanquetInstructions(data.banquet_instructions || "");
     setFormSetupInstructions(data.setup_instructions || "");
     const total = data.gents + data.ladies;
-    setFormTotalGuests(total);
     setFormGents(data.gents);
     setFormLadies(data.ladies);
     const is5050 = total === 0 || (data.gents === Math.ceil(total / 2) && data.ladies === Math.floor(total / 2));
@@ -179,7 +213,7 @@ export default function EventDetailPage() {
     setFormLineItems((data.line_items || []).map((li) => ({
       id: li.id, variant: li.variant, category: li.category, description: li.description,
       quantity: li.quantity, unit: li.unit, unit_price: li.unit_price,
-      is_taxable: li.is_taxable, sort_order: li.sort_order ?? 0,
+      sort_order: li.sort_order ?? 0,
     })));
     setFormIsTaxable(data.is_taxable || false);
     setFormAdditionalMeals(data.additional_meals || []);
@@ -222,17 +256,17 @@ export default function EventDetailPage() {
     setSaving(true);
     const customerName = orgContacts.find((c) => c.id === formContact)?.name
       || accounts.find((a) => a.id === formAccount)?.name || "Event";
-    const payload = {
+    const payload = buildEventSavePayload({
       name: `${customerName} — ${formDate}`,
       date: formDate,
       is_b2b: formIsB2b,
-      account: formIsB2b ? formAccount : null,
+      account: formAccount,
       primary_contact: formContact,
       venue: formVenue,
       venue_address: formVenueAddress,
       event_type: formEventType,
       meal_type: formMealType,
-      booking_date: formBookingDate || null,
+      booking_date: formBookingDate,
       service_style: formServiceStyle,
       price_per_head: formPricePerHead || null,
       notes: formNotes,
@@ -243,34 +277,25 @@ export default function EventDetailPage() {
       ladies: formLadies,
       guaranteed_count: formGuaranteed,
       final_count: formFinalCount,
-      final_count_due: formFinalCountDue || null,
+      final_count_due: formFinalCountDue,
       big_eaters: formBigEaters,
       big_eaters_percentage: formBigEatersPercent,
-      setup_time: formSetupTime || null,
-      guest_arrival_time: formArrivalTime || null,
-      meal_time: formMealTime || null,
-      end_time: formEndTime || null,
+      setup_time: formSetupTime,
+      guest_arrival_time: formArrivalTime,
+      meal_time: formMealTime,
+      end_time: formEndTime,
       is_taxable: formIsTaxable,
-      line_items: formLineItems.map((li) => ({
-        ...(li.id ? { id: li.id } : {}), variant: li.variant ?? null,
-        category: li.category, description: li.description, quantity: li.quantity,
-        unit: li.unit, unit_price: li.unit_price, is_taxable: li.is_taxable, sort_order: li.sort_order ?? 0,
-      })),
-      additional_meals: formAdditionalMeals.map(({ label, guest_count, price_per_head, dishes, based_on_template, meal_time, notes }) => ({
-        label, guest_count, price_per_head: price_per_head || null, dishes, dish_ids: dishes, based_on_template, meal_time: meal_time || null, notes,
-      })),
-    };
+      dish_ids: menuData.dish_ids,
+      based_on_template: menuData.based_on_template,
+      line_items: formLineItems,
+      meals: formAdditionalMeals,
+    });
     try {
       if (isNew) {
-        const created = await api.createEvent({
-          ...payload,
-          status: formStatus,
-          dish_ids: menuData.dish_ids,
-          based_on_template: menuData.based_on_template,
-        });
+        const created = await api.createEvent({ ...payload, status: formStatus });
         router.push(`/events/${created.id}`);
       } else {
-        await api.updateEvent(event!.id, payload as Partial<EventData>);
+        await api.updateEvent(event!.id, payload);
         await mutateEvent();
         setEditing(false);
       }
@@ -515,6 +540,25 @@ export default function EventDetailPage() {
                   >
                     Edit
                   </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={async () => {
+                      try {
+                        const blob = await api.downloadEventPDF(event!.id);
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement("a");
+                        a.href = url;
+                        a.download = `Event-${event!.id}.pdf`;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                      } catch (err) {
+                        setError(err instanceof Error ? err.message : "Failed to download PDF");
+                      }
+                    }}
+                  >
+                    Download PDF
+                  </Button>
                   {/* Status transitions */}
                   {event!.status === "tentative" && (
                     <Button
@@ -620,92 +664,15 @@ export default function EventDetailPage() {
         <CardContent className="p-6">
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Customer &amp; Venue</h2>
             {editing ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Customer *</label>
-                  <CustomerSelect required value={formContact != null ? String(formContact) : ""}
-                    onChange={(v) => setFormContact(v ? Number(v) : null)} />
-                </div>
-                <div>
-                  <label className="inline-flex items-center gap-2 text-sm font-medium text-foreground">
-                    <input type="checkbox" checked={formIsB2b} onChange={(e) => setFormIsB2b(e.target.checked)} />
-                    Business booking (B2B)
-                  </label>
-                  {formIsB2b && (
-                    <div className="mt-2">
-                      <label className="block text-sm font-medium text-foreground mb-1">Business *</label>
-                      <BusinessSelect required value={formAccount != null ? String(formAccount) : ""}
-                        onChange={(v) => setFormAccount(v ? Number(v) : null)} />
-                    </div>
-                  )}
-                </div>
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-foreground mb-1">Venue</label>
-                  <VenueField
-                    venue={formVenue != null ? String(formVenue) : ""}
-                    address={formVenueAddress}
-                    customerAddress={orgContacts.find((c) => c.id === formContact)?.address}
-                    onVenue={(v) => setFormVenue(v ? Number(v) : null)}
-                    onAddress={setFormVenueAddress}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Event Type</label>
-                  <select
-                    value={formEventType}
-                    onChange={(e) => setFormEventType(e.target.value)}
-                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  >
-                    <option value="">-- Select --</option>
-                    {Object.entries(eventTypeLabels).map(([key, label]) => (
-                      <option key={key} value={key}>{label}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Meal Type</label>
-                  <select
-                    value={formMealType}
-                    onChange={(e) => setFormMealType(e.target.value)}
-                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  >
-                    <option value="">-- Select --</option>
-                    {Object.entries(mealTypeLabels).map(([key, label]) => (
-                      <option key={key} value={key}>{label}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Service Style</label>
-                  <select
-                    value={formServiceStyle}
-                    onChange={(e) => setFormServiceStyle(e.target.value)}
-                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  >
-                    <option value="">-- Select --</option>
-                    {Object.entries(serviceStyleLabels).map(([key, label]) => (
-                      <option key={key} value={key}>{label}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Booking Date</label>
-                  <ValidatedInput
-                    type="date"
-                    value={formBookingDate}
-                    onChange={(e) => setFormBookingDate(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Notes</label>
-                  <Textarea
-                    value={formNotes}
-                    onChange={(e) => setFormNotes(e.target.value)}
-                    rows={2}
-                    maxLength={2000}
-                  />
-                </div>
-              </div>
+              <BookingDetailsForm
+                value={bookingValue}
+                onChange={applyBookingPatch}
+                eventTypes={eventTypesData}
+                mealTypes={mealTypesData}
+                serviceStyles={serviceStylesData}
+                customerAddress={orgContacts.find((c) => c.id === formContact)?.address}
+                showNotes
+              />
             ) : (
               <dl className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 <InfoRow label="Customer" value={event!.contact_name} />
@@ -726,24 +693,16 @@ export default function EventDetailPage() {
         <CardContent className="p-6">
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Timeline</h2>
             {editing ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Setup Time</label>
-                  <ValidatedInput type="datetime-local" value={formSetupTime} onChange={(e) => setFormSetupTime(e.target.value)} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Guest Arrival Time</label>
-                  <ValidatedInput type="datetime-local" value={formArrivalTime} onChange={(e) => setFormArrivalTime(e.target.value)} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Meal Time</label>
-                  <ValidatedInput type="datetime-local" value={formMealTime} onChange={(e) => setFormMealTime(e.target.value)} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">End Time</label>
-                  <ValidatedInput type="datetime-local" value={formEndTime} onChange={(e) => setFormEndTime(e.target.value)} />
-                </div>
-              </div>
+              <BookingTimelineField
+                eventDate={formDate}
+                value={{ setup_time: formSetupTime, guest_arrival_time: formArrivalTime, meal_time: formMealTime, end_time: formEndTime }}
+                onChange={(patch) => {
+                  if (patch.setup_time !== undefined) setFormSetupTime(patch.setup_time);
+                  if (patch.guest_arrival_time !== undefined) setFormArrivalTime(patch.guest_arrival_time);
+                  if (patch.meal_time !== undefined) setFormMealTime(patch.meal_time);
+                  if (patch.end_time !== undefined) setFormEndTime(patch.end_time);
+                }}
+              />
             ) : (
               <dl className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <InfoRow label="Setup Time" value={formatDateTime(event!.setup_time)} />
@@ -761,98 +720,10 @@ export default function EventDetailPage() {
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Main Meal</h2>
             {editing ? (
               <div className="space-y-4">
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-1">Total Guests</label>
-                    <ValidatedInput
-                      type="number"
-                      min={1}
-                      max={100000}
-                      value={formTotalGuests || ""}
-                      onChange={(e) => {
-                        const total = Math.max(0, Number(e.target.value) || 0);
-                        setFormTotalGuests(total);
-                        if (formCustomSplit) {
-                          const prevTotal = formGents + formLadies;
-                          const ratio = prevTotal > 0 ? formGents / prevTotal : 0.5;
-                          const gents = Math.round(total * ratio);
-                          setFormGents(gents);
-                          setFormLadies(total - gents);
-                        } else {
-                          setFormGents(Math.ceil(total / 2));
-                          setFormLadies(Math.floor(total / 2));
-                        }
-                      }}
-                    />
-                  </div>
-                  <div className="flex items-end pb-1">
-                    <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={formCustomSplit}
-                        onChange={(e) => {
-                          const custom = e.target.checked;
-                          setFormCustomSplit(custom);
-                          if (!custom) {
-                            setFormGents(Math.ceil(formTotalGuests / 2));
-                            setFormLadies(Math.floor(formTotalGuests / 2));
-                          }
-                        }}
-                        className="rounded border-input"
-                      />
-                      Customise split
-                    </label>
-                  </div>
-                </div>
-                {formCustomSplit && (
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-foreground mb-1">Gents</label>
-                      <ValidatedInput
-                        type="number"
-                        min={0}
-                        max={formTotalGuests}
-                        value={formGents}
-                        onChange={(e) => {
-                          const gents = Math.max(0, Number(e.target.value) || 0);
-                          setFormGents(gents);
-                          setFormLadies(Math.max(0, formTotalGuests - gents));
-                        }}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-foreground mb-1">Ladies</label>
-                      <ValidatedInput
-                        type="number"
-                        min={0}
-                        max={formTotalGuests}
-                        value={formLadies}
-                        onChange={(e) => {
-                          const ladies = Math.max(0, Number(e.target.value) || 0);
-                          setFormLadies(ladies);
-                          setFormGents(Math.max(0, formTotalGuests - ladies));
-                        }}
-                      />
-                    </div>
-                  </div>
-                )}
-                {!formCustomSplit && formTotalGuests > 0 && (
-                  <p className="text-xs text-muted-foreground">
-                    Split: {Math.ceil(formTotalGuests / 2)} gents / {Math.floor(formTotalGuests / 2)} ladies
-                  </p>
-                )}
-                <div className="flex items-end pb-1">
-                  <label className="flex items-center gap-2 text-sm">
-                    <input type="checkbox" checked={formBigEaters} onChange={(e) => setFormBigEaters(e.target.checked)} className="rounded border-input text-primary focus:ring-ring" />
-                    <span className="font-medium text-foreground">Big Eaters</span>
-                  </label>
-                  {formBigEaters && (
-                    <div className="ml-4 flex items-center gap-1.5">
-                      <ValidatedInput type="number" min={0} max={100} value={formBigEatersPercent} onChange={(e) => setFormBigEatersPercent(Number(e.target.value))} className="w-20 h-8" />
-                      <span className="text-xs text-muted-foreground">%</span>
-                    </div>
-                  )}
-                </div>
+                <GuestCountField
+                  value={{ gents: formGents, ladies: formLadies, custom_split: formCustomSplit, big_eaters: formBigEaters, big_eaters_percentage: formBigEatersPercent }}
+                  onChange={applyGuestPatch}
+                />
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-foreground mb-1">Guaranteed Count</label>
@@ -891,7 +762,7 @@ export default function EventDetailPage() {
                       onChange={setMenuData}
                       pricePerHead={formPricePerHead}
                       onPricePerHeadChange={setFormPricePerHead}
-                      guestCount={formTotalGuests}
+                      guestCount={totalGuests}
                       currencySymbol={settings.currency_symbol}
                     />
                   ) : (
@@ -901,7 +772,7 @@ export default function EventDetailPage() {
                       onSave={handleMenuSave}
                       pricePerHead={formPricePerHead}
                       onPricePerHeadChange={setFormPricePerHead}
-                      guestCount={formTotalGuests}
+                      guestCount={totalGuests}
                       currencySymbol={settings.currency_symbol}
                       disabled={false}
                     />
@@ -941,145 +812,15 @@ export default function EventDetailPage() {
       </Card>
 
       {/* Additional Meals Section */}
-      <Card>
-        <CardContent className="p-6">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Additional Meals</h2>
-            {editing && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setFormAdditionalMeals([...formAdditionalMeals, {
-                  label: "",
-                  guest_count: 0,
-                  price_per_head: null,
-                  dishes: [],
-                  based_on_template: null,
-                  meal_time: null,
-                  notes: "",
-                }])}
-              >
-                + Add Meal
-              </Button>
-            )}
-          </div>
-          {formAdditionalMeals.length === 0 && !editing && (
-            <p className="text-sm text-muted-foreground">No additional meals.</p>
-          )}
-          {formAdditionalMeals.length === 0 && editing && (
-            <p className="text-sm text-muted-foreground">No additional meals added.</p>
-          )}
-          <div className="space-y-4">
-            {formAdditionalMeals.map((meal, idx) => (
-              <div key={idx} className="border border-border rounded-lg p-4 space-y-3">
-                <div className="flex items-center justify-between gap-2">
-                  {editing ? (
-                    <input
-                      type="text"
-                      placeholder="Meal label"
-                      value={meal.label}
-                      onChange={(e) => {
-                        const updated = [...formAdditionalMeals];
-                        updated[idx] = { ...updated[idx], label: e.target.value };
-                        setFormAdditionalMeals(updated);
-                      }}
-                      className="flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring flex-1"
-                    />
-                  ) : (
-                    <span className="font-medium text-foreground">{meal.label || "Untitled Meal"}</span>
-                  )}
-                  {editing && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="text-destructive"
-                      onClick={() => setFormAdditionalMeals(formAdditionalMeals.filter((_, i) => i !== idx))}
-                    >
-                      Remove
-                    </Button>
-                  )}
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-1">Guest Count</label>
-                    {editing ? (
-                      <ValidatedInput
-                        type="number"
-                        min={0}
-                        value={meal.guest_count}
-                        onChange={(e) => {
-                          const updated = [...formAdditionalMeals];
-                          updated[idx] = { ...updated[idx], guest_count: parseInt(e.target.value) || 0 };
-                          setFormAdditionalMeals(updated);
-                        }}
-                      />
-                    ) : (
-                      <span className="text-sm">{meal.guest_count}</span>
-                    )}
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-1">Meal Time</label>
-                    {editing ? (
-                      <ValidatedInput
-                        type="datetime-local"
-                        value={meal.meal_time ? meal.meal_time.slice(0, 16) : ""}
-                        onChange={(e) => {
-                          const updated = [...formAdditionalMeals];
-                          updated[idx] = { ...updated[idx], meal_time: e.target.value || null };
-                          setFormAdditionalMeals(updated);
-                        }}
-                      />
-                    ) : (
-                      <span className="text-sm">{meal.meal_time ? sharedFormatDateTime(meal.meal_time, dateFormat) : "\u2014"}</span>
-                    )}
-                  </div>
-                </div>
-                {editing && (
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-1">Notes</label>
-                    <Textarea
-                      value={meal.notes}
-                      onChange={(e) => {
-                        const updated = [...formAdditionalMeals];
-                        updated[idx] = { ...updated[idx], notes: e.target.value };
-                        setFormAdditionalMeals(updated);
-                      }}
-                      rows={2}
-                      placeholder="Special instructions for this meal..."
-                    />
-                  </div>
-                )}
-                {!editing && meal.notes && (
-                  <div>
-                    <label className="block text-sm font-medium text-muted-foreground mb-1">Notes</label>
-                    <p className="text-sm">{meal.notes}</p>
-                  </div>
-                )}
-                <MenuBuilder
-                  selectedDishIds={meal.dishes}
-                  basedOnTemplate={meal.based_on_template}
-                  onChange={(data) => {
-                    const updated = [...formAdditionalMeals];
-                    updated[idx] = { ...updated[idx], dishes: data.dish_ids, based_on_template: data.based_on_template };
-                    setFormAdditionalMeals(updated);
-                  }}
-                  pricePerHead={meal.price_per_head || ""}
-                  onPricePerHeadChange={editing ? (val) => {
-                    const updated = [...formAdditionalMeals];
-                    updated[idx] = { ...updated[idx], price_per_head: val || null };
-                    setFormAdditionalMeals(updated);
-                  } : undefined}
-                  guestCount={meal.guest_count}
-                  currencySymbol={settings.currency_symbol}
-                  disabled={!editing}
-                />
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+      <AdditionalMealsEditor
+        meals={formAdditionalMeals}
+        onChange={setFormAdditionalMeals}
+        editing={editing}
+        currencySymbol={settings.currency_symbol}
+        dateFormat={dateFormat}
+        defaultGuestCount={totalGuests}
+        eventDate={formDate}
+      />
 
       {/* Add-on items (arrangements, beverages, rentals, custom) */}
       <Card>
@@ -1089,7 +830,7 @@ export default function EventDetailPage() {
             <AddOnItemsEditor
               items={formLineItems}
               onChange={setFormLineItems}
-              guestCount={formTotalGuests}
+              guestCount={totalGuests}
               currencySymbol={settings.currency_symbol}
             />
           ) : (event!.line_items?.length ?? 0) > 0 ? (
@@ -1114,13 +855,13 @@ export default function EventDetailPage() {
       {/* Pricing Section — shared BookingTotalsCard + engine (same as quotes) */}
       {(() => {
         const pph = editing ? parseFloat(formPricePerHead) || 0 : parseFloat(event?.price_per_head || "0");
-        const guests = editing ? formTotalGuests : ((event?.gents || 0) + (event?.ladies || 0));
+        const guests = editing ? totalGuests : ((event?.gents || 0) + (event?.ladies || 0));
         const foodTotal = pph * guests;
         const meals = editing ? formAdditionalMeals : (event?.additional_meals || []);
         const mealsTotal = meals.reduce((sum, m) => sum + m.guest_count * (parseFloat(m.price_per_head || "0") || 0), 0);
         const mealRows = meals
           .map((m) => ({ m, total: m.guest_count * (parseFloat(m.price_per_head || "0") || 0) }))
-          .filter((r) => r.total > 0)
+          .filter((r) => r.total > 0 || (parseFloat(r.m.price_per_head || "0") || 0) > 0)
           .map((r) => ({
             label: `${r.m.label || "Additional Meal"} (${formatCurrency(r.m.price_per_head || "0", settings.currency_symbol)}/head × ${r.m.guest_count})`,
             total: r.total,

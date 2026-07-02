@@ -81,6 +81,8 @@ npm test                                 # watch mode
 - Use Vitest globals (`describe`, `it`, `expect`) — no imports needed
 - Mock `fetch` for API tests, mock modules with `vi.mock()` for hook tests
 - Wrap hook tests in `SWRConfig` with `{ provider: () => new Map() }` to isolate cache
+- **Any change to a create/edit form or its save payload needs a page-level integration test** that renders the real page, drives the fields through the UI, and asserts the object sent to `api.create*`/`update*` — unit-testing the payload builder is not enough (the field→state→payload wiring is where bugs hide). See the **`frontend-integration-tests`** skill for the general recipe; examples in `frontend/app/quotes/[id]/page*.test.tsx` and `frontend/app/events/[id]/page.create.test.tsx`.
+- **Any change to the quote or event PDF** needs a render-and-extract test (pypdf) asserting the rendered content/order, like `backend/bookings/test_quote_pdf.py` and `backend/events/test_event_pdf.py` — don't rely on eyeballing the PDF.
 
 ## Git
 - Remote: https://github.com/adakh3/portioning.git

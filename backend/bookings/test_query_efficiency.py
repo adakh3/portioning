@@ -55,7 +55,7 @@ class TestListEndpointQueryEfficiency(TestCase):
 
         def row():
             i = self._next()
-            Event.objects.create(organisation=self.org, name=f"E{i}", date="2026-09-01",
+            Event.objects.create(organisation=self.org, name=f"E{i}", event_date="2026-09-01",
                                  gents=10, ladies=10, account=self.account,
                                  product=self._product(i), created_by=self._user(i))
         assert_list_queries_constant(self, self.client, "/api/events/", row, "events")

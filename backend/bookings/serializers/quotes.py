@@ -2,6 +2,7 @@ from rest_framework import serializers
 
 from bookings.models import Quote, BookingLineItem
 from bookings.serializers.leads import _get_event_type_labels
+from bookings.serializers.meals import BookingMealSerializer, replace_meals
 from dishes.models import Dish
 from users.mixins import get_request_org
 from users.serializer_mixins import OrgScopedModelSerializer
@@ -17,7 +18,7 @@ class BookingLineItemSerializer(OrgScopedModelSerializer):
         model = BookingLineItem
         fields = [
             'id', 'quote', 'event', 'variant', 'category', 'description',
-            'quantity', 'unit', 'unit_price', 'is_taxable',
+            'quantity', 'unit', 'unit_price',
             'line_total', 'sort_order',
             'menu_item', 'equipment_item', 'labor_role',
             'created_at',
@@ -26,7 +27,7 @@ class BookingLineItemSerializer(OrgScopedModelSerializer):
         extra_kwargs = {
             'quote': {'required': False},
             'event': {'required': False},
-            'description': {'max_length': 500},
+            'description': {'max_length': 500, 'required': False, 'allow_blank': True},
         }
 
 
@@ -56,16 +57,18 @@ class QuoteSerializer(OrgScopedModelSerializer):
         write_only=True, required=False,
     )
     dish_names = serializers.SerializerMethodField()
+    # Additional meals — same shared booking field as events.
+    additional_meals = BookingMealSerializer(many=True, required=False)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         request = self.context.get('request')
         if request and 'dish_ids' in self.fields:
             org = get_request_org(request)
-            if org:
-                self.fields['dish_ids'].child_relation.queryset = Dish.objects.filter(organisation=org)
-            else:
-                self.fields['dish_ids'].child_relation.queryset = Dish.objects.none()
+            dish_qs = Dish.objects.filter(organisation=org) if org else Dish.objects.none()
+            self.fields['dish_ids'].child_relation.queryset = dish_qs
+            if 'additional_meals' in self.fields:
+                self.fields['additional_meals'].child.fields['dish_ids'].child_relation.queryset = dish_qs
 
     class Meta:
         model = Quote
@@ -76,10 +79,13 @@ class QuoteSerializer(OrgScopedModelSerializer):
             'version', 'status', 'status_display', 'is_editable',
             'event_date', 'venue', 'venue_name', 'venue_address',
             'product', 'product_name', 'guest_count',
+            'gents', 'ladies', 'big_eaters', 'big_eaters_percentage',
             'price_per_head', 'food_total',
             'event_type', 'meal_type', 'booking_date', 'service_style', 'valid_until',
-            'subtotal', 'tax_rate', 'tax_amount', 'total',
+            'setup_time', 'guest_arrival_time', 'meal_time', 'end_time',
+            'is_taxable', 'subtotal', 'tax_rate', 'tax_amount', 'total',
             'dishes', 'dish_ids', 'dish_names', 'based_on_template',
+            'additional_meals',
             'notes', 'internal_notes',
             'sent_at', 'accepted_at',
             'event', 'event_id',
@@ -176,27 +182,33 @@ class QuoteSerializer(OrgScopedModelSerializer):
     def create(self, validated_data):
         dishes = validated_data.pop('dishes', [])
         line_items_data = validated_data.pop('line_items', None)
+        meals_data = validated_data.pop('additional_meals', None)
         quote = super().create(validated_data)
         if dishes:
             quote.dishes.set(dishes)
         if line_items_data:
             self._save_line_items(quote, line_items_data)
+        if meals_data is not None:
+            replace_meals('quote', quote, meals_data)
         quote.recalculate_totals()
         return quote
 
     def update(self, instance, validated_data):
         dishes = validated_data.pop('dishes', None)
         line_items_data = validated_data.pop('line_items', None)
+        meals_data = validated_data.pop('additional_meals', None)
         quote = super().update(instance, validated_data)
         if dishes is not None:
             quote.dishes.set(dishes)
         if line_items_data is not None:
             self._save_line_items(quote, line_items_data)
+        if meals_data is not None:
+            replace_meals('quote', quote, meals_data)
         quote.recalculate_totals()
         return quote
 
 
-QUOTE_LIST_EXCLUDE = {'line_items', 'dishes', 'dish_ids', 'dish_names'}
+QUOTE_LIST_EXCLUDE = {'line_items', 'dishes', 'dish_ids', 'dish_names', 'additional_meals'}
 
 
 class QuoteListSerializer(QuoteSerializer):

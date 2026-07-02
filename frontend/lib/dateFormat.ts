@@ -1,3 +1,11 @@
+/** Today's date as a local "YYYY-MM-DD" string (for <input type="date"> defaults
+ * and anchoring times). Uses local parts, not UTC, so it doesn't roll over late
+ * in the day. */
+export function todayISO(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 interface FormatConfig {
   locale: string;
   dateOptions: Intl.DateTimeFormatOptions;
