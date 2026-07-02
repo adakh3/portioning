@@ -675,6 +675,7 @@ export default function EventDetailPage() {
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Timeline</h2>
             {editing ? (
               <BookingTimelineField
+                eventDate={formDate}
                 value={{ setup_time: formSetupTime, guest_arrival_time: formArrivalTime, meal_time: formMealTime, end_time: formEndTime }}
                 onChange={(patch) => {
                   if (patch.setup_time !== undefined) setFormSetupTime(patch.setup_time);

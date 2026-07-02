@@ -401,6 +401,7 @@ export default function QuoteDetailPage() {
             <CardContent className="p-6">
               <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Timeline</h2>
               <BookingTimelineField
+                eventDate={createData.event_date}
                 value={{ setup_time: createData.setup_time, guest_arrival_time: createData.guest_arrival_time, meal_time: createData.meal_time, end_time: createData.end_time }}
                 onChange={(patch) => setCreateData((prev) => ({ ...prev, ...patch }))}
               />
@@ -811,6 +812,7 @@ export default function QuoteDetailPage() {
           <CardContent className="p-6">
             <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Timeline</h2>
             <BookingTimelineField
+              eventDate={editData.event_date}
               value={{ setup_time: editData.setup_time, guest_arrival_time: editData.guest_arrival_time, meal_time: editData.meal_time, end_time: editData.end_time }}
               onChange={(patch) => setEditData((prev) => ({ ...prev, ...patch }))}
             />
