@@ -49,6 +49,7 @@ export default function GuestCountField({
           <label className="block text-sm font-medium text-foreground mb-1">Total Guests</label>
           <ValidatedInput
             type="number" min={1} max={100000} disabled={disabled}
+            aria-label="Total Guests"
             value={total || ""}
             onChange={(e) => setTotal(Number(e.target.value))}
           />

@@ -103,6 +103,7 @@ export default function AdditionalMealsEditor({
                   {editing ? (
                     <ValidatedInput
                       type="time"
+                      aria-label="Additional meal time"
                       value={meal.meal_time && meal.meal_time.includes("T") ? meal.meal_time.slice(11, 16) : ""}
                       onChange={(e) => {
                         const time = e.target.value;

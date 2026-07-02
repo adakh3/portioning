@@ -45,6 +45,7 @@ export default function BookingTimelineField({
       <label className="block text-sm font-medium text-foreground mb-1">{label}</label>
       <ValidatedInput
         type="time"
+        aria-label={label}
         value={timePart(value[key])}
         disabled={disabled}
         onChange={(e) => setTime(key, e.target.value)}
