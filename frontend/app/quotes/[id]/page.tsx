@@ -333,7 +333,7 @@ export default function QuoteDetailPage() {
 
         {error && <p className="text-destructive">{error}</p>}
 
-        <form onSubmit={handleCreateQuoteSubmit} className="space-y-6">
+        <form onSubmit={handleCreateQuoteSubmit} noValidate className="space-y-6">
           {/* Header */}
           <Card>
             <CardContent className="p-6">
@@ -396,17 +396,6 @@ export default function QuoteDetailPage() {
             </CardContent>
           </Card>
 
-          {/* Additional Meals */}
-          <AdditionalMealsEditor
-            meals={createMeals}
-            onChange={setCreateMeals}
-            editing
-            currencySymbol={cs}
-            dateFormat={dateFormat}
-            priceRoundingStep={Number(settings.price_rounding_step) || 50}
-            defaultGuestCount={createData.gents + createData.ladies}
-          />
-
           {/* Timeline */}
           <Card>
             <CardContent className="p-6">
@@ -417,6 +406,17 @@ export default function QuoteDetailPage() {
               />
             </CardContent>
           </Card>
+
+          {/* Additional Meals */}
+          <AdditionalMealsEditor
+            meals={createMeals}
+            onChange={setCreateMeals}
+            editing
+            currencySymbol={cs}
+            dateFormat={dateFormat}
+            priceRoundingStep={Number(settings.price_rounding_step) || 50}
+            defaultGuestCount={createData.gents + createData.ladies}
+          />
 
           {/* Additional Items */}
           <Card>
@@ -805,19 +805,6 @@ export default function QuoteDetailPage() {
         </div>
       )}
 
-      {/* Additional Meals */}
-      {(editing || (q.additional_meals || []).length > 0) && (
-        <AdditionalMealsEditor
-          meals={editing ? editMeals : (q.additional_meals || [])}
-          onChange={setEditMeals}
-          editing={editing}
-          currencySymbol={cs}
-          dateFormat={dateFormat}
-          priceRoundingStep={Number(settings.price_rounding_step) || 50}
-          defaultGuestCount={editData.gents + editData.ladies}
-        />
-      )}
-
       {/* Timeline (editing) */}
       {editing && (
         <Card>
@@ -829,6 +816,19 @@ export default function QuoteDetailPage() {
             />
           </CardContent>
         </Card>
+      )}
+
+      {/* Additional Meals */}
+      {(editing || (q.additional_meals || []).length > 0) && (
+        <AdditionalMealsEditor
+          meals={editing ? editMeals : (q.additional_meals || [])}
+          onChange={setEditMeals}
+          editing={editing}
+          currencySymbol={cs}
+          dateFormat={dateFormat}
+          priceRoundingStep={Number(settings.price_rounding_step) || 50}
+          defaultGuestCount={editData.gents + editData.ladies}
+        />
       )}
 
       {/* Additional Items */}

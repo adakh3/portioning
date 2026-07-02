@@ -48,16 +48,22 @@ class AddonCellsTests(SimpleTestCase):
 
 
 class _Meal:
-    def __init__(self, label, guest_count, price_per_head):
+    def __init__(self, label, guest_count, price_per_head, meal_time=None):
         self.label = label
         self.guest_count = guest_count
         self.price_per_head = price_per_head
+        self.meal_time = meal_time
 
 
 class MealLineTextTests(SimpleTestCase):
     def test_priced_meal_renders_a_line(self):
         line = meal_line_text(_Meal("Welcome drinks", 40, Decimal("15")), "PKR")
         self.assertEqual(line, "Welcome drinks — PKR15.00/head × 40 = PKR600.00")
+
+    def test_meal_time_is_included_when_set(self):
+        import datetime
+        line = meal_line_text(_Meal("Dinner", 40, Decimal("15"), datetime.datetime(2026, 8, 1, 20, 30)), "PKR")
+        self.assertEqual(line, "Dinner @ 01 Aug 2026, 20:30 — PKR15.00/head × 40 = PKR600.00")
 
     def test_unpriced_meal_is_omitted(self):
         self.assertIsNone(meal_line_text(_Meal("Tea", 40, None), "PKR"))

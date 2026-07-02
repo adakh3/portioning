@@ -69,7 +69,11 @@ def meal_line_text(meal, cs='£'):
     if not pph or pph <= 0:
         return None
     total = pph * (meal.guest_count or 0)
-    return f'{meal.label or "Additional Meal"} — {_fmt(pph, cs)}/head × {meal.guest_count} = {_fmt(total, cs)}'
+    when = ''
+    mt = getattr(meal, 'meal_time', None)
+    if mt:
+        when = f' @ {mt.strftime("%d %b %Y, %H:%M")}'
+    return f'{meal.label or "Additional Meal"}{when} — {_fmt(pph, cs)}/head × {meal.guest_count} = {_fmt(total, cs)}'
 
 
 def addon_cells(item, cs='£'):
@@ -452,18 +456,45 @@ def generate_quote_pdf(quote):
             elements.append(Spacer(1, 6 * mm))
 
     # Food/menu summary — the MAIN meal line (shown even with no dish list, so
-    # food_total never sits silently in the subtotal — the Q-59 bug), then one
-    # line per additional meal so each is visible and the subtotal reconciles.
+    # food_total never sits silently in the subtotal — the Q-59 bug).
     main_food = (quote.price_per_head or 0) * quote.guest_count
     food_line = food_summary_text(quote.price_per_head, quote.guest_count, main_food, cs)
-    meal_lines = [t for m in quote.additional_meals.all() if (t := meal_line_text(m, cs))]
-    if food_line or meal_lines:
+    if food_line:
         if dish_names:
             elements.append(Spacer(1, 3 * mm))
         else:
             elements.append(_section_header([Paragraph('FOOD / MENU', s['section_title'])], [CONTENT_W]))
-        if food_line:
-            elements.append(Paragraph(f'<b>{food_line}</b>', s['body']))
+        elements.append(Paragraph(f'<b>{food_line}</b>', s['body']))
+        elements.append(Spacer(1, 6 * mm))
+
+    # Timeline (setup / arrival / meal / end) — before the meals, mirroring the form.
+    timeline_items = [
+        ('Setup', quote.setup_time),
+        ('Guest Arrival', quote.guest_arrival_time),
+        ('Meal', quote.meal_time),
+        ('End', quote.end_time),
+    ]
+    timeline_rows = [
+        [Paragraph(f'{label} Time:', s['info_label']),
+         Paragraph(dt.strftime('%d %b %Y, %H:%M'), s['info_value'])]
+        for label, dt in timeline_items if dt
+    ]
+    if timeline_rows:
+        elements.append(_section_header([Paragraph('TIMELINE', s['section_title'])], [CONTENT_W]))
+        tl_table = Table(timeline_rows, colWidths=[CONTENT_W * 0.25, CONTENT_W * 0.75])
+        tl_table.setStyle(TableStyle([
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('TOPPADDING', (0, 0), (-1, -1), 2),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
+            ('LEFTPADDING', (0, 0), (-1, -1), 6),
+        ]))
+        elements.append(tl_table)
+        elements.append(Spacer(1, 6 * mm))
+
+    # Additional meals — one line each, after the timeline.
+    meal_lines = [t for m in quote.additional_meals.all() if (t := meal_line_text(m, cs))]
+    if meal_lines:
+        elements.append(_section_header([Paragraph('ADDITIONAL MEALS', s['section_title'])], [CONTENT_W]))
         for ml in meal_lines:
             elements.append(Paragraph(ml, s['body']))
         elements.append(Spacer(1, 6 * mm))
@@ -510,30 +541,6 @@ def generate_quote_pdf(quote):
             addon_style.append(('LINEBELOW', (0, i), (-1, i), 0.25, BORDER_LIGHT))
         addon_table.setStyle(TableStyle(addon_style))
         elements.append(addon_table)
-        elements.append(Spacer(1, 6 * mm))
-
-    # ── Timeline (setup / arrival / meal / end) — shown when any time is set ──
-    timeline_items = [
-        ('Setup', quote.setup_time),
-        ('Guest Arrival', quote.guest_arrival_time),
-        ('Meal', quote.meal_time),
-        ('End', quote.end_time),
-    ]
-    timeline_rows = [
-        [Paragraph(f'{label} Time:', s['info_label']),
-         Paragraph(dt.strftime('%d %b %Y, %H:%M'), s['info_value'])]
-        for label, dt in timeline_items if dt
-    ]
-    if timeline_rows:
-        elements.append(_section_header([Paragraph('TIMELINE', s['section_title'])], [CONTENT_W]))
-        tl_table = Table(timeline_rows, colWidths=[CONTENT_W * 0.25, CONTENT_W * 0.75])
-        tl_table.setStyle(TableStyle([
-            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-            ('TOPPADDING', (0, 0), (-1, -1), 2),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
-            ('LEFTPADDING', (0, 0), (-1, -1), 6),
-        ]))
-        elements.append(tl_table)
         elements.append(Spacer(1, 6 * mm))
 
     # ── 5. Notes (customer-visible only; internal notes are never in the PDF) ──
