@@ -1294,6 +1294,17 @@ export const api = {
     }
     return res.blob();
   },
+  downloadEventPDF: async (id: number): Promise<Blob> => {
+    const res = await fetch(`${API_BASE}/events/${id}/pdf/`, {
+      credentials: "include",
+      headers: buildHeaders(),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(sanitizeError(res.status, text));
+    }
+    return res.blob();
+  },
   getQuoteLineItems: (quoteId: number) =>
     fetchList<QuoteLineItem>(`/bookings/quotes/${quoteId}/items/?page_size=all`),
   createQuoteLineItem: (quoteId: number, data: Partial<QuoteLineItem>) =>

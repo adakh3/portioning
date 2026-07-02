@@ -3,14 +3,31 @@ from collections import defaultdict
 from datetime import date
 
 from django.db.models import Q
+from django.http import HttpResponse
 from rest_framework import generics, status as http_status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from bookings.models import LockedDate
 from bookings.permissions import is_salesperson
+from bookings.pdf import generate_event_pdf
 from .models import Event, EventStatus
 from users.mixins import get_request_org, apply_org_filter, get_org_object_or_404
 from .serializers import EventSerializer, EventListSerializer
+
+
+class EventPDFView(APIView):
+    """GET /api/events/<pk>/pdf/ — download the event function sheet as a PDF."""
+
+    def get(self, request, pk):
+        event = get_org_object_or_404(
+            Event.objects.select_related('account', 'venue', 'primary_contact')
+            .prefetch_related('line_items', 'dishes', 'additional_meals'),
+            request, pk=pk,
+        )
+        pdf_bytes = generate_event_pdf(event)
+        response = HttpResponse(pdf_bytes, content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="Event-{event.pk}.pdf"'
+        return response
 
 
 def _auto_advance_event_statuses(org=None):

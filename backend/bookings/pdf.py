@@ -621,3 +621,239 @@ def generate_quote_pdf(quote):
 
     doc.build(elements)
     return buf.getvalue()
+
+
+def _choice_label(model, value, org):
+    if not value:
+        return ''
+    return (model.objects.filter(value=value, organisation=org)
+            .values_list('label', flat=True).first() or value)
+
+
+def generate_event_pdf(event):
+    """Generate an EVENT FUNCTION SHEET PDF for the ops/kitchen team from an Event
+    instance. Shares the quote PDF's styles + food/meal/add-on helpers, but leads
+    with the operational detail (timeline, guest counts, menu, kitchen/banquet/
+    setup instructions) rather than sales/pricing. Returns bytes.
+    """
+    settings = OrgSettings.for_org(event.organisation)
+    cs = settings.currency_symbol
+    s = _styles()
+
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buf, pagesize=A4,
+        topMargin=MARGIN, bottomMargin=MARGIN,
+        leftMargin=MARGIN, rightMargin=MARGIN,
+    )
+    elements = []
+
+    org_name = event.organisation.name if event.organisation_id else ''
+
+    # ── Header: org name + "EVENT FUNCTION SHEET" title + divider ──
+    elements.append(Paragraph(org_name, s['org_name']))
+    elements.append(Spacer(1, 1 * mm))
+    elements.append(Paragraph('EVENT FUNCTION SHEET', s['section_heading']))
+    divider = Table([['']], colWidths=[CONTENT_W])
+    divider.setStyle(TableStyle([
+        ('LINEBELOW', (0, 0), (-1, 0), 0.5, BORDER_LIGHT),
+        ('TOPPADDING', (0, 0), (-1, 0), 0),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 0),
+    ]))
+    elements.append(divider)
+    elements.append(Spacer(1, 8 * mm))
+
+    # ── Two-column info block: customer/venue (left) + event details (right) ──
+    left_data = []
+    c = event.primary_contact
+    to_name = c.name if c else (event.account.name if event.account_id else '—')
+    left_data.append([Paragraph(f'<b>{event.name or to_name}</b>', s['info_header']), ''])
+    left_data.append([Paragraph('Customer:', s['info_label']), Paragraph(to_name, s['info_value'])])
+    if c and c.phone:
+        left_data.append([Paragraph('Phone:', s['info_label']), Paragraph(c.phone, s['info_value'])])
+    if event.account_id:
+        left_data.append([Paragraph('Business:', s['info_label']), Paragraph(event.account.name, s['info_value'])])
+    if event.venue:
+        venue = event.venue
+        venue_parts = [venue.name]
+        addr = [p for p in [venue.address_line1, venue.city] if p]
+        if addr:
+            venue_parts.append(', '.join(addr))
+        left_data.append([Paragraph('Venue:', s['info_label']), Paragraph(' — '.join(venue_parts), s['info_value'])])
+    elif event.venue_address:
+        left_data.append([Paragraph('Venue:', s['info_label']), Paragraph(event.venue_address, s['info_value'])])
+    left_data.append([Paragraph('Event Type:', s['info_label']),
+                      Paragraph(_choice_label(EventTypeOption, event.event_type, event.organisation), s['info_value'])])
+
+    LEFT_COL_W = CONTENT_W * 0.52
+    left_table = Table(left_data, colWidths=[LEFT_COL_W * 0.28, LEFT_COL_W * 0.72])
+    left_table.setStyle(TableStyle([
+        ('SPAN', (0, 0), (1, 0)),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('TOPPADDING', (0, 0), (-1, -1), 2),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
+        ('LEFTPADDING', (0, 0), (-1, -1), 0),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 2),
+    ]))
+
+    guests_text = f'{event.gents + event.ladies} ({event.gents} gents / {event.ladies} ladies)'
+    right_rows = [
+        ['Event Date:', event.event_date.strftime('%d %B %Y')],
+        ['Event Day:', event.event_date.strftime('%A')],
+        ['Status:', event.get_status_display()],
+        ['No. of Guests:', guests_text],
+    ]
+    if event.big_eaters:
+        right_rows.append(['Big Eaters:', f'+{event.big_eaters_percentage:.0f}%'])
+    mt = _choice_label(MealTypeOption, event.meal_type, event.organisation)
+    if mt:
+        right_rows.append(['Meal Type:', mt])
+    ss = _choice_label(ServiceStyleOption, event.service_style, event.organisation)
+    if ss:
+        right_rows.append(['Service Style:', ss])
+    if event.guaranteed_count is not None:
+        right_rows.append(['Guaranteed Count:', str(event.guaranteed_count)])
+    if event.final_count is not None:
+        right_rows.append(['Final Count:', str(event.final_count)])
+    if event.final_count_due:
+        right_rows.append(['Final Count Due:', event.final_count_due.strftime('%d %B %Y')])
+
+    RIGHT_COL_W = CONTENT_W * 0.48
+    right_header = _section_header([Paragraph('EVENT DETAILS', s['section_title'])], [RIGHT_COL_W])
+    right_info = Table(
+        [[Paragraph(r[0], s['info_label']), Paragraph(r[1], s['info_value'])] for r in right_rows],
+        colWidths=[RIGHT_COL_W * 0.45, RIGHT_COL_W * 0.55],
+    )
+    right_info.setStyle(TableStyle([
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('TOPPADDING', (0, 0), (-1, -1), 3),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+        ('LEFTPADDING', (0, 0), (-1, -1), 6),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+        ('BACKGROUND', (0, 0), (-1, -1), BG_SUBTLE),
+    ]))
+    right_col = [right_header, right_info]
+
+    info_block = Table(
+        [[left_table, Spacer(1, 1), Table([[rc] for rc in right_col], colWidths=[RIGHT_COL_W])]],
+        colWidths=[LEFT_COL_W, CONTENT_W * 0.02 - 2, RIGHT_COL_W - CONTENT_W * 0.02 + 2],
+    )
+    info_block.setStyle(TableStyle([
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('LEFTPADDING', (0, 0), (-1, -1), 0),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+        ('TOPPADDING', (0, 0), (-1, -1), 0),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+    ]))
+    elements.append(info_block)
+    elements.append(Spacer(1, 8 * mm))
+
+    # ── Timeline ──
+    timeline_items = [
+        ('Setup', event.setup_time), ('Guest Arrival', event.guest_arrival_time),
+        ('Meal', event.meal_time), ('End', event.end_time),
+    ]
+    timeline_rows = [
+        [Paragraph(f'{label} Time:', s['info_label']),
+         Paragraph(dt.strftime('%d %b %Y, %H:%M'), s['info_value'])]
+        for label, dt in timeline_items if dt
+    ]
+    if timeline_rows:
+        elements.append(_section_header([Paragraph('TIMELINE', s['section_title'])], [CONTENT_W]))
+        tl_table = Table(timeline_rows, colWidths=[CONTENT_W * 0.25, CONTENT_W * 0.75])
+        tl_table.setStyle(TableStyle([
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('TOPPADDING', (0, 0), (-1, -1), 2),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
+            ('LEFTPADDING', (0, 0), (-1, -1), 6),
+        ]))
+        elements.append(tl_table)
+        elements.append(Spacer(1, 6 * mm))
+
+    # ── Menu items + main food line ──
+    dish_names = list(event.dishes.values_list('name', flat=True))
+    if dish_names:
+        elements.append(_section_header([Paragraph('MENU ITEMS', s['section_title'])], [CONTENT_W]))
+        half = math.ceil(len(dish_names) / 2)
+        col1, col2 = dish_names[:half], dish_names[half:]
+        MENU_COL_W = CONTENT_W * 0.50
+        menu_rows = []
+        for i in range(half):
+            right = Paragraph(col2[i], s['body']) if i < len(col2) else Paragraph('', s['body'])
+            menu_rows.append([Paragraph(col1[i], s['body']), right])
+        menu_table = Table(menu_rows, colWidths=[MENU_COL_W, MENU_COL_W])
+        menu_style = [
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'), ('TOPPADDING', (0, 0), (-1, -1), 3),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 3), ('LEFTPADDING', (0, 0), (-1, -1), 6),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+        ]
+        for i in range(len(menu_rows)):
+            menu_style.append(('LINEBELOW', (0, i), (-1, i), 0.25, BORDER_LIGHT))
+        menu_table.setStyle(TableStyle(menu_style))
+        elements.append(menu_table)
+        elements.append(Spacer(1, 3 * mm))
+
+    main_food = (event.price_per_head or 0) * (event.gents + event.ladies)
+    food_line = food_summary_text(event.price_per_head, event.gents + event.ladies, main_food, cs)
+    if food_line:
+        if not dish_names:
+            elements.append(_section_header([Paragraph('FOOD / MENU', s['section_title'])], [CONTENT_W]))
+        elements.append(Paragraph(f'<b>{food_line}</b>', s['body']))
+        elements.append(Spacer(1, 6 * mm))
+
+    # ── Additional meals ──
+    meal_lines = [t for m in event.additional_meals.all() if (t := meal_line_text(m, cs))]
+    if meal_lines:
+        elements.append(_section_header([Paragraph('ADDITIONAL MEALS', s['section_title'])], [CONTENT_W]))
+        for ml in meal_lines:
+            elements.append(Paragraph(ml, s['body']))
+        elements.append(Spacer(1, 6 * mm))
+
+    # ── Add-ons / additional items ──
+    line_items = list(event.line_items.all())
+    if line_items:
+        ADDON_COL_WIDTHS = [CONTENT_W * 0.18, CONTENT_W * 0.42, CONTENT_W * 0.20, CONTENT_W * 0.20]
+        elements.append(_section_header([
+            Paragraph('CATEGORY', s['section_title']),
+            Paragraph('ADD-ONS / ADDITIONAL ITEMS', s['section_title']),
+            Paragraph('RATE', s['section_title_right']),
+            Paragraph('AMOUNT', s['section_title_right']),
+        ], ADDON_COL_WIDTHS))
+        addon_rows = []
+        for item in line_items:
+            cat, desc, rate, amount = addon_cells(item, cs)
+            amount_style = s['body_right']
+            if item.category == 'discount':
+                amount_style = ParagraphStyle('Discount', parent=s['body_right'], textColor=colors.HexColor('#DC2626'))
+            addon_rows.append([
+                Paragraph(cat, s['body']), Paragraph(desc, s['body']),
+                Paragraph(rate, s['body_right']), Paragraph(amount, amount_style),
+            ])
+        addon_table = Table(addon_rows, colWidths=ADDON_COL_WIDTHS)
+        addon_style = [
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'), ('TOPPADDING', (0, 0), (-1, -1), 3),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 3), ('LEFTPADDING', (0, 0), (-1, -1), 6),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+        ]
+        for i in range(len(addon_rows)):
+            addon_style.append(('LINEBELOW', (0, i), (-1, i), 0.25, BORDER_LIGHT))
+        addon_table.setStyle(TableStyle(addon_style))
+        elements.append(addon_table)
+        elements.append(Spacer(1, 6 * mm))
+
+    # ── Ops instructions (kitchen / banquet / setup) ──
+    for title, text in [
+        ('KITCHEN INSTRUCTIONS', event.kitchen_instructions),
+        ('BANQUET INSTRUCTIONS', event.banquet_instructions),
+        ('SETUP INSTRUCTIONS', event.setup_instructions),
+    ]:
+        if text and text.strip():
+            elements.append(_section_header([Paragraph(title, s['section_title'])], [CONTENT_W]))
+            elements.append(Spacer(1, 2 * mm))
+            for para in text.split('\n'):
+                if para.strip():
+                    elements.append(Paragraph(para.strip(), s['note']))
+            elements.append(Spacer(1, 6 * mm))
+
+    doc.build(elements)
+    return buf.getvalue()

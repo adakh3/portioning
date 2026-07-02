@@ -540,6 +540,25 @@ export default function EventDetailPage() {
                   >
                     Edit
                   </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={async () => {
+                      try {
+                        const blob = await api.downloadEventPDF(event!.id);
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement("a");
+                        a.href = url;
+                        a.download = `Event-${event!.id}.pdf`;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                      } catch (err) {
+                        setError(err instanceof Error ? err.message : "Failed to download PDF");
+                      }
+                    }}
+                  >
+                    Download PDF
+                  </Button>
                   {/* Status transitions */}
                   {event!.status === "tentative" && (
                     <Button
