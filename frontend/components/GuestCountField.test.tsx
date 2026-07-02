@@ -36,7 +36,7 @@ describe("GuestCountField", () => {
 
   it("toggling custom split off resets to 50/50", () => {
     const onChange = setup({ gents: 35, ladies: 15, custom_split: true }); // total 50
-    fireEvent.click(screen.getByRole("checkbox", { name: /customise split/i }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /customise gender split/i }));
     expect(onChange).toHaveBeenCalledWith({ custom_split: false, gents: 25, ladies: 25 });
   });
 

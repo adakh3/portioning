@@ -795,6 +795,18 @@ class TestQuoteAPI(TestCase):
         self.assertEqual(quote.food_total, Decimal("1300.00"))
         self.assertEqual(quote.subtotal, Decimal("1300.00"))
 
+    def test_line_item_description_is_optional(self):
+        res = self.client.post("/api/bookings/quotes/", {
+            "primary_contact": self.contact.id,
+            "event_date": "2026-09-01", "guest_count": 20,
+            "line_items": [{
+                "category": "fee", "description": "",
+                "quantity": "1", "unit": "flat", "unit_price": "500",
+            }],
+        }, format="json")
+        self.assertEqual(res.status_code, 201, res.content)
+        self.assertEqual(res.json()["line_items"][0]["description"], "")
+
     def test_accept_carries_line_items_to_event(self):
         # Headline bug: accepting a quote used to drop its add-on items.
         quote = make_quote(org=self.org, account=self.account, primary_contact=self.contact)

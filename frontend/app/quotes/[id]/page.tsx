@@ -12,7 +12,7 @@ import AdditionalMealsEditor from "@/components/AdditionalMealsEditor";
 import GuestCountField, { GuestCountValue } from "@/components/GuestCountField";
 import BookingTimelineField from "@/components/BookingTimelineField";
 import BookingDetailsForm, { BookingDetailsValue } from "@/components/BookingDetailsForm";
-import { computeQuoteTotals, buildQuoteSavePayload, LineItemInput } from "@/lib/quoteTotals";
+import { computeQuoteTotals, buildQuoteSavePayload, bookingMealRows, LineItemInput } from "@/lib/quoteTotals";
 import AddOnItemsEditor from "@/components/AddOnItemsEditor";
 import BookingTotalsCard from "@/components/BookingTotalsCard";
 import { Button } from "@/components/ui/button";
@@ -404,6 +404,7 @@ export default function QuoteDetailPage() {
             currencySymbol={cs}
             dateFormat={dateFormat}
             priceRoundingStep={Number(settings.price_rounding_step) || 50}
+            defaultGuestCount={createData.gents + createData.ladies}
           />
 
           {/* Timeline */}
@@ -434,8 +435,9 @@ export default function QuoteDetailPage() {
           <BookingTotalsCard
             title="Quote Total"
             currencySymbol={cs}
-            foodTotal={createTotals.food_total}
+            foodTotal={Math.round((parseFloat(createData.price_per_head) || 0) * (createData.gents + createData.ladies) * 100) / 100}
             foodLabel={`Food / Menu (${formatCurrency(createData.price_per_head || 0, cs)}/head × ${createData.gents + createData.ladies} guests)`}
+            meals={bookingMealRows(createMeals, cs)}
             addOnsTotal={Math.round((createTotals.subtotal - createTotals.food_total) * 100) / 100}
             subtotal={createTotals.subtotal}
             taxAmount={createTotals.tax_amount}
@@ -450,8 +452,8 @@ export default function QuoteDetailPage() {
                   step="0.01"
                   min={0}
                   max={100}
-                  value={Math.round(parseFloat(createData.tax_rate) * 10000) / 100}
-                  onChange={(e) => setCreateData({ ...createData, tax_rate: (parseFloat(e.target.value) / 100).toFixed(4) })}
+                  value={Number.isNaN(parseFloat(createData.tax_rate)) ? "" : Math.round(parseFloat(createData.tax_rate) * 10000) / 100}
+                  onChange={(e) => setCreateData({ ...createData, tax_rate: e.target.value === "" ? "0.0000" : (parseFloat(e.target.value) / 100).toFixed(4) })}
                 />
               </div>
             }
@@ -812,6 +814,7 @@ export default function QuoteDetailPage() {
           currencySymbol={cs}
           dateFormat={dateFormat}
           priceRoundingStep={Number(settings.price_rounding_step) || 50}
+          defaultGuestCount={editData.gents + editData.ladies}
         />
       )}
 
@@ -876,15 +879,20 @@ export default function QuoteDetailPage() {
 
       {/* Quote Total (menu + additional items) */}
       {(() => {
-        const foodTotal = editing ? liveTotals.food_total : parseFloat(q.food_total);
+        const fullFood = editing ? liveTotals.food_total : parseFloat(q.food_total);
         const subtotal = editing ? liveTotals.subtotal : parseFloat(q.subtotal);
+        const mealsList = editing ? editMeals : (q.additional_meals || []);
+        const pph = parseFloat((editing ? editData.price_per_head : q.price_per_head) || "0") || 0;
+        const guests = editing ? editGuestCount : q.guest_count;
+        const mainFood = Math.round(pph * guests * 100) / 100;
         return (
       <BookingTotalsCard
         title="Quote Total"
         currencySymbol={cs}
-        foodTotal={foodTotal}
+        foodTotal={mainFood}
         foodLabel={`Food / Menu (${formatCurrency(editing ? editData.price_per_head : (q.price_per_head ?? 0), cs)}/head × ${editing ? editGuestCount : q.guest_count} guests)`}
-        addOnsTotal={Math.round((subtotal - foodTotal) * 100) / 100}
+        meals={bookingMealRows(mealsList, cs)}
+        addOnsTotal={Math.round((subtotal - fullFood) * 100) / 100}
         subtotal={subtotal}
         taxAmount={editing ? liveTotals.tax_amount : parseFloat(q.tax_amount)}
         total={editing ? liveTotals.total : parseFloat(q.total)}

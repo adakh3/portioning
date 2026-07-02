@@ -18,6 +18,7 @@ export default function AdditionalMealsEditor({
   currencySymbol,
   dateFormat,
   priceRoundingStep,
+  defaultGuestCount = 0,
 }: {
   meals: EventMealData[];
   onChange: (meals: EventMealData[]) => void;
@@ -25,6 +26,8 @@ export default function AdditionalMealsEditor({
   currencySymbol: string;
   dateFormat: string;
   priceRoundingStep?: number;
+  /** New meals default their guest count to this (the booking's total guests). */
+  defaultGuestCount?: number;
 }) {
   const patch = (idx: number, fields: Partial<EventMealData>) =>
     onChange(meals.map((m, i) => (i === idx ? { ...m, ...fields } : m)));
@@ -40,7 +43,7 @@ export default function AdditionalMealsEditor({
               variant="outline"
               size="sm"
               onClick={() => onChange([...meals, {
-                label: "", guest_count: 0, price_per_head: null, dishes: [],
+                label: "", guest_count: defaultGuestCount, price_per_head: null, dishes: [],
                 based_on_template: null, meal_time: null, notes: "",
               }])}
             >

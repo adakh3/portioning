@@ -60,7 +60,7 @@ export default function GuestCountField({
               onChange={(e) => toggleCustom(e.target.checked)}
               className="rounded border-input"
             />
-            Customise split
+            Customise gender split
           </label>
         </div>
       </div>

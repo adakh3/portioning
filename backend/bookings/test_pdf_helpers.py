@@ -5,7 +5,7 @@ from decimal import Decimal
 
 from django.test import SimpleTestCase
 
-from bookings.pdf import food_summary_text, addon_cells
+from bookings.pdf import food_summary_text, addon_cells, meal_line_text
 
 
 class _Item:
@@ -45,3 +45,20 @@ class AddonCellsTests(SimpleTestCase):
         cat, _desc, _rate, amount = addon_cells(item, "PKR")
         self.assertEqual(cat, "Discount")
         self.assertEqual(amount, "PKR-11,200.00")
+
+
+class _Meal:
+    def __init__(self, label, guest_count, price_per_head):
+        self.label = label
+        self.guest_count = guest_count
+        self.price_per_head = price_per_head
+
+
+class MealLineTextTests(SimpleTestCase):
+    def test_priced_meal_renders_a_line(self):
+        line = meal_line_text(_Meal("Welcome drinks", 40, Decimal("15")), "PKR")
+        self.assertEqual(line, "Welcome drinks — PKR15.00/head × 40 = PKR600.00")
+
+    def test_unpriced_meal_is_omitted(self):
+        self.assertIsNone(meal_line_text(_Meal("Tea", 40, None), "PKR"))
+        self.assertIsNone(meal_line_text(_Meal("Tea", 40, Decimal("0")), "PKR"))

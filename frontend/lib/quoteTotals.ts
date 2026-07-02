@@ -3,6 +3,7 @@
 // The server (bookings/models/quotes.py: recalculate_totals + QuoteLineItem.save)
 // remains the source of truth on save.
 import { EventMealData } from "@/lib/api";
+import { formatCurrency } from "@/lib/utils";
 
 export interface LineItemInput {
   id?: number;
@@ -73,6 +74,21 @@ export function mealsFood(meals: { guest_count: number; price_per_head: string |
     if (price > 0 && m.guest_count) total += round2(price * m.guest_count);
   }
   return round2(total);
+}
+
+/** One labelled totals row per priced additional meal — shown in the breakdown on
+ * both editors (and mirrored in the PDF) so each meal is a visible line. */
+export function bookingMealRows(
+  meals: { label?: string; guest_count: number; price_per_head: string | null }[] | undefined,
+  currencySymbol: string,
+): { label: string; total: number }[] {
+  return (meals || [])
+    .map((m) => ({ m, total: round2((Number(m.price_per_head) || 0) * (m.guest_count || 0)) }))
+    .filter((r) => r.total > 0 || (Number(r.m.price_per_head) || 0) > 0)
+    .map((r) => ({
+      label: `${r.m.label || "Additional Meal"} (${formatCurrency(r.m.price_per_head || "0", currencySymbol)}/head × ${r.m.guest_count})`,
+      total: r.total,
+    }));
 }
 
 export function computeQuoteTotals(

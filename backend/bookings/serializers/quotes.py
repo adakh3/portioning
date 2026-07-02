@@ -27,7 +27,7 @@ class BookingLineItemSerializer(OrgScopedModelSerializer):
         extra_kwargs = {
             'quote': {'required': False},
             'event': {'required': False},
-            'description': {'max_length': 500},
+            'description': {'max_length': 500, 'required': False, 'allow_blank': True},
         }
 
 

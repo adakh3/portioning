@@ -798,6 +798,7 @@ export default function EventDetailPage() {
         editing={editing}
         currencySymbol={settings.currency_symbol}
         dateFormat={dateFormat}
+        defaultGuestCount={totalGuests}
       />
 
       {/* Add-on items (arrangements, beverages, rentals, custom) */}
@@ -839,7 +840,7 @@ export default function EventDetailPage() {
         const mealsTotal = meals.reduce((sum, m) => sum + m.guest_count * (parseFloat(m.price_per_head || "0") || 0), 0);
         const mealRows = meals
           .map((m) => ({ m, total: m.guest_count * (parseFloat(m.price_per_head || "0") || 0) }))
-          .filter((r) => r.total > 0)
+          .filter((r) => r.total > 0 || (parseFloat(r.m.price_per_head || "0") || 0) > 0)
           .map((r) => ({
             label: `${r.m.label || "Additional Meal"} (${formatCurrency(r.m.price_per_head || "0", settings.currency_symbol)}/head × ${r.m.guest_count})`,
             total: r.total,

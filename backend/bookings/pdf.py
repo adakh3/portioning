@@ -63,6 +63,15 @@ def food_summary_text(price_per_head, guest_count, food_total, cs='£'):
     return f'{_fmt(price_per_head or 0, cs)} per head × {guest_count} guests = {_fmt(food_total, cs)}'
 
 
+def meal_line_text(meal, cs='£'):
+    """One-line summary for an additional meal, or None when it has no price."""
+    pph = meal.price_per_head
+    if not pph or pph <= 0:
+        return None
+    total = pph * (meal.guest_count or 0)
+    return f'{meal.label or "Additional Meal"} — {_fmt(pph, cs)}/head × {meal.guest_count} = {_fmt(total, cs)}'
+
+
 def addon_cells(item, cs='£'):
     """(category, description, rate, amount) display strings for one add-on row —
     includes the category label (F3). Pure + unit-tested."""
@@ -424,15 +433,21 @@ def generate_quote_pdf(quote):
         if not has_food_total:
             elements.append(Spacer(1, 6 * mm))
 
-    # Food/menu summary — shown whenever there's a food cost, even with no dish
-    # list (otherwise food_total sits silently in the subtotal — the Q-59 bug).
-    food_line = food_summary_text(quote.price_per_head, quote.guest_count, quote.food_total, cs)
-    if food_line:
+    # Food/menu summary — the MAIN meal line (shown even with no dish list, so
+    # food_total never sits silently in the subtotal — the Q-59 bug), then one
+    # line per additional meal so each is visible and the subtotal reconciles.
+    main_food = (quote.price_per_head or 0) * quote.guest_count
+    food_line = food_summary_text(quote.price_per_head, quote.guest_count, main_food, cs)
+    meal_lines = [t for m in quote.additional_meals.all() if (t := meal_line_text(m, cs))]
+    if food_line or meal_lines:
         if dish_names:
             elements.append(Spacer(1, 3 * mm))
         else:
             elements.append(_section_header([Paragraph('FOOD / MENU', s['section_title'])], [CONTENT_W]))
-        elements.append(Paragraph(f'<b>{food_line}</b>', s['body']))
+        if food_line:
+            elements.append(Paragraph(f'<b>{food_line}</b>', s['body']))
+        for ml in meal_lines:
+            elements.append(Paragraph(ml, s['body']))
         elements.append(Spacer(1, 6 * mm))
 
     # ── 4. Add-ons / Line Items ──
