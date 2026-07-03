@@ -1,6 +1,6 @@
 "use client";
 
-import { ValidatedInput } from "@/components/ui/validated-input";
+import TimeField from "@/components/TimeField";
 import { todayISO } from "@/lib/dateFormat";
 
 export interface BookingTimelineValue {
@@ -40,26 +40,17 @@ export default function BookingTimelineField({
     onChange({ [key]: `${date}T${time}` });
   };
 
-  const field = (key: keyof BookingTimelineValue, label: string) => {
-    const t = timePart(value[key]);
-    return (
-      <div>
-        <label className="block text-sm font-medium text-foreground mb-1">{label}</label>
-        <ValidatedInput
-          type="time"
-          aria-label={label}
-          value={t}
-          disabled={disabled}
-          onChange={(e) => setTime(key, e.target.value)}
-        />
-        {/* Reflects the ACTUAL captured value (what will save) — the browser's own
-            empty-field display can look like a time, so this removes the doubt. */}
-        {t
-          ? <span className="mt-1 block text-xs text-emerald-600">✓ {t}</span>
-          : <span className="mt-1 block text-xs text-muted-foreground">Not set</span>}
-      </div>
-    );
-  };
+  const field = (key: keyof BookingTimelineValue, label: string) => (
+    <div>
+      <label className="block text-sm font-medium text-foreground mb-1">{label}</label>
+      <TimeField
+        ariaLabel={label}
+        value={timePart(value[key])}
+        disabled={disabled}
+        onChange={(t) => setTime(key, t)}
+      />
+    </div>
+  );
 
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

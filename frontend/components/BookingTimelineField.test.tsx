@@ -16,9 +16,9 @@ describe("BookingTimelineField", () => {
   it("anchors an entered time to the event date", () => {
     const onChange = vi.fn();
     render(<BookingTimelineField value={base} onChange={onChange} eventDate="2026-08-01" />);
-    // Four empty time inputs, in order: setup, arrival, meal, end.
-    const inputs = screen.getAllByDisplayValue("");
-    fireEvent.change(inputs[2], { target: { value: "20:00" } });
+    // Empty fields show an "Add time" button; reveal the Meal Time input, enter a time.
+    fireEvent.click(screen.getByLabelText("Set Meal Time"));
+    fireEvent.change(screen.getByLabelText("Meal Time"), { target: { value: "20:00" } });
     expect(onChange).toHaveBeenCalledWith({ meal_time: "2026-08-01T20:00" });
   });
 
@@ -37,18 +37,20 @@ describe("BookingTimelineField", () => {
   it("stays enabled without an event date and anchors the time to today", () => {
     const onChange = vi.fn();
     render(<BookingTimelineField value={base} onChange={onChange} />);
-    const inputs = screen.getAllByDisplayValue("");
-    expect(inputs[0]).not.toBeDisabled();
-    fireEvent.change(inputs[0], { target: { value: "20:00" } });
+    const setupButton = screen.getByLabelText("Set Setup Time");
+    expect(setupButton).not.toBeDisabled();
+    fireEvent.click(setupButton);
+    fireEvent.change(screen.getByLabelText("Setup Time"), { target: { value: "20:00" } });
     expect(onChange).toHaveBeenCalledWith({ setup_time: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T20:00$/) });
   });
 
-  it("shows a set/unset indicator reflecting the actual captured value", () => {
+  it("shows an unmistakable empty state (a button, not a fake time)", () => {
     const { rerender } = render(<BookingTimelineField value={base} onChange={() => {}} eventDate="2026-08-01" />);
-    expect(screen.getAllByText("Not set")).toHaveLength(4);
-    // A stored time shows a confirmation; the browser's empty-field display can't fake this.
+    // All four empty → four "Add time" buttons, no fake "12:30" to misread.
+    expect(screen.getAllByText("+ Add time")).toHaveLength(4);
+    // A stored time shows a real input with the value; that field's button is gone.
     rerender(<BookingTimelineField value={{ ...base, setup_time: "2026-08-01T09:30" }} onChange={() => {}} eventDate="2026-08-01" />);
-    expect(screen.getByText("✓ 09:30")).toBeInTheDocument();
-    expect(screen.getAllByText("Not set")).toHaveLength(3);
+    expect(screen.getByDisplayValue("09:30")).toBeInTheDocument();
+    expect(screen.getAllByText("+ Add time")).toHaveLength(3);
   });
 });

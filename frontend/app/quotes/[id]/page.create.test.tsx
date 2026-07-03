@@ -55,11 +55,13 @@ describe("Quote create — guest split, timeline, meals reach the payload", () =
     fireEvent.change(screen.getByLabelText("Total Guests"), { target: { value: "40" } });
 
     // 2) A timeline time → anchored to the (defaulted-to-today) event date.
+    fireEvent.click(screen.getByLabelText("Set Setup Time"));
     fireEvent.change(screen.getByLabelText("Setup Time"), { target: { value: "10:00" } });
 
     // 3) An additional meal with a blank label + its own time.
     fireEvent.click(screen.getByText("+ Add Meal"));
-    fireEvent.change(await screen.findByLabelText("Additional meal time"), { target: { value: "14:00" } });
+    fireEvent.click(await screen.findByLabelText("Set Additional meal time"));
+    fireEvent.change(screen.getByLabelText("Additional meal time"), { target: { value: "14:00" } });
 
     fireEvent.click(screen.getByText("Create Quote"));
 
