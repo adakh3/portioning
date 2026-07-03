@@ -101,18 +101,23 @@ export default function AdditionalMealsEditor({
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Meal Time</label>
                   {editing ? (
-                    <ValidatedInput
-                      type="time"
-                      aria-label="Additional meal time"
-                      value={meal.meal_time && meal.meal_time.includes("T") ? meal.meal_time.slice(11, 16) : ""}
-                      onChange={(e) => {
-                        const time = e.target.value;
-                        if (!time) { patch(idx, { meal_time: null }); return; }
-                        const existingDate = meal.meal_time && meal.meal_time.includes("T") ? meal.meal_time.slice(0, 10) : "";
-                        const date = existingDate || eventDate || todayISO();
-                        patch(idx, { meal_time: `${date}T${time}` });
-                      }}
-                    />
+                    <>
+                      <ValidatedInput
+                        type="time"
+                        aria-label="Additional meal time"
+                        value={meal.meal_time && meal.meal_time.includes("T") ? meal.meal_time.slice(11, 16) : ""}
+                        onChange={(e) => {
+                          const time = e.target.value;
+                          if (!time) { patch(idx, { meal_time: null }); return; }
+                          const existingDate = meal.meal_time && meal.meal_time.includes("T") ? meal.meal_time.slice(0, 10) : "";
+                          const date = existingDate || eventDate || todayISO();
+                          patch(idx, { meal_time: `${date}T${time}` });
+                        }}
+                      />
+                      {meal.meal_time && meal.meal_time.includes("T")
+                        ? <span className="mt-1 block text-xs text-emerald-600">✓ {meal.meal_time.slice(11, 16)}</span>
+                        : <span className="mt-1 block text-xs text-muted-foreground">Not set</span>}
+                    </>
                   ) : (
                     <span className="text-sm">{meal.meal_time ? formatDateTime(meal.meal_time, dateFormat) : "—"}</span>
                   )}
