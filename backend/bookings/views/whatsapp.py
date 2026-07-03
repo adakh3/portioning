@@ -1,6 +1,7 @@
 import logging
 import re
 
+from django.conf import settings
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -110,8 +111,9 @@ class TwilioWebhookView(APIView):
                 return org_settings
         return None
 
-    def _validate_signature(self, request, auth_token):
-        """Validate Twilio request signature. Rejects if no token configured."""
+    def _validate_signature(self, request):
+        """Validate the Twilio request signature against the platform auth token."""
+        auth_token = settings.TWILIO_AUTH_TOKEN
         if not auth_token:
             return False
         try:
@@ -131,7 +133,7 @@ class TwilioWebhookView(APIView):
             logger.warning('Inbound WhatsApp to unknown number: %s', to_number)
             return Response(status=status.HTTP_404_NOT_FOUND)
 
-        if not self._validate_signature(request, org_settings.twilio_auth_token):
+        if not self._validate_signature(request):
             logger.warning('Invalid Twilio webhook signature for inbound message')
             return Response(status=status.HTTP_403_FORBIDDEN)
 
@@ -170,9 +172,7 @@ class TwilioWebhookView(APIView):
             logger.info('Webhook for unknown message SID: %s', message_sid)
             return Response(status=status.HTTP_404_NOT_FOUND)
 
-        # Validate signature using the org's auth token
-        org_settings = OrgSettings.for_org(msg.organisation)
-        if not self._validate_signature(request, org_settings.twilio_auth_token):
+        if not self._validate_signature(request):
             logger.warning('Invalid Twilio webhook signature')
             return Response(status=status.HTTP_403_FORBIDDEN)
 

@@ -35,4 +35,9 @@ from .reminders import (
     LeadReminderListCreateView, ReminderCountsView,
 )
 from .whatsapp import WhatsAppMessageListView, WhatsAppSendView, WhatsAppMarkReadView, TwilioWebhookView
+from .followups import (
+    FollowUpDraftListView, LeadFollowUpDraftListView,
+    FollowUpDraftApproveView, FollowUpDraftDismissView,
+    FollowUpDraftBulkApproveView, FollowUpDraftCountView,
+)
 from .locked_dates import LockedDateListCreateView, LockedDateDeleteView

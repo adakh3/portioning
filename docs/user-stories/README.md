@@ -20,6 +20,7 @@ here. Keep it test-focused — numbered cases with concrete steps and expected r
 | Quotes list — table view | [quotes-table.md](quotes-table.md) | Built — awaiting manual sign-off |
 | Booking totals — shared engine (quotes + events) | [booking-totals.md](booking-totals.md) | Built — awaiting manual sign-off |
 | Commission & target tracking (from the CRM) | [commission.md](commission.md) | Built (backend + My Commission page) — awaiting manual sign-off |
+| AI follow-up drafts (agent + review queue) | [ai-followup-drafts.md](ai-followup-drafts.md) | Built — awaiting manual sign-off |
 
 ## Template
 

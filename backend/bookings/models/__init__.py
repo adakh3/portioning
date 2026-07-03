@@ -9,5 +9,6 @@ from .settings import OrgSettings
 from .activity import ActivityLog
 from .reminders import Reminder
 from .whatsapp import WhatsAppMessage
+from .followups import FollowUpDraft
 from .locked_dates import LockedDate
 from .commission import CommissionPlan, CommissionBand, SalesTarget, RepCommissionPlan

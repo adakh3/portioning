@@ -30,6 +30,9 @@ from bookings.views import (
     ReminderListCreateView, ReminderDetailView,
     LeadReminderListCreateView, ReminderCountsView,
     WhatsAppMessageListView, WhatsAppSendView, WhatsAppMarkReadView, TwilioWebhookView,
+    FollowUpDraftListView, LeadFollowUpDraftListView,
+    FollowUpDraftApproveView, FollowUpDraftDismissView,
+    FollowUpDraftBulkApproveView, FollowUpDraftCountView,
     LockedDateListCreateView, LockedDateDeleteView,
 )
 
@@ -67,6 +70,14 @@ urlpatterns = [
     path('bookings/leads/<int:pk>/create-event/', LeadCreateEventView.as_view(), name='lead-create-event'),
     path('bookings/leads/<int:pk>/activity/', LeadActivityView.as_view(), name='lead-activity'),
     path('bookings/leads/<int:pk>/reminders/', LeadReminderListCreateView.as_view(), name='lead-reminder-list'),
+    path('bookings/leads/<int:pk>/followup-drafts/', LeadFollowUpDraftListView.as_view(), name='lead-followup-draft-list'),
+
+    # AI follow-up drafts (review queue)
+    path('bookings/followup-drafts/', FollowUpDraftListView.as_view(), name='followup-draft-list'),
+    path('bookings/followup-drafts/count/', FollowUpDraftCountView.as_view(), name='followup-draft-count'),
+    path('bookings/followup-drafts/bulk-approve/', FollowUpDraftBulkApproveView.as_view(), name='followup-draft-bulk-approve'),
+    path('bookings/followup-drafts/<int:pk>/approve/', FollowUpDraftApproveView.as_view(), name='followup-draft-approve'),
+    path('bookings/followup-drafts/<int:pk>/dismiss/', FollowUpDraftDismissView.as_view(), name='followup-draft-dismiss'),
 
     # Reminders
     path('bookings/reminders/', ReminderListCreateView.as_view(), name='reminder-list'),

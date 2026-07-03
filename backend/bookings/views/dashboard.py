@@ -245,13 +245,10 @@ class DashboardStatsView(APIView):
         unassigned_overdue = overdue_all.pop(None, 0)
         overdue_by_user = overdue_all
 
-        # Stale leads per user (assigned + unassigned in one query)
-        stale_cutoff = now - timedelta(days=7)
+        # Stale leads per user (assigned + unassigned in one query).
+        # Shared definition lives on Lead.objects.stale() — see models/leads.py.
         stale_all = dict(
-            base_leads.filter(
-                updated_at__lt=stale_cutoff,
-            )
-            .exclude(status__in=['won', 'lost'])
+            base_leads.stale(now - timedelta(days=7))
             .values_list('assigned_to')
             .annotate(c=Count('id'))
             .values_list('assigned_to', 'c')

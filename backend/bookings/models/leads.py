@@ -1,7 +1,34 @@
 from django.db import models
 from django.utils import timezone
-from users.managers import TenantManager
+from users.managers import TenantManager, TenantQuerySet
 from users.model_mixins import OrgScopedModel
+
+
+# Statuses treated as terminal for "active pipeline" queries. Matches the
+# default seeded workflow's is_won/is_lost values.
+TERMINAL_STATUSES = ['won', 'lost']
+
+
+class LeadQuerySet(TenantQuerySet):
+    """Lead-specific queryset. Houses the single shared definition of a
+    "stale" lead so the dashboard and the follow-up agent never drift apart."""
+
+    def active(self):
+        """Leads still in the working pipeline (not won/lost)."""
+        return self.exclude(status__in=TERMINAL_STATUSES)
+
+    def stale(self, cutoff):
+        """Active leads untouched since `cutoff` (a timezone-aware datetime).
+
+        Staleness is keyed off `updated_at`. Callers pick the cutoff: the
+        dashboard uses 7 days; the follow-up agent uses OrgSettings.followup_stale_hours.
+        """
+        return self.active().filter(updated_at__lt=cutoff)
+
+
+class LeadManager(TenantManager):
+    def get_queryset(self):
+        return LeadQuerySet(self.model, using=self._db)
 
 
 class ProductLine(models.Model):
@@ -34,7 +61,7 @@ class ProductLine(models.Model):
 
 
 class Lead(OrgScopedModel, models.Model):
-    objects = TenantManager()
+    objects = LeadManager()
 
     organisation = models.ForeignKey(
         'users.Organisation',
