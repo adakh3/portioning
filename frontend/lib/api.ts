@@ -322,6 +322,7 @@ export interface ProductLine {
   name: string;
   colour: string;
   is_active: boolean;
+  is_default?: boolean;
 }
 
 export interface Lead {

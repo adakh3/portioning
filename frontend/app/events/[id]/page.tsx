@@ -21,6 +21,7 @@ import {
   useServiceStyles,
   useMealTypes,
   useUsers,
+  useProductLines,
 } from "@/lib/hooks";
 import DealWonDialog from "@/components/DealWonDialog";
 import { useAuth } from "@/lib/auth";
@@ -73,6 +74,8 @@ export default function EventDetailPage() {
   const { data: laborRoles = [] } = useLaborRoles();
   const { data: staffList = [] } = useStaff();
   const { data: users = [] } = useUsers();
+  const { data: productLines = [] } = useProductLines();
+  const activeProducts = productLines.filter((p) => p.is_active);
   const { user: currentUser } = useAuth();
   const salespeople = users.filter((u) => u.role === "salesperson");
   // Assignee options: salespeople, plus the current user if they aren't one (so an
@@ -122,6 +125,11 @@ export default function EventDetailPage() {
   const [formMealType, setFormMealType] = useState("");
   const [formBookingDate, setFormBookingDate] = useState("");
   const [formServiceStyle, setFormServiceStyle] = useState("");
+  const [formProduct, setFormProduct] = useState<number | null>(null);
+  // New direct events default to the org's first active product line.
+  useEffect(() => {
+    if (isNew && formProduct === null && activeProducts.length > 0) setFormProduct((activeProducts.find((p) => p.is_default) || activeProducts[0]).id);
+  }, [isNew, formProduct, activeProducts]);
   const [formPricePerHead, setFormPricePerHead] = useState("");
   const [formNotes, setFormNotes] = useState("");
   // Adapter between the event's individual form* states (FKs as number|null) and
@@ -136,9 +144,11 @@ export default function EventDetailPage() {
     meal_type: formMealType,
     service_style: formServiceStyle,
     booking_date: formBookingDate,
+    product: formProduct != null ? String(formProduct) : "",
     notes: formNotes,
   };
   const applyBookingPatch = (patch: Partial<BookingDetailsValue>) => {
+    if (patch.product !== undefined) setFormProduct(patch.product ? Number(patch.product) : null);
     if (patch.contact !== undefined) setFormContact(patch.contact ? Number(patch.contact) : null);
     if (patch.is_b2b !== undefined) setFormIsB2b(patch.is_b2b);
     if (patch.account !== undefined) setFormAccount(patch.account ? Number(patch.account) : null);
@@ -203,6 +213,7 @@ export default function EventDetailPage() {
     setFormMealType(data.meal_type || "");
     setFormBookingDate(data.booking_date || "");
     setFormServiceStyle(data.service_style || "");
+    setFormProduct(data.product ?? null);
     setFormPricePerHead(data.price_per_head || "");
     setFormNotes(data.notes || "");
     setFormKitchenInstructions(data.kitchen_instructions || "");
@@ -280,6 +291,7 @@ export default function EventDetailPage() {
       meal_type: formMealType,
       booking_date: formBookingDate,
       service_style: formServiceStyle,
+      product: formProduct,
       price_per_head: formPricePerHead || null,
       notes: formNotes,
       kitchen_instructions: formKitchenInstructions,
@@ -705,6 +717,7 @@ export default function EventDetailPage() {
                 eventTypes={eventTypesData}
                 mealTypes={mealTypesData}
                 serviceStyles={serviceStylesData}
+                productLines={activeProducts}
                 customerAddress={orgContacts.find((c) => c.id === formContact)?.address}
                 showNotes
               />

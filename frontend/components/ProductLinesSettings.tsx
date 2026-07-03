@@ -84,6 +84,11 @@ export default function ProductLinesSettings() {
                   className={`text-xs px-2 py-1 rounded border ${l.is_active ? "border-input text-foreground" : "bg-muted text-muted-foreground border-input"}`}>
                   {l.is_active ? "Active" : "Hidden"}
                 </button>
+                <button type="button" disabled={busy} onClick={() => patch(l, { is_default: !l.is_default })}
+                  title="Pre-selected on new quotes/events (only one)"
+                  className={`text-xs px-2 py-1 rounded border ${l.is_default ? "bg-primary/10 text-primary border-primary/30" : "border-input text-muted-foreground"}`}>
+                  {l.is_default ? "Default" : "Set default"}
+                </button>
                 <button type="button" disabled={busy} onClick={() => remove(l)}
                   className="text-destructive hover:text-destructive/80 text-xs px-1">✕</button>
               </div>

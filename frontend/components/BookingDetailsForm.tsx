@@ -1,6 +1,6 @@
 "use client";
 
-import { ChoiceOption } from "@/lib/api";
+import { ChoiceOption, ProductLine } from "@/lib/api";
 import CustomerSelect from "@/components/CustomerSelect";
 import BusinessSelect from "@/components/BusinessSelect";
 import VenueField from "@/components/VenueField";
@@ -26,6 +26,7 @@ export interface BookingDetailsValue {
   meal_type: string;
   service_style: string;
   booking_date: string;
+  product: string;        // product line id ("" = none)
   notes: string;
 }
 
@@ -35,6 +36,8 @@ export interface BookingDetailsFormProps {
   eventTypes: ChoiceOption[];
   mealTypes: ChoiceOption[];
   serviceStyles: ChoiceOption[];
+  /** Active product lines; the product select is hidden when the org has none. */
+  productLines?: ProductLine[];
   /** The selected customer's address, offered as a one-click venue prefill. */
   customerAddress?: string;
   /** Render notes here (Event groups it in this block; Quote groups it elsewhere). */
@@ -49,6 +52,7 @@ export default function BookingDetailsForm({
   eventTypes,
   mealTypes,
   serviceStyles,
+  productLines = [],
   customerAddress,
   showNotes = false,
   eventDateSlot,
@@ -110,6 +114,15 @@ export default function BookingDetailsForm({
         <label className="block text-sm font-medium text-foreground mb-1">Booking Date</label>
         <ValidatedInput type="date" value={value.booking_date} onChange={(e) => onChange({ booking_date: e.target.value })} />
       </div>
+      {productLines.length > 0 && (
+        <div>
+          <label className="block text-sm font-medium text-foreground mb-1">Product</label>
+          <select value={value.product} onChange={(e) => onChange({ product: e.target.value })} className={selectClass} aria-label="Product line">
+            <option value="">-- Select --</option>
+            {productLines.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+        </div>
+      )}
 
       {showNotes && (
         <div className="md:col-span-2">

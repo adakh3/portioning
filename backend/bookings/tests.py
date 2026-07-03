@@ -100,6 +100,17 @@ def make_quote(org=None, account=None, primary_contact=None, **kwargs):
     return Quote.objects.create(**defaults)
 
 
+class ProductLineDefaultTests(TestCase):
+    def test_setting_a_default_clears_the_previous_one(self):
+        from bookings.models import ProductLine
+        org = _make_org(slug="pl-default")
+        a = ProductLine.objects.create(organisation=org, name="A", is_default=True)
+        b = ProductLine.objects.create(organisation=org, name="B", is_default=True)
+        a.refresh_from_db()
+        self.assertFalse(a.is_default, "setting B as default should clear A")
+        self.assertTrue(ProductLine.objects.get(pk=b.pk).is_default)
+
+
 # ==================================================================
 # Model Tests
 # ==================================================================
@@ -828,6 +839,16 @@ class TestQuoteAPI(TestCase):
         self.assertEqual(res.status_code, 200, res.content)
         quote.refresh_from_db()
         self.assertIsNotNone(quote.event.assigned_to_id)
+
+    def test_accept_carries_product_to_event(self):
+        from bookings.models import ProductLine
+        product = ProductLine.objects.create(organisation=self.org, name="Catering")
+        quote = make_quote(org=self.org, account=self.account, primary_contact=self.contact, product=product)
+        res = self.client.post(f"/api/bookings/quotes/{quote.id}/transition/",
+                               {"status": "accepted"}, format="json")
+        self.assertEqual(res.status_code, 200, res.content)
+        quote.refresh_from_db()
+        self.assertEqual(quote.event.product_id, product.id)
 
     def test_accept_carries_line_items_to_event(self):
         # Headline bug: accepting a quote used to drop its add-on items.

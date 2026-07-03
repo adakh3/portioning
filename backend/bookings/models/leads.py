@@ -14,6 +14,7 @@ class ProductLine(models.Model):
     )
     colour = models.CharField(max_length=7, default='#6B7280', help_text='Hex colour for calendar display')
     is_active = models.BooleanField(default=True)
+    is_default = models.BooleanField(default=False, help_text='Pre-selected on new bookings when not carried from a lead.')
     round_robin_index = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -22,6 +23,14 @@ class ProductLine(models.Model):
 
     def __str__(self):
         return self.name
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        # At most one default per org: setting this one clears the others.
+        if self.is_default and self.organisation_id:
+            ProductLine.objects.filter(
+                organisation_id=self.organisation_id, is_default=True,
+            ).exclude(pk=self.pk).update(is_default=False)
 
 
 class Lead(OrgScopedModel, models.Model):

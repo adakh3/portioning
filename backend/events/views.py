@@ -94,10 +94,10 @@ class EventListCreateView(generics.ListCreateAPIView):
             qs = qs.filter(product_id=product)
         date_from = self.request.query_params.get('date_from')
         if date_from:
-            qs = qs.filter(date__gte=date_from)
+            qs = qs.filter(event_date__gte=date_from)
         date_to = self.request.query_params.get('date_to')
         if date_to:
-            qs = qs.filter(date__lte=date_to)
+            qs = qs.filter(event_date__lte=date_to)
         return qs
 
 
@@ -172,7 +172,7 @@ class EventCalendarView(APIView):
 
         # Base queryset: all org events in range
         base_qs = Event.objects.select_related('account', 'product').filter(
-            date__gte=date_from, date__lte=date_to,
+            event_date__gte=date_from, event_date__lte=date_to,
         )
         base_qs = apply_org_filter(base_qs, request)
 
