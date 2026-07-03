@@ -121,3 +121,65 @@ describe("fetchApi error handling", () => {
     expect(mockFetch).toHaveBeenCalledTimes(3);
   });
 });
+
+describe("api follow-up drafts", () => {
+  function lastInit(): RequestInit {
+    const calls = mockFetch.mock.calls;
+    return (calls[calls.length - 1][1] || {}) as RequestInit;
+  }
+
+  it("queue defaults to pending and requests all rows", async () => {
+    await api.getFollowUpDrafts();
+    const url = lastUrl();
+    expect(url).toContain("/bookings/followup-drafts/");
+    expect(url).toContain("status=pending");
+    expect(url).toContain("page_size=all");
+  });
+
+  it("queue accepts an explicit status", async () => {
+    await api.getFollowUpDrafts("sent");
+    expect(lastUrl()).toContain("status=sent");
+  });
+
+  it("lead-scoped list hits the nested route", async () => {
+    await api.getLeadFollowUpDrafts(42);
+    expect(lastUrl()).toContain("/bookings/leads/42/followup-drafts/");
+  });
+
+  it("count hits the count endpoint", async () => {
+    mockOk({ pending: 3 });
+    const res = await api.getFollowUpDraftCount();
+    expect(lastUrl()).toMatch(/\/bookings\/followup-drafts\/count\/$/);
+    expect(res.pending).toBe(3);
+  });
+
+  it("approve without edit posts an empty body", async () => {
+    await api.approveFollowUpDraft(7);
+    expect(lastUrl()).toContain("/followup-drafts/7/approve/");
+    const init = lastInit();
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body as string)).toEqual({});
+  });
+
+  it("approve with an edited body sends it", async () => {
+    await api.approveFollowUpDraft(7, "Edited text");
+    expect(JSON.parse(lastInit().body as string)).toEqual({ body: "Edited text" });
+  });
+
+  it("dismiss posts to the dismiss route", async () => {
+    await api.dismissFollowUpDraft(9);
+    expect(lastUrl()).toContain("/followup-drafts/9/dismiss/");
+    expect(lastInit().method).toBe("POST");
+  });
+
+  it("bulk-approve with no ids sends an empty body", async () => {
+    await api.bulkApproveFollowUpDrafts();
+    expect(lastUrl()).toContain("/followup-drafts/bulk-approve/");
+    expect(JSON.parse(lastInit().body as string)).toEqual({});
+  });
+
+  it("bulk-approve with ids sends them", async () => {
+    await api.bulkApproveFollowUpDrafts([1, 2, 3]);
+    expect(JSON.parse(lastInit().body as string)).toEqual({ ids: [1, 2, 3] });
+  });
+});

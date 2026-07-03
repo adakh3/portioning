@@ -391,6 +391,7 @@ export default function SettingsPage() {
       {tab === "integrations" && (
       <div className="space-y-6 max-w-2xl">
         <WhatsAppSettings settings={settings} onSave={() => mutateSettings()} />
+        <AIFollowUpSettings settings={settings} onSave={() => mutateSettings()} />
       </div>
       )}
     </div>
@@ -467,6 +468,116 @@ function WhatsAppSettings({ settings, onSave }: { settings: SiteSettingsData | u
             WhatsApp has not been set up for your organisation yet. Please contact support to connect your WhatsApp Business number.
           </p>
         )}
+      </CardContent>
+    </Card>
+  );
+}
+
+
+function AIFollowUpSettings({ settings, onSave }: { settings: SiteSettingsData | undefined; onSave: () => void }) {
+  const [enabled, setEnabled] = useState(false);
+  const [staleHours, setStaleHours] = useState("168");
+  const [maxDrafts, setMaxDrafts] = useState("3");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  useEffect(() => {
+    if (settings) {
+      setEnabled(settings.ai_followups_enabled || false);
+      setStaleHours(String(settings.followup_stale_hours ?? 168));
+      setMaxDrafts(String(settings.followup_max_drafts_per_lead ?? 3));
+    }
+  }, [settings]);
+
+  async function handleSave() {
+    setSaving(true);
+    setError("");
+    setSuccess("");
+    try {
+      await api.updateSiteSettings({
+        ai_followups_enabled: enabled,
+        followup_stale_hours: Number(staleHours),
+        followup_max_drafts_per_lead: Number(maxDrafts),
+      });
+      onSave();
+      setSuccess("AI follow-up settings saved.");
+      setTimeout(() => setSuccess(""), 3000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  // configured requires both the org opt-in AND the platform Anthropic key.
+  const badge = !enabled
+    ? { variant: "secondary" as const, label: "Disabled" }
+    : settings?.ai_followups_configured
+      ? { variant: "success" as const, label: "Active" }
+      : { variant: "warning" as const, label: "No API key" };
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <CardTitle>AI Follow-ups</CardTitle>
+          <Badge variant={badge.variant}>{badge.label}</Badge>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {error && <p className="text-destructive mb-3 text-sm">{error}</p>}
+        {success && <p className="text-success mb-3 text-sm">{success}</p>}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-foreground">Draft follow-ups for quiet leads</p>
+              <p className="text-xs text-muted-foreground">
+                The agent drafts WhatsApp follow-ups for stale leads. Every draft is reviewed before it&apos;s sent.
+              </p>
+            </div>
+            <Button
+              variant={enabled ? "default" : "outline"}
+              size="sm"
+              onClick={() => setEnabled(!enabled)}
+            >
+              {enabled ? "Enabled" : "Disabled"}
+            </Button>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Stale after (hours)</label>
+              <Input
+                type="number"
+                min={1}
+                value={staleHours}
+                onChange={(e) => setStaleHours(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground mt-1">Untouched time before drafting (168 = 7 days).</p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Max drafts per lead</label>
+              <Input
+                type="number"
+                min={1}
+                value={maxDrafts}
+                onChange={(e) => setMaxDrafts(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground mt-1">Never nudge one lead more than this.</p>
+            </div>
+          </div>
+
+          {enabled && !settings?.ai_followups_configured && (
+            <p className="text-xs text-warning">
+              Enabled, but the platform Anthropic API key isn&apos;t set — drafts won&apos;t generate until it is.
+            </p>
+          )}
+
+          <Button size="sm" onClick={handleSave} disabled={saving}>
+            {saving ? "Saving..." : "Save"}
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );

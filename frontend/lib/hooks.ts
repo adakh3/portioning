@@ -35,6 +35,7 @@ import {
   Reminder,
   ReminderCounts,
   WhatsAppMessage,
+  FollowUpDraft,
   CalendarDay,
   LockedDate,
 } from "./api";
@@ -471,6 +472,30 @@ export function useLeadWhatsAppMessages(leadId: number | null) {
     leadId ? `lead-whatsapp-${leadId}` : null,
     () => api.getLeadWhatsAppMessages(leadId!),
     { dedupingInterval: 15000 }
+  );
+}
+
+export function useFollowUpDrafts(status: string = "pending") {
+  return useSWR<FollowUpDraft[]>(
+    `followup-drafts-${status}`,
+    () => api.getFollowUpDrafts(status),
+    { dedupingInterval: 15000 }
+  );
+}
+
+export function useLeadFollowUpDrafts(leadId: number | null) {
+  return useSWR<FollowUpDraft[]>(
+    leadId ? `lead-followup-drafts-${leadId}` : null,
+    () => api.getLeadFollowUpDrafts(leadId!),
+    { dedupingInterval: 15000 }
+  );
+}
+
+export function useFollowUpDraftCount() {
+  return useSWR<{ pending: number }>(
+    "followup-draft-count",
+    () => api.getFollowUpDraftCount(),
+    { dedupingInterval: 30000 }
   );
 }
 
