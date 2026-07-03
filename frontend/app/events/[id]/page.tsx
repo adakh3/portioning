@@ -23,6 +23,8 @@ import {
   useUsers,
 } from "@/lib/hooks";
 import DealWonDialog from "@/components/DealWonDialog";
+import EventPaymentsCard from "@/components/EventPaymentsCard";
+import { useAuth } from "@/lib/auth";
 import { formatDate, formatDateTime as sharedFormatDateTime } from "@/lib/dateFormat";
 import { LineItemInput, lineItemTotal, computeBookingTotals } from "@/lib/quoteTotals";
 import BookingTotalsCard from "@/components/BookingTotalsCard";
@@ -72,6 +74,7 @@ export default function EventDetailPage() {
   const { data: staffList = [] } = useStaff();
   const { data: users = [] } = useUsers();
   const salespeople = users.filter((u) => u.role === "salesperson");
+  const { user: currentUser } = useAuth();
   const { data: rawSettings } = useSiteSettings();
   const settings = rawSettings || { currency_symbol: "\u00A3", currency_code: "GBP", date_format: "DD/MM/YYYY", default_price_per_head: "0.00", target_food_cost_percentage: "30.00", price_rounding_step: "50", tax_label: "VAT", default_tax_rate: "0.2000" };
   const dateFormat = useDateFormat();
@@ -1167,6 +1170,18 @@ export default function EventDetailPage() {
 
       {/* Staffing and Invoices sections hidden from salesperson view (REL-289) */}
       {/* These remain accessible via /staff and /invoices pages */}
+
+      {/* Client payments (advances / part / full) — recorded against this booking */}
+      {!isNew && event && !editing && (
+        <EventPaymentsCard
+          event={event}
+          users={users}
+          currencySymbol={settings.currency_symbol}
+          dateFormat={dateFormat}
+          currentUserId={currentUser?.id ?? null}
+          onChange={() => mutateEvent()}
+        />
+      )}
 
       {/* Instructions Section */}
       <Card>

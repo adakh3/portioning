@@ -553,6 +553,22 @@ export interface Payment {
   created_at: string;
 }
 
+// A client payment recorded against an event (advance / part / full).
+// Distinct from the invoice-scoped Payment above and from SaaS subscription billing.
+export interface EventPayment {
+  id: number;
+  event: number;
+  amount: string;
+  payment_date: string;
+  method: string;
+  method_display: string;
+  received_by: number | null;
+  received_by_name: string | null;
+  reference: string;
+  notes: string;
+  created_at: string;
+}
+
 export interface Invoice {
   id: number;
   event: number;
@@ -715,6 +731,11 @@ export interface EventData {
   shifts: Shift[];
   equipment_reservations: EquipmentReservation[];
   invoices: Invoice[];
+  // Client payment tracking (advances / part / full)
+  payments: EventPayment[];
+  amount_paid: string;
+  balance_due: string;
+  payment_status: string;
 }
 
 export interface EventMealData {
@@ -1422,6 +1443,14 @@ export const api = {
     fetchApi<Payment[]>(`/bookings/invoices/${invoiceId}/payments/`),
   createPayment: (invoiceId: number, data: Partial<Payment>) =>
     fetchApi<Payment>(`/bookings/invoices/${invoiceId}/payments/`, { method: "POST", body: JSON.stringify(data) }),
+
+  // Events: client payments (advances / part / full) recorded against a booking
+  getEventPayments: (eventId: number) =>
+    fetchList<EventPayment>(`/events/${eventId}/payments/?page_size=all`),
+  createEventPayment: (eventId: number, data: Partial<EventPayment>) =>
+    fetchApi<EventPayment>(`/events/${eventId}/payments/`, { method: "POST", body: JSON.stringify(data) }),
+  deleteEventPayment: (eventId: number, paymentId: number) =>
+    fetchApi<void>(`/events/${eventId}/payments/${paymentId}/`, { method: "DELETE" }),
 
   // Choice Options
   getEventTypes: () => fetchList<ChoiceOption>("/bookings/event-types/?page_size=all"),
