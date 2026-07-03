@@ -525,9 +525,18 @@ export default function EventDetailPage() {
                   aria-label="Assigned salesperson"
                 >
                   <option value="">Unassigned</option>
-                  {salespeople.map((u) => (
-                    <option key={u.id} value={u.id}>{u.first_name} {u.last_name}</option>
-                  ))}
+                  {(() => {
+                    // Always show the current assignee, even if they're not a
+                    // salesperson (e.g. an admin who created the event), so it's
+                    // clear who it's credited to.
+                    const opts = [...salespeople];
+                    if (event!.assigned_to && !opts.some((u) => u.id === event!.assigned_to)) {
+                      opts.unshift({ id: event!.assigned_to, first_name: event!.assigned_to_name || "Assigned", last_name: "", role: "" } as (typeof salespeople)[number]);
+                    }
+                    return opts.map((u) => (
+                      <option key={u.id} value={u.id}>{u.first_name} {u.last_name}</option>
+                    ));
+                  })()}
                 </select>
               )}
             </div>

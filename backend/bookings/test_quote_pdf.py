@@ -9,8 +9,10 @@ from decimal import Decimal
 
 from django.test import TestCase
 
+from bookings.models.settings import OrgSettings
 from bookings.pdf import generate_quote_pdf
 from bookings.tests import _make_org, make_contact, make_quote
+from dishes.tests import make_dish
 from events.models import BookingMeal
 
 try:
@@ -86,3 +88,32 @@ class QuotePDFContentTests(TestCase):
     def test_no_timeline_section_when_no_times(self):
         q = self._quote(guest_count=10, gents=5, ladies=5, price_per_head=Decimal("10"))
         self.assertNotIn("TIMELINE", pdf_text(q))
+
+    def test_uses_org_tax_label_never_hardcoded(self):
+        st = OrgSettings.for_org(self.org)
+        st.tax_label = "GST"
+        st.save()
+        q = self._quote(guest_count=10, gents=5, ladies=5, price_per_head=Decimal("10"),
+                        tax_rate=Decimal("0.10"))
+        text = pdf_text(q)
+        self.assertIn("GST Rate", text)
+        self.assertIn("GST Amount", text)
+        self.assertNotIn("Sales Tax", text)
+
+    def test_never_mentions_big_eaters(self):
+        q = self._quote(guest_count=10, gents=5, ladies=5, price_per_head=Decimal("10"),
+                        big_eaters=True, big_eaters_percentage=25)
+        self.assertNotIn("Big Eater", pdf_text(q))
+
+    def test_additional_meal_shows_its_own_menu(self):
+        q = self._quote(guest_count=20, gents=10, ladies=10, price_per_head=Decimal("10"))
+        cat_dish = make_dish(org=self.org, name="Samosa")
+        d2 = make_dish(org=self.org, category=cat_dish.category, name="Spring Roll")
+        meal = BookingMeal.objects.create(quote=q, label="Hi-Tea", guest_count=20,
+                                          price_per_head=Decimal("30"))
+        meal.dishes.set([cat_dish, d2])
+        text = pdf_text(q)
+        self.assertIn("ADDITIONAL MEALS", text)
+        self.assertIn("Hi-Tea", text)
+        self.assertIn("Samosa", text)       # the meal's own menu is rendered
+        self.assertIn("Spring Roll", text)

@@ -135,6 +135,16 @@ export default function QuoteDetailPage() {
     }
   }, [isNew, rawSettings, menuData]);
 
+  // Seed the tax rate from the ORG default once settings load, so a new quote
+  // reflects the current org tax % (not a hardcoded 20%).
+  const defaultTaxApplied = useRef(false);
+  useEffect(() => {
+    if (isNew && rawSettings?.default_tax_rate && !defaultTaxApplied.current) {
+      setCreateData((prev) => ({ ...prev, tax_rate: rawSettings.default_tax_rate }));
+      defaultTaxApplied.current = true;
+    }
+  }, [isNew, rawSettings]);
+
   const setCreate = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setCreateData({ ...createData, [field]: e.target.value });
 
