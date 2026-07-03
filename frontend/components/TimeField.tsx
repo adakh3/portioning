@@ -44,6 +44,10 @@ export default function TimeField({
         value={value}
         disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
+        // Belt-and-braces: some browsers (notably Safari) don't fire a React
+        // change for <input type="time"> reliably — capture on input + blur too.
+        onInput={(e) => onChange((e.target as HTMLInputElement).value)}
+        onBlur={(e) => onChange(e.target.value)}
       />
       {!disabled && (
         <button
