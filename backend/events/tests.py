@@ -41,3 +41,19 @@ class TestEventListSerialization(TestCase):
         self.assertTrue(rows, "expected at least one event in the list")
         # product_name is the field that was in Meta.fields but undeclared.
         self.assertIn("product_name", rows[0])
+
+    def test_calendar_returns_events_for_the_month(self):
+        # Guards the calendar against the date->event_date rename: it filtered on a
+        # non-existent `date` field and 500'd, so the calendar showed nothing.
+        self._create_event()  # date 2026-03-15
+        res = self.client.get("/api/events/calendar/?month=2026-03")
+        self.assertEqual(res.status_code, 200, res.content)
+        day = next((d for d in res.json() if d["date"] == "2026-03-15"), None)
+        self.assertIsNotNone(day, "the created event's day should appear in the calendar")
+        self.assertGreaterEqual(day["org_event_count"], 1)
+
+    def test_list_accepts_date_range_filters(self):
+        # The list view's date_from/date_to filters used the old `date` field too.
+        self._create_event()
+        res = self.client.get("/api/events/?date_from=2026-03-01&date_to=2026-03-31")
+        self.assertEqual(res.status_code, 200, res.content)
