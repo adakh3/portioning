@@ -25,7 +25,7 @@ const choices = (vals: [string, string][]) =>
 
 const baseValue: BookingDetailsValue = {
   contact: "", is_b2b: false, account: "", venue: "", venue_address: "",
-  event_type: "", meal_type: "", service_style: "", booking_date: "", notes: "",
+  event_type: "", meal_type: "", service_style: "", booking_date: "", product: "", notes: "",
 };
 
 function renderForm(over: Partial<React.ComponentProps<typeof BookingDetailsForm>> = {}) {

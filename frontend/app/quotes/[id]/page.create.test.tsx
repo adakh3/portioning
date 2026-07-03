@@ -31,6 +31,7 @@ vi.mock("@/lib/hooks", () => ({
   useServiceStyles: () => ({ data: [] }),
   useMealTypes: () => ({ data: [] }),
   useAllLeads: () => ({ data: [] }),
+  useProductLines: () => ({ data: [{ id: 5, name: "Catering", is_active: true, colour: "#000", round_robin_index: 0 }] }),
   revalidate: vi.fn(),
 }));
 
@@ -73,6 +74,8 @@ describe("Quote create — guest split, timeline, meals reach the payload", () =
     expect(payload.event_date).toBe(today);
     // Timeline time anchored to the event date
     expect(payload.setup_time).toBe(`${today}T10:00`);
+    // Product defaults to the org's first active line
+    expect(payload.product).toBe(5);
     // Meal: inherits total guests, blank label allowed, time anchored
     expect(payload.additional_meals).toEqual([
       expect.objectContaining({ guest_count: 40, label: "", meal_time: `${today}T14:00` }),

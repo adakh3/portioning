@@ -829,6 +829,16 @@ class TestQuoteAPI(TestCase):
         quote.refresh_from_db()
         self.assertIsNotNone(quote.event.assigned_to_id)
 
+    def test_accept_carries_product_to_event(self):
+        from bookings.models import ProductLine
+        product = ProductLine.objects.create(organisation=self.org, name="Catering")
+        quote = make_quote(org=self.org, account=self.account, primary_contact=self.contact, product=product)
+        res = self.client.post(f"/api/bookings/quotes/{quote.id}/transition/",
+                               {"status": "accepted"}, format="json")
+        self.assertEqual(res.status_code, 200, res.content)
+        quote.refresh_from_db()
+        self.assertEqual(quote.event.product_id, product.id)
+
     def test_accept_carries_line_items_to_event(self):
         # Headline bug: accepting a quote used to drop its add-on items.
         quote = make_quote(org=self.org, account=self.account, primary_contact=self.contact)

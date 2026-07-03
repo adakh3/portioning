@@ -120,6 +120,7 @@ export interface QuoteEditData {
   meal_type: string;
   booking_date: string;
   service_style: string;
+  product: string;
   setup_time: string;
   guest_arrival_time: string;
   meal_time: string;
@@ -196,6 +197,7 @@ export function buildQuoteSavePayload(
     meal_time: editData.meal_time || null,
     end_time: editData.end_time || null,
     tax_rate: (parseFloat(editData.tax_rate || "0") / 100).toFixed(4),
+    product: editData.product ? Number(editData.product) : null,
     valid_until: editData.valid_until || null,
     notes: editData.notes,
     internal_notes: editData.internal_notes,
@@ -221,6 +223,7 @@ export interface EventSaveInput {
   meal_type: string;
   booking_date: string;
   service_style: string;
+  product: number | null;
   price_per_head: string | null;
   notes: string;
   kitchen_instructions: string;
@@ -257,6 +260,7 @@ export function buildEventSavePayload(v: EventSaveInput) {
     meal_type: v.meal_type,
     booking_date: v.booking_date || null,
     service_style: v.service_style,
+    product: v.product,
     price_per_head: v.price_per_head || null,
     notes: v.notes,
     kitchen_instructions: v.kitchen_instructions,

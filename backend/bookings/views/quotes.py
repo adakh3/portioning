@@ -119,6 +119,7 @@ class QuoteTransitionView(APIView):
                 tax_rate=quote.tax_rate or 0,
                 is_taxable=bool(quote.tax_rate and quote.tax_rate > 0),
                 status='confirmed',
+                product=quote.product,
                 based_on_template=quote.based_on_template,
                 created_by=user,
                 # Credit the deal owner (the quote/lead's salesperson) for sales

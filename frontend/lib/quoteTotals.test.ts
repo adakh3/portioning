@@ -113,7 +113,7 @@ describe("buildQuoteSavePayload", () => {
     primary_contact: "3", is_b2b: false, account: "", event_date: "2026-09-01",
     gents: 50, ladies: 50, big_eaters: false, big_eaters_percentage: 0,
     price_per_head: "50.00", venue: "", venue_address: "", event_type: "wedding",
-    meal_type: "", booking_date: "", service_style: "",
+    meal_type: "", booking_date: "", service_style: "", product: "",
     setup_time: "", guest_arrival_time: "", meal_time: "", end_time: "",
     tax_rate: "20", valid_until: "", notes: "", internal_notes: "",
   };
@@ -150,7 +150,7 @@ describe("buildEventSavePayload", () => {
     name: "Acme — 2026-09-01", date: "2026-09-01",
     is_b2b: false, account: 9, primary_contact: 3,
     venue: null, venue_address: "", event_type: "corporate", meal_type: "lunch",
-    booking_date: "", service_style: "buffet", price_per_head: "50.00", notes: "n",
+    booking_date: "", service_style: "buffet", product: null, price_per_head: "50.00", notes: "n",
     kitchen_instructions: "k", banquet_instructions: "b", setup_instructions: "s",
     gents: 25, ladies: 15, guaranteed_count: 40, final_count: null, final_count_due: "",
     big_eaters: true, big_eaters_percentage: 30,

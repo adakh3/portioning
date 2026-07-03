@@ -42,6 +42,7 @@ vi.mock("@/lib/hooks", () => ({
   useServiceStyles: () => ({ data: [] }),
   useMealTypes: () => ({ data: [] }),
   useAllLeads: () => ({ data: [] }),
+  useProductLines: () => ({ data: [] }),
   revalidate: vi.fn(),
 }));
 

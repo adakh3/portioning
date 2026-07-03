@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { api, Contact, EventMealData } from "@/lib/api";
-import { useQuote, useAccounts, useContacts, useSiteSettings, useDateFormat, useEventTypes, useServiceStyles, useMealTypes, useAllLeads, revalidate } from "@/lib/hooks";
+import { useQuote, useAccounts, useContacts, useSiteSettings, useDateFormat, useEventTypes, useServiceStyles, useMealTypes, useAllLeads, useProductLines, revalidate } from "@/lib/hooks";
 import { formatDate, todayISO } from "@/lib/dateFormat";
 import { formatCurrency } from "@/lib/utils";
 import MenuBuilder from "@/components/MenuBuilder";
@@ -49,6 +49,8 @@ export default function QuoteDetailPage() {
   const { data: rawSettings } = useSiteSettings();
   const settings = rawSettings || { currency_symbol: "£", currency_code: "GBP", date_format: "DD/MM/YYYY", default_price_per_head: "0.00", target_food_cost_percentage: "30.00", price_rounding_step: "50", tax_label: "VAT", default_tax_rate: "0.2000" };
   const dateFormat = useDateFormat();
+  const { data: productLines = [] } = useProductLines();
+  const activeProducts = productLines.filter((p) => p.is_active);
   const { data: eventTypes = [] } = useEventTypes();
   const { data: serviceStyles = [] } = useServiceStyles();
   const { data: mealTypes = [] } = useMealTypes();
@@ -78,6 +80,7 @@ export default function QuoteDetailPage() {
     guest_arrival_time: "",
     meal_time: "",
     end_time: "",
+    product: "",
     tax_rate: "",
     valid_until: "",
     notes: "",
@@ -108,6 +111,7 @@ export default function QuoteDetailPage() {
     guest_arrival_time: "",
     meal_time: "",
     end_time: "",
+    product: "",
     tax_rate: "0.2000",
     valid_until: "",
     notes: "",
@@ -145,6 +149,16 @@ export default function QuoteDetailPage() {
     }
   }, [isNew, rawSettings]);
 
+  // Default the product to the org's first active line once it loads (unless a
+  // lead already set one) — so a non-lead quote still gets a product.
+  const defaultProductApplied = useRef(false);
+  useEffect(() => {
+    if (isNew && activeProducts.length > 0 && !defaultProductApplied.current) {
+      defaultProductApplied.current = true;
+      setCreateData((prev) => (prev.product ? prev : { ...prev, product: String(activeProducts[0].id) }));
+    }
+  }, [isNew, activeProducts]);
+
   const setCreate = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setCreateData({ ...createData, [field]: e.target.value });
 
@@ -170,6 +184,8 @@ export default function QuoteDetailPage() {
       event_type: selectedLead.event_type || prev.event_type,
       meal_type: selectedLead.meal_type || prev.meal_type,
       service_style: selectedLead.service_style || prev.service_style,
+      // Carry the lead's product across, like every other detail.
+      product: selectedLead.product ? String(selectedLead.product) : prev.product,
     }));
   }
 
@@ -196,6 +212,7 @@ export default function QuoteDetailPage() {
         big_eaters: createData.big_eaters,
         big_eaters_percentage: createData.big_eaters_percentage,
         price_per_head: createData.price_per_head ? createData.price_per_head : null,
+        product: createData.product ? Number(createData.product) : null,
         event_type: createData.event_type,
         meal_type: createData.meal_type || undefined,
         booking_date: createData.booking_date || null,
@@ -243,6 +260,7 @@ export default function QuoteDetailPage() {
       venue: quote.venue ? String(quote.venue) : "",
       venue_address: quote.venue_address || "",
       event_type: quote.event_type,
+      product: quote.product ? String(quote.product) : "",
       meal_type: quote.meal_type || "",
       booking_date: quote.booking_date || "",
       service_style: quote.service_style || "",
@@ -318,13 +336,13 @@ export default function QuoteDetailPage() {
   // shared BookingDetailsForm's value (contact). Field names otherwise match.
   type BookingShape = {
     primary_contact: string; is_b2b: boolean; account: string; venue: string; venue_address: string;
-    event_type: string; meal_type: string; service_style: string; booking_date: string; notes: string;
+    event_type: string; meal_type: string; service_style: string; booking_date: string; product: string; notes: string;
   };
   const toBdValue = (d: BookingShape): BookingDetailsValue => ({
     contact: d.primary_contact, is_b2b: d.is_b2b, account: d.account,
     venue: d.venue, venue_address: d.venue_address,
     event_type: d.event_type, meal_type: d.meal_type, service_style: d.service_style,
-    booking_date: d.booking_date, notes: d.notes,
+    booking_date: d.booking_date, product: d.product, notes: d.notes,
   });
   const fromBdPatch = (patch: Partial<BookingDetailsValue>): Partial<BookingShape> => {
     const { contact, ...rest } = patch;
@@ -376,6 +394,7 @@ export default function QuoteDetailPage() {
                 eventTypes={eventTypes}
                 mealTypes={mealTypes}
                 serviceStyles={serviceStyles}
+                productLines={activeProducts}
                 customerAddress={orgContacts.find((c) => String(c.id) === createData.primary_contact)?.address}
                 eventDateSlot={
                   <div>
@@ -635,6 +654,7 @@ export default function QuoteDetailPage() {
               eventTypes={eventTypes}
               mealTypes={mealTypes}
               serviceStyles={serviceStyles}
+                productLines={activeProducts}
               customerAddress={orgContacts.find((c) => String(c.id) === editData.primary_contact)?.address}
               eventDateSlot={
                 <div>

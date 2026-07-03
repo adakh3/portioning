@@ -39,6 +39,7 @@ vi.mock("@/lib/hooks", () => ({
   useEventTypes: () => ({ data: [{ id: 1, value: "wedding", label: "Wedding" }] }),
   useServiceStyles: () => ({ data: [] }),
   useMealTypes: () => ({ data: [] }),
+  useProductLines: () => ({ data: [{ id: 5, name: "Catering", is_active: true, colour: "#000", round_robin_index: 0 }] }),
 }));
 
 vi.mock("@/lib/api", () => ({
@@ -69,5 +70,6 @@ describe("Event create — guest split + anchored timeline reach the payload", (
     expect(payload.date).toBe(today);              // defaults to today
     expect(payload.setup_time).toBe(`${today}T10:00`);
     expect(payload.assigned_to).toBe(7);           // defaults to the current user
+    expect(payload.product).toBe(5);               // defaults to the org's first active product
   });
 });
