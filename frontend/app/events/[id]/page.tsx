@@ -128,7 +128,7 @@ export default function EventDetailPage() {
   const [formProduct, setFormProduct] = useState<number | null>(null);
   // New direct events default to the org's first active product line.
   useEffect(() => {
-    if (isNew && formProduct === null && activeProducts.length > 0) setFormProduct(activeProducts[0].id);
+    if (isNew && formProduct === null && activeProducts.length > 0) setFormProduct((activeProducts.find((p) => p.is_default) || activeProducts[0]).id);
   }, [isNew, formProduct, activeProducts]);
   const [formPricePerHead, setFormPricePerHead] = useState("");
   const [formNotes, setFormNotes] = useState("");

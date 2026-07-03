@@ -155,7 +155,8 @@ export default function QuoteDetailPage() {
   useEffect(() => {
     if (isNew && activeProducts.length > 0 && !defaultProductApplied.current) {
       defaultProductApplied.current = true;
-      setCreateData((prev) => (prev.product ? prev : { ...prev, product: String(activeProducts[0].id) }));
+      const def = activeProducts.find((p) => p.is_default) || activeProducts[0];
+      setCreateData((prev) => (prev.product ? prev : { ...prev, product: String(def.id) }));
     }
   }, [isNew, activeProducts]);
 

@@ -100,6 +100,17 @@ def make_quote(org=None, account=None, primary_contact=None, **kwargs):
     return Quote.objects.create(**defaults)
 
 
+class ProductLineDefaultTests(TestCase):
+    def test_setting_a_default_clears_the_previous_one(self):
+        from bookings.models import ProductLine
+        org = _make_org(slug="pl-default")
+        a = ProductLine.objects.create(organisation=org, name="A", is_default=True)
+        b = ProductLine.objects.create(organisation=org, name="B", is_default=True)
+        a.refresh_from_db()
+        self.assertFalse(a.is_default, "setting B as default should clear A")
+        self.assertTrue(ProductLine.objects.get(pk=b.pk).is_default)
+
+
 # ==================================================================
 # Model Tests
 # ==================================================================
