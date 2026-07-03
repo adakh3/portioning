@@ -97,7 +97,7 @@ class OrgIsolationTestBase(TestCase):
 
         # Event for Org A
         cls.event_a = Event.objects.create(
-            organisation=cls.org_a, name="Event A", date=date.today() + timedelta(days=30),
+            organisation=cls.org_a, name="Event A", event_date=date.today() + timedelta(days=30),
             gents=50, ladies=50, account=cls.account_a, status="tentative",
         )
 

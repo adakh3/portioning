@@ -201,7 +201,7 @@ def _event(org, user, total, *, date=None, booking_date=None, status="confirmed"
     """A confirmed event with a fixed total, attributed to `user`."""
     return Event.objects.create(
         organisation=org, name="E", gents=50, ladies=50,
-        date=date or "2099-01-01", booking_date=booking_date,
+        event_date=date or "2099-01-01", booking_date=booking_date,
         assigned_to=user, status=status, total=Decimal(str(total)),
     )
 

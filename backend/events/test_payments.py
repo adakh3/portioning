@@ -16,7 +16,7 @@ from events.models import Event, EventPayment
 def make_event(org, total="1000.00", **kw):
     ev = Event.objects.create(
         organisation=org, name=kw.pop("name", "Gala"),
-        date=kw.pop("date", date(2026, 7, 1)), gents=20, ladies=20, **kw,
+        event_date=kw.pop("event_date", date(2026, 7, 1)), gents=20, ladies=20, **kw,
     )
     # Set the total directly — payment tracking is independent of the pricing engine.
     ev.total = Decimal(total)

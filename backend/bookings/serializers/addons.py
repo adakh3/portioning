@@ -21,7 +21,7 @@ class AddOnProductSerializer(serializers.ModelSerializer):
     class Meta:
         model = AddOnProduct
         fields = [
-            'id', 'name', 'category', 'default_unit', 'unit_price', 'is_taxable',
+            'id', 'name', 'category', 'default_unit', 'unit_price',
             'is_featured', 'is_active', 'sort_order', 'variants',
         ]
 

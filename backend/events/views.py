@@ -3,17 +3,34 @@ from collections import defaultdict
 from datetime import date
 
 from django.db.models import Q
+from django.http import HttpResponse
 from rest_framework import generics, status as http_status
 from rest_framework.exceptions import ValidationError
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from bookings.models import LockedDate
 from bookings.permissions import is_salesperson
+from bookings.pdf import generate_event_pdf
 from .models import Event, EventStatus, EventPayment
 from users.mixins import (
     get_request_org, apply_org_filter, get_org_object_or_404, is_superuser_without_org,
 )
 from .serializers import EventSerializer, EventListSerializer, EventPaymentSerializer
+
+
+class EventPDFView(APIView):
+    """GET /api/events/<pk>/pdf/ — download the event function sheet as a PDF."""
+
+    def get(self, request, pk):
+        event = get_org_object_or_404(
+            Event.objects.select_related('account', 'venue', 'primary_contact')
+            .prefetch_related('line_items', 'dishes', 'additional_meals'),
+            request, pk=pk,
+        )
+        pdf_bytes = generate_event_pdf(event)
+        response = HttpResponse(pdf_bytes, content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="Event-{event.pk}.pdf"'
+        return response
 
 
 def _auto_advance_event_statuses(org=None):
@@ -23,8 +40,8 @@ def _auto_advance_event_statuses(org=None):
     When called without org (e.g. from a cron command), advances all.
     """
     today = date.today()
-    confirmed_qs = Event.objects.filter(status=EventStatus.CONFIRMED, date__lte=today)
-    in_progress_qs = Event.objects.filter(status=EventStatus.IN_PROGRESS, date__lt=today)
+    confirmed_qs = Event.objects.filter(status=EventStatus.CONFIRMED, event_date__lte=today)
+    in_progress_qs = Event.objects.filter(status=EventStatus.IN_PROGRESS, event_date__lt=today)
     if org:
         confirmed_qs = confirmed_qs.filter(organisation=org)
         in_progress_qs = in_progress_qs.filter(organisation=org)
@@ -42,7 +59,7 @@ class EventListCreateView(generics.ListCreateAPIView):
 
     def perform_create(self, serializer):
         org = get_request_org(self.request)
-        event_date = serializer.validated_data.get('date')
+        event_date = serializer.validated_data.get('event_date')
         if event_date:
             locked = LockedDate.objects.filter(organisation=org, date=event_date).first()
             if locked:
@@ -80,10 +97,10 @@ class EventListCreateView(generics.ListCreateAPIView):
             qs = qs.filter(product_id=product)
         date_from = self.request.query_params.get('date_from')
         if date_from:
-            qs = qs.filter(date__gte=date_from)
+            qs = qs.filter(event_date__gte=date_from)
         date_to = self.request.query_params.get('date_to')
         if date_to:
-            qs = qs.filter(date__lte=date_to)
+            qs = qs.filter(event_date__lte=date_to)
         return qs
 
 
@@ -159,7 +176,7 @@ class EventCalendarView(APIView):
 
         # Base queryset: all org events in range
         base_qs = Event.objects.select_related('account', 'product').filter(
-            date__gte=date_from, date__lte=date_to,
+            event_date__gte=date_from, event_date__lte=date_to,
         )
         base_qs = apply_org_filter(base_qs, request)
 
@@ -183,7 +200,7 @@ class EventCalendarView(APIView):
         })
 
         for event in base_qs:
-            d = str(event.date)
+            d = str(event.event_date)
             guests = (event.gents or 0) + (event.ladies or 0)
 
             # Org-wide totals (always counted)

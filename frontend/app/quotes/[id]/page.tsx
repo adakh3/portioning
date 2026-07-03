@@ -3,15 +3,16 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { api, Contact } from "@/lib/api";
-import { useQuote, useAccounts, useContacts, useSiteSettings, useDateFormat, useEventTypes, useServiceStyles, useMealTypes, useAllLeads, revalidate } from "@/lib/hooks";
-import { formatDate } from "@/lib/dateFormat";
+import { api, Contact, EventMealData } from "@/lib/api";
+import { useQuote, useAccounts, useContacts, useSiteSettings, useDateFormat, useEventTypes, useServiceStyles, useMealTypes, useAllLeads, useProductLines, revalidate } from "@/lib/hooks";
+import { formatDate, todayISO } from "@/lib/dateFormat";
 import { formatCurrency } from "@/lib/utils";
 import MenuBuilder from "@/components/MenuBuilder";
-import CustomerSelect from "@/components/CustomerSelect";
-import BusinessSelect from "@/components/BusinessSelect";
-import VenueField from "@/components/VenueField";
-import { computeQuoteTotals, buildQuoteSavePayload, LineItemInput } from "@/lib/quoteTotals";
+import AdditionalMealsEditor from "@/components/AdditionalMealsEditor";
+import GuestCountField, { GuestCountValue } from "@/components/GuestCountField";
+import BookingTimelineField from "@/components/BookingTimelineField";
+import BookingDetailsForm, { BookingDetailsValue } from "@/components/BookingDetailsForm";
+import { computeQuoteTotals, buildQuoteSavePayload, bookingMealRows, LineItemInput } from "@/lib/quoteTotals";
 import AddOnItemsEditor from "@/components/AddOnItemsEditor";
 import BookingTotalsCard from "@/components/BookingTotalsCard";
 import { Button } from "@/components/ui/button";
@@ -48,6 +49,8 @@ export default function QuoteDetailPage() {
   const { data: rawSettings } = useSiteSettings();
   const settings = rawSettings || { currency_symbol: "£", currency_code: "GBP", date_format: "DD/MM/YYYY", default_price_per_head: "0.00", target_food_cost_percentage: "30.00", price_rounding_step: "50", tax_label: "VAT", default_tax_rate: "0.2000" };
   const dateFormat = useDateFormat();
+  const { data: productLines = [] } = useProductLines();
+  const activeProducts = productLines.filter((p) => p.is_active);
   const { data: eventTypes = [] } = useEventTypes();
   const { data: serviceStyles = [] } = useServiceStyles();
   const { data: mealTypes = [] } = useMealTypes();
@@ -61,7 +64,11 @@ export default function QuoteDetailPage() {
     is_b2b: false,
     account: "",
     event_date: "",
-    guest_count: "",
+    gents: 0,
+    ladies: 0,
+    custom_split: false,
+    big_eaters: false,
+    big_eaters_percentage: 0,
     price_per_head: "",
     venue: "",
     venue_address: "",
@@ -69,6 +76,11 @@ export default function QuoteDetailPage() {
     meal_type: "",
     booking_date: "",
     service_style: "",
+    setup_time: "",
+    guest_arrival_time: "",
+    meal_time: "",
+    end_time: "",
+    product: "",
     tax_rate: "",
     valid_until: "",
     notes: "",
@@ -84,13 +96,22 @@ export default function QuoteDetailPage() {
     account: "",
     venue: "",
     venue_address: "",
-    event_date: "",
-    guest_count: "",
+    event_date: todayISO(),
+    gents: 0,
+    ladies: 0,
+    custom_split: false,
+    big_eaters: false,
+    big_eaters_percentage: 0,
     price_per_head: "",
     event_type: "other",
     meal_type: "",
     booking_date: "",
     service_style: "",
+    setup_time: "",
+    guest_arrival_time: "",
+    meal_time: "",
+    end_time: "",
+    product: "",
     tax_rate: "0.2000",
     valid_until: "",
     notes: "",
@@ -103,15 +124,41 @@ export default function QuoteDetailPage() {
   // Line items held locally and committed with the rest of the quote in one save
   const [editLineItems, setEditLineItems] = useState<LineItemInput[]>([]);
   const [createLineItems, setCreateLineItems] = useState<LineItemInput[]>([]);
+  // Additional meals (parity with events) — committed in the same save.
+  const [editMeals, setEditMeals] = useState<EventMealData[]>([]);
+  const [createMeals, setCreateMeals] = useState<EventMealData[]>([]);
 
-  // Set default price from settings in create mode
+  // Default the per-head price from settings ONLY once a menu is chosen — otherwise
+  // a no-menu quote silently carries a phantom food charge (the Q-59 bug).
   const defaultPriceApplied = useRef(false);
   useEffect(() => {
-    if (isNew && rawSettings && parseFloat(rawSettings.default_price_per_head) > 0 && !defaultPriceApplied.current) {
+    const hasMenu = menuData.dish_ids.length > 0 || menuData.based_on_template !== null;
+    if (isNew && hasMenu && rawSettings && parseFloat(rawSettings.default_price_per_head) > 0 && !defaultPriceApplied.current) {
       setCreateData((prev) => ({ ...prev, price_per_head: rawSettings.default_price_per_head }));
       defaultPriceApplied.current = true;
     }
+  }, [isNew, rawSettings, menuData]);
+
+  // Seed the tax rate from the ORG default once settings load, so a new quote
+  // reflects the current org tax % (not a hardcoded 20%).
+  const defaultTaxApplied = useRef(false);
+  useEffect(() => {
+    if (isNew && rawSettings?.default_tax_rate && !defaultTaxApplied.current) {
+      setCreateData((prev) => ({ ...prev, tax_rate: rawSettings.default_tax_rate }));
+      defaultTaxApplied.current = true;
+    }
   }, [isNew, rawSettings]);
+
+  // Default the product to the org's first active line once it loads (unless a
+  // lead already set one) — so a non-lead quote still gets a product.
+  const defaultProductApplied = useRef(false);
+  useEffect(() => {
+    if (isNew && activeProducts.length > 0 && !defaultProductApplied.current) {
+      defaultProductApplied.current = true;
+      const def = activeProducts.find((p) => p.is_default) || activeProducts[0];
+      setCreateData((prev) => (prev.product ? prev : { ...prev, product: String(def.id) }));
+    }
+  }, [isNew, activeProducts]);
 
   const setCreate = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setCreateData({ ...createData, [field]: e.target.value });
@@ -133,15 +180,22 @@ export default function QuoteDetailPage() {
       is_b2b: isBusiness || prev.is_b2b,
       account: isBusiness ? String(selectedLead.account) : prev.account,
       event_date: selectedLead.event_date || prev.event_date,
-      guest_count: selectedLead.guest_estimate ? String(selectedLead.guest_estimate) : prev.guest_count,
+      gents: selectedLead.guest_estimate ? Math.ceil(selectedLead.guest_estimate / 2) : prev.gents,
+      ladies: selectedLead.guest_estimate ? Math.floor(selectedLead.guest_estimate / 2) : prev.ladies,
       event_type: selectedLead.event_type || prev.event_type,
       meal_type: selectedLead.meal_type || prev.meal_type,
       service_style: selectedLead.service_style || prev.service_style,
+      // Carry the lead's product across, like every other detail.
+      product: selectedLead.product ? String(selectedLead.product) : prev.product,
     }));
   }
 
   async function handleCreateQuoteSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!createData.event_date) {
+      setError("Please set the event date.");
+      return;
+    }
     setSaving(true);
     setError("");
     try {
@@ -153,12 +207,21 @@ export default function QuoteDetailPage() {
         venue: createData.venue ? Number(createData.venue) : null,
         venue_address: createData.venue_address,
         event_date: createData.event_date,
-        guest_count: Number(createData.guest_count),
+        gents: createData.gents,
+        ladies: createData.ladies,
+        guest_count: createData.gents + createData.ladies,
+        big_eaters: createData.big_eaters,
+        big_eaters_percentage: createData.big_eaters_percentage,
         price_per_head: createData.price_per_head ? createData.price_per_head : null,
+        product: createData.product ? Number(createData.product) : null,
         event_type: createData.event_type,
         meal_type: createData.meal_type || undefined,
         booking_date: createData.booking_date || null,
         service_style: createData.service_style || undefined,
+        setup_time: createData.setup_time || null,
+        guest_arrival_time: createData.guest_arrival_time || null,
+        meal_time: createData.meal_time || null,
+        end_time: createData.end_time || null,
         tax_rate: createData.tax_rate,
         valid_until: createData.valid_until || null,
         notes: createData.notes,
@@ -166,6 +229,10 @@ export default function QuoteDetailPage() {
         dish_ids: menuData.dish_ids,
         based_on_template: menuData.based_on_template,
         line_items: createLineItems,
+        additional_meals: createMeals.map((m) => ({
+          label: m.label, guest_count: m.guest_count, price_per_head: m.price_per_head || null,
+          dish_ids: m.dishes, based_on_template: m.based_on_template, meal_time: m.meal_time || null, notes: m.notes,
+        })),
       };
       const newQuote = await api.createQuote(data);
       revalidate("quotes");
@@ -183,14 +250,25 @@ export default function QuoteDetailPage() {
       is_b2b: quote.is_b2b,
       account: quote.account ? String(quote.account) : "",
       event_date: quote.event_date,
-      guest_count: String(quote.guest_count),
+      gents: quote.gents,
+      ladies: quote.ladies,
+      custom_split: !(quote.gents + quote.ladies === 0
+        || (quote.gents === Math.ceil((quote.gents + quote.ladies) / 2)
+          && quote.ladies === Math.floor((quote.gents + quote.ladies) / 2))),
+      big_eaters: quote.big_eaters,
+      big_eaters_percentage: quote.big_eaters_percentage,
       price_per_head: quote.price_per_head || "",
       venue: quote.venue ? String(quote.venue) : "",
       venue_address: quote.venue_address || "",
       event_type: quote.event_type,
+      product: quote.product ? String(quote.product) : "",
       meal_type: quote.meal_type || "",
       booking_date: quote.booking_date || "",
       service_style: quote.service_style || "",
+      setup_time: quote.setup_time ? quote.setup_time.slice(0, 16) : "",
+      guest_arrival_time: quote.guest_arrival_time ? quote.guest_arrival_time.slice(0, 16) : "",
+      meal_time: quote.meal_time ? quote.meal_time.slice(0, 16) : "",
+      end_time: quote.end_time ? quote.end_time.slice(0, 16) : "",
       tax_rate: String(Math.round(parseFloat(quote.tax_rate) * 10000) / 100),
       valid_until: quote.valid_until || "",
       notes: quote.notes,
@@ -199,9 +277,10 @@ export default function QuoteDetailPage() {
     setEditLineItems((quote.line_items || []).map((li) => ({
       id: li.id, variant: li.variant, category: li.category, description: li.description,
       quantity: li.quantity, unit: li.unit, unit_price: li.unit_price,
-      is_taxable: li.is_taxable, sort_order: li.sort_order ?? 0,
+      sort_order: li.sort_order ?? 0,
     })));
     setMenuData({ dish_ids: quote.dishes || [], based_on_template: quote.based_on_template || null });
+    setEditMeals((quote.additional_meals || []).map((m) => ({ ...m })));
     setEditing(true);
   }
 
@@ -210,7 +289,7 @@ export default function QuoteDetailPage() {
     setSaving(true);
     setError("");
     try {
-      await api.updateQuote(quote.id, buildQuoteSavePayload(editData, menuData, editLineItems));
+      await api.updateQuote(quote.id, buildQuoteSavePayload(editData, menuData, editLineItems, editMeals));
       await mutateQuote();
       setEditing(false);
     } catch (err) {
@@ -254,13 +333,30 @@ export default function QuoteDetailPage() {
   const setEdit = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setEditData({ ...editData, [field]: e.target.value });
 
+  // Adapters between the page's string form objects (primary_contact) and the
+  // shared BookingDetailsForm's value (contact). Field names otherwise match.
+  type BookingShape = {
+    primary_contact: string; is_b2b: boolean; account: string; venue: string; venue_address: string;
+    event_type: string; meal_type: string; service_style: string; booking_date: string; product: string; notes: string;
+  };
+  const toBdValue = (d: BookingShape): BookingDetailsValue => ({
+    contact: d.primary_contact, is_b2b: d.is_b2b, account: d.account,
+    venue: d.venue, venue_address: d.venue_address,
+    event_type: d.event_type, meal_type: d.meal_type, service_style: d.service_style,
+    booking_date: d.booking_date, product: d.product, notes: d.notes,
+  });
+  const fromBdPatch = (patch: Partial<BookingDetailsValue>): Partial<BookingShape> => {
+    const { contact, ...rest } = patch;
+    return contact !== undefined ? { ...rest, primary_contact: contact } : rest;
+  };
+
   const selectClass = "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring";
 
   // Create mode
   if (isNew) {
     const createTotals = computeQuoteTotals(
-      createData.price_per_head, createData.guest_count,
-      parseFloat(createData.tax_rate || "0"), createLineItems,
+      createData.price_per_head, createData.gents + createData.ladies,
+      parseFloat(createData.tax_rate || "0"), createLineItems, createMeals,
     );
     return (
       <div className="space-y-6">
@@ -270,7 +366,7 @@ export default function QuoteDetailPage() {
 
         {error && <p className="text-destructive">{error}</p>}
 
-        <form onSubmit={handleCreateQuoteSubmit} className="space-y-6">
+        <form onSubmit={handleCreateQuoteSubmit} noValidate className="space-y-6">
           {/* Header */}
           <Card>
             <CardContent className="p-6">
@@ -278,10 +374,10 @@ export default function QuoteDetailPage() {
             </CardContent>
           </Card>
 
-          {/* Customer */}
+          {/* Customer & Event (shared booking details) */}
           <Card>
             <CardContent className="p-6">
-              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Customer</h2>
+              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Customer &amp; Event</h2>
               <div className="mb-4">
                 <label className="block text-sm font-medium text-foreground mb-1">Link to Lead</label>
                 <select value={createData.lead} onChange={handleLeadSelect} className={selectClass}>
@@ -293,75 +389,32 @@ export default function QuoteDetailPage() {
                   ))}
                 </select>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Customer *</label>
-                <CustomerSelect required value={createData.primary_contact}
-                  onChange={(v) => setCreateData((prev) => ({ ...prev, primary_contact: v }))} />
-              </div>
-              <div className="mt-4">
-                <label className="inline-flex items-center gap-2 text-sm font-medium text-foreground">
-                  <input type="checkbox" checked={createData.is_b2b}
-                    onChange={(e) => setCreateData((prev) => ({ ...prev, is_b2b: e.target.checked }))} />
-                  Business booking (B2B)
-                </label>
-                {createData.is_b2b && (
-                  <div className="mt-2">
-                    <label className="block text-sm font-medium text-foreground mb-1">Business *</label>
-                    <BusinessSelect required value={createData.account}
-                      onChange={(v) => setCreateData((prev) => ({ ...prev, account: v }))} />
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Event Details */}
-          <Card>
-            <CardContent className="p-6">
-              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Event Details</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Event Date *</label>
-                  <ValidatedInput type="date" required value={createData.event_date} onChange={setCreate("event_date")} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Event Type</label>
-                  <select value={createData.event_type} onChange={setCreate("event_type")} className={selectClass}>
-                    {eventTypes.map((et) => <option key={et.id} value={et.value}>{et.label}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Meal Type</label>
-                  <select value={createData.meal_type} onChange={setCreate("meal_type")} className={selectClass}>
-                    <option value="">-- Select --</option>
-                    {mealTypes.map((mt) => <option key={mt.id} value={mt.value}>{mt.label}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Booking Date</label>
-                  <ValidatedInput type="date" value={createData.booking_date} onChange={setCreate("booking_date")} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Service Style</label>
-                  <select value={createData.service_style} onChange={setCreate("service_style")} className={selectClass}>
-                    <option value="">-- Select --</option>
-                    {serviceStyles.map((ss) => <option key={ss.id} value={ss.value}>{ss.label}</option>)}
-                  </select>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Venue */}
-          <Card>
-            <CardContent className="p-6">
-              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Venue</h2>
-              <VenueField
-                venue={createData.venue}
-                address={createData.venue_address}
+              <BookingDetailsForm
+                value={toBdValue(createData)}
+                onChange={(patch) => setCreateData((prev) => ({ ...prev, ...fromBdPatch(patch) }))}
+                eventTypes={eventTypes}
+                mealTypes={mealTypes}
+                serviceStyles={serviceStyles}
+                productLines={activeProducts}
                 customerAddress={orgContacts.find((c) => String(c.id) === createData.primary_contact)?.address}
-                onVenue={(v) => setCreateData((prev) => ({ ...prev, venue: v }))}
-                onAddress={(v) => setCreateData((prev) => ({ ...prev, venue_address: v }))}
+                eventDateSlot={
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1">Event Date *</label>
+                    <ValidatedInput type="date" required value={createData.event_date} onChange={setCreate("event_date")} />
+                  </div>
+                }
+              />
+            </CardContent>
+          </Card>
+
+          {/* Timeline */}
+          <Card>
+            <CardContent className="p-6">
+              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Timeline</h2>
+              <BookingTimelineField
+                eventDate={createData.event_date}
+                value={{ setup_time: createData.setup_time, guest_arrival_time: createData.guest_arrival_time, meal_time: createData.meal_time, end_time: createData.end_time }}
+                onChange={(patch) => setCreateData((prev) => ({ ...prev, ...patch }))}
               />
             </CardContent>
           </Card>
@@ -370,14 +423,16 @@ export default function QuoteDetailPage() {
           <Card>
             <CardContent className="p-6">
               <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Menu &amp; Pricing</h2>
-              <div className="mb-4 max-w-xs">
-                <label className="block text-sm font-medium text-foreground mb-1">Guest Count *</label>
-                <ValidatedInput type="number" required min={1} max={50000} value={createData.guest_count} onChange={setCreate("guest_count")} />
+              <div className="mb-4">
+                <GuestCountField
+                  value={{ gents: createData.gents, ladies: createData.ladies, custom_split: createData.custom_split, big_eaters: createData.big_eaters, big_eaters_percentage: createData.big_eaters_percentage }}
+                  onChange={(patch) => setCreateData((prev) => ({ ...prev, ...patch }))}
+                />
               </div>
               <MenuBuilder
                 selectedDishIds={menuData.dish_ids}
                 basedOnTemplate={menuData.based_on_template}
-                guestCount={createData.guest_count ? Number(createData.guest_count) : undefined}
+                guestCount={(createData.gents + createData.ladies) || undefined}
                 onChange={setMenuData}
                 pricePerHead={createData.price_per_head}
                 onPricePerHeadChange={(val) => setCreateData((prev) => ({ ...prev, price_per_head: val }))}
@@ -387,6 +442,18 @@ export default function QuoteDetailPage() {
             </CardContent>
           </Card>
 
+          {/* Additional Meals */}
+          <AdditionalMealsEditor
+            meals={createMeals}
+            onChange={setCreateMeals}
+            editing
+            currencySymbol={cs}
+            dateFormat={dateFormat}
+            priceRoundingStep={Number(settings.price_rounding_step) || 50}
+            defaultGuestCount={createData.gents + createData.ladies}
+            eventDate={createData.event_date}
+          />
+
           {/* Additional Items */}
           <Card>
             <CardContent className="p-6">
@@ -394,7 +461,7 @@ export default function QuoteDetailPage() {
               <AddOnItemsEditor
                 items={createLineItems}
                 onChange={setCreateLineItems}
-                guestCount={createData.guest_count ? Number(createData.guest_count) : 0}
+                guestCount={createData.gents + createData.ladies}
                 currencySymbol={cs}
               />
             </CardContent>
@@ -404,8 +471,9 @@ export default function QuoteDetailPage() {
           <BookingTotalsCard
             title="Quote Total"
             currencySymbol={cs}
-            foodTotal={createTotals.food_total}
-            foodLabel={`Food / Menu (${formatCurrency(createData.price_per_head || 0, cs)}/head × ${createData.guest_count || 0} guests)`}
+            foodTotal={Math.round((parseFloat(createData.price_per_head) || 0) * (createData.gents + createData.ladies) * 100) / 100}
+            foodLabel={`Food / Menu (${formatCurrency(createData.price_per_head || 0, cs)}/head × ${createData.gents + createData.ladies} guests)`}
+            meals={bookingMealRows(createMeals, cs)}
             addOnsTotal={Math.round((createTotals.subtotal - createTotals.food_total) * 100) / 100}
             subtotal={createTotals.subtotal}
             taxAmount={createTotals.tax_amount}
@@ -420,8 +488,8 @@ export default function QuoteDetailPage() {
                   step="0.01"
                   min={0}
                   max={100}
-                  value={Math.round(parseFloat(createData.tax_rate) * 10000) / 100}
-                  onChange={(e) => setCreateData({ ...createData, tax_rate: (parseFloat(e.target.value) / 100).toFixed(4) })}
+                  value={Number.isNaN(parseFloat(createData.tax_rate)) ? "" : Math.round(parseFloat(createData.tax_rate) * 10000) / 100}
+                  onChange={(e) => setCreateData({ ...createData, tax_rate: e.target.value === "" ? "0.0000" : (parseFloat(e.target.value) / 100).toFixed(4) })}
                 />
               </div>
             }
@@ -464,10 +532,11 @@ export default function QuoteDetailPage() {
 
   // At this point, quote is guaranteed to be defined
   const q = quote!;
-  const editGuestCount = editData.guest_count ? Number(editData.guest_count) : q.guest_count;
+  const editGuestCount = (editData.gents + editData.ladies) || q.guest_count;
   const liveTotals = computeQuoteTotals(
-    editData.price_per_head, editData.guest_count,
+    editData.price_per_head, editData.gents + editData.ladies,
     parseFloat(editData.tax_rate || "0") / 100, editLineItems,
+    editing ? editMeals : (q.additional_meals || []),
   );
 
   return (
@@ -575,84 +644,25 @@ export default function QuoteDetailPage() {
         </CardContent>
       </Card>
 
-      {/* Customer (editing) — mirrors the create form layout */}
+      {/* Customer & Event (editing) — shared booking details */}
       {editing && (
         <Card>
           <CardContent className="p-6">
-            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Customer</h2>
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Customer *</label>
-              <CustomerSelect required value={editData.primary_contact}
-                onChange={(v) => setEditData((prev) => ({ ...prev, primary_contact: v }))} />
-            </div>
-            <div className="mt-4">
-              <label className="inline-flex items-center gap-2 text-sm font-medium text-foreground">
-                <input type="checkbox" checked={editData.is_b2b}
-                  onChange={(e) => setEditData((prev) => ({ ...prev, is_b2b: e.target.checked }))} />
-                Business booking (B2B)
-              </label>
-              {editData.is_b2b && (
-                <div className="mt-2">
-                  <label className="block text-sm font-medium text-foreground mb-1">Business *</label>
-                  <BusinessSelect required value={editData.account}
-                    onChange={(v) => setEditData((prev) => ({ ...prev, account: v }))} />
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Event (editing) */}
-      {editing && (
-        <Card>
-          <CardContent className="p-6">
-            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Event Details</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Event Date *</label>
-                <ValidatedInput type="date" required value={editData.event_date} onChange={setEdit("event_date")} />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Event Type</label>
-                <select value={editData.event_type} onChange={setEdit("event_type")} className={selectClass}>
-                  {eventTypes.map((et) => <option key={et.id} value={et.value}>{et.label}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Meal Type</label>
-                <select value={editData.meal_type} onChange={setEdit("meal_type")} className={selectClass}>
-                  <option value="">-- None --</option>
-                  {mealTypes.map((mt) => <option key={mt.id} value={mt.value}>{mt.label}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Booking Date</label>
-                <ValidatedInput type="date" value={editData.booking_date} onChange={setEdit("booking_date")} />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Service Style</label>
-                <select value={editData.service_style} onChange={setEdit("service_style")} className={selectClass}>
-                  <option value="">-- None --</option>
-                  {serviceStyles.map((ss) => <option key={ss.id} value={ss.value}>{ss.label}</option>)}
-                </select>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Venue (editing) */}
-      {editing && (
-        <Card>
-          <CardContent className="p-6">
-            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Venue</h2>
-            <VenueField
-              venue={editData.venue}
-              address={editData.venue_address}
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Customer &amp; Event</h2>
+            <BookingDetailsForm
+              value={toBdValue(editData)}
+              onChange={(patch) => setEditData((prev) => ({ ...prev, ...fromBdPatch(patch) }))}
+              eventTypes={eventTypes}
+              mealTypes={mealTypes}
+              serviceStyles={serviceStyles}
+                productLines={activeProducts}
               customerAddress={orgContacts.find((c) => String(c.id) === editData.primary_contact)?.address}
-              onVenue={(v) => setEditData((prev) => ({ ...prev, venue: v }))}
-              onAddress={(v) => setEditData((prev) => ({ ...prev, venue_address: v }))}
+              eventDateSlot={
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Event Date *</label>
+                  <ValidatedInput type="date" required value={editData.event_date} onChange={setEdit("event_date")} />
+                </div>
+              }
             />
           </CardContent>
         </Card>
@@ -769,15 +779,31 @@ export default function QuoteDetailPage() {
         </Card>
       )}
 
+      {/* Timeline (editing) */}
+      {editing && (
+        <Card>
+          <CardContent className="p-6">
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Timeline</h2>
+            <BookingTimelineField
+              eventDate={editData.event_date}
+              value={{ setup_time: editData.setup_time, guest_arrival_time: editData.guest_arrival_time, meal_time: editData.meal_time, end_time: editData.end_time }}
+              onChange={(patch) => setEditData((prev) => ({ ...prev, ...patch }))}
+            />
+          </CardContent>
+        </Card>
+      )}
+
       {/* Menu */}
       <Card>
         <CardContent className="p-6">
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">{editing ? "Menu & Pricing" : "Menu"}</h2>
           {editing ? (
             <>
-              <div className="mb-4 max-w-xs">
-                <label className="block text-sm font-medium text-foreground mb-1">Guest Count *</label>
-                <ValidatedInput type="number" required min={1} max={50000} value={editData.guest_count} onChange={setEdit("guest_count")} />
+              <div className="mb-4">
+                <GuestCountField
+                  value={{ gents: editData.gents, ladies: editData.ladies, custom_split: editData.custom_split, big_eaters: editData.big_eaters, big_eaters_percentage: editData.big_eaters_percentage }}
+                  onChange={(patch) => setEditData((prev) => ({ ...prev, ...patch }))}
+                />
               </div>
               <MenuBuilder
                 selectedDishIds={menuData.dish_ids}
@@ -830,6 +856,20 @@ export default function QuoteDetailPage() {
         </div>
       )}
 
+      {/* Additional Meals */}
+      {(editing || (q.additional_meals || []).length > 0) && (
+        <AdditionalMealsEditor
+          meals={editing ? editMeals : (q.additional_meals || [])}
+          onChange={setEditMeals}
+          editing={editing}
+          currencySymbol={cs}
+          dateFormat={dateFormat}
+          priceRoundingStep={Number(settings.price_rounding_step) || 50}
+          defaultGuestCount={editData.gents + editData.ladies}
+          eventDate={editData.event_date}
+        />
+      )}
+
       {/* Additional Items */}
       <Card>
         <CardContent className="p-6">
@@ -878,15 +918,20 @@ export default function QuoteDetailPage() {
 
       {/* Quote Total (menu + additional items) */}
       {(() => {
-        const foodTotal = editing ? liveTotals.food_total : parseFloat(q.food_total);
+        const fullFood = editing ? liveTotals.food_total : parseFloat(q.food_total);
         const subtotal = editing ? liveTotals.subtotal : parseFloat(q.subtotal);
+        const mealsList = editing ? editMeals : (q.additional_meals || []);
+        const pph = parseFloat((editing ? editData.price_per_head : q.price_per_head) || "0") || 0;
+        const guests = editing ? editGuestCount : q.guest_count;
+        const mainFood = Math.round(pph * guests * 100) / 100;
         return (
       <BookingTotalsCard
         title="Quote Total"
         currencySymbol={cs}
-        foodTotal={foodTotal}
+        foodTotal={mainFood}
         foodLabel={`Food / Menu (${formatCurrency(editing ? editData.price_per_head : (q.price_per_head ?? 0), cs)}/head × ${editing ? editGuestCount : q.guest_count} guests)`}
-        addOnsTotal={Math.round((subtotal - foodTotal) * 100) / 100}
+        meals={bookingMealRows(mealsList, cs)}
+        addOnsTotal={Math.round((subtotal - fullFood) * 100) / 100}
         subtotal={subtotal}
         taxAmount={editing ? liveTotals.tax_amount : parseFloat(q.tax_amount)}
         total={editing ? liveTotals.total : parseFloat(q.total)}

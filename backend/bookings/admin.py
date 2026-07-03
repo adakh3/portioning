@@ -284,7 +284,7 @@ class QuoteLineItemInline(admin.TabularInline):
     model = BookingLineItem
     fk_name = 'quote'
     extra = 1
-    fields = ['variant', 'category', 'description', 'quantity', 'unit', 'unit_price', 'is_taxable', 'line_total', 'sort_order']
+    fields = ['variant', 'category', 'description', 'quantity', 'unit', 'unit_price', 'line_total', 'sort_order']
     readonly_fields = ['line_total']
 
 

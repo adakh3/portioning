@@ -335,6 +335,7 @@ export interface ProductLine {
   name: string;
   colour: string;
   is_active: boolean;
+  is_default?: boolean;
 }
 
 export interface Lead {
@@ -419,6 +420,14 @@ export interface Quote {
   product: number | null;
   product_name: string | null;
   guest_count: number;
+  gents: number;
+  ladies: number;
+  big_eaters: boolean;
+  big_eaters_percentage: number;
+  setup_time: string | null;
+  guest_arrival_time: string | null;
+  meal_time: string | null;
+  end_time: string | null;
   price_per_head: string | null;
   food_total: string;
   event_type: string;
@@ -442,6 +451,7 @@ export interface Quote {
   created_by: number | null;
   created_by_name: string | null;
   line_items: QuoteLineItem[];
+  additional_meals: EventMealData[];
   created_at: string;
   updated_at: string;
 }
@@ -1137,13 +1147,13 @@ export const api = {
     const qs = searchParams.toString();
     return fetchList<EventData>(`/events/${qs ? `?${qs}` : ""}`);
   },
-  createEvent: (data: Omit<Partial<EventData>, "line_items"> & { dish_ids?: number[]; dish_comments?: EventDishComment[]; line_items?: unknown[] }) =>
+  createEvent: (data: Omit<Partial<EventData>, "line_items" | "additional_meals"> & { dish_ids?: number[]; dish_comments?: EventDishComment[]; line_items?: unknown[]; additional_meals?: unknown[] }) =>
     fetchApi<EventData>("/events/", {
       method: "POST",
       body: JSON.stringify(data),
     }),
   getEvent: (id: number) => fetchApi<EventData>(`/events/${id}/`),
-  updateEvent: (id: number, data: Omit<Partial<EventData>, "line_items"> & { dish_ids?: number[]; dish_comments?: EventDishComment[]; line_items?: unknown[] }) =>
+  updateEvent: (id: number, data: Omit<Partial<EventData>, "line_items" | "additional_meals"> & { dish_ids?: number[]; dish_comments?: EventDishComment[]; line_items?: unknown[]; additional_meals?: unknown[] }) =>
     fetchApi<EventData>(`/events/${id}/`, {
       method: "PATCH",
       body: JSON.stringify(data),
@@ -1338,9 +1348,9 @@ export const api = {
     return fetchList<Quote>(`/bookings/quotes/${qs ? `?${qs}` : ""}`);
   },
   getQuote: (id: number) => fetchApi<Quote>(`/bookings/quotes/${id}/`),
-  createQuote: (data: Omit<Partial<Quote>, "line_items"> & { dish_ids?: number[]; line_items?: unknown[] }) =>
+  createQuote: (data: Omit<Partial<Quote>, "line_items" | "additional_meals"> & { dish_ids?: number[]; line_items?: unknown[]; additional_meals?: unknown[] }) =>
     fetchApi<Quote>("/bookings/quotes/", { method: "POST", body: JSON.stringify(data) }),
-  updateQuote: (id: number, data: Omit<Partial<Quote>, "line_items"> & { dish_ids?: number[]; line_items?: unknown[] }) =>
+  updateQuote: (id: number, data: Omit<Partial<Quote>, "line_items" | "additional_meals"> & { dish_ids?: number[]; line_items?: unknown[]; additional_meals?: unknown[] }) =>
     fetchApi<Quote>(`/bookings/quotes/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
   deleteQuote: (id: number) =>
     fetchApi<void>(`/bookings/quotes/${id}/`, { method: "DELETE" }),
@@ -1348,6 +1358,17 @@ export const api = {
     fetchApi<Quote>(`/bookings/quotes/${id}/transition/`, { method: "POST", body: JSON.stringify({ status }) }),
   downloadQuotePDF: async (id: number): Promise<Blob> => {
     const res = await fetch(`${API_BASE}/bookings/quotes/${id}/pdf/`, {
+      credentials: "include",
+      headers: buildHeaders(),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(sanitizeError(res.status, text));
+    }
+    return res.blob();
+  },
+  downloadEventPDF: async (id: number): Promise<Blob> => {
+    const res = await fetch(`${API_BASE}/events/${id}/pdf/`, {
       credentials: "include",
       headers: buildHeaders(),
     });

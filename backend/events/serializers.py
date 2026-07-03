@@ -1,10 +1,11 @@
 from rest_framework import serializers
-from .models import Event, EventConstraintOverride, EventDishComment, EventMeal, EventMealDishComment, EventPayment
+from .models import Event, EventConstraintOverride, EventDishComment, EventPayment
 from dishes.models import Dish
 from staff.serializers import ShiftSerializer
 from equipment.serializers import EquipmentReservationSerializer
 from bookings.serializers.finance import InvoiceSerializer
 from bookings.serializers.quotes import BookingLineItemSerializer
+from bookings.serializers.meals import BookingMealSerializer, replace_meals
 from bookings.models import BookingLineItem
 from users.mixins import get_request_org
 from users.serializer_mixins import OrgScopedModelSerializer
@@ -24,29 +25,6 @@ class EventDishCommentSerializer(serializers.ModelSerializer):
         model = EventDishComment
         fields = ['dish_id', 'dish_name', 'comment', 'portion_grams']
         extra_kwargs = {'comment': {'max_length': 2000}}
-
-
-class EventMealDishCommentSerializer(serializers.ModelSerializer):
-    dish_id = serializers.PrimaryKeyRelatedField(source='dish', queryset=Dish.objects.none())
-    dish_name = serializers.CharField(source='dish.name', read_only=True)
-
-    class Meta:
-        model = EventMealDishComment
-        fields = ['dish_id', 'dish_name', 'comment', 'portion_grams']
-        extra_kwargs = {'comment': {'max_length': 2000}}
-
-
-class EventMealSerializer(serializers.ModelSerializer):
-    dish_ids = serializers.PrimaryKeyRelatedField(
-        many=True, source='dishes', queryset=Dish.objects.none(), write_only=True, required=False
-    )
-    dish_comments = EventMealDishCommentSerializer(many=True, required=False)
-
-    class Meta:
-        model = EventMeal
-        fields = ['id', 'label', 'guest_count', 'price_per_head', 'dishes', 'dish_ids',
-                  'based_on_template', 'meal_time', 'notes', 'dish_comments']
-        extra_kwargs = {'notes': {'max_length': 5000}}
 
 
 class EventPaymentSerializer(OrgScopedModelSerializer):
@@ -73,13 +51,16 @@ class EventPaymentSerializer(OrgScopedModelSerializer):
 
 
 class EventSerializer(OrgScopedModelSerializer):
+    # The model field is `event_date` (shared booking name); the API keeps exposing
+    # it as `date` for now — the frontend is realigned in the editor-unification step.
+    date = serializers.DateField(source='event_date')
     constraint_override = EventConstraintOverrideSerializer(required=False)
     dish_ids = serializers.PrimaryKeyRelatedField(
         many=True, source='dishes', queryset=Dish.objects.none(), write_only=True, required=False
     )
     dish_comments = EventDishCommentSerializer(many=True, required=False)
     line_items = BookingLineItemSerializer(many=True, required=False)
-    additional_meals = EventMealSerializer(many=True, required=False)
+    additional_meals = BookingMealSerializer(many=True, required=False)
 
     # Read-only computed fields
     account_name = serializers.CharField(source='account.name', read_only=True, default=None)
@@ -183,8 +164,7 @@ class EventSerializer(OrgScopedModelSerializer):
         for dc in dish_comments_data:
             EventDishComment.objects.create(event=event, **dc)
         self._save_line_items(event, line_items_data)
-        for meal in meals_data:
-            self._create_meal(event, meal)
+        replace_meals('event', event, meals_data)
         event.recalculate_totals()  # food + meals + line items + tax (shared engine)
         return event
 
@@ -214,9 +194,7 @@ class EventSerializer(OrgScopedModelSerializer):
             self._save_line_items(instance, line_items_data)
 
         if meals_data is not None:
-            instance.additional_meals.all().delete()
-            for meal in meals_data:
-                self._create_meal(instance, meal)
+            replace_meals('event', instance, meals_data)
 
         # Auto-calculate portions when status changes to confirmed
         # and event has dishes but no existing dish_comments
@@ -250,17 +228,6 @@ class EventSerializer(OrgScopedModelSerializer):
             fields = {k: v for k, v in item.items() if k not in ('id', 'quote', 'event')}
             BookingLineItem.objects.create(event=event, **fields)
 
-    @staticmethod
-    def _create_meal(event, meal_data):
-        dishes = meal_data.pop('dishes', [])
-        dish_comments = meal_data.pop('dish_comments', [])
-        meal = EventMeal.objects.create(event=event, **meal_data)
-        if dishes:
-            meal.dishes.set(dishes)
-        for dc in dish_comments:
-            EventMealDishComment.objects.create(meal=meal, **dc)
-        return meal
-
 
 EVENT_LIST_EXCLUDE = {
     'shifts', 'equipment_reservations', 'invoices',
@@ -275,6 +242,7 @@ EVENT_LIST_EXCLUDE = {
 
 class EventListSerializer(serializers.ModelSerializer):
     """Lighter serializer for event list views."""
+    date = serializers.DateField(source='event_date')
     account_name = serializers.CharField(source='account.name', read_only=True, default=None)
     contact_name = serializers.CharField(source='primary_contact.name', read_only=True, default=None)
     venue_name = serializers.CharField(source='venue.name', read_only=True, default=None)

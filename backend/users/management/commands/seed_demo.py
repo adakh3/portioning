@@ -19,8 +19,8 @@ from django.utils import timezone
 from django.utils.text import slugify
 
 from bookings.models import CommissionPlan, CommissionBand, OrgSettings, SalesTarget, RepCommissionPlan
-from bookings.models.choices import LeadStatusOption
-from bookings.models import Lead
+from bookings.models.choices import LeadStatusOption, EventTypeOption, MealTypeOption, ServiceStyleOption
+from bookings.models import Lead, Account, Contact
 from bookings.services.commission import period_position, PERIOD_LENGTHS
 from events.models import Event
 from payments.models import Subscription, SubscriptionStatus
@@ -74,6 +74,25 @@ class Command(BaseCommand):
         settings_obj.fiscal_year_start_month = 1
         settings_obj.save()
 
+        # Booking-form reference options + a few customers, so the quote/event
+        # editors are testable (a fresh org otherwise has empty dropdowns).
+        for i, (val, label) in enumerate([
+            ("wedding", "Wedding"), ("corporate", "Corporate Event"),
+            ("birthday", "Birthday"), ("other", "Other"),
+        ]):
+            EventTypeOption.objects.get_or_create(organisation=org, value=val, defaults={"label": label, "sort_order": i})
+        for i, (val, label) in enumerate([
+            ("breakfast", "Breakfast"), ("lunch", "Lunch"), ("hi_tea", "Hi-Tea"), ("dinner", "Dinner"),
+        ]):
+            MealTypeOption.objects.get_or_create(organisation=org, value=val, defaults={"label": label, "sort_order": i})
+        for i, (val, label) in enumerate([
+            ("buffet", "Buffet"), ("plated", "Plated"), ("family", "Family Style"), ("mixed", "Mixed Service"),
+        ]):
+            ServiceStyleOption.objects.get_or_create(organisation=org, value=val, defaults={"label": label, "sort_order": i})
+        Account.objects.get_or_create(organisation=org, name="Acme Corp", defaults={"account_type": "company"})
+        for name, email in [("Aisha Khan", "aisha@example.com"), ("Bilal Ahmed", "bilal@example.com")]:
+            Contact.objects.get_or_create(organisation=org, name=name, defaults={"email": email, "phone": "0300-0000000"})
+
         # Commission plans: a default flat plan + a "Senior" accelerated plan.
         default_plan = self._plan(org, "Default", model="flat", flat_rate="5", is_default=True)
         senior_plan = self._plan(
@@ -121,7 +140,7 @@ class Command(BaseCommand):
                 )
             Event.objects.create(
                 organisation=org, name=f"{DEMO_TAG} {rep.first_name}'s event",
-                gents=50, ladies=50, date=today, assigned_to=rep,
+                gents=50, ladies=50, event_date=today, assigned_to=rep,
                 status="confirmed", total=this_month_revenue,
             )
         self.stdout.write(self.style.SUCCESS(
