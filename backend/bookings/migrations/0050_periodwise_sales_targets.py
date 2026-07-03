@@ -43,6 +43,12 @@ def split_targets(apps, schema_editor):
 
 class Migration(migrations.Migration):
 
+    # Non-atomic: the RunPython (delete + recreate SalesTarget rows) must COMMIT
+    # before the following RemoveField/AddConstraint ALTER TABLEs, otherwise
+    # Postgres rejects them with "cannot ALTER TABLE ... has pending trigger
+    # events". SQLite doesn't enforce this, so the bug only shows on prod.
+    atomic = False
+
     dependencies = [
         ('bookings', '0049_orgsettings_fiscal_year_start_month'),
     ]
