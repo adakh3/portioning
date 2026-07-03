@@ -15,6 +15,9 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/components/MenuBuilder", () => ({ default: () => null }));
 vi.mock("@/components/DealWonDialog", () => ({ default: () => null }));
+vi.mock("@/lib/auth", () => ({
+  useAuth: () => ({ user: { id: 7, first_name: "Sam", last_name: "Sales", role: "salesperson" } }),
+}));
 // Stub the customer picker: one click selects contact 3 (event save requires it).
 vi.mock("@/components/CustomerSelect", () => ({
   default: ({ onChange }: { onChange: (v: string) => void }) => (
@@ -65,5 +68,6 @@ describe("Event create — guest split + anchored timeline reach the payload", (
     expect(payload.ladies).toBe(20);
     expect(payload.date).toBe(today);              // defaults to today
     expect(payload.setup_time).toBe(`${today}T10:00`);
+    expect(payload.assigned_to).toBe(7);           // defaults to the current user
   });
 });

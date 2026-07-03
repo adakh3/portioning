@@ -23,6 +23,7 @@ import {
   useUsers,
 } from "@/lib/hooks";
 import DealWonDialog from "@/components/DealWonDialog";
+import { useAuth } from "@/lib/auth";
 import { formatDate, formatDateTime as sharedFormatDateTime, todayISO } from "@/lib/dateFormat";
 import { LineItemInput, lineItemTotal, computeBookingTotals, buildEventSavePayload } from "@/lib/quoteTotals";
 import BookingTotalsCard from "@/components/BookingTotalsCard";
@@ -72,7 +73,13 @@ export default function EventDetailPage() {
   const { data: laborRoles = [] } = useLaborRoles();
   const { data: staffList = [] } = useStaff();
   const { data: users = [] } = useUsers();
+  const { user: currentUser } = useAuth();
   const salespeople = users.filter((u) => u.role === "salesperson");
+  // Assignee options: salespeople, plus the current user if they aren't one (so an
+  // admin creating the event can still see/keep themselves as the assignee).
+  const assigneeOptions = currentUser && !salespeople.some((u) => u.id === currentUser.id)
+    ? [{ id: currentUser.id, first_name: currentUser.first_name, last_name: currentUser.last_name }, ...salespeople]
+    : salespeople;
   const { data: rawSettings } = useSiteSettings();
   const settings = rawSettings || { currency_symbol: "\u00A3", currency_code: "GBP", date_format: "DD/MM/YYYY", default_price_per_head: "0.00", target_food_cost_percentage: "30.00", price_rounding_step: "50", tax_label: "VAT", default_tax_rate: "0.2000" };
   const dateFormat = useDateFormat();
@@ -91,6 +98,11 @@ export default function EventDetailPage() {
   const [editing, setEditing] = useState(isNew);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [formStatus, setFormStatus] = useState("tentative");
+  // New-event assignee (existing events use the instant-save dropdown instead).
+  const [formAssigned, setFormAssigned] = useState<number | null>(null);
+  useEffect(() => {
+    if (isNew && formAssigned === null && currentUser) setFormAssigned(currentUser.id);
+  }, [isNew, currentUser, formAssigned]);
 
   // Menu state for create mode (no event ID to persist to yet)
   const [menuData, setMenuData] = useState<{
@@ -292,7 +304,7 @@ export default function EventDetailPage() {
     });
     try {
       if (isNew) {
-        const created = await api.createEvent({ ...payload, status: formStatus });
+        const created = await api.createEvent({ ...payload, status: formStatus, assigned_to: formAssigned });
         router.push(`/events/${created.id}`);
       } else {
         await api.updateEvent(event!.id, payload);
@@ -514,6 +526,20 @@ export default function EventDetailPage() {
                 <Badge variant={statusBadgeVariant[event!.status] || "secondary"} className="whitespace-nowrap">
                   {event!.status_display || event!.status}
                 </Badge>
+              )}
+              {isNew && (
+                <select
+                  value={formAssigned ?? ""}
+                  onChange={(e) => setFormAssigned(e.target.value ? Number(e.target.value) : null)}
+                  title="Salesperson credited for this event (drives commission)"
+                  className="flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  aria-label="Assigned salesperson"
+                >
+                  <option value="">Unassigned</option>
+                  {assigneeOptions.map((u) => (
+                    <option key={u.id} value={u.id}>{u.first_name} {u.last_name}</option>
+                  ))}
+                </select>
               )}
               {!isNew && (
                 <select
