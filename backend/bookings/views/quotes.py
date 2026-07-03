@@ -121,6 +121,9 @@ class QuoteTransitionView(APIView):
                 status='confirmed',
                 based_on_template=quote.based_on_template,
                 created_by=user,
+                # Credit the deal owner (the quote/lead's salesperson) for sales
+                # targets; fall back to whoever accepted the quote.
+                assigned_to=(quote.lead.assigned_to if quote.lead_id else None) or user,
                 organisation=quote.organisation,
             )
             # Copy menu (dishes) from quote to event

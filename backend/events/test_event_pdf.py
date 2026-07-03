@@ -14,6 +14,7 @@ from tests.base import get_test_user
 from events.models import Event, BookingMeal
 from bookings.models import BookingLineItem
 from bookings.pdf import generate_event_pdf
+from dishes.tests import make_dish
 
 try:
     from pypdf import PdfReader
@@ -83,6 +84,22 @@ class EventPDFTests(TestCase):
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res["Content-Type"], "application/pdf")
         self.assertTrue(res.content.startswith(b"%PDF"))
+
+    def test_never_mentions_big_eaters(self):
+        if not HAVE_PYPDF:
+            self.skipTest("pypdf not installed")
+        self.assertNotIn("Big Eater", self._text(self._event()))
+
+    def test_additional_meal_shows_its_own_menu(self):
+        if not HAVE_PYPDF:
+            self.skipTest("pypdf not installed")
+        e = self._event()
+        d1 = make_dish(org=self.org, name="Samosa")
+        d2 = make_dish(org=self.org, category=d1.category, name="Spring Roll")
+        e.additional_meals.first().dishes.set([d1, d2])
+        text = self._text(e)
+        self.assertIn("Samosa", text)
+        self.assertIn("Spring Roll", text)
 
     def test_pdf_endpoint_is_org_scoped(self):
         from users.models import Organisation

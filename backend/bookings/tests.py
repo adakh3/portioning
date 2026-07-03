@@ -819,6 +819,16 @@ class TestQuoteAPI(TestCase):
         self.assertEqual(res.status_code, 201, res.content)
         self.assertEqual(res.json()["additional_meals"][0]["label"], "")
 
+    def test_accept_assigns_the_event_to_a_salesperson(self):
+        # Converted events used to have no assignee, so they never counted toward
+        # anyone's sales target. Accepting must set assigned_to.
+        quote = make_quote(org=self.org, account=self.account, primary_contact=self.contact)
+        res = self.client.post(f"/api/bookings/quotes/{quote.id}/transition/",
+                               {"status": "accepted"}, format="json")
+        self.assertEqual(res.status_code, 200, res.content)
+        quote.refresh_from_db()
+        self.assertIsNotNone(quote.event.assigned_to_id)
+
     def test_accept_carries_line_items_to_event(self):
         # Headline bug: accepting a quote used to drop its add-on items.
         quote = make_quote(org=self.org, account=self.account, primary_contact=self.contact)

@@ -225,6 +225,49 @@ def _grand_total_bar(cells, col_widths):
     return t
 
 
+def _dish_table(dish_names, s):
+    """A 2-column dish list table (shared by the main menu and each additional
+    meal's menu)."""
+    half = math.ceil(len(dish_names) / 2)
+    col1, col2 = dish_names[:half], dish_names[half:]
+    MENU_COL_W = CONTENT_W * 0.50
+    rows = []
+    for i in range(half):
+        right = Paragraph(col2[i], s['body']) if i < len(col2) else Paragraph('', s['body'])
+        rows.append([Paragraph(col1[i], s['body']), right])
+    t = Table(rows, colWidths=[MENU_COL_W, MENU_COL_W])
+    style = [
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'), ('TOPPADDING', (0, 0), (-1, -1), 3),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 3), ('LEFTPADDING', (0, 0), (-1, -1), 6),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+    ]
+    for i in range(len(rows)):
+        style.append(('LINEBELOW', (0, i), (-1, i), 0.25, BORDER_LIGHT))
+    t.setStyle(TableStyle(style))
+    return t
+
+
+def _meal_flowables(booking, cs, s):
+    """Additional-meals section: a summary line per priced meal, plus that meal's
+    own dish menu as a table when it has dishes. Shared by both PDFs."""
+    meals = list(booking.additional_meals.all())
+    out = []
+    for m in meals:
+        line = meal_line_text(m, cs)
+        dishes = list(m.dishes.values_list('name', flat=True))
+        if not line and not dishes:
+            continue
+        if line:
+            out.append(Paragraph(f'<b>{line}</b>', s['body']))
+        if dishes:
+            out.append(Spacer(1, 1 * mm))
+            out.append(_dish_table(dishes, s))
+        out.append(Spacer(1, 3 * mm))
+    if not out:
+        return []
+    return [_section_header([Paragraph('ADDITIONAL MEALS', s['section_title'])], [CONTENT_W])] + out + [Spacer(1, 3 * mm)]
+
+
 def generate_quote_pdf(quote):
     """
     Generate a professional quotation PDF from a Quote model instance.
@@ -373,8 +416,6 @@ def generate_quote_pdf(quote):
         right_rows.append(['Meal Type:', mt_label])
     if ss_label:
         right_rows.append(['Service Style:', ss_label])
-    if quote.big_eaters:
-        right_rows.append(['Big Eaters:', f'+{quote.big_eaters_percentage:.0f}%'])
     if quote.valid_until:
         right_rows.append(['Valid Until:', quote.valid_until.strftime('%d %B %Y')])
 
@@ -445,37 +486,10 @@ def generate_quote_pdf(quote):
     has_food_total = quote.food_total and quote.food_total > 0
 
     ADDON_COL_WIDTHS = [CONTENT_W * 0.18, CONTENT_W * 0.42, CONTENT_W * 0.20, CONTENT_W * 0.20]
-    MENU_COL_W = CONTENT_W * 0.50
 
     if dish_names:
-        menu_header = _section_header([
-            Paragraph('MENU ITEMS', s['section_title']),
-        ], [CONTENT_W])
-        elements.append(menu_header)
-
-        # Build 2-column dish list
-        half = math.ceil(len(dish_names) / 2)
-        col1 = dish_names[:half]
-        col2 = dish_names[half:]
-        menu_rows = []
-        for i in range(half):
-            left = Paragraph(col1[i], s['body'])
-            right = Paragraph(col2[i], s['body']) if i < len(col2) else Paragraph('', s['body'])
-            menu_rows.append([left, right])
-
-        menu_table = Table(menu_rows, colWidths=[MENU_COL_W, MENU_COL_W])
-        menu_style = [
-            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-            ('TOPPADDING', (0, 0), (-1, -1), 3),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
-            ('LEFTPADDING', (0, 0), (-1, -1), 6),
-            ('RIGHTPADDING', (0, 0), (-1, -1), 6),
-        ]
-        # Thin row separators (Stripe-style)
-        for i in range(len(menu_rows)):
-            menu_style.append(('LINEBELOW', (0, i), (-1, i), 0.25, BORDER_LIGHT))
-        menu_table.setStyle(TableStyle(menu_style))
-        elements.append(menu_table)
+        elements.append(_section_header([Paragraph('MENU ITEMS', s['section_title'])], [CONTENT_W]))
+        elements.append(_dish_table(dish_names, s))
         if not has_food_total:
             elements.append(Spacer(1, 6 * mm))
 
@@ -491,13 +505,8 @@ def generate_quote_pdf(quote):
         elements.append(Paragraph(f'<b>{food_line}</b>', s['body']))
         elements.append(Spacer(1, 6 * mm))
 
-    # Additional meals — one line each.
-    meal_lines = [t for m in quote.additional_meals.all() if (t := meal_line_text(m, cs))]
-    if meal_lines:
-        elements.append(_section_header([Paragraph('ADDITIONAL MEALS', s['section_title'])], [CONTENT_W]))
-        for ml in meal_lines:
-            elements.append(Paragraph(ml, s['body']))
-        elements.append(Spacer(1, 6 * mm))
+    # Additional meals — a summary line + that meal's own menu as a table.
+    elements.extend(_meal_flowables(quote, cs, s))
 
     # ── 4. Add-ons / Line Items ──
     line_items = list(quote.line_items.all())
@@ -556,11 +565,12 @@ def generate_quote_pdf(quote):
     TOTALS_VALUE_W = 120
     TOTALS_W = TOTALS_LABEL_W + TOTALS_VALUE_W
 
+    tax_label = settings.tax_label or 'Tax'
     totals_rows = [
         [Paragraph('Sub Total', s['totals_label']), Paragraph(_fmt(quote.subtotal, cs), s['totals_value'])],
         [Paragraph('TOTAL', s['body_bold_right']), Paragraph(_fmt(quote.subtotal, cs), s['body_bold_right'])],
-        [Paragraph(f'Sales Tax Rate', s['totals_label']), Paragraph(f'{tax_pct}%', s['totals_value'])],
-        [Paragraph('Sales Tax Amount', s['totals_label']), Paragraph(_fmt(quote.tax_amount, cs), s['totals_value'])],
+        [Paragraph(f'{tax_label} Rate', s['totals_label']), Paragraph(f'{tax_pct}%', s['totals_value'])],
+        [Paragraph(f'{tax_label} Amount', s['totals_label']), Paragraph(_fmt(quote.tax_amount, cs), s['totals_value'])],
     ]
     totals_inner = Table(totals_rows, colWidths=[TOTALS_LABEL_W, TOTALS_VALUE_W])
     totals_inner.setStyle(TableStyle([
@@ -703,8 +713,6 @@ def generate_event_pdf(event):
         ['Status:', event.get_status_display()],
         ['No. of Guests:', guests_text],
     ]
-    if event.big_eaters:
-        right_rows.append(['Big Eaters:', f'+{event.big_eaters_percentage:.0f}%'])
     mt = _choice_label(MealTypeOption, event.meal_type, event.organisation)
     if mt:
         right_rows.append(['Meal Type:', mt])
@@ -774,23 +782,7 @@ def generate_event_pdf(event):
     dish_names = list(event.dishes.values_list('name', flat=True))
     if dish_names:
         elements.append(_section_header([Paragraph('MENU ITEMS', s['section_title'])], [CONTENT_W]))
-        half = math.ceil(len(dish_names) / 2)
-        col1, col2 = dish_names[:half], dish_names[half:]
-        MENU_COL_W = CONTENT_W * 0.50
-        menu_rows = []
-        for i in range(half):
-            right = Paragraph(col2[i], s['body']) if i < len(col2) else Paragraph('', s['body'])
-            menu_rows.append([Paragraph(col1[i], s['body']), right])
-        menu_table = Table(menu_rows, colWidths=[MENU_COL_W, MENU_COL_W])
-        menu_style = [
-            ('VALIGN', (0, 0), (-1, -1), 'TOP'), ('TOPPADDING', (0, 0), (-1, -1), 3),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 3), ('LEFTPADDING', (0, 0), (-1, -1), 6),
-            ('RIGHTPADDING', (0, 0), (-1, -1), 6),
-        ]
-        for i in range(len(menu_rows)):
-            menu_style.append(('LINEBELOW', (0, i), (-1, i), 0.25, BORDER_LIGHT))
-        menu_table.setStyle(TableStyle(menu_style))
-        elements.append(menu_table)
+        elements.append(_dish_table(dish_names, s))
         elements.append(Spacer(1, 3 * mm))
 
     main_food = (event.price_per_head or 0) * (event.gents + event.ladies)
@@ -801,13 +793,8 @@ def generate_event_pdf(event):
         elements.append(Paragraph(f'<b>{food_line}</b>', s['body']))
         elements.append(Spacer(1, 6 * mm))
 
-    # ── Additional meals ──
-    meal_lines = [t for m in event.additional_meals.all() if (t := meal_line_text(m, cs))]
-    if meal_lines:
-        elements.append(_section_header([Paragraph('ADDITIONAL MEALS', s['section_title'])], [CONTENT_W]))
-        for ml in meal_lines:
-            elements.append(Paragraph(ml, s['body']))
-        elements.append(Spacer(1, 6 * mm))
+    # ── Additional meals — a summary line + that meal's own menu as a table. ──
+    elements.extend(_meal_flowables(event, cs, s))
 
     # ── Add-ons / additional items ──
     line_items = list(event.line_items.all())
