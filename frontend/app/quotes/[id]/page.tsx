@@ -239,6 +239,7 @@ export default function QuoteDetailPage() {
       router.push(`/quotes/${newQuote.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create quote");
+      window.scrollTo({ top: 0, behavior: "smooth" }); // bring the error banner into view
     } finally {
       setSaving(false);
     }
@@ -294,6 +295,7 @@ export default function QuoteDetailPage() {
       setEditing(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save");
+      window.scrollTo({ top: 0, behavior: "smooth" }); // bring the error banner into view
     } finally {
       setSaving(false);
     }
@@ -364,7 +366,11 @@ export default function QuoteDetailPage() {
           <Link href="/quotes" className="text-primary hover:underline">&larr; Quotes</Link>
         </div>
 
-        {error && <p className="text-destructive">{error}</p>}
+        {error && (
+          <div role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm font-medium text-destructive">
+            {error}
+          </div>
+        )}
 
         <form onSubmit={handleCreateQuoteSubmit} noValidate className="space-y-6">
           {/* Header */}

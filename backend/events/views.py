@@ -66,10 +66,12 @@ class EventListCreateView(generics.ListCreateAPIView):
                     'date': f'This date is locked: {reason}',
                 })
         user = self.request.user if self.request.user.is_authenticated else None
+        from bookings.models import ProductLine
         serializer.save(
             created_by=user,
             organisation=org,
             assigned_to=serializer.validated_data.get('assigned_to') or user,
+            product=serializer.validated_data.get('product') or ProductLine.default_for(org),
         )
 
     def get_queryset(self):

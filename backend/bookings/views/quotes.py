@@ -34,7 +34,10 @@ class QuoteListCreateView(generics.ListCreateAPIView):
 
     def perform_create(self, serializer):
         user = self.request.user if self.request.user.is_authenticated else None
-        serializer.save(created_by=user, organisation=get_request_org(self.request))
+        org = get_request_org(self.request)
+        from bookings.models import ProductLine
+        product = serializer.validated_data.get('product') or ProductLine.default_for(org)
+        serializer.save(created_by=user, organisation=org, product=product)
 
     def get_queryset(self):
         # select_related covers every FK the (list & detail) serializer reads:

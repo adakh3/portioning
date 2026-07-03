@@ -818,6 +818,16 @@ class TestQuoteAPI(TestCase):
         self.assertEqual(res.status_code, 201, res.content)
         self.assertEqual(res.json()["line_items"][0]["description"], "")
 
+    def test_create_assigns_the_default_product_when_none_given(self):
+        from bookings.models import ProductLine
+        ProductLine.objects.create(organisation=self.org, name="Aardvark")  # first active
+        default = ProductLine.objects.create(organisation=self.org, name="Zeta", is_default=True)
+        res = self.client.post("/api/bookings/quotes/", {
+            "primary_contact": self.contact.id, "event_date": "2026-09-01", "guest_count": 20,
+        }, format="json")
+        self.assertEqual(res.status_code, 201, res.content)
+        self.assertEqual(res.json()["product"], default.id)  # the marked default, not the first
+
     def test_additional_meal_label_is_optional(self):
         res = self.client.post("/api/bookings/quotes/", {
             "primary_contact": self.contact.id,
