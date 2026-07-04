@@ -20,7 +20,7 @@ from django.utils.text import slugify
 
 from bookings.models import CommissionPlan, CommissionBand, OrgSettings, SalesTarget, RepCommissionPlan
 from bookings.models.choices import LeadStatusOption, EventTypeOption, MealTypeOption, ServiceStyleOption
-from bookings.models import Lead, Account, Contact
+from bookings.models import Lead, Account, Contact, ProductLine
 from bookings.services.commission import period_position, PERIOD_LENGTHS
 from events.models import Event
 from users.models import Organisation, User
@@ -82,6 +82,10 @@ class Command(BaseCommand):
         Account.objects.get_or_create(organisation=org, name="Acme Corp", defaults={"account_type": "company"})
         for name, email in [("Aisha Khan", "aisha@example.com"), ("Bilal Ahmed", "bilal@example.com")]:
             Contact.objects.get_or_create(organisation=org, name=name, defaults={"email": email, "phone": "0300-0000000"})
+        # Product lines so the booking form's Product picker has options (the first
+        # is the org default, pre-selected on new bookings).
+        for i, (pname, colour) in enumerate([("Weddings", "#EC4899"), ("Corporate", "#3B82F6"), ("Private Dining", "#10B981")]):
+            ProductLine.objects.get_or_create(organisation=org, name=pname, defaults={"colour": colour, "is_default": i == 0})
 
         # Commission plans: a default flat plan + a "Senior" accelerated plan.
         default_plan = self._plan(org, "Default", model="flat", flat_rate="5", is_default=True)

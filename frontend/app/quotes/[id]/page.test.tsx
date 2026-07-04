@@ -81,7 +81,9 @@ describe("Quote detail — one quote, one save", () => {
 
     // Change total guests 100 → 60 (auto 30/30) and set a setup time.
     fireEvent.change(await screen.findByLabelText("Total Guests"), { target: { value: "60" } });
-    fireEvent.change(screen.getByLabelText("Setup Time"), { target: { value: "09:30" } });
+    fireEvent.click(screen.getByLabelText("Set Setup Time"));
+    fireEvent.change(screen.getByLabelText("Setup Time hour"), { target: { value: "09" } });
+    fireEvent.change(screen.getByLabelText("Setup Time minute"), { target: { value: "30" } });
 
     fireEvent.click(screen.getByText("Save Quote"));
 

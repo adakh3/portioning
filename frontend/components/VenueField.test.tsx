@@ -27,6 +27,18 @@ describe("VenueField", () => {
     expect(onVenue).toHaveBeenCalledWith("");
   });
 
+  it("auto-fills the customer's home address on selection when the field is empty", () => {
+    const onAddress = vi.fn();
+    render(<VenueField venue="" address="" customerAddress="42 Oak Lane" onVenue={vi.fn()} onAddress={onAddress} />);
+    expect(onAddress).toHaveBeenCalledWith("42 Oak Lane");
+  });
+
+  it("never overwrites an address the user already has (edited or saved booking)", () => {
+    const onAddress = vi.fn();
+    render(<VenueField venue="" address="99 Custom Street" customerAddress="42 Oak Lane" onVenue={vi.fn()} onAddress={onAddress} />);
+    expect(onAddress).not.toHaveBeenCalledWith("42 Oak Lane");
+  });
+
   it("offers the customer's home address as a one-click prefill", () => {
     const onAddress = vi.fn();
     render(<VenueField venue="" address="" customerAddress="42 Oak Lane" onVenue={vi.fn()} onAddress={onAddress} />);
