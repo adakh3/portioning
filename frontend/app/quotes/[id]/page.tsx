@@ -137,6 +137,11 @@ export default function QuoteDetailPage() {
   // Additional meals (parity with events) — committed in the same save.
   const [editMeals, setEditMeals] = useState<EventMealData[]>([]);
   const [createMeals, setCreateMeals] = useState<EventMealData[]>([]);
+  // New-quote owner (existing quotes reassign via the header's instant-save select).
+  const [formAssigned, setFormAssigned] = useState<number | null>(null);
+  useEffect(() => {
+    if (isNew && formAssigned === null && currentUser) setFormAssigned(currentUser.id);
+  }, [isNew, currentUser, formAssigned]);
 
   // Default the per-head price from settings ONLY once a menu is chosen — otherwise
   // a no-menu quote silently carries a phantom food charge (the Q-59 bug).
@@ -224,6 +229,7 @@ export default function QuoteDetailPage() {
         big_eaters_percentage: createData.big_eaters_percentage,
         price_per_head: createData.price_per_head ? createData.price_per_head : null,
         product: createData.product ? Number(createData.product) : null,
+        assigned_to: formAssigned,
         event_type: createData.event_type,
         meal_type: createData.meal_type || undefined,
         booking_date: createData.booking_date || null,
@@ -303,6 +309,19 @@ export default function QuoteDetailPage() {
       await mutateQuote();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Reassign failed");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleProductChange(value: string) {
+    if (!quote) return;
+    setSaving(true);
+    try {
+      await api.updateQuote(quote.id, { product: value ? Number(value) : null });
+      await mutateQuote();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to set product");
     } finally {
       setSaving(false);
     }
@@ -399,7 +418,26 @@ export default function QuoteDetailPage() {
           {/* Header */}
           <Card>
             <CardContent className="p-6">
-              <h1 className="text-2xl font-bold text-foreground">New Quote</h1>
+              <div className="flex items-end gap-3 flex-wrap">
+                <h1 className="text-2xl font-bold text-foreground self-center">New Quote</h1>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-medium text-muted-foreground">Assigned</label>
+                  <select value={formAssigned ?? ""} onChange={(e) => setFormAssigned(e.target.value ? Number(e.target.value) : null)} aria-label="Assigned salesperson"
+                    className="flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
+                    <option value="">Unassigned</option>
+                    {assigneeOptions.map((u) => <option key={u.id} value={u.id}>{u.first_name} {u.last_name}</option>)}
+                  </select>
+                </div>
+                {activeProducts.length > 0 && (
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-medium text-muted-foreground">Product</label>
+                    <select value={createData.product} onChange={setCreate("product")} aria-label="Product line"
+                      className="flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
+                      {activeProducts.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                  </div>
+                )}
+              </div>
             </CardContent>
           </Card>
 
@@ -425,6 +463,7 @@ export default function QuoteDetailPage() {
                 mealTypes={mealTypes}
                 serviceStyles={serviceStyles}
                 productLines={activeProducts}
+                showProduct={false}
                 customerAddress={orgContacts.find((c) => String(c.id) === createData.primary_contact)?.address}
                 eventDateSlot={
                   <div>
@@ -610,6 +649,21 @@ export default function QuoteDetailPage() {
                     })()}
                   </select>
                 </div>
+                {activeProducts.length > 0 && (
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-medium text-muted-foreground">Product</label>
+                    <select
+                      value={q.product ?? ""}
+                      onChange={(e) => handleProductChange(e.target.value)}
+                      disabled={saving}
+                      title="Product line for this quote"
+                      aria-label="Product line"
+                      className="flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    >
+                      {activeProducts.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                  </div>
+                )}
               </div>
               <p className="text-sm text-muted-foreground mt-1">
                 Created {formatDate(q.created_at, dateFormat)}
@@ -709,6 +763,7 @@ export default function QuoteDetailPage() {
               mealTypes={mealTypes}
               serviceStyles={serviceStyles}
                 productLines={activeProducts}
+                showProduct={false}
               customerAddress={orgContacts.find((c) => String(c.id) === editData.primary_contact)?.address}
               eventDateSlot={
                 <div>
