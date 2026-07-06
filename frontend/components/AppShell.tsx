@@ -19,6 +19,10 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
     if (!loading && user && !allowed) router.replace("/");
   }, [loading, user, allowed, router]);
 
+  // Public client-facing pages (e.g. /b/<token> sign links) render bare — no
+  // app chrome, and without waiting on the staff auth bootstrap.
+  if (pathname.startsWith("/b/")) return <>{children}</>;
+
   // Show nothing while checking auth (prevents flash)
   if (loading) return null;
 

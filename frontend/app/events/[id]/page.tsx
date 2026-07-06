@@ -37,6 +37,7 @@ import BookingTimelineField from "@/components/BookingTimelineField";
 import BookingDetailsForm, { BookingDetailsValue } from "@/components/BookingDetailsForm";
 import AssigneePicker from "@/components/AssigneePicker";
 import { Button } from "@/components/ui/button";
+import ESignPanel from "@/components/ESignPanel";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { ValidatedInput } from "@/components/ui/validated-input";
@@ -693,6 +694,10 @@ export default function EventDetailPage() {
               )}
             </div>
           </div>
+          {/* Client e-signature — for a booking created directly as an event */}
+          {event && (event.signature || event.status === "tentative") && (
+            <ESignPanel kind="event" id={event.id} publicToken={event.public_token} signature={event.signature} />
+          )}
         </CardContent>
       </Card>
 
