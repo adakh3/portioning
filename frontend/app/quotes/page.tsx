@@ -13,6 +13,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Avatar } from "@/components/ui/avatar";
 
 const STATUSES = ["all", "draft", "sent", "accepted", "expired", "declined"];
 
@@ -75,10 +76,10 @@ function QuotesContent() {
       q.contact_email?.toLowerCase().includes(s) ||
       q.contact_phone?.toLowerCase().includes(s) ||
       q.venue_name?.toLowerCase().includes(s) ||
-      q.created_by_name?.toLowerCase().includes(s) ||
+      q.assigned_to_name?.toLowerCase().includes(s) ||
       `${q.id}`.includes(s)
     )) return false;
-    if (fSalesperson && String(q.created_by) !== fSalesperson) return false;
+    if (fSalesperson && String(q.assigned_to) !== fSalesperson) return false;
     if (fProduct && String(q.product) !== fProduct) return false;
     if (fEventType && q.event_type !== fEventType) return false;
     if (fDateFrom && (!q.event_date || q.event_date < fDateFrom)) return false;
@@ -90,7 +91,7 @@ function QuotesContent() {
     let av: string | number = "", bv: string | number = "";
     switch (sortField) {
       case "customer": av = customerOf(a).toLowerCase(); bv = customerOf(b).toLowerCase(); break;
-      case "salesperson": av = (a.created_by_name || "").toLowerCase(); bv = (b.created_by_name || "").toLowerCase(); break;
+      case "salesperson": av = (a.assigned_to_name || "").toLowerCase(); bv = (b.assigned_to_name || "").toLowerCase(); break;
       case "event_date": av = a.event_date || ""; bv = b.event_date || ""; break;
       case "guest_count": av = a.guest_count || 0; bv = b.guest_count || 0; break;
       case "total": av = Number(a.total) || 0; bv = Number(b.total) || 0; break;
@@ -186,7 +187,12 @@ function QuotesContent() {
                 {sorted.map((q) => (
                   <TableRow key={q.id} className="cursor-pointer" onClick={() => router.push(`/quotes/${q.id}`)}>
                     <TableCell className="font-medium">{customerOf(q) || "—"}</TableCell>
-                    <TableCell className="whitespace-nowrap text-muted-foreground">{q.created_by_name || "—"}</TableCell>
+                    <TableCell className="whitespace-nowrap text-muted-foreground">
+                      <span className="inline-flex items-center gap-2">
+                        <Avatar name={q.assigned_to_name} />
+                        {q.assigned_to_name || "—"}
+                      </span>
+                    </TableCell>
                     <TableCell className="whitespace-nowrap">{q.event_date ? formatDate(q.event_date, dateFormat) : "—"}</TableCell>
                     <TableCell>{q.guest_count}</TableCell>
                     <TableCell className="text-right font-medium whitespace-nowrap">{formatCurrency(q.total, settings.currency_symbol)}</TableCell>

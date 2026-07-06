@@ -13,6 +13,7 @@ import AdditionalMealsEditor from "@/components/AdditionalMealsEditor";
 import GuestCountField, { GuestCountValue } from "@/components/GuestCountField";
 import BookingTimelineField from "@/components/BookingTimelineField";
 import BookingDetailsForm, { BookingDetailsValue } from "@/components/BookingDetailsForm";
+import AssigneePicker from "@/components/AssigneePicker";
 import { computeQuoteTotals, buildQuoteSavePayload, bookingMealRows, LineItemInput } from "@/lib/quoteTotals";
 import AddOnItemsEditor from "@/components/AddOnItemsEditor";
 import BookingTotalsCard from "@/components/BookingTotalsCard";
@@ -229,7 +230,7 @@ export default function QuoteDetailPage() {
         big_eaters_percentage: createData.big_eaters_percentage,
         price_per_head: createData.price_per_head ? createData.price_per_head : null,
         product: createData.product ? Number(createData.product) : null,
-        assigned_to: formAssigned,
+        assigned_to: formAssigned || null,
         event_type: createData.event_type,
         meal_type: createData.meal_type || undefined,
         booking_date: createData.booking_date || null,
@@ -420,14 +421,7 @@ export default function QuoteDetailPage() {
             <CardContent className="p-6">
               <div className="flex items-end gap-3 flex-wrap">
                 <h1 className="text-2xl font-bold text-foreground self-center">New Quote</h1>
-                <div className="flex flex-col gap-1">
-                  <label className="text-xs font-medium text-muted-foreground">Assigned</label>
-                  <select value={formAssigned ?? ""} onChange={(e) => setFormAssigned(e.target.value ? Number(e.target.value) : null)} aria-label="Assigned salesperson"
-                    className="flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
-                    <option value="">Unassigned</option>
-                    {assigneeOptions.map((u) => <option key={u.id} value={u.id}>{u.first_name} {u.last_name}</option>)}
-                  </select>
-                </div>
+                <AssigneePicker value={formAssigned} options={assigneeOptions} onChange={setFormAssigned} />
                 {activeProducts.length > 0 && (
                   <div className="flex flex-col gap-1">
                     <label className="text-xs font-medium text-muted-foreground">Product</label>
@@ -629,26 +623,19 @@ export default function QuoteDetailPage() {
                     {q.status_display}
                   </Badge>
                 </div>
-                <div className="flex flex-col gap-1">
-                  <label className="text-xs font-medium text-muted-foreground">Assigned</label>
-                  <select
-                    value={q.assigned_to ?? ""}
-                    onChange={(e) => handleAssign(e.target.value)}
-                    disabled={saving}
-                    title="Salesperson credited for this quote (drives commission)"
-                    aria-label="Assigned salesperson"
-                    className="flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  >
-                    <option value="">Unassigned</option>
-                    {(() => {
-                      const opts = [...salespeople];
-                      if (q.assigned_to && !opts.some((u) => u.id === q.assigned_to)) {
-                        opts.unshift({ id: q.assigned_to, first_name: q.assigned_to_name || "Assigned", last_name: "", role: "" } as (typeof salespeople)[number]);
-                      }
-                      return opts.map((u) => <option key={u.id} value={u.id}>{u.first_name} {u.last_name}</option>);
-                    })()}
-                  </select>
-                </div>
+                <AssigneePicker
+                  value={q.assigned_to}
+                  currentName={q.assigned_to_name}
+                  disabled={saving}
+                  onChange={(pid) => handleAssign(pid ? String(pid) : "")}
+                  options={(() => {
+                    const opts = [...salespeople];
+                    if (q.assigned_to && !opts.some((u) => u.id === q.assigned_to)) {
+                      opts.unshift({ id: q.assigned_to, first_name: q.assigned_to_name || "Assigned", last_name: "", role: "" } as (typeof salespeople)[number]);
+                    }
+                    return opts;
+                  })()}
+                />
                 {activeProducts.length > 0 && (
                   <div className="flex flex-col gap-1">
                     <label className="text-xs font-medium text-muted-foreground">Product</label>

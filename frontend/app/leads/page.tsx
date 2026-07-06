@@ -25,6 +25,7 @@ import { Button } from "@/components/ui/button";
 import { ValidatedInput } from "@/components/ui/validated-input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Avatar } from "@/components/ui/avatar";
 import {
   Select,
   SelectContent,
@@ -117,9 +118,7 @@ function LeadCard({ lead, isDragging }: { lead: Lead; isDragging?: boolean }) {
           <span className="text-[10px] font-medium bg-primary/10 text-primary px-1.5 py-0.5 rounded">{lead.product_name}</span>
         )}
         {lead.assigned_to_name && (
-          <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">
-            {lead.assigned_to_name}
-          </Badge>
+          <Avatar name={lead.assigned_to_name} size="sm" />
         )}
       </div>
     </div>
@@ -1785,7 +1784,7 @@ function LeadsTable({
                 <EditableSelectCell
                   lead={lead}
                   field="assigned_to"
-                  display={lead.assigned_to_name || "-"}
+                  display={<span className="inline-flex items-center gap-1.5"><Avatar name={lead.assigned_to_name} size="sm" />{lead.assigned_to_name || "-"}</span>}
                   className="hidden lg:table-cell"
                   options={users.map((u) => ({
                     value: u.id.toString(),
