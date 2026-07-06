@@ -10,11 +10,24 @@ Django admin → **Users → Organisations → Add**.
 - **Name**, **slug** (unique), **country** (ISO alpha-2, defaults to `US`).
 
 A `post_save` signal then auto-creates, for free:
-- the org's **`OrgSettings`** (currency, tax, etc. — sensible defaults),
+- the org's **`OrgSettings`** with **currency/tax defaults derived from its `country`**
+  (US → USD `$` "Sales Tax"; GB → GBP; AE → AED; PK → PKR; **USD fallback** for anything
+  unmapped — see `users/country_defaults.py`). Editable in Settings after.
 - a **`Subscription`** row with **`status = none`** (no access yet — the card wall),
 - workflow **choice options** (lead statuses, lost reasons).
 
-So you don't set up settings or a subscription by hand — just the org.
+So you don't set up settings or a subscription by hand — just the org (with the right country).
+
+## 1b. Seed the starter catalog (so the org is usable)
+A new org starts with an **empty** catalog. Give it a neutral **US starter set** (dishes,
+menus, add-ons, staff roles, equipment, portioning rules, and event/meal/service-style choice
+options) so the owner can build a quote immediately:
+- Django admin → **Users → Organisations** → select the org → action **"Seed US starter
+  catalog"**, **or**
+- CLI: `python manage.py seed_starter_catalog --org "<Org Name>"` (idempotent — safe to re-run).
+
+Skip this if the org will build its own catalog from scratch. The tax rate stays configurable
+(per-org default + per-event override) — set the org's Sales Tax rate in Settings.
 
 ## 2. Create the owner user
 Django admin → **Users → Users → Add**.

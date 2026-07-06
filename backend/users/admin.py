@@ -11,7 +11,17 @@ class OrganisationAdmin(admin.ModelAdmin):
     list_editable = ["is_active"]  # toggle active inline from the list
     list_filter = ["is_active"]
     search_fields = ["name", "slug"]
-    actions = ["activate_organisations", "deactivate_organisations"]
+    actions = ["activate_organisations", "deactivate_organisations", "seed_starter_catalog"]
+
+    @admin.action(description="Seed US starter catalog (dishes, menus, add-ons, rules)")
+    def seed_starter_catalog(self, request, queryset):
+        from django.core.management import call_command
+        for org in queryset:
+            call_command('seed_starter_catalog', org=org.name, verbosity=0)
+        self.message_user(
+            request,
+            f"Seeded the US starter catalog into {queryset.count()} organisation(s).",
+        )
 
     @admin.action(description="Activate selected organisations")
     def activate_organisations(self, request, queryset):

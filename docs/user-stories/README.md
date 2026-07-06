@@ -23,6 +23,7 @@ here. Keep it test-focused — numbered cases with concrete steps and expected r
 | Subscription billing (Stripe) | [subscription-billing.md](subscription-billing.md) | Built (backend + frontend + access gating) — awaiting manual sign-off |
 | Event client payments (advances / part / full) | [event-payments.md](event-payments.md) | Built (backend + frontend) — awaiting manual sign-off |
 | Tiered + regional subscription pricing | [tiered-regional-pricing.md](tiered-regional-pricing.md) | Built (backend + frontend) — awaiting manual sign-off |
+| New-org bootstrap (US starter catalog + country defaults) | [new-org-bootstrap.md](new-org-bootstrap.md) | Built (backend) — awaiting manual sign-off |
 
 ## Template
 

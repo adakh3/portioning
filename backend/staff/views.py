@@ -71,32 +71,17 @@ class ShiftDetailView(generics.RetrieveUpdateDestroyAPIView):
         )
 
 
-class AllocationRuleListCreateView(generics.ListCreateAPIView):
+class AllocationRuleListCreateView(OrgQuerySetMixin, OrgCreateMixin, generics.ListCreateAPIView):
     permission_classes = [IsAdminOrOwnerOrReadOnly]
     serializer_class = AllocationRuleSerializer
-
-    def get_queryset(self):
-        qs = AllocationRule.objects.select_related('role').all()
-        if not is_superuser_without_org(self.request):
-            org = get_request_org(self.request)
-            if org is not None:
-                return qs.filter(role__organisation=org)
-            return qs.none()
-        return qs
+    # AllocationRule now has a direct org FK — scope + set it via the shared mixins.
+    queryset = AllocationRule.objects.select_related('role').all()
 
 
-class AllocationRuleDetailView(generics.RetrieveUpdateDestroyAPIView):
+class AllocationRuleDetailView(OrgQuerySetMixin, generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [IsAdminOrOwnerOrReadOnly]
     serializer_class = AllocationRuleSerializer
-
-    def get_queryset(self):
-        qs = AllocationRule.objects.select_related('role').all()
-        if not is_superuser_without_org(self.request):
-            org = get_request_org(self.request)
-            if org is not None:
-                return qs.filter(role__organisation=org)
-            return qs.none()
-        return qs
+    queryset = AllocationRule.objects.select_related('role').all()
 
 
 class StaffReportView(APIView):
