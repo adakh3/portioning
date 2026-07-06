@@ -22,13 +22,14 @@ function initialsOf(name: string): string {
   return (first + last).toUpperCase();
 }
 
-export function Avatar({ name, className = "" }: { name?: string | null; className?: string }) {
+export function Avatar({ name, size = "md", className = "" }: { name?: string | null; size?: "sm" | "md"; className?: string }) {
+  const sizeCls = size === "sm" ? "h-5 w-5 text-[9px]" : "h-7 w-7 text-xs";
   const clean = (name || "").trim();
   if (!clean) {
     return (
       <span
         title="Unassigned"
-        className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-dashed border-input text-xs text-muted-foreground ${className}`}
+        className={`inline-flex ${sizeCls} shrink-0 items-center justify-center rounded-full border border-dashed border-input text-muted-foreground ${className}`}
       >
         –
       </span>
@@ -40,7 +41,7 @@ export function Avatar({ name, className = "" }: { name?: string | null; classNa
   return (
     <span
       title={clean}
-      className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${colour} ${className}`}
+      className={`inline-flex ${sizeCls} shrink-0 items-center justify-center rounded-full font-semibold ${colour} ${className}`}
     >
       {initialsOf(clean) || "?"}
     </span>
