@@ -59,9 +59,7 @@ describe("Event create — guest split + anchored timeline reach the payload", (
 
     fireEvent.click(screen.getByText("select-customer"));  // event save requires a customer
     fireEvent.change(screen.getByLabelText("Total Guests"), { target: { value: "40" } });
-    fireEvent.click(screen.getByLabelText("Set Setup Time"));
-    fireEvent.change(screen.getByLabelText("Setup Time hour"), { target: { value: "10" } });
-    fireEvent.change(screen.getByLabelText("Setup Time minute"), { target: { value: "00" } });
+    fireEvent.change(screen.getByLabelText("Setup Time"), { target: { value: "10:00" } });
 
     fireEvent.click(screen.getByText("Create Event"));
 

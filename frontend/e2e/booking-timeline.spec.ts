@@ -21,17 +21,14 @@ test.describe("Booking timeline persists end-to-end", () => {
 
     await page.getByLabel("Total Guests").fill("30");
 
-    // The timeline field: reveal, then pick hour + minute.
-    await page.getByLabel("Set Setup Time").click();
-    await page.getByLabel("Setup Time hour").selectOption("14");
-    await page.getByLabel("Setup Time minute").selectOption("30");
+    // The timeline field is a single 30-min-slot dropdown.
+    await page.getByLabel("Setup Time").selectOption("14:30");
 
     await page.getByRole("button", { name: "Create Quote" }).click();
     await page.waitForURL(/\/quotes\/\d+$/, { timeout: 15_000 });
 
     // Reopen the editor — the time must still be there (the bug saved it as null).
     await page.getByRole("button", { name: "Edit Quote" }).click();
-    await expect(page.getByLabel("Setup Time hour")).toHaveValue("14");
-    await expect(page.getByLabel("Setup Time minute")).toHaveValue("30");
+    await expect(page.getByLabel("Setup Time")).toHaveValue("14:30");
   });
 });
