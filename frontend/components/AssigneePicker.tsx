@@ -1,11 +1,16 @@
 "use client";
 
 import { Avatar } from "@/components/ui/avatar";
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 
 interface Person { id: number; first_name: string; last_name: string }
 
-/** Labelled "Assigned" control: an initials avatar of the current owner + a select
- * to (re)assign. Shared by the quote and event headers so they stay identical. */
+const NONE = "__none__";
+const fullName = (u: Person) => `${u.first_name} ${u.last_name}`.trim();
+
+/** Labelled "Assigned" control: a custom dropdown showing the owner's initials
+ * avatar INSIDE the control (and beside every option). Shared by the quote and
+ * event headers so they stay identical. */
 export default function AssigneePicker({
   value,
   currentName,
@@ -21,24 +26,37 @@ export default function AssigneePicker({
   disabled?: boolean;
 }) {
   const matched = options.find((u) => u.id === value);
-  const name = matched ? `${matched.first_name} ${matched.last_name}`.trim() : (currentName || "");
+  const name = matched ? fullName(matched) : (currentName || "");
   return (
     <div className="flex flex-col gap-1">
       <label className="text-xs font-medium text-muted-foreground">Assigned</label>
-      <div className="flex items-center gap-2">
-        <Avatar name={name} />
-        <select
-          value={value ?? ""}
-          onChange={(e) => onChange(e.target.value ? Number(e.target.value) : null)}
-          disabled={disabled}
-          title="Salesperson credited for this booking (drives commission)"
-          aria-label="Assigned salesperson"
-          className="flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-        >
-          <option value="">Unassigned</option>
-          {options.map((u) => <option key={u.id} value={u.id}>{u.first_name} {u.last_name}</option>)}
-        </select>
-      </div>
+      <Select
+        value={value != null ? String(value) : NONE}
+        onValueChange={(v) => {
+          // Radix can emit "" transiently before options mount; treat any
+          // non-positive/invalid id as "unassigned" rather than pk 0.
+          const next = v === NONE ? null : Number(v);
+          onChange(Number.isInteger(next) && (next as number) > 0 ? next : null);
+        }}
+        disabled={disabled}
+      >
+        <SelectTrigger aria-label="Assigned salesperson" className="min-w-[11rem] gap-2">
+          <span className="flex items-center gap-2 truncate">
+            <Avatar name={name} size="sm" />
+            <span className="truncate">{name || "Unassigned"}</span>
+          </span>
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={NONE}>
+            <span className="flex items-center gap-2"><Avatar name="" size="sm" />Unassigned</span>
+          </SelectItem>
+          {options.map((u) => (
+            <SelectItem key={u.id} value={String(u.id)}>
+              <span className="flex items-center gap-2"><Avatar name={fullName(u)} size="sm" />{fullName(u)}</span>
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   );
 }

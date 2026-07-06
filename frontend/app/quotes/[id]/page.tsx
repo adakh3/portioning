@@ -230,7 +230,7 @@ export default function QuoteDetailPage() {
         big_eaters_percentage: createData.big_eaters_percentage,
         price_per_head: createData.price_per_head ? createData.price_per_head : null,
         product: createData.product ? Number(createData.product) : null,
-        assigned_to: formAssigned,
+        assigned_to: formAssigned || null,
         event_type: createData.event_type,
         meal_type: createData.meal_type || undefined,
         booking_date: createData.booking_date || null,
