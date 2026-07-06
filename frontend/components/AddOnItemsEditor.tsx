@@ -106,9 +106,7 @@ export default function AddOnItemsEditor({
             <span className="text-xs text-muted-foreground">× {currencySymbol}</span>
             <input type="number" min={0} step="0.01" value={items[i].unit_price}
               onChange={(e) => update(i, "unit_price", e.target.value)}
-              className="w-24 h-7 rounded border border-input px-2 text-sm text-right [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
-            <span className="ml-auto text-sm font-medium">{fmt(lineItemTotal(items[i], guestCount))}</span>
-          </div>
+              className="w-24 h-7 rounded border border-input px-2 text-sm text-right [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />          </div>
         )}
       </div>
     );
@@ -133,9 +131,7 @@ export default function AddOnItemsEditor({
             <span className="text-xs text-muted-foreground">× {currencySymbol}</span>
             <input type="number" min={0} step="0.01" value={items[i].unit_price} placeholder="0.00"
               onChange={(e) => update(i, "unit_price", e.target.value)}
-              className="w-24 h-7 rounded border border-input px-2 text-sm text-right [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
-            <span className="ml-auto text-sm font-medium">{fmt(lineItemTotal(items[i], guestCount))}</span>
-          </div>
+              className="w-24 h-7 rounded border border-input px-2 text-sm text-right [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />          </div>
         )}
       </div>
     );
