@@ -84,12 +84,25 @@ function sanitizeError(status: number, text: string): string {
   return text.length > 200 ? text.slice(0, 200) + "…" : text;
 }
 
+// When the backend gate returns 402 (inactive subscription), send the user to
+// the billing page so they can subscribe. The billing page's own calls are
+// exempt from the gate, so this never loops.
+function redirectToBilling() {
+  if (typeof window !== "undefined" && window.location.pathname !== "/billing") {
+    window.location.href = "/billing";
+  }
+}
+
 async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     credentials: "include",
     headers: buildHeaders(options),
     ...options,
   });
+  if (res.status === 402) {
+    redirectToBilling();
+    throw new Error("subscription_required");
+  }
   if (res.status === 401 && !path.startsWith("/auth/")) {
     const refreshed = await tryRefresh();
     if (refreshed) {
@@ -552,6 +565,22 @@ export interface Payment {
   created_at: string;
 }
 
+// A client payment recorded against an event (advance / part / full).
+// Distinct from the invoice-scoped Payment above and from SaaS subscription billing.
+export interface EventPayment {
+  id: number;
+  event: number;
+  amount: string;
+  payment_date: string;
+  method: string;
+  method_display: string;
+  received_by: number | null;
+  received_by_name: string | null;
+  reference: string;
+  notes: string;
+  created_at: string;
+}
+
 export interface Invoice {
   id: number;
   event: number;
@@ -716,6 +745,11 @@ export interface EventData {
   shifts: Shift[];
   equipment_reservations: EquipmentReservation[];
   invoices: Invoice[];
+  // Client payment tracking (advances / part / full)
+  payments: EventPayment[];
+  amount_paid: string;
+  balance_due: string;
+  payment_status: string;
 }
 
 export interface EventMealData {
@@ -1022,6 +1056,39 @@ export interface LeadFilters {
   page?: number;
 }
 
+export type SubscriptionStatus =
+  | "none"
+  | "trialing"
+  | "active"
+  | "past_due"
+  | "canceled"
+  | "unpaid"
+  | "incomplete"
+  | "incomplete_expired";
+
+export interface Subscription {
+  status: SubscriptionStatus;
+  plan_name: string;
+  current_period_end: string | null;
+  cancel_at_period_end: boolean;
+  trial_ends_at: string | null;
+  is_trialing: boolean;
+  trial_days_remaining: number;
+  has_access: boolean;
+  has_billing_account: boolean;
+  comped: boolean;
+}
+
+// A subscription tier, priced for the caller's org region (resolved server-side).
+export interface Plan {
+  code: string;
+  name: string;
+  description: string;
+  display_amount: string;
+  currency: string;
+  currency_symbol: string;
+}
+
 // API functions
 export const api = {
   // Auth
@@ -1039,6 +1106,24 @@ export const api = {
   getOrganisations: () => fetchApi<{ id: number; name: string }[]>("/auth/organisations/"),
   switchOrg: (orgId: number | "all" | null) =>
     fetchApi<AuthUser>("/auth/switch-org/", { method: "POST", body: JSON.stringify({ org_id: orgId }) }),
+
+  // Billing / subscription (SaaS plan for the org itself)
+  getSubscription: () => fetchApi<Subscription>("/billing/subscription/"),
+  getPlans: () => fetchApi<Plan[]>("/billing/plans/"),
+  // Pass a plan code for a tier; omit to use the single default price (when no
+  // tiers are configured). The backend resolves the region-specific price.
+  startCheckout: (plan?: string) =>
+    fetchApi<{ url: string }>("/billing/checkout/", {
+      method: "POST",
+      body: JSON.stringify(plan ? { plan } : {}),
+    }),
+  openBillingPortal: () =>
+    fetchApi<{ url: string }>("/billing/portal/", { method: "POST" }),
+  extendTrial: (orgId: number, days: number) =>
+    fetchApi<Subscription>(`/billing/extend-trial/${orgId}/`, {
+      method: "POST",
+      body: JSON.stringify({ days }),
+    }),
 
   getDishes: () => fetchList<Dish>("/dishes/?page_size=all"),
   getCategories: () => fetchList<DishCategory>("/categories/?page_size=all"),
@@ -1396,6 +1481,14 @@ export const api = {
     fetchApi<Payment[]>(`/bookings/invoices/${invoiceId}/payments/`),
   createPayment: (invoiceId: number, data: Partial<Payment>) =>
     fetchApi<Payment>(`/bookings/invoices/${invoiceId}/payments/`, { method: "POST", body: JSON.stringify(data) }),
+
+  // Events: client payments (advances / part / full) recorded against a booking
+  getEventPayments: (eventId: number) =>
+    fetchList<EventPayment>(`/events/${eventId}/payments/?page_size=all`),
+  createEventPayment: (eventId: number, data: Partial<EventPayment>) =>
+    fetchApi<EventPayment>(`/events/${eventId}/payments/`, { method: "POST", body: JSON.stringify(data) }),
+  deleteEventPayment: (eventId: number, paymentId: number) =>
+    fetchApi<void>(`/events/${eventId}/payments/${paymentId}/`, { method: "DELETE" }),
 
   // Choice Options
   getEventTypes: () => fetchList<ChoiceOption>("/bookings/event-types/?page_size=all"),

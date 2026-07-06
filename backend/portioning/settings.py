@@ -67,6 +67,7 @@ INSTALLED_APPS = [
     'staff',
     'equipment',
     'users',
+    'payments',
     'rest_framework_simplejwt.token_blacklist',
 ]
 
@@ -81,10 +82,21 @@ MIDDLEWARE = [
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'users.middleware.OrgMiddleware',
+    'payments.middleware.SubscriptionGateMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'users.middleware.CSPMiddleware',
 ]
+
+# Stripe (SaaS subscription billing — see the `payments` app)
+STRIPE_SECRET_KEY = os.environ.get('STRIPE_SECRET_KEY', '')
+STRIPE_PUBLISHABLE_KEY = os.environ.get('STRIPE_PUBLISHABLE_KEY', '')
+STRIPE_WEBHOOK_SECRET = os.environ.get('STRIPE_WEBHOOK_SECRET', '')
+STRIPE_PRICE_ID = os.environ.get('STRIPE_PRICE_ID', '')  # default plan's Price id
+# Where Checkout / Billing Portal redirect back to (the Next.js app).
+FRONTEND_BASE_URL = os.environ.get('FRONTEND_BASE_URL', 'http://localhost:3000')
+# Length of the no-card free trial granted to every new org on sign-up.
+DEFAULT_TRIAL_DAYS = int(os.environ.get('DEFAULT_TRIAL_DAYS', '7'))
 
 # CORS
 CORS_ALLOWED_ORIGINS = [

@@ -24,6 +24,7 @@ import {
   useProductLines,
 } from "@/lib/hooks";
 import DealWonDialog from "@/components/DealWonDialog";
+import EventPaymentsCard from "@/components/EventPaymentsCard";
 import { useAuth } from "@/lib/auth";
 import { formatDate, formatDateTime as sharedFormatDateTime, todayISO } from "@/lib/dateFormat";
 import { LineItemInput, lineItemTotal, computeBookingTotals, buildEventSavePayload } from "@/lib/quoteTotals";
@@ -974,6 +975,18 @@ export default function EventDetailPage() {
 
       {/* Staffing and Invoices sections hidden from salesperson view (REL-289) */}
       {/* These remain accessible via /staff and /invoices pages */}
+
+      {/* Client payments (advances / part / full) — recorded against this booking */}
+      {!isNew && event && !editing && (
+        <EventPaymentsCard
+          event={event}
+          users={users}
+          currencySymbol={settings.currency_symbol}
+          dateFormat={dateFormat}
+          currentUserId={currentUser?.id ?? null}
+          onChange={() => mutateEvent()}
+        />
+      )}
 
       {/* Instructions Section */}
       <Card>
