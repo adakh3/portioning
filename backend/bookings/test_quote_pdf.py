@@ -70,6 +70,24 @@ class QuotePDFContentTests(TestCase):
         # Internal notes must never reach the customer PDF.
         self.assertNotIn("SECRET PLAN", text)
 
+    def test_addon_items_are_included_in_the_subtotal(self):
+        # Regression: the PDF prints the STORED subtotal. Add-on line items must be
+        # folded into it — not listed while the Sub Total silently omits them (the
+        # prefetch-cache bug that shipped a food-only total to customers).
+        from bookings.models import BookingLineItem
+        q = self._quote(guest_count=10, price_per_head=Decimal("100"), tax_rate=Decimal("0"))
+        BookingLineItem.objects.create(
+            quote=q, category="rental", description="Chairs",
+            quantity=Decimal("1"), unit="flat", unit_price=Decimal("500"),
+        )
+        q.refresh_from_db()
+        text = pdf_text(q)
+        # The add-on is listed…
+        self.assertIn("Chairs", text)
+        # …and the Sub Total is food (1,000) + add-on (500) = 1,500, not food-only.
+        self.assertIn("1,500.00", text)
+        self.assertNotIn("Sub Total 1,000.00", text.replace("\n", " "))
+
     def test_food_line_shows_without_dishes(self):
         # Q-59: a per-head price with no dish list must still render a food line,
         # so the food cost is never hidden inside the subtotal.

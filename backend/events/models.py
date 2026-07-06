@@ -132,6 +132,12 @@ class Event(OrgScopedModel, models.Model):
         # Shared engine — identical math to quotes. See bookings/services/totals.py.
         from bookings.services.totals import compute_booking_totals
         rate = self.tax_rate if self.is_taxable else Decimal('0')
+        # Drop any prefetch cache first: a caller may have loaded this event via
+        # prefetch_related('line_items'), and that cache predates rows added in the
+        # same save — so line_items.all() would omit the just-added add-ons and the
+        # stored subtotal would silently drop them.
+        for rel in ('line_items', 'additional_meals'):
+            getattr(self, '_prefetched_objects_cache', {}).pop(rel, None)
         totals = compute_booking_totals(self.food_total, self.line_items.all(), rate)
         self.subtotal = totals.subtotal
         self.tax_amount = totals.tax_amount

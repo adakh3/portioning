@@ -86,6 +86,14 @@ class Command(BaseCommand):
         # is the org default, pre-selected on new bookings).
         for i, (pname, colour) in enumerate([("Weddings", "#EC4899"), ("Corporate", "#3B82F6"), ("Private Dining", "#10B981")]):
             ProductLine.objects.get_or_create(organisation=org, name=pname, defaults={"colour": colour, "is_default": i == 0})
+        # A featured catalog add-on so the booking form shows a tickable add-on
+        # (also drives the add-on-subtotal e2e).
+        from bookings.models import AddOnProduct
+        AddOnProduct.objects.get_or_create(
+            organisation=org, name="Buffet Station",
+            defaults={"category": "rental", "default_unit": "each",
+                      "unit_price": Decimal("10000"), "is_featured": True, "is_active": True},
+        )
 
         # Commission plans: a default flat plan + a "Senior" accelerated plan.
         default_plan = self._plan(org, "Default", model="flat", flat_rate="5", is_default=True)
