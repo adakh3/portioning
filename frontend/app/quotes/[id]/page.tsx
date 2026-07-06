@@ -49,6 +49,7 @@ export default function QuoteDetailPage() {
   const { data: rawSettings } = useSiteSettings();
   const settings = rawSettings || { currency_symbol: "£", currency_code: "GBP", date_format: "DD/MM/YYYY", default_price_per_head: "0.00", target_food_cost_percentage: "30.00", price_rounding_step: "50", tax_label: "VAT", default_tax_rate: "0.2000" };
   const dateFormat = useDateFormat();
+  const timeFormat: "12h" | "24h" = ((rawSettings as { time_format?: string } | undefined)?.time_format === "12h") ? "12h" : "24h";
   const { data: productLines = [] } = useProductLines();
   const activeProducts = productLines.filter((p) => p.is_active);
   const { data: eventTypes = [] } = useEventTypes();
@@ -419,6 +420,7 @@ export default function QuoteDetailPage() {
               <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Timeline</h2>
               <BookingTimelineField
                 eventDate={createData.event_date}
+                timeFormat={timeFormat}
                 value={{ setup_time: createData.setup_time, guest_arrival_time: createData.guest_arrival_time, meal_time: createData.meal_time, end_time: createData.end_time }}
                 onChange={(patch) => setCreateData((prev) => ({ ...prev, ...patch }))}
               />
@@ -458,6 +460,7 @@ export default function QuoteDetailPage() {
             priceRoundingStep={Number(settings.price_rounding_step) || 50}
             defaultGuestCount={createData.gents + createData.ladies}
             eventDate={createData.event_date}
+            timeFormat={timeFormat}
           />
 
           {/* Additional Items */}
@@ -792,6 +795,7 @@ export default function QuoteDetailPage() {
             <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Timeline</h2>
             <BookingTimelineField
               eventDate={editData.event_date}
+              timeFormat={timeFormat}
               value={{ setup_time: editData.setup_time, guest_arrival_time: editData.guest_arrival_time, meal_time: editData.meal_time, end_time: editData.end_time }}
               onChange={(patch) => setEditData((prev) => ({ ...prev, ...patch }))}
             />
@@ -873,6 +877,7 @@ export default function QuoteDetailPage() {
           priceRoundingStep={Number(settings.price_rounding_step) || 50}
           defaultGuestCount={editData.gents + editData.ladies}
           eventDate={editData.event_date}
+          timeFormat={timeFormat}
         />
       )}
 

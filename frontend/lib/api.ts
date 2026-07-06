@@ -593,6 +593,8 @@ export interface SiteSettingsData {
   currency_code: string;
   date_format: string;
   date_format_choices?: { value: string; label: string }[];
+  time_format?: string;
+  time_format_choices?: { value: string; label: string }[];
   timezone: string;
   default_price_per_head: string;
   target_food_cost_percentage: string;

@@ -41,6 +41,7 @@ export default function SettingsPage() {
     currency_symbol: "",
     currency_code: "",
     date_format: "DD/MM/YYYY",
+    time_format: "24h",
     timezone: "",
     tax_label: "",
     default_tax_rate: "",
@@ -65,6 +66,7 @@ export default function SettingsPage() {
         currency_symbol: settings.currency_symbol,
         currency_code: settings.currency_code,
         date_format: settings.date_format || "DD/MM/YYYY",
+        time_format: settings.time_format || "24h",
         timezone: settings.timezone || "",
         tax_label: settings.tax_label || "",
         default_tax_rate: settings.default_tax_rate || "",
@@ -194,6 +196,21 @@ export default function SettingsPage() {
                   </select>
                   <p className="text-xs text-muted-foreground mt-1">
                     Controls how dates are displayed across the application.
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Time Format</label>
+                  <select
+                    value={formData.time_format}
+                    onChange={(e) => setFormData({ ...formData, time_format: e.target.value })}
+                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  >
+                    {(settings?.time_format_choices || [{ value: "24h", label: "24-hour (e.g. 19:00)" }, { value: "12h", label: "12-hour AM/PM (e.g. 7:00 PM)" }]).map((c: { value: string; label: string }) => (
+                      <option key={c.value} value={c.value}>{c.label}</option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Controls AM/PM vs 24-hour time entry and display.
                   </p>
                 </div>
                 <div>

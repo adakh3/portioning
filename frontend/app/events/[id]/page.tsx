@@ -86,6 +86,7 @@ export default function EventDetailPage() {
   const { data: rawSettings } = useSiteSettings();
   const settings = rawSettings || { currency_symbol: "\u00A3", currency_code: "GBP", date_format: "DD/MM/YYYY", default_price_per_head: "0.00", target_food_cost_percentage: "30.00", price_rounding_step: "50", tax_label: "VAT", default_tax_rate: "0.2000" };
   const dateFormat = useDateFormat();
+  const timeFormat: "12h" | "24h" = ((rawSettings as { time_format?: string } | undefined)?.time_format === "12h") ? "12h" : "24h";
   const { data: eventTypesData = [] } = useEventTypes();
   const { data: serviceStylesData = [] } = useServiceStyles();
   const { data: mealTypesData = [] } = useMealTypes();
@@ -482,7 +483,7 @@ export default function EventDetailPage() {
 
   const formatDateTime = (dt: string | null) => {
     if (!dt) return "\u2014";
-    return sharedFormatDateTime(dt, dateFormat);
+    return sharedFormatDateTime(dt, dateFormat, timeFormat);
   };
 
   return (
@@ -743,6 +744,7 @@ export default function EventDetailPage() {
             {editing ? (
               <BookingTimelineField
                 eventDate={formDate}
+                timeFormat={timeFormat}
                 value={{ setup_time: formSetupTime, guest_arrival_time: formArrivalTime, meal_time: formMealTime, end_time: formEndTime }}
                 onChange={(patch) => {
                   if (patch.setup_time !== undefined) setFormSetupTime(patch.setup_time);
@@ -868,6 +870,7 @@ export default function EventDetailPage() {
         dateFormat={dateFormat}
         defaultGuestCount={totalGuests}
         eventDate={formDate}
+        timeFormat={timeFormat}
       />
 
       {/* Add-on items (arrangements, beverages, rentals, custom) */}
