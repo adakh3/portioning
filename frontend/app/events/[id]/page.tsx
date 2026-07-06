@@ -532,14 +532,6 @@ export default function EventDetailPage() {
                   : event!.name}
               </h1>
               <div className="flex flex-col gap-1">
-                <label className="text-xs font-medium text-muted-foreground">Date</label>
-                {editing ? (
-                  <ValidatedInput type="date" value={formDate} onChange={(e) => setFormDate(e.target.value)} className="w-auto h-9" />
-                ) : (
-                  <span className="text-sm h-9 flex items-center whitespace-nowrap">{event!.date}</span>
-                )}
-              </div>
-              <div className="flex flex-col gap-1">
                 <label className="text-xs font-medium text-muted-foreground">Status</label>
                 {isNew ? (
                   <select
@@ -745,7 +737,7 @@ export default function EventDetailPage() {
       {/* Customer & Venue Section */}
       <Card>
         <CardContent className="p-6">
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Customer &amp; Venue</h2>
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Event Details</h2>
             {editing ? (
               <BookingDetailsForm
                 value={bookingValue}
@@ -757,9 +749,16 @@ export default function EventDetailPage() {
                 showProduct={false}
                 customerAddress={orgContacts.find((c) => c.id === formContact)?.address}
                 showNotes
+                eventDateSlot={
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1">Date *</label>
+                    <ValidatedInput type="date" value={formDate} onChange={(e) => setFormDate(e.target.value)} required />
+                  </div>
+                }
               />
             ) : (
               <dl className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <InfoRow label="Date" value={event!.date} />
                 <InfoRow label="Customer" value={event!.contact_name} />
                 {event!.is_b2b && <InfoRow label="Business" value={event!.account_name} />}
                 <InfoRow label="Venue" value={event!.venue_name || event!.venue_address || null} />

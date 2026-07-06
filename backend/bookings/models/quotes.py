@@ -102,6 +102,12 @@ class Quote(OrgScopedModel, models.Model):
         settings.AUTH_USER_MODEL, null=True, blank=True,
         on_delete=models.SET_NULL, related_name='created_quotes',
     )
+    assigned_to = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='assigned_quotes',
+        help_text='Salesperson who owns this quote; drives commission attribution '
+                  'and carries to the event on conversion.',
+    )
     sent_at = models.DateTimeField(null=True, blank=True)
     accepted_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)

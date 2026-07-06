@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { api, Contact, EventMealData } from "@/lib/api";
-import { useQuote, useAccounts, useContacts, useSiteSettings, useDateFormat, useEventTypes, useServiceStyles, useMealTypes, useAllLeads, useProductLines, revalidate } from "@/lib/hooks";
+import { useQuote, useAccounts, useContacts, useSiteSettings, useDateFormat, useEventTypes, useServiceStyles, useMealTypes, useAllLeads, useProductLines, useUsers, revalidate } from "@/lib/hooks";
+import { useAuth } from "@/lib/auth";
 import { formatDate, todayISO } from "@/lib/dateFormat";
 import { formatCurrency } from "@/lib/utils";
 import MenuBuilder from "@/components/MenuBuilder";
@@ -50,6 +51,14 @@ export default function QuoteDetailPage() {
   const settings = rawSettings || { currency_symbol: "£", currency_code: "GBP", date_format: "DD/MM/YYYY", default_price_per_head: "0.00", target_food_cost_percentage: "30.00", price_rounding_step: "50", tax_label: "VAT", default_tax_rate: "0.2000" };
   const dateFormat = useDateFormat();
   const timeFormat: "12h" | "24h" = ((rawSettings as { time_format?: string } | undefined)?.time_format === "12h") ? "12h" : "24h";
+  const { data: users = [] } = useUsers();
+  const { user: currentUser } = useAuth();
+  const salespeople = users.filter((u) => u.role === "salesperson");
+  // Assignee options: salespeople, plus the current user if they aren't one, so
+  // an admin creating a quote can still credit themselves.
+  const assigneeOptions = currentUser && !salespeople.some((u) => u.id === currentUser.id)
+    ? [{ id: currentUser.id, first_name: currentUser.first_name, last_name: currentUser.last_name }, ...salespeople]
+    : salespeople;
   const { data: productLines = [] } = useProductLines();
   const activeProducts = productLines.filter((p) => p.is_active);
   const { data: eventTypes = [] } = useEventTypes();
@@ -286,6 +295,19 @@ export default function QuoteDetailPage() {
     setEditing(true);
   }
 
+  async function handleAssign(value: string) {
+    if (!quote) return;
+    setSaving(true);
+    try {
+      await api.updateQuote(quote.id, { assigned_to: value ? Number(value) : null });
+      await mutateQuote();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Reassign failed");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function handleSaveQuote() {
     if (!quote) return;
     setSaving(true);
@@ -384,7 +406,7 @@ export default function QuoteDetailPage() {
           {/* Customer & Event (shared booking details) */}
           <Card>
             <CardContent className="p-6">
-              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Customer &amp; Event</h2>
+              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Event Details</h2>
               <div className="mb-4">
                 <label className="block text-sm font-medium text-foreground mb-1">Link to Lead</label>
                 <select value={createData.lead} onChange={handleLeadSelect} className={selectClass}>
@@ -561,11 +583,33 @@ export default function QuoteDetailPage() {
         <CardContent className="p-6">
           <div className="flex items-start justify-between">
             <div>
-              <div className="flex items-center gap-3">
-                <h1 className="text-2xl font-bold text-foreground">Quote #{q.id} v{q.version}</h1>
-                <Badge variant={STATUS_BADGE_VARIANT[q.status] || "secondary"}>
-                  {q.status_display}
-                </Badge>
+              <div className="flex items-end gap-3 flex-wrap">
+                <div className="flex items-center gap-3">
+                  <h1 className="text-2xl font-bold text-foreground">Quote #{q.id} v{q.version}</h1>
+                  <Badge variant={STATUS_BADGE_VARIANT[q.status] || "secondary"}>
+                    {q.status_display}
+                  </Badge>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-medium text-muted-foreground">Assigned</label>
+                  <select
+                    value={q.assigned_to ?? ""}
+                    onChange={(e) => handleAssign(e.target.value)}
+                    disabled={saving}
+                    title="Salesperson credited for this quote (drives commission)"
+                    aria-label="Assigned salesperson"
+                    className="flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  >
+                    <option value="">Unassigned</option>
+                    {(() => {
+                      const opts = [...salespeople];
+                      if (q.assigned_to && !opts.some((u) => u.id === q.assigned_to)) {
+                        opts.unshift({ id: q.assigned_to, first_name: q.assigned_to_name || "Assigned", last_name: "", role: "" } as (typeof salespeople)[number]);
+                      }
+                      return opts.map((u) => <option key={u.id} value={u.id}>{u.first_name} {u.last_name}</option>);
+                    })()}
+                  </select>
+                </div>
               </div>
               <p className="text-sm text-muted-foreground mt-1">
                 Created {formatDate(q.created_at, dateFormat)}
@@ -657,7 +701,7 @@ export default function QuoteDetailPage() {
       {editing && (
         <Card>
           <CardContent className="p-6">
-            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Customer &amp; Event</h2>
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Event Details</h2>
             <BookingDetailsForm
               value={toBdValue(editData)}
               onChange={(patch) => setEditData((prev) => ({ ...prev, ...fromBdPatch(patch) }))}
