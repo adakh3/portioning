@@ -34,6 +34,7 @@ import AdditionalMealsEditor from "@/components/AdditionalMealsEditor";
 import GuestCountField, { GuestCountValue } from "@/components/GuestCountField";
 import BookingTimelineField from "@/components/BookingTimelineField";
 import BookingDetailsForm, { BookingDetailsValue } from "@/components/BookingDetailsForm";
+import AssigneePicker from "@/components/AssigneePicker";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -550,46 +551,25 @@ export default function EventDetailPage() {
                   </span>
                 )}
               </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-xs font-medium text-muted-foreground">Assigned</label>
-                {isNew ? (
-                  <select
-                    value={formAssigned ?? ""}
-                    onChange={(e) => setFormAssigned(e.target.value ? Number(e.target.value) : null)}
-                    title="Salesperson credited for this event (drives commission)"
-                    className="flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                    aria-label="Assigned salesperson"
-                  >
-                    <option value="">Unassigned</option>
-                    {assigneeOptions.map((u) => (
-                      <option key={u.id} value={u.id}>{u.first_name} {u.last_name}</option>
-                    ))}
-                  </select>
-                ) : (
-                  <select
-                    value={event!.assigned_to ?? ""}
-                    disabled={saving}
-                    onChange={(e) => handleAssign(e.target.value)}
-                    title="Salesperson credited for this event (drives commission)"
-                    className="flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                    aria-label="Assigned salesperson"
-                  >
-                    <option value="">Unassigned</option>
-                    {(() => {
-                      // Always show the current assignee, even if they're not a
-                      // salesperson (e.g. an admin who created the event), so it's
-                      // clear who it's credited to.
-                      const opts = [...salespeople];
-                      if (event!.assigned_to && !opts.some((u) => u.id === event!.assigned_to)) {
-                        opts.unshift({ id: event!.assigned_to, first_name: event!.assigned_to_name || "Assigned", last_name: "", role: "" } as (typeof salespeople)[number]);
-                      }
-                      return opts.map((u) => (
-                        <option key={u.id} value={u.id}>{u.first_name} {u.last_name}</option>
-                      ));
-                    })()}
-                  </select>
-                )}
-              </div>
+              {isNew ? (
+                <AssigneePicker value={formAssigned} options={assigneeOptions} onChange={setFormAssigned} />
+              ) : (
+                <AssigneePicker
+                  value={event!.assigned_to}
+                  currentName={event!.assigned_to_name}
+                  disabled={saving}
+                  onChange={(pid) => handleAssign(pid ? String(pid) : "")}
+                  options={(() => {
+                    // Always include the current assignee, even if not a salesperson
+                    // (e.g. an admin who created the event), so it's clear who owns it.
+                    const opts = [...salespeople];
+                    if (event!.assigned_to && !opts.some((u) => u.id === event!.assigned_to)) {
+                      opts.unshift({ id: event!.assigned_to, first_name: event!.assigned_to_name || "Assigned", last_name: "", role: "" } as (typeof salespeople)[number]);
+                    }
+                    return opts;
+                  })()}
+                />
+              )}
               {activeProducts.length > 0 && (
                 <div className="flex flex-col gap-1">
                   <label className="text-xs font-medium text-muted-foreground">Product</label>
