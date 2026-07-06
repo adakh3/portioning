@@ -525,85 +525,93 @@ export default function EventDetailPage() {
       <Card>
         <CardContent className="p-6">
           <div className="flex items-start justify-between gap-4">
-            <div className="flex items-center gap-3 flex-1 min-w-0">
-              <h1 className="text-2xl font-bold text-foreground truncate">
+            <div className="flex items-end gap-3 flex-1 min-w-0">
+              <h1 className="text-2xl font-bold text-foreground truncate self-center">
                 {isNew
                   ? (formAccount ? `${accounts.find((a) => a.id === formAccount)?.name || "New Event"}` : "New Event")
                   : event!.name}
               </h1>
-              {editing ? (
-                <ValidatedInput
-                  type="date"
-                  value={formDate}
-                  onChange={(e) => setFormDate(e.target.value)}
-                  className="w-auto h-9"
-                />
-              ) : (
-                <span className="text-muted-foreground text-sm whitespace-nowrap">{event!.date}</span>
-              )}
-              {isNew ? (
-                <select
-                  value={formStatus}
-                  onChange={(e) => setFormStatus(e.target.value)}
-                  className="flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                >
-                  <option value="tentative">Tentative</option>
-                  <option value="confirmed">Confirmed</option>
-                </select>
-              ) : (
-                <Badge variant={statusBadgeVariant[event!.status] || "secondary"} className="whitespace-nowrap">
-                  {event!.status_display || event!.status}
-                </Badge>
-              )}
-              {isNew && (
-                <select
-                  value={formAssigned ?? ""}
-                  onChange={(e) => setFormAssigned(e.target.value ? Number(e.target.value) : null)}
-                  title="Salesperson credited for this event (drives commission)"
-                  className="flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  aria-label="Assigned salesperson"
-                >
-                  <option value="">Unassigned</option>
-                  {assigneeOptions.map((u) => (
-                    <option key={u.id} value={u.id}>{u.first_name} {u.last_name}</option>
-                  ))}
-                </select>
-              )}
-              {!isNew && (
-                <select
-                  value={event!.assigned_to ?? ""}
-                  disabled={saving}
-                  onChange={(e) => handleAssign(e.target.value)}
-                  title="Salesperson credited for this event (drives commission)"
-                  className="flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  aria-label="Assigned salesperson"
-                >
-                  <option value="">Unassigned</option>
-                  {(() => {
-                    // Always show the current assignee, even if they're not a
-                    // salesperson (e.g. an admin who created the event), so it's
-                    // clear who it's credited to.
-                    const opts = [...salespeople];
-                    if (event!.assigned_to && !opts.some((u) => u.id === event!.assigned_to)) {
-                      opts.unshift({ id: event!.assigned_to, first_name: event!.assigned_to_name || "Assigned", last_name: "", role: "" } as (typeof salespeople)[number]);
-                    }
-                    return opts.map((u) => (
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-medium text-muted-foreground">Date</label>
+                {editing ? (
+                  <ValidatedInput type="date" value={formDate} onChange={(e) => setFormDate(e.target.value)} className="w-auto h-9" />
+                ) : (
+                  <span className="text-sm h-9 flex items-center whitespace-nowrap">{event!.date}</span>
+                )}
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-medium text-muted-foreground">Status</label>
+                {isNew ? (
+                  <select
+                    value={formStatus}
+                    onChange={(e) => setFormStatus(e.target.value)}
+                    className="flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  >
+                    <option value="tentative">Tentative</option>
+                    <option value="confirmed">Confirmed</option>
+                  </select>
+                ) : (
+                  <span className="h-9 flex items-center">
+                    <Badge variant={statusBadgeVariant[event!.status] || "secondary"} className="whitespace-nowrap">
+                      {event!.status_display || event!.status}
+                    </Badge>
+                  </span>
+                )}
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-medium text-muted-foreground">Assigned</label>
+                {isNew ? (
+                  <select
+                    value={formAssigned ?? ""}
+                    onChange={(e) => setFormAssigned(e.target.value ? Number(e.target.value) : null)}
+                    title="Salesperson credited for this event (drives commission)"
+                    className="flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    aria-label="Assigned salesperson"
+                  >
+                    <option value="">Unassigned</option>
+                    {assigneeOptions.map((u) => (
                       <option key={u.id} value={u.id}>{u.first_name} {u.last_name}</option>
-                    ));
-                  })()}
-                </select>
-              )}
+                    ))}
+                  </select>
+                ) : (
+                  <select
+                    value={event!.assigned_to ?? ""}
+                    disabled={saving}
+                    onChange={(e) => handleAssign(e.target.value)}
+                    title="Salesperson credited for this event (drives commission)"
+                    className="flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    aria-label="Assigned salesperson"
+                  >
+                    <option value="">Unassigned</option>
+                    {(() => {
+                      // Always show the current assignee, even if they're not a
+                      // salesperson (e.g. an admin who created the event), so it's
+                      // clear who it's credited to.
+                      const opts = [...salespeople];
+                      if (event!.assigned_to && !opts.some((u) => u.id === event!.assigned_to)) {
+                        opts.unshift({ id: event!.assigned_to, first_name: event!.assigned_to_name || "Assigned", last_name: "", role: "" } as (typeof salespeople)[number]);
+                      }
+                      return opts.map((u) => (
+                        <option key={u.id} value={u.id}>{u.first_name} {u.last_name}</option>
+                      ));
+                    })()}
+                  </select>
+                )}
+              </div>
               {activeProducts.length > 0 && (
-                <select
-                  value={formProduct != null ? String(formProduct) : ""}
-                  onChange={(e) => handleProductChange(e.target.value)}
-                  disabled={saving}
-                  title="Product line for this event"
-                  aria-label="Product line"
-                  className="flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                >
-                  {activeProducts.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                </select>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-medium text-muted-foreground">Product</label>
+                  <select
+                    value={formProduct != null ? String(formProduct) : ""}
+                    onChange={(e) => handleProductChange(e.target.value)}
+                    disabled={saving}
+                    title="Product line for this event"
+                    aria-label="Product line"
+                    className="flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  >
+                    {activeProducts.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                </div>
               )}
             </div>
             <div className="flex gap-2 flex-shrink-0">
