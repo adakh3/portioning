@@ -86,14 +86,56 @@ class Command(BaseCommand):
         # is the org default, pre-selected on new bookings).
         for i, (pname, colour) in enumerate([("Weddings", "#EC4899"), ("Corporate", "#3B82F6"), ("Private Dining", "#10B981")]):
             ProductLine.objects.get_or_create(organisation=org, name=pname, defaults={"colour": colour, "is_default": i == 0})
-        # A featured catalog add-on so the booking form shows a tickable add-on
-        # (also drives the add-on-subtotal e2e).
-        from bookings.models import AddOnProduct
-        AddOnProduct.objects.get_or_create(
-            organisation=org, name="Buffet Station",
-            defaults={"category": "rental", "default_unit": "each",
-                      "unit_price": Decimal("10000"), "is_featured": True, "is_active": True},
-        )
+        # A full featured add-on catalog so the booking form's add-on picker is
+        # populated for testing — beverages, rentals/arrangements, fees, labour,
+        # plus a couple of multi-variant groups (Soft Drinks, Dera, Packaging).
+        from bookings.models import AddOnProduct, AddOnVariant
+        addons = [
+            # (category, name, base_price, [(variant name, price), ...])
+            ("beverage", "Mineral Water 1.5L", "80", []),
+            ("beverage", "Mineral Water 500ml", "60", []),
+            ("beverage", "Soft Drinks", "0", [("1.5L", "150"), ("Tins", "80")]),
+            ("beverage", "Juices", "200", []),
+            ("beverage", "Tea & Coffee", "100", []),
+            ("beverage", "Green Tea", "50", []),
+            ("beverage", "Mocktails", "250", []),
+            ("beverage", "Milkshake", "300", []),
+            ("rental", "Buffet Station", "10000", []),
+            ("rental", "Cocktail / Poseur Table", "8000", []),
+            ("rental", "Live Cooking Station", "7500", []),
+            ("rental", "Drinks Station", "6000", []),
+            ("rental", "Round Table Setting", "350", []),
+            ("rental", "Trestle Table Setting", "300", []),
+            ("rental", "Dessert Display", "5000", []),
+            ("rental", "Sound System", "15000", []),
+            ("rental", "Basic Lighting", "12000", []),
+            ("rental", "Heater", "2000", []),
+            ("rental", "Canopy", "4000", []),
+            ("rental", "Dera", "0", [("60 x 90", "75000"), ("90 x 90", "90000")]),
+            ("rental", "AC", "8000", []),
+            ("rental", "Marquee", "50000", []),
+            ("rental", "Stage / Rostrum", "20000", []),
+            ("rental", "Sofa", "3000", []),
+            ("rental", "Chairs", "100", []),
+            ("rental", "Packaging / Boxes", "0", [("Plastic Box", "40"), ("Styrofoam Box", "30")]),
+            ("fee", "Transportation", "10000", []),
+            ("fee", "Service Charge", "5000", []),
+            ("labor", "Ushers", "1500", []),
+            ("labor", "Valet", "2000", []),
+            ("labor", "Waiters", "1500", []),
+        ]
+        for i, (cat, name, price, variants) in enumerate(addons):
+            p, _ = AddOnProduct.objects.get_or_create(
+                organisation=org, name=name,
+                defaults={"category": cat, "default_unit": "each",
+                          "unit_price": Decimal(price), "is_featured": True,
+                          "is_active": True, "sort_order": i},
+            )
+            for j, (vname, vprice) in enumerate(variants):
+                AddOnVariant.objects.get_or_create(
+                    organisation=org, product=p, name=vname,
+                    defaults={"unit_price": Decimal(vprice), "is_active": True, "sort_order": j},
+                )
 
         # Commission plans: a default flat plan + a "Senior" accelerated plan.
         default_plan = self._plan(org, "Default", model="flat", flat_rate="5", is_default=True)

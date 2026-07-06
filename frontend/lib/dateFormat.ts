@@ -51,8 +51,9 @@ export function formatDate(dateStr: string, dateFormat: string): string {
   return new Intl.DateTimeFormat(locale, dateOptions).format(d);
 }
 
-/** Format a date string (ISO/datetime) as date + time — e.g. "10/03/2026, 14:30" */
-export function formatDateTime(dateStr: string, dateFormat: string): string {
+/** Format a date string (ISO/datetime) as date + time. `timeFormat` ("12h"/"24h")
+ * controls AM/PM vs 24-hour; defaults to 24h to preserve existing callers. */
+export function formatDateTime(dateStr: string, dateFormat: string, timeFormat: string = "24h"): string {
   if (!dateStr) return "-";
   const d = new Date(dateStr);
   if (isNaN(d.getTime())) return dateStr;
@@ -61,5 +62,23 @@ export function formatDateTime(dateStr: string, dateFormat: string): string {
     ...dateOptions,
     hour: "2-digit",
     minute: "2-digit",
+    hour12: timeFormat === "12h",
   }).format(d);
+}
+
+/** Format a bare time — an "HH:MM"/"HH:MM:SS" string or a datetime — per the org's
+ * 12h/24h preference. "19:00" → "7:00 PM" (12h) or "19:00" (24h). */
+export function formatTime(value: string, timeFormat: string = "24h"): string {
+  if (!value) return "";
+  const t = value.includes("T") ? value.slice(11, 16) : value.slice(0, 5);
+  const [hs, ms] = t.split(":");
+  const h = parseInt(hs, 10);
+  const m = parseInt(ms, 10);
+  if (isNaN(h) || isNaN(m)) return value;
+  if (timeFormat === "12h") {
+    const period = h < 12 ? "AM" : "PM";
+    const h12 = h % 12 === 0 ? 12 : h % 12;
+    return `${h12}:${String(m).padStart(2, "0")} ${period}`;
+  }
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }

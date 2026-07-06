@@ -32,7 +32,12 @@ vi.mock("@/lib/hooks", () => ({
   useMealTypes: () => ({ data: [] }),
   useAllLeads: () => ({ data: [] }),
   useProductLines: () => ({ data: [{ id: 5, name: "Catering", is_active: true, colour: "#000", round_robin_index: 0 }] }),
+  useUsers: () => ({ data: [] }),
   revalidate: vi.fn(),
+}));
+
+vi.mock("@/lib/auth", () => ({
+  useAuth: () => ({ user: { id: 4, first_name: "Olivia", last_name: "Owner", role: "owner" } }),
 }));
 
 vi.mock("@/lib/api", () => ({
@@ -55,15 +60,11 @@ describe("Quote create — guest split, timeline, meals reach the payload", () =
     fireEvent.change(screen.getByLabelText("Total Guests"), { target: { value: "40" } });
 
     // 2) A timeline time → anchored to the (defaulted-to-today) event date.
-    fireEvent.click(screen.getByLabelText("Set Setup Time"));
-    fireEvent.change(screen.getByLabelText("Setup Time hour"), { target: { value: "10" } });
-    fireEvent.change(screen.getByLabelText("Setup Time minute"), { target: { value: "00" } });
+    fireEvent.change(screen.getByLabelText("Setup Time"), { target: { value: "10:00" } });
 
     // 3) An additional meal with a blank label + its own time.
     fireEvent.click(screen.getByText("+ Add Meal"));
-    fireEvent.click(await screen.findByLabelText("Set Additional meal time"));
-    fireEvent.change(screen.getByLabelText("Additional meal time hour"), { target: { value: "14" } });
-    fireEvent.change(screen.getByLabelText("Additional meal time minute"), { target: { value: "00" } });
+    fireEvent.change(await screen.findByLabelText("Additional meal time"), { target: { value: "14:00" } });
 
     fireEvent.click(screen.getByText("Create Quote"));
 

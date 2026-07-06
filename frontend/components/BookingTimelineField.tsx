@@ -19,12 +19,15 @@ export default function BookingTimelineField({
   onChange,
   eventDate,
   disabled = false,
+  timeFormat = "24h",
 }: {
   value: BookingTimelineValue;
   onChange: (patch: Partial<BookingTimelineValue>) => void;
   /** The booking's event date ("YYYY-MM-DD"); entered times are anchored to it. */
   eventDate?: string;
   disabled?: boolean;
+  /** Org time-entry preference ("12h"/"24h"). */
+  timeFormat?: "12h" | "24h";
 }) {
   const timePart = (dt: string) => (dt && dt.includes("T") ? dt.slice(11, 16) : "");
 
@@ -47,6 +50,7 @@ export default function BookingTimelineField({
         ariaLabel={label}
         value={timePart(value[key])}
         disabled={disabled}
+        format={timeFormat}
         onChange={(t) => setTime(key, t)}
       />
     </div>

@@ -86,6 +86,7 @@ export default function EventDetailPage() {
   const { data: rawSettings } = useSiteSettings();
   const settings = rawSettings || { currency_symbol: "\u00A3", currency_code: "GBP", date_format: "DD/MM/YYYY", default_price_per_head: "0.00", target_food_cost_percentage: "30.00", price_rounding_step: "50", tax_label: "VAT", default_tax_rate: "0.2000" };
   const dateFormat = useDateFormat();
+  const timeFormat: "12h" | "24h" = ((rawSettings as { time_format?: string } | undefined)?.time_format === "12h") ? "12h" : "24h";
   const { data: eventTypesData = [] } = useEventTypes();
   const { data: serviceStylesData = [] } = useServiceStyles();
   const { data: mealTypesData = [] } = useMealTypes();
@@ -352,6 +353,21 @@ export default function EventDetailPage() {
     }
   };
 
+  const handleProductChange = async (value: string) => {
+    const pid = value ? Number(value) : null;
+    setFormProduct(pid);
+    if (!event) return; // new event: saved on create
+    setSaving(true);
+    try {
+      await api.updateEvent(event.id, { product: pid } as Partial<EventData>);
+      await mutateEvent();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed to set product");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleStatusTransition = async (newStatus: string) => {
     if (!event) return;
     setSaving(true);
@@ -482,7 +498,7 @@ export default function EventDetailPage() {
 
   const formatDateTime = (dt: string | null) => {
     if (!dt) return "\u2014";
-    return sharedFormatDateTime(dt, dateFormat);
+    return sharedFormatDateTime(dt, dateFormat, timeFormat);
   };
 
   return (
@@ -509,73 +525,85 @@ export default function EventDetailPage() {
       <Card>
         <CardContent className="p-6">
           <div className="flex items-start justify-between gap-4">
-            <div className="flex items-center gap-3 flex-1 min-w-0">
-              <h1 className="text-2xl font-bold text-foreground truncate">
+            <div className="flex items-end gap-3 flex-1 min-w-0">
+              <h1 className="text-2xl font-bold text-foreground truncate self-center">
                 {isNew
                   ? (formAccount ? `${accounts.find((a) => a.id === formAccount)?.name || "New Event"}` : "New Event")
                   : event!.name}
               </h1>
-              {editing ? (
-                <ValidatedInput
-                  type="date"
-                  value={formDate}
-                  onChange={(e) => setFormDate(e.target.value)}
-                  className="w-auto"
-                />
-              ) : (
-                <span className="text-muted-foreground text-sm whitespace-nowrap">{event!.date}</span>
-              )}
-              {isNew ? (
-                <select
-                  value={formStatus}
-                  onChange={(e) => setFormStatus(e.target.value)}
-                  className="flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                >
-                  <option value="tentative">Tentative</option>
-                  <option value="confirmed">Confirmed</option>
-                </select>
-              ) : (
-                <Badge variant={statusBadgeVariant[event!.status] || "secondary"} className="whitespace-nowrap">
-                  {event!.status_display || event!.status}
-                </Badge>
-              )}
-              {isNew && (
-                <select
-                  value={formAssigned ?? ""}
-                  onChange={(e) => setFormAssigned(e.target.value ? Number(e.target.value) : null)}
-                  title="Salesperson credited for this event (drives commission)"
-                  className="flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  aria-label="Assigned salesperson"
-                >
-                  <option value="">Unassigned</option>
-                  {assigneeOptions.map((u) => (
-                    <option key={u.id} value={u.id}>{u.first_name} {u.last_name}</option>
-                  ))}
-                </select>
-              )}
-              {!isNew && (
-                <select
-                  value={event!.assigned_to ?? ""}
-                  disabled={saving}
-                  onChange={(e) => handleAssign(e.target.value)}
-                  title="Salesperson credited for this event (drives commission)"
-                  className="flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  aria-label="Assigned salesperson"
-                >
-                  <option value="">Unassigned</option>
-                  {(() => {
-                    // Always show the current assignee, even if they're not a
-                    // salesperson (e.g. an admin who created the event), so it's
-                    // clear who it's credited to.
-                    const opts = [...salespeople];
-                    if (event!.assigned_to && !opts.some((u) => u.id === event!.assigned_to)) {
-                      opts.unshift({ id: event!.assigned_to, first_name: event!.assigned_to_name || "Assigned", last_name: "", role: "" } as (typeof salespeople)[number]);
-                    }
-                    return opts.map((u) => (
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-medium text-muted-foreground">Status</label>
+                {isNew ? (
+                  <select
+                    value={formStatus}
+                    onChange={(e) => setFormStatus(e.target.value)}
+                    className="flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  >
+                    <option value="tentative">Tentative</option>
+                    <option value="confirmed">Confirmed</option>
+                  </select>
+                ) : (
+                  <span className="h-9 flex items-center">
+                    <Badge variant={statusBadgeVariant[event!.status] || "secondary"} className="whitespace-nowrap">
+                      {event!.status_display || event!.status}
+                    </Badge>
+                  </span>
+                )}
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-medium text-muted-foreground">Assigned</label>
+                {isNew ? (
+                  <select
+                    value={formAssigned ?? ""}
+                    onChange={(e) => setFormAssigned(e.target.value ? Number(e.target.value) : null)}
+                    title="Salesperson credited for this event (drives commission)"
+                    className="flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    aria-label="Assigned salesperson"
+                  >
+                    <option value="">Unassigned</option>
+                    {assigneeOptions.map((u) => (
                       <option key={u.id} value={u.id}>{u.first_name} {u.last_name}</option>
-                    ));
-                  })()}
-                </select>
+                    ))}
+                  </select>
+                ) : (
+                  <select
+                    value={event!.assigned_to ?? ""}
+                    disabled={saving}
+                    onChange={(e) => handleAssign(e.target.value)}
+                    title="Salesperson credited for this event (drives commission)"
+                    className="flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    aria-label="Assigned salesperson"
+                  >
+                    <option value="">Unassigned</option>
+                    {(() => {
+                      // Always show the current assignee, even if they're not a
+                      // salesperson (e.g. an admin who created the event), so it's
+                      // clear who it's credited to.
+                      const opts = [...salespeople];
+                      if (event!.assigned_to && !opts.some((u) => u.id === event!.assigned_to)) {
+                        opts.unshift({ id: event!.assigned_to, first_name: event!.assigned_to_name || "Assigned", last_name: "", role: "" } as (typeof salespeople)[number]);
+                      }
+                      return opts.map((u) => (
+                        <option key={u.id} value={u.id}>{u.first_name} {u.last_name}</option>
+                      ));
+                    })()}
+                  </select>
+                )}
+              </div>
+              {activeProducts.length > 0 && (
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-medium text-muted-foreground">Product</label>
+                  <select
+                    value={formProduct != null ? String(formProduct) : ""}
+                    onChange={(e) => handleProductChange(e.target.value)}
+                    disabled={saving}
+                    title="Product line for this event"
+                    aria-label="Product line"
+                    className="flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  >
+                    {activeProducts.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                </div>
               )}
             </div>
             <div className="flex gap-2 flex-shrink-0">
@@ -709,7 +737,7 @@ export default function EventDetailPage() {
       {/* Customer & Venue Section */}
       <Card>
         <CardContent className="p-6">
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Customer &amp; Venue</h2>
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Event Details</h2>
             {editing ? (
               <BookingDetailsForm
                 value={bookingValue}
@@ -718,11 +746,19 @@ export default function EventDetailPage() {
                 mealTypes={mealTypesData}
                 serviceStyles={serviceStylesData}
                 productLines={activeProducts}
+                showProduct={false}
                 customerAddress={orgContacts.find((c) => c.id === formContact)?.address}
                 showNotes
+                eventDateSlot={
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1">Date *</label>
+                    <ValidatedInput type="date" value={formDate} onChange={(e) => setFormDate(e.target.value)} required />
+                  </div>
+                }
               />
             ) : (
               <dl className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <InfoRow label="Date" value={event!.date} />
                 <InfoRow label="Customer" value={event!.contact_name} />
                 {event!.is_b2b && <InfoRow label="Business" value={event!.account_name} />}
                 <InfoRow label="Venue" value={event!.venue_name || event!.venue_address || null} />
@@ -743,6 +779,7 @@ export default function EventDetailPage() {
             {editing ? (
               <BookingTimelineField
                 eventDate={formDate}
+                timeFormat={timeFormat}
                 value={{ setup_time: formSetupTime, guest_arrival_time: formArrivalTime, meal_time: formMealTime, end_time: formEndTime }}
                 onChange={(patch) => {
                   if (patch.setup_time !== undefined) setFormSetupTime(patch.setup_time);
@@ -868,6 +905,7 @@ export default function EventDetailPage() {
         dateFormat={dateFormat}
         defaultGuestCount={totalGuests}
         eventDate={formDate}
+        timeFormat={timeFormat}
       />
 
       {/* Add-on items (arrangements, beverages, rentals, custom) */}

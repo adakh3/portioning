@@ -5,7 +5,7 @@ import { render, screen, fireEvent } from "@testing-library/react";
 vi.mock("@/components/MenuBuilder", () => ({
   default: ({ pricePerHead }: { pricePerHead: string }) => <div data-testid="menu-builder">menu:{pricePerHead}</div>,
 }));
-vi.mock("@/lib/dateFormat", () => ({ formatDateTime: (s: string) => `fmt(${s})` }));
+vi.mock("@/lib/dateFormat", () => ({ formatDateTime: (s: string) => `fmt(${s})`, formatTime: (s: string) => s }));
 
 import AdditionalMealsEditor from "./AdditionalMealsEditor";
 import { EventMealData } from "@/lib/api";

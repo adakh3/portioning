@@ -437,6 +437,8 @@ export interface Quote {
   event_id: number | null;
   created_by: number | null;
   created_by_name: string | null;
+  assigned_to: number | null;
+  assigned_to_name: string | null;
   line_items: QuoteLineItem[];
   additional_meals: EventMealData[];
   created_at: string;
@@ -593,6 +595,8 @@ export interface SiteSettingsData {
   currency_code: string;
   date_format: string;
   date_format_choices?: { value: string; label: string }[];
+  time_format?: string;
+  time_format_choices?: { value: string; label: string }[];
   timezone: string;
   default_price_per_head: string;
   target_food_cost_percentage: string;

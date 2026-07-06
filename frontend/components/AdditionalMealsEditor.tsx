@@ -21,6 +21,7 @@ export default function AdditionalMealsEditor({
   priceRoundingStep,
   defaultGuestCount = 0,
   eventDate,
+  timeFormat = "24h",
 }: {
   meals: EventMealData[];
   onChange: (meals: EventMealData[]) => void;
@@ -32,6 +33,8 @@ export default function AdditionalMealsEditor({
   defaultGuestCount?: number;
   /** The booking's event date ("YYYY-MM-DD"); meal times are anchored to it. */
   eventDate?: string;
+  /** Org time-entry preference ("12h"/"24h"). */
+  timeFormat?: "12h" | "24h";
 }) {
   const patch = (idx: number, fields: Partial<EventMealData>) =>
     onChange(meals.map((m, i) => (i === idx ? { ...m, ...fields } : m)));
@@ -104,6 +107,7 @@ export default function AdditionalMealsEditor({
                   {editing ? (
                     <TimeField
                       ariaLabel="Additional meal time"
+                      format={timeFormat}
                       value={meal.meal_time && meal.meal_time.includes("T") ? meal.meal_time.slice(11, 16) : ""}
                       onChange={(time) => {
                         if (!time) { patch(idx, { meal_time: null }); return; }
@@ -113,7 +117,7 @@ export default function AdditionalMealsEditor({
                       }}
                     />
                   ) : (
-                    <span className="text-sm">{meal.meal_time ? formatDateTime(meal.meal_time, dateFormat) : "—"}</span>
+                    <span className="text-sm">{meal.meal_time ? formatDateTime(meal.meal_time, dateFormat, timeFormat) : "—"}</span>
                   )}
                 </div>
               </div>
