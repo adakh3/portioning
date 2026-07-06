@@ -5,6 +5,8 @@ from . import views
 urlpatterns = [
     path('billing/subscription/', views.SubscriptionStatusView.as_view(),
          name='subscription-status'),
+    path('billing/plans/', views.PlansView.as_view(),
+         name='billing-plans'),
     path('billing/checkout/', views.CheckoutSessionView.as_view(),
          name='billing-checkout'),
     path('billing/portal/', views.BillingPortalView.as_view(),

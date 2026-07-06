@@ -20,8 +20,8 @@ from rest_framework.views import APIView
 from bookings.permissions import IsOwner
 from users.mixins import get_request_org
 
-from .models import Subscription
-from .serializers import SubscriptionSerializer
+from .models import Subscription, Plan, PricingRegion
+from .serializers import SubscriptionSerializer, PlanSerializer
 from .services import stripe_gateway
 from . import webhook_handlers
 
@@ -56,10 +56,55 @@ class SubscriptionStatusView(APIView):
         return Response(SubscriptionSerializer(sub).data)
 
 
-class CheckoutSessionView(APIView):
-    """POST to start a Stripe Checkout session for the default plan. Owner-only.
+class PlansView(APIView):
+    """GET the active subscription tiers, priced for the caller's org region.
 
-    Returns ``{"url": ...}``; the frontend redirects the browser there.
+    Any authenticated member (gate-exempt so a locked-out org can still see plans
+    to subscribe). Returns ``[]`` when no plans are configured — the frontend then
+    falls back to the single default-price Subscribe button.
+    """
+
+    def get(self, request):
+        org = get_request_org(request)
+        region = PricingRegion.for_country(org.country) if org else None
+        plans = Plan.objects.filter(is_active=True)
+        data = PlanSerializer(
+            plans, many=True, context={'request': request, 'region': region},
+        ).data
+        # Only surface tiers that actually have a price in this region.
+        return Response([p for p in data if p.get('display_amount') is not None])
+
+
+def _resolve_checkout_price(org, plan_code):
+    """Pick the Stripe price id for this checkout, server-side (never trust a
+    client-supplied price id). Returns ``(price_id, error_detail)``.
+
+    - A ``plan_code`` → the tier's price for the org's region (via org.country).
+    - No plan → the legacy single default price (``STRIPE_PRICE_ID``); this is the
+      fallback when tiered pricing isn't configured.
+    """
+    if plan_code:
+        plan = Plan.objects.filter(code=plan_code, is_active=True).first()
+        if plan is None:
+            return None, 'Unknown plan.'
+        region = PricingRegion.for_country(org.country)
+        price = plan.price_for_region(region)
+        if price is None:
+            return None, 'This plan is not available in your region.'
+        return price.stripe_price_id, None
+    # Legacy / unconfigured path — single default price.
+    price_id = settings.STRIPE_PRICE_ID
+    if not price_id:
+        return None, 'No plan price configured.'
+    return price_id, None
+
+
+class CheckoutSessionView(APIView):
+    """POST to start a Stripe Checkout session. Owner-only.
+
+    Body: ``{"plan": "<code>"}`` for a tier (price resolved by the org's region),
+    or empty to use the single default price. Returns ``{"url": ...}``; the
+    frontend redirects the browser there.
     """
     permission_classes = [IsOwner]
 
@@ -69,10 +114,9 @@ class CheckoutSessionView(APIView):
             return Response({'detail': 'No organisation in context.'},
                             status=http_status.HTTP_400_BAD_REQUEST)
 
-        price_id = request.data.get('price_id') or settings.STRIPE_PRICE_ID
-        if not price_id:
-            return Response({'detail': 'No plan price configured.'},
-                            status=http_status.HTTP_400_BAD_REQUEST)
+        price_id, error = _resolve_checkout_price(org, request.data.get('plan'))
+        if error:
+            return Response({'detail': error}, status=http_status.HTTP_400_BAD_REQUEST)
 
         sub = _get_or_create_subscription(org)
         # First-ever subscription gets the card-required free trial; a returning

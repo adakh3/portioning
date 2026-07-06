@@ -38,6 +38,7 @@ import {
   CalendarDay,
   LockedDate,
   Subscription,
+  Plan,
 } from "./api";
 
 // ── Revalidation helper ──
@@ -57,6 +58,10 @@ export function useDateFormat(): string {
 
 export function useSubscription() {
   return useSWR<Subscription>("subscription", () => api.getSubscription());
+}
+
+export function usePlans() {
+  return useSWR<Plan[]>("billing-plans", () => api.getPlans());
 }
 
 // ── Shared lookups (long dedupe, used by many pages) ──

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
-import type { Subscription } from "@/lib/api";
+import type { Subscription, Plan } from "@/lib/api";
 
 let searchParamsString = "";
 vi.mock("next/navigation", () => ({
@@ -12,15 +12,17 @@ vi.mock("@/lib/auth", () => ({ useAuth: () => ({ user: mockUser }) }));
 
 let mockSub: Subscription | null;
 let mockLoading = false;
+let mockPlans: Plan[] = [];
 vi.mock("@/lib/hooks", () => ({
   useSubscription: () => ({ data: mockSub, isLoading: mockLoading }),
+  usePlans: () => ({ data: mockPlans }),
 }));
 
 const startCheckout = vi.fn().mockResolvedValue({ url: "https://checkout.test/go" });
 const openBillingPortal = vi.fn().mockResolvedValue({ url: "https://portal.test/go" });
 vi.mock("@/lib/api", () => ({
   api: {
-    startCheckout: () => startCheckout(),
+    startCheckout: (plan?: string) => startCheckout(plan),
     openBillingPortal: () => openBillingPortal(),
   },
 }));
@@ -48,12 +50,20 @@ beforeEach(() => {
   openBillingPortal.mockClear();
   searchParamsString = "";
   mockLoading = false;
+  mockPlans = [];
   // jsdom doesn't implement navigation; make href assignable + observable.
   Object.defineProperty(window, "location", {
     writable: true,
     value: { href: "" },
   });
 });
+
+function makePlan(over: Partial<Plan> = {}): Plan {
+  return {
+    code: "pro", name: "Pro", description: "Everything",
+    display_amount: "99.00", currency: "USD", currency_symbol: "$", ...over,
+  };
+}
 
 describe("BillingPage", () => {
   it("shows trial days remaining", () => {
@@ -141,5 +151,42 @@ describe("BillingPage", () => {
     mockSub = makeSub({ status: "active", is_trialing: false, has_billing_account: true });
     render(<BillingPage />);
     expect(screen.getByText(/all set/i)).toBeTruthy();
+  });
+
+  it("with tiers configured, shows a plan-picker and checks out with the picked plan", async () => {
+    mockUser = { id: 1, role: "owner" };
+    mockSub = makeSub({ status: "none", is_trialing: false, has_access: false });
+    mockPlans = [
+      makePlan({ code: "starter", name: "Starter", display_amount: "29.00" }),
+      makePlan({ code: "pro", name: "Pro", display_amount: "99.00" }),
+    ];
+    render(<BillingPage />);
+    // Both tiers + prices are shown.
+    expect(screen.getByText("Starter")).toBeTruthy();
+    expect(screen.getByText("Pro")).toBeTruthy();
+    expect(screen.getByText("$ 99.00")).toBeTruthy();
+    // Pick "Pro", then start the trial → checkout is called with that plan code.
+    fireEvent.click(screen.getByText("Pro"));
+    fireEvent.click(screen.getByRole("button", { name: "Start your free trial" }));
+    await waitFor(() => expect(startCheckout).toHaveBeenCalledWith("pro"));
+  });
+
+  it("defaults to the first tier when none is explicitly picked", async () => {
+    mockUser = { id: 1, role: "owner" };
+    mockSub = makeSub({ status: "none", is_trialing: false, has_access: false });
+    mockPlans = [makePlan({ code: "starter", name: "Starter" }), makePlan({ code: "pro", name: "Pro" })];
+    render(<BillingPage />);
+    fireEvent.click(screen.getByRole("button", { name: "Start your free trial" }));
+    await waitFor(() => expect(startCheckout).toHaveBeenCalledWith("starter"));
+  });
+
+  it("with NO tiers configured, falls back to the single Subscribe/trial button", async () => {
+    mockUser = { id: 1, role: "owner" };
+    mockSub = makeSub({ status: "none", is_trialing: false, has_access: false });
+    mockPlans = [];
+    render(<BillingPage />);
+    expect(screen.queryByText("Pro")).toBeNull(); // no picker
+    fireEvent.click(screen.getByRole("button", { name: "Start your free trial" }));
+    await waitFor(() => expect(startCheckout).toHaveBeenCalledWith(undefined));
   });
 });

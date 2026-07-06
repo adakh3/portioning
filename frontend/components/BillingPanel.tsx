@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { api, SubscriptionStatus } from "@/lib/api";
-import { useSubscription } from "@/lib/hooks";
+import { useSubscription, usePlans } from "@/lib/hooks";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -43,12 +43,17 @@ function formatDate(iso: string | null): string {
 export default function BillingPanel() {
   const { user } = useAuth();
   const { data: sub, isLoading } = useSubscription();
+  const { data: plans = [] } = usePlans();
   const searchParams = useSearchParams();
   const checkoutResult = searchParams.get("status"); // "success" | "cancelled"
   const [busy, setBusy] = useState<"checkout" | "portal" | null>(null);
   const [error, setError] = useState("");
+  const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
 
   const isOwner = user?.role === "owner" || !!user?.is_superuser;
+  // Which plan the Subscribe button will use: the picked one, else the first tier
+  // (or undefined when no tiers are configured → the single default price).
+  const planForCheckout = selectedPlan ?? plans[0]?.code;
 
   async function redirectTo(action: "checkout" | "portal") {
     setError("");
@@ -56,7 +61,7 @@ export default function BillingPanel() {
     try {
       const { url } =
         action === "checkout"
-          ? await api.startCheckout()
+          ? await api.startCheckout(planForCheckout)
           : await api.openBillingPortal();
       window.location.href = url;
     } catch (e) {
@@ -161,6 +166,35 @@ export default function BillingPanel() {
             <p className="text-sm text-warning">
               Your last payment failed. Update your card to avoid losing access.
             </p>
+          )}
+
+          {/* Tier picker — only when choosing a plan and tiers are configured */}
+          {!sub.comped && isOwner && needsPlan && plans.length > 0 && (
+            <div className="grid gap-2 sm:grid-cols-2">
+              {plans.map((p) => {
+                const active = (planForCheckout === p.code);
+                return (
+                  <button
+                    key={p.code}
+                    type="button"
+                    onClick={() => setSelectedPlan(p.code)}
+                    className={`rounded-lg border p-3 text-left transition-colors ${
+                      active ? "border-primary ring-1 ring-primary" : "border-border hover:border-primary/50"
+                    }`}
+                  >
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="font-medium text-foreground">{p.name}</span>
+                      <span className="text-sm font-semibold text-foreground">
+                        {p.currency_symbol || p.currency} {p.display_amount}
+                      </span>
+                    </div>
+                    {p.description && (
+                      <p className="mt-1 text-xs text-muted-foreground">{p.description}</p>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
           )}
 
           {/* Actions — owner only; comped orgs have nothing to manage */}

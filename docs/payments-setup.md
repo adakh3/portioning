@@ -48,9 +48,20 @@ Spaces around `=` are fine; python-dotenv strips them. Use **test-mode** keys fo
 2. **Product + Price** — Products → Add product → add a **Recurring** price (e.g. $50/mo) →
    open the price → copy its `price_…` → `STRIPE_PRICE_ID`.
    - A Product is *what* you sell; a Price is *how much / how often*. The app charges a **Price**.
-   - Multiple plans later = multiple Prices (the checkout endpoint accepts a `price_id` per call;
-     `STRIPE_PRICE_ID` is just the default).
+   - `STRIPE_PRICE_ID` is the **single default** price used when tiered pricing isn't configured
+     (see below).
 3. **Billing Portal** — Settings → Billing → Customer portal → **activate** (else "Manage billing" errors).
+
+### Optional: tiered + regional pricing
+For named tiers (Starter/Pro/…) with **different amounts per region**, configure it in **Django
+admin** instead of relying on the single `STRIPE_PRICE_ID`:
+1. Create a **Product + recurring Price** in Stripe for each **(tier × region)** cell you want.
+2. In admin → **Payments**: create **Pricing regions** (currency + country list; mark one
+   *default*), create **Plans** (the tiers), and on each Plan add a **Plan price** per region
+   (paste the Stripe `price_…` + the display amount).
+3. The org's **country** (admin → Organisation) picks its region automatically; checkout charges
+   that region's price. With **no** plans configured, everything falls back to `STRIPE_PRICE_ID`.
+See `docs/user-stories/tiered-regional-pricing.md`.
 
 ## 3. Stripe CLI (for local webhooks)
 

@@ -1075,6 +1075,16 @@ export interface Subscription {
   comped: boolean;
 }
 
+// A subscription tier, priced for the caller's org region (resolved server-side).
+export interface Plan {
+  code: string;
+  name: string;
+  description: string;
+  display_amount: string;
+  currency: string;
+  currency_symbol: string;
+}
+
 // API functions
 export const api = {
   // Auth
@@ -1095,10 +1105,13 @@ export const api = {
 
   // Billing / subscription (SaaS plan for the org itself)
   getSubscription: () => fetchApi<Subscription>("/billing/subscription/"),
-  startCheckout: (priceId?: string) =>
+  getPlans: () => fetchApi<Plan[]>("/billing/plans/"),
+  // Pass a plan code for a tier; omit to use the single default price (when no
+  // tiers are configured). The backend resolves the region-specific price.
+  startCheckout: (plan?: string) =>
     fetchApi<{ url: string }>("/billing/checkout/", {
       method: "POST",
-      body: JSON.stringify(priceId ? { price_id: priceId } : {}),
+      body: JSON.stringify(plan ? { plan } : {}),
     }),
   openBillingPortal: () =>
     fetchApi<{ url: string }>("/billing/portal/", { method: "POST" }),
