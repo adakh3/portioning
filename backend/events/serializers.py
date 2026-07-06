@@ -73,6 +73,10 @@ class EventSerializer(OrgScopedModelSerializer):
     assigned_to_name = serializers.SerializerMethodField()
     created_by_name = serializers.SerializerMethodField()
 
+    # E-signature status (for the staff-side "send for signature" flow)
+    public_token = serializers.CharField(read_only=True)
+    signature = serializers.SerializerMethodField()
+
     # Nested read-only relations
     shifts = ShiftSerializer(many=True, read_only=True)
     equipment_reservations = EquipmentReservationSerializer(many=True, read_only=True)
@@ -126,6 +130,12 @@ class EventSerializer(OrgScopedModelSerializer):
         u = obj.created_by
         return f"{u.first_name} {u.last_name}".strip() if u else None
 
+    def get_signature(self, obj):
+        sig = obj.latest_signature
+        if not sig:
+            return None
+        return {'signer_name': sig.signer_name, 'signed_at': sig.signed_at.isoformat()}
+
     class Meta:
         model = Event
         fields = ['id', 'name', 'date', 'guest_count', 'gents', 'ladies',
@@ -149,6 +159,7 @@ class EventSerializer(OrgScopedModelSerializer):
                   'guaranteed_count', 'final_count', 'final_count_due',
                   # Nested
                   'additional_meals',
+                  'public_token', 'signature',
                   'source_quote_id', 'shifts', 'equipment_reservations', 'invoices',
                   # Client payments
                   'payments', 'amount_paid', 'balance_due', 'payment_status']
@@ -263,6 +274,8 @@ EVENT_LIST_EXCLUDE = {
     'dish_ids', 'line_items', 'additional_meals',
     # payment detail + balance read event.payments per row — detail-view only
     'payments', 'amount_paid', 'balance_due', 'payment_status',
+    # signature is a per-row query + a method the list serializer doesn't define
+    'signature', 'public_token',
 }
 
 

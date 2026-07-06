@@ -53,6 +53,10 @@ class QuoteSerializer(OrgScopedModelSerializer):
 
     food_total = serializers.SerializerMethodField()
 
+    # E-signature status (for the staff-side "send for signature" flow)
+    public_token = serializers.CharField(read_only=True)
+    signature = serializers.SerializerMethodField()
+
     # Menu fields
     dish_ids = serializers.PrimaryKeyRelatedField(
         many=True, source='dishes', queryset=Dish.objects.none(),
@@ -90,6 +94,7 @@ class QuoteSerializer(OrgScopedModelSerializer):
             'additional_meals',
             'notes', 'internal_notes',
             'sent_at', 'accepted_at',
+            'public_token', 'signature',
             'event', 'event_id',
             'created_by', 'created_by_name',
             'assigned_to', 'assigned_to_name',
@@ -126,6 +131,12 @@ class QuoteSerializer(OrgScopedModelSerializer):
             return str(val) if val is not None else '0.00'
         except Exception:
             return None
+
+    def get_signature(self, obj):
+        sig = obj.latest_signature
+        if not sig:
+            return None
+        return {'signer_name': sig.signer_name, 'signed_at': sig.signed_at.isoformat()}
 
     def get_contact_name(self, obj):
         return obj.primary_contact.name if obj.primary_contact else None
@@ -224,7 +235,9 @@ class QuoteSerializer(OrgScopedModelSerializer):
         return quote
 
 
-QUOTE_LIST_EXCLUDE = {'line_items', 'dishes', 'dish_ids', 'dish_names', 'additional_meals'}
+# signature does a per-row query (latest_signature); it's a detail-view concern.
+QUOTE_LIST_EXCLUDE = {'line_items', 'dishes', 'dish_ids', 'dish_names', 'additional_meals',
+                      'signature', 'public_token'}
 
 
 class QuoteListSerializer(QuoteSerializer):

@@ -1,8 +1,10 @@
+import uuid
 from decimal import Decimal
 
 from django.conf import settings
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
+from django.utils import timezone
 from users.managers import TenantManager
 from users.model_mixins import OrgScopedModel
 
@@ -118,11 +120,27 @@ class Event(OrgScopedModel, models.Model):
     final_count = models.IntegerField(null=True, blank=True)
     final_count_due = models.DateField(null=True, blank=True)
 
+    # Unguessable token for the client-facing (unauthenticated) sign link —
+    # used when a booking is created directly as an event (no quote). Only set
+    # once the event is sent for signature. See bookings/views/public_sign.py.
+    public_token = models.UUIDField(null=True, blank=True, unique=True, editable=False, db_index=True)
+
     class Meta:
         ordering = ['-event_date']
 
     def __str__(self):
         return f"{self.name} ({self.event_date})"
+
+    def ensure_public_token(self):
+        """Assign a client-link token if this event doesn't have one yet."""
+        if not self.public_token:
+            self.public_token = uuid.uuid4()
+            self.save(update_fields=['public_token'])
+        return self.public_token
+
+    @property
+    def latest_signature(self):
+        return self.signatures.order_by('-signed_at').first()
 
     @property
     def has_guest_split(self):
