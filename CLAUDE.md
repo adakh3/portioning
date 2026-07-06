@@ -84,6 +84,10 @@ npm test                                 # watch mode
 - **Any change to a create/edit form or its save payload needs a page-level integration test** that renders the real page, drives the fields through the UI, and asserts the object sent to `api.create*`/`update*` — unit-testing the payload builder is not enough (the field→state→payload wiring is where bugs hide). See the **`frontend-integration-tests`** skill for the general recipe; examples in `frontend/app/quotes/[id]/page*.test.tsx` and `frontend/app/events/[id]/page.create.test.tsx`.
 - **Any change to the quote or event PDF** needs a render-and-extract test (pypdf) asserting the rendered content/order, like `backend/bookings/test_quote_pdf.py` and `backend/events/test_event_pdf.py` — don't rely on eyeballing the PDF.
 
+### End-to-end smoke tests (pre-push, real browser — `frontend/e2e/`)
+- The vitest integration tests **mock the API and run in jsdom**, so they prove *our wiring* but are blind to real-browser/persistence behaviour. A green mocked test is **not** proof for **native form controls (date/time/file/select), browser-specific `onChange` quirks, or "does it survive a save + reload"** — that's exactly the class that let the timeline-not-saving bug (Safari didn't fire `onChange` for `<input type="time">`) pass with green tests.
+- For that class, verify against the **real running app** with Playwright: `cd frontend && npm run e2e` (needs the dev servers up + `seed_demo` data). Nothing is mocked — headless Chromium → `:3000` → `:8000` → sqlite. **Run before pushing** such changes; it is **not** in the pre-commit hook or CI. Recipe + when-to-add in `frontend/e2e/README.md`; example `frontend/e2e/booking-timeline.spec.ts`.
+
 ## Git
 - Remote: https://github.com/adakh3/portioning.git
 - Branch: main
