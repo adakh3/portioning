@@ -521,7 +521,7 @@ export default function EventDetailPage() {
                   type="date"
                   value={formDate}
                   onChange={(e) => setFormDate(e.target.value)}
-                  className="w-auto"
+                  className="w-auto h-9"
                 />
               ) : (
                 <span className="text-muted-foreground text-sm whitespace-nowrap">{event!.date}</span>

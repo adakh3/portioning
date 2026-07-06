@@ -102,11 +102,11 @@ export default function AddOnItemsEditor({
           <div className="flex items-center gap-2 mt-1 ml-6">
             <input type="number" min={1} step="1" value={items[i].quantity}
               onChange={(e) => update(i, "quantity", e.target.value)}
-              className="w-14 h-7 rounded border border-input px-2 text-sm text-right" />
+              className="w-16 h-7 rounded border border-input px-2 text-sm text-right" />
             <span className="text-xs text-muted-foreground">× {currencySymbol}</span>
             <input type="number" min={0} step="0.01" value={items[i].unit_price}
               onChange={(e) => update(i, "unit_price", e.target.value)}
-              className="w-20 h-7 rounded border border-input px-2 text-sm text-right" />
+              className="w-24 h-7 rounded border border-input px-2 text-sm text-right" />
             <span className="ml-auto text-sm font-medium">{fmt(lineItemTotal(items[i], guestCount))}</span>
           </div>
         )}
@@ -129,11 +129,11 @@ export default function AddOnItemsEditor({
           <div className="flex items-center gap-2 mt-1 ml-6">
             <input type="number" min={1} step="1" value={items[i].quantity}
               onChange={(e) => update(i, "quantity", e.target.value)}
-              className="w-14 h-7 rounded border border-input px-2 text-sm text-right" />
+              className="w-16 h-7 rounded border border-input px-2 text-sm text-right" />
             <span className="text-xs text-muted-foreground">× {currencySymbol}</span>
             <input type="number" min={0} step="0.01" value={items[i].unit_price} placeholder="0.00"
               onChange={(e) => update(i, "unit_price", e.target.value)}
-              className="w-20 h-7 rounded border border-input px-2 text-sm text-right" />
+              className="w-24 h-7 rounded border border-input px-2 text-sm text-right" />
             <span className="ml-auto text-sm font-medium">{fmt(lineItemTotal(items[i], guestCount))}</span>
           </div>
         )}
@@ -150,21 +150,26 @@ export default function AddOnItemsEditor({
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
                 {CATEGORY_LABELS[cat] || cat}
               </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-2">
-                {grouped[cat].map((p) =>
-                  p.variants.length > 1 ? (
-                    <div key={p.id}>
-                      <p className="text-xs font-medium text-foreground mb-0.5">{p.name}</p>
-                      <div className="space-y-1 ml-1">
-                        {p.variants.map((v) => variantRow(p, v, v.name || p.name))}
-                      </div>
-                    </div>
-                  ) : p.variants.length === 1 ? (
-                    variantRow(p, p.variants[0], p.name)
-                  ) : (
-                    productRow(p)
-                  )
-                )}
+              {/* CSS columns (not a grid) so ticking an item can expand its
+                  qty/price row without stretching a whole grid row and leaving
+                  gaps beside the other items. */}
+              <div className="columns-1 sm:columns-2 lg:columns-3 gap-x-8">
+                {grouped[cat].map((p) => (
+                  <div key={p.id} className="break-inside-avoid mb-2">
+                    {p.variants.length > 1 ? (
+                      <>
+                        <p className="text-xs font-medium text-foreground mb-0.5">{p.name}</p>
+                        <div className="space-y-1 ml-1">
+                          {p.variants.map((v) => variantRow(p, v, v.name || p.name))}
+                        </div>
+                      </>
+                    ) : p.variants.length === 1 ? (
+                      variantRow(p, p.variants[0], p.name)
+                    ) : (
+                      productRow(p)
+                    )}
+                  </div>
+                ))}
               </div>
             </div>
           ))}
