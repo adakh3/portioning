@@ -353,6 +353,21 @@ export default function EventDetailPage() {
     }
   };
 
+  const handleProductChange = async (value: string) => {
+    const pid = value ? Number(value) : null;
+    setFormProduct(pid);
+    if (!event) return; // new event: saved on create
+    setSaving(true);
+    try {
+      await api.updateEvent(event.id, { product: pid } as Partial<EventData>);
+      await mutateEvent();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed to set product");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleStatusTransition = async (newStatus: string) => {
     if (!event) return;
     setSaving(true);
@@ -578,6 +593,18 @@ export default function EventDetailPage() {
                   })()}
                 </select>
               )}
+              {activeProducts.length > 0 && (
+                <select
+                  value={formProduct != null ? String(formProduct) : ""}
+                  onChange={(e) => handleProductChange(e.target.value)}
+                  disabled={saving}
+                  title="Product line for this event"
+                  aria-label="Product line"
+                  className="flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                >
+                  {activeProducts.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              )}
             </div>
             <div className="flex gap-2 flex-shrink-0">
               {editing ? null : (
@@ -719,6 +746,7 @@ export default function EventDetailPage() {
                 mealTypes={mealTypesData}
                 serviceStyles={serviceStylesData}
                 productLines={activeProducts}
+                showProduct={false}
                 customerAddress={orgContacts.find((c) => c.id === formContact)?.address}
                 showNotes
               />

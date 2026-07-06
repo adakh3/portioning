@@ -38,6 +38,8 @@ export interface BookingDetailsFormProps {
   serviceStyles: ChoiceOption[];
   /** Active product lines; the product select is hidden when the org has none. */
   productLines?: ProductLine[];
+  /** Set false to render Product elsewhere (e.g. the event header) instead of here. */
+  showProduct?: boolean;
   /** The selected customer's address, offered as a one-click venue prefill. */
   customerAddress?: string;
   /** Render notes here (Event groups it in this block; Quote groups it elsewhere). */
@@ -53,6 +55,7 @@ export default function BookingDetailsForm({
   mealTypes,
   serviceStyles,
   productLines = [],
+  showProduct = true,
   customerAddress,
   showNotes = false,
   eventDateSlot,
@@ -114,7 +117,7 @@ export default function BookingDetailsForm({
         <label className="block text-sm font-medium text-foreground mb-1">Booking Date</label>
         <ValidatedInput type="date" value={value.booking_date} onChange={(e) => onChange({ booking_date: e.target.value })} />
       </div>
-      {productLines.length > 0 && (
+      {showProduct && productLines.length > 0 && (
         <div>
           <label className="block text-sm font-medium text-foreground mb-1">Product</label>
           <select value={value.product} onChange={(e) => onChange({ product: e.target.value })} className={selectClass} aria-label="Product line">
