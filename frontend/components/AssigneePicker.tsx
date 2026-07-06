@@ -41,10 +41,12 @@ export default function AssigneePicker({
         disabled={disabled}
       >
         <SelectTrigger aria-label="Assigned salesperson" className="min-w-[11rem] gap-2">
-          <span className="flex items-center gap-2 truncate">
+          {/* div (not span) so the trigger's [&>span]:line-clamp-1 rule can't turn
+              this into a -webkit-box and squash the circular avatar. */}
+          <div className="flex min-w-0 items-center gap-2">
             <Avatar name={name} size="sm" />
             <span className="truncate">{name || "Unassigned"}</span>
-          </span>
+          </div>
         </SelectTrigger>
         <SelectContent>
           <SelectItem value={NONE}>

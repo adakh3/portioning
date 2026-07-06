@@ -29,7 +29,7 @@ export function Avatar({ name, size = "md", className = "" }: { name?: string | 
     return (
       <span
         title="Unassigned"
-        className={`inline-flex ${sizeCls} shrink-0 items-center justify-center rounded-full border border-dashed border-input text-muted-foreground ${className}`}
+        className={`inline-flex ${sizeCls} shrink-0 items-center justify-center rounded-full leading-none border border-dashed border-input text-muted-foreground ${className}`}
       >
         –
       </span>
@@ -41,7 +41,7 @@ export function Avatar({ name, size = "md", className = "" }: { name?: string | 
   return (
     <span
       title={clean}
-      className={`inline-flex ${sizeCls} shrink-0 items-center justify-center rounded-full font-semibold ${colour} ${className}`}
+      className={`inline-flex ${sizeCls} shrink-0 items-center justify-center rounded-full leading-none font-semibold ${colour} ${className}`}
     >
       {initialsOf(clean) || "?"}
     </span>
