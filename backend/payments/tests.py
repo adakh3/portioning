@@ -94,6 +94,16 @@ class SubscriptionModelTests(TestCase):
         self.sub.extend_trial(7)
         self.assertGreaterEqual(self.sub.trial_days_remaining, 9)
 
+    def test_trial_days_remaining_rounds_up(self):
+        # A just-started 7-day trial (ends in ~6.99 days) should read 7, not 6
+        # (Python's .days floors; we ceil to match Stripe's "7 days free").
+        self.sub.status = SubscriptionStatus.TRIALING
+        self.sub.trial_ends_at = timezone.now() + timedelta(days=7) - timedelta(minutes=1)
+        self.assertEqual(self.sub.trial_days_remaining, 7)
+        # Final day: ~0.5 days left still reads 1 (not 0) while access holds.
+        self.sub.trial_ends_at = timezone.now() + timedelta(hours=12)
+        self.assertEqual(self.sub.trial_days_remaining, 1)
+
     def test_has_billing_account_tracks_stripe_customer(self):
         # A fresh trial has no Stripe customer yet — nothing to manage.
         self.assertFalse(self.sub.has_billing_account)

@@ -9,6 +9,7 @@ One ``Subscription`` row per ``Organisation`` (the tenant). Stripe is the source
 of truth for billing state; this row is a local mirror kept in sync by the
 webhook handlers so the app can gate access without a round-trip to Stripe.
 """
+import math
 from datetime import timedelta
 
 from django.db import models
@@ -89,10 +90,13 @@ class Subscription(models.Model):
 
     @property
     def trial_days_remaining(self):
-        """Whole days left on the trial (0 if not trialing / expired)."""
+        """Whole days left on the trial, rounded UP so day one of a 7-day trial
+        reads "7" (matching Stripe's copy), and the final day reads "1". 0 if not
+        trialing / expired."""
         if not self.is_trialing:
             return 0
-        return (self.trial_ends_at - timezone.now()).days
+        seconds = (self.trial_ends_at - timezone.now()).total_seconds()
+        return max(0, math.ceil(seconds / 86400))
 
     @property
     def has_access(self):
