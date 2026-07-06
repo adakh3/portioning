@@ -102,11 +102,11 @@ export default function AddOnItemsEditor({
           <div className="flex items-center gap-2 mt-1 ml-6">
             <input type="number" min={1} step="1" value={items[i].quantity}
               onChange={(e) => update(i, "quantity", e.target.value)}
-              className="w-16 h-7 rounded border border-input px-2 text-sm text-right" />
+              className="w-14 h-7 rounded border border-input px-2 text-sm text-right [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
             <span className="text-xs text-muted-foreground">× {currencySymbol}</span>
             <input type="number" min={0} step="0.01" value={items[i].unit_price}
               onChange={(e) => update(i, "unit_price", e.target.value)}
-              className="w-24 h-7 rounded border border-input px-2 text-sm text-right" />
+              className="w-24 h-7 rounded border border-input px-2 text-sm text-right [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
             <span className="ml-auto text-sm font-medium">{fmt(lineItemTotal(items[i], guestCount))}</span>
           </div>
         )}
@@ -129,11 +129,11 @@ export default function AddOnItemsEditor({
           <div className="flex items-center gap-2 mt-1 ml-6">
             <input type="number" min={1} step="1" value={items[i].quantity}
               onChange={(e) => update(i, "quantity", e.target.value)}
-              className="w-16 h-7 rounded border border-input px-2 text-sm text-right" />
+              className="w-14 h-7 rounded border border-input px-2 text-sm text-right [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
             <span className="text-xs text-muted-foreground">× {currencySymbol}</span>
             <input type="number" min={0} step="0.01" value={items[i].unit_price} placeholder="0.00"
               onChange={(e) => update(i, "unit_price", e.target.value)}
-              className="w-24 h-7 rounded border border-input px-2 text-sm text-right" />
+              className="w-24 h-7 rounded border border-input px-2 text-sm text-right [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
             <span className="ml-auto text-sm font-medium">{fmt(lineItemTotal(items[i], guestCount))}</span>
           </div>
         )}
@@ -158,7 +158,7 @@ export default function AddOnItemsEditor({
                   <div key={p.id} className="break-inside-avoid mb-2">
                     {p.variants.length > 1 ? (
                       <>
-                        <p className="text-xs font-medium text-foreground mb-0.5">{p.name}</p>
+                        <p className="text-sm font-semibold text-foreground mb-1">{p.name}</p>
                         <div className="space-y-1 ml-1">
                           {p.variants.map((v) => variantRow(p, v, v.name || p.name))}
                         </div>
