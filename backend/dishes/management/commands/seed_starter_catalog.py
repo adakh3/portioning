@@ -20,7 +20,7 @@ from bookings.models.choices import (
 )
 from staff.models import LaborRole
 from equipment.models import EquipmentItem
-from rules.models import GlobalConfig, GlobalConstraint, BudgetProfile, GuestProfile
+from rules.models import GlobalConfig, GlobalConstraint, BudgetProfile, GuestSegment
 
 
 class Command(BaseCommand):
@@ -227,9 +227,18 @@ class Command(BaseCommand):
         GlobalConstraint.objects.get_or_create(organisation=self.org, defaults={
             'max_total_food_per_person_grams': 1000, 'min_portion_per_dish_grams': 30,
         })
-        for name, mult in [('gents', 1.0), ('ladies', 1.0)]:
-            GuestProfile.objects.get_or_create(
-                organisation=self.org, name=name, defaults={'portion_multiplier': mult})
+        # US orgs use meal-type segments (not a gender split): Adults full price,
+        # Kids/Vendors eat & pay less. (portion_multiplier, price_multiplier)
+        for i, (name, portion, price, default) in enumerate([
+            ('Adults', 1.0, '1.0000', True),
+            ('Kids', 0.6, '0.5000', False),
+            ('Vendors', 1.0, '0.5000', False),
+        ]):
+            GuestSegment.objects.get_or_create(
+                organisation=self.org, name=name,
+                defaults={'portion_multiplier': portion, 'price_multiplier': Decimal(price),
+                          'sort_order': i, 'is_default': default},
+            )
         std, created = BudgetProfile.objects.get_or_create(
             organisation=self.org, name='Standard',
             defaults={'description': 'Standard portions', 'is_default': True})

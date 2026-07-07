@@ -248,6 +248,43 @@ class BookingMealDishComment(models.Model):
         return f"{self.meal.label} - {self.dish.name}"
 
 
+class BookingGuestCount(models.Model):
+    """How many guests of a given segment are on a booking (quote XOR event).
+
+    Source of truth for per-segment guest counts — generalizes the old
+    ``Event``/``Quote`` ``gents``/``ladies`` columns into arbitrary named
+    :class:`rules.GuestSegment` s. Mirrors ``BookingMeal``'s quote-XOR-event
+    parent so a booking's guest breakdown survives the quote→event conversion.
+    """
+    quote = models.ForeignKey(
+        'bookings.Quote', null=True, blank=True,
+        on_delete=models.CASCADE, related_name='guest_counts',
+    )
+    event = models.ForeignKey(
+        Event, null=True, blank=True,
+        on_delete=models.CASCADE, related_name='guest_counts',
+    )
+    segment = models.ForeignKey('rules.GuestSegment', on_delete=models.PROTECT, related_name='+')
+    count = models.IntegerField(default=0, validators=[MinValueValidator(0), MaxValueValidator(50000)])
+
+    class Meta:
+        ordering = ['segment__sort_order', 'id']
+        constraints = [
+            models.CheckConstraint(
+                name='bookingguestcount_exactly_one_parent',
+                condition=(
+                    models.Q(quote__isnull=False, event__isnull=True)
+                    | models.Q(quote__isnull=True, event__isnull=False)
+                ),
+            ),
+            models.UniqueConstraint(fields=['quote', 'segment'], name='uniq_quote_segment'),
+            models.UniqueConstraint(fields=['event', 'segment'], name='uniq_event_segment'),
+        ]
+
+    def __str__(self):
+        return f"{self.count} × {self.segment.name}"
+
+
 class EventPayment(models.Model):
     """A payment the client has made against an event (advance / part / full).
 

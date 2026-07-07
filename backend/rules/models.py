@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.db import models
 from users.managers import TenantManager
 
@@ -94,20 +96,45 @@ class BudgetProfile(models.Model):
         super().save(*args, **kwargs)
 
 
-class GuestProfile(models.Model):
+class GuestSegment(models.Model):
+    """A named category of guest on a booking (e.g. Adults, Kids, Vendors — or
+    Gents/Ladies for orgs that split by gender). Per-org, fully configurable.
+
+    Carries two multipliers, both relative to the base (a 1.0/1.0 "Adults"):
+    - ``portion_multiplier`` — food/kitchen scaling (a child eats ~0.6 of an adult);
+      consumed by the portioning engine.
+    - ``price_multiplier`` — how this segment is charged vs. the base per-head price
+      (kids at 0.5, vendor meals at 0.5, etc.); consumed by the booking totals.
+
+    Replaces the old gender-specific ``GuestProfile`` — "gents"/"ladies" are now
+    just two ordinary segment names, not a built-in assumption.
+    """
     objects = TenantManager()
 
     organisation = models.ForeignKey(
-        'users.Organisation', on_delete=models.CASCADE, related_name='guest_profiles',
+        'users.Organisation', on_delete=models.CASCADE, related_name='guest_segments',
     )
     name = models.CharField(max_length=50)
-    portion_multiplier = models.FloatField(help_text="1.0 for adult, 0.6 for child, etc.")
+    portion_multiplier = models.FloatField(
+        default=1.0, help_text="Food scaling vs base (1.0 adult, 0.6 child).",
+    )
+    price_multiplier = models.DecimalField(
+        max_digits=5, decimal_places=4, default=Decimal('1.0000'),
+        help_text="Charge vs base per-head price (1.0 full, 0.5 half).",
+    )
+    sort_order = models.IntegerField(default=0)
+    is_default = models.BooleanField(
+        default=False,
+        help_text="The base segment new bookings start with (e.g. Adults).",
+    )
+    is_active = models.BooleanField(default=True)
 
     class Meta:
+        ordering = ['sort_order', 'name']
         unique_together = [('organisation', 'name')]
 
     def __str__(self):
-        return f"{self.name} (x{self.portion_multiplier})"
+        return self.name
 
 
 class CombinationRule(models.Model):
