@@ -49,7 +49,8 @@ function EventsContent() {
   const router = useRouter();
   const [filter, setFilter] = useQueryState("status", "all");
   const [search, setSearch] = useState("");
-  const [fSalesperson, setFSalesperson] = useState("");
+  const [fAssignedTo, setFAssignedTo] = useState("");
+  const [fCreatedBy, setFCreatedBy] = useState("");
   const [fProduct, setFProduct] = useState("");
   const [fEventType, setFEventType] = useState("");
   const [fDateFrom, setFDateFrom] = useState("");
@@ -81,11 +82,13 @@ function EventsContent() {
       e.account_name?.toLowerCase().includes(s) ||
       e.contact_name?.toLowerCase().includes(s) ||
       e.assigned_to_name?.toLowerCase().includes(s) ||
+      e.created_by_name?.toLowerCase().includes(s) ||
       e.venue_name?.toLowerCase().includes(s) ||
       e.venue_address?.toLowerCase().includes(s) ||
       e.date?.includes(s)
     )) return false;
-    if (fSalesperson && String(e.assigned_to) !== fSalesperson) return false;
+    if (fAssignedTo && String(e.assigned_to) !== fAssignedTo) return false;
+    if (fCreatedBy && String(e.created_by) !== fCreatedBy) return false;
     if (fProduct && String(e.product) !== fProduct) return false;
     if (fEventType && e.event_type !== fEventType) return false;
     if (fDateFrom && (!e.date || e.date < fDateFrom)) return false;
@@ -128,10 +131,17 @@ function EventsContent() {
           onChange={(e) => setSearch(e.target.value)}
           className="w-64"
         />
-        <Select value={fSalesperson || "__all__"} onValueChange={(v) => setFSalesperson(v === "__all__" ? "" : v)}>
-          <SelectTrigger className="w-40"><SelectValue placeholder="Salesperson" /></SelectTrigger>
+        <Select value={fAssignedTo || "__all__"} onValueChange={(v) => setFAssignedTo(v === "__all__" ? "" : v)}>
+          <SelectTrigger className="w-40"><SelectValue placeholder="Assigned to" /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="__all__">All Salespeople</SelectItem>
+            <SelectItem value="__all__">Assigned to: All</SelectItem>
+            {users.map((u) => <SelectItem key={u.id} value={String(u.id)}>{u.first_name} {u.last_name}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={fCreatedBy || "__all__"} onValueChange={(v) => setFCreatedBy(v === "__all__" ? "" : v)}>
+          <SelectTrigger className="w-40"><SelectValue placeholder="Created by" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__all__">Created by: All</SelectItem>
             {users.map((u) => <SelectItem key={u.id} value={String(u.id)}>{u.first_name} {u.last_name}</SelectItem>)}
           </SelectContent>
         </Select>

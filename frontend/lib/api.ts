@@ -683,6 +683,8 @@ export interface EventData {
   product_name: string | null;
   assigned_to: number | null;
   assigned_to_name: string | null;
+  created_by: number | null;
+  created_by_name: string | null;
   primary_contact: number | null;
   contact_name: string | null;
   venue: number | null;
