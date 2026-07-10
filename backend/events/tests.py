@@ -144,3 +144,49 @@ class TestEventAssigneePersistence(TestCase):
         res = self.client.patch(f"/api/events/{body['id']}/", {"assigned_to": self.rep.id}, format="json")
         self.assertEqual(res.status_code, 200, res.content)
         self.assertEqual(self._get(body["id"])["assigned_to"], self.rep.id)
+
+
+class TestSalespersonEventVisibility(TestCase):
+    """A salesperson sees events assigned to them OR created by them — matching
+    Lead/Quote list scoping (bookings views), not just ones they created."""
+
+    @classmethod
+    def setUpTestData(cls):
+        call_command("seed_data", verbosity=0)
+
+    def setUp(self):
+        self.owner = get_test_user()
+        self.org = self.owner.organisation
+        self.rep = User.objects.create(
+            email="rep2@test.com", first_name="Rep", last_name="Two",
+            role="salesperson", organisation=self.org, is_active=True,
+        )
+
+    def _dish_ids(self):
+        from dishes.models import Dish
+        return list(Dish.objects.filter(is_active=True).values_list("id", flat=True)[:3])
+
+    def _create_as(self, user, name, **extra):
+        client = APIClient()
+        client.force_authenticate(user=user)
+        payload = {"name": name, "date": "2026-05-01", "gents": 5, "ladies": 5,
+                   "dish_ids": self._dish_ids(), **extra}
+        res = client.post("/api/events/", payload, format="json")
+        self.assertEqual(res.status_code, 201, res.content)
+        return res.json()["id"]
+
+    def test_salesperson_sees_assigned_and_created_but_not_others(self):
+        assigned = self._create_as(self.owner, "Assigned", assigned_to=self.rep.id)
+        created = self._create_as(self.rep, "Created")            # created + assigned to rep
+        other = self._create_as(self.owner, "Other", assigned_to=self.owner.id)
+
+        client = APIClient()
+        client.force_authenticate(user=self.rep)
+        res = client.get("/api/events/?page_size=all")
+        self.assertEqual(res.status_code, 200, res.content)
+        rows = res.json()
+        rows = rows["results"] if isinstance(rows, dict) else rows
+        ids = {r["id"] for r in rows}
+        self.assertIn(assigned, ids)   # assigned to the rep (created by owner)
+        self.assertIn(created, ids)    # created by the rep
+        self.assertNotIn(other, ids)   # neither → hidden

@@ -82,10 +82,11 @@ class EventListCreateView(generics.ListCreateAPIView):
         )
         qs = apply_org_filter(qs, self.request)
 
-        # Salesperson sees only events they created
+        # Salesperson sees their own workload: events assigned to them OR that
+        # they created (matches Lead/Quote list scoping — see bookings views).
         user = self.request.user
         if is_salesperson(user):
-            qs = qs.filter(Q(created_by=user))
+            qs = qs.filter(Q(assigned_to=user) | Q(created_by=user))
 
         status = self.request.query_params.get('status')
         if status:
