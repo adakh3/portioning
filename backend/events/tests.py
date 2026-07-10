@@ -190,3 +190,32 @@ class TestSalespersonEventVisibility(TestCase):
         self.assertIn(assigned, ids)   # assigned to the rep (created by owner)
         self.assertIn(created, ids)    # created by the rep
         self.assertNotIn(other, ids)   # neither → hidden
+
+
+class TestDishAddOrder(TestCase):
+    """A booking's dishes come back in the order they were added, not alphabetically."""
+
+    @classmethod
+    def setUpTestData(cls):
+        call_command("seed_data", verbosity=0)
+
+    def setUp(self):
+        self.user = get_test_user()
+        self.org = self.user.organisation
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
+
+    def test_event_detail_returns_dishes_in_add_order(self):
+        from dishes.tests import make_category, make_dish
+        cat = make_category(org=self.org)  # one category → default ordering is by name
+        z = make_dish(org=self.org, category=cat, name="Zaatar Rice")
+        a = make_dish(org=self.org, category=cat, name="Apple Tart")
+        m = make_dish(org=self.org, category=cat, name="Mango Lassi")
+        posted = [z.id, a.id, m.id]  # deliberately non-alphabetical
+        res = self.client.post("/api/events/", {
+            "name": "Order", "date": "2026-05-01", "gents": 5, "ladies": 5,
+            "dish_ids": posted,
+        }, format="json")
+        self.assertEqual(res.status_code, 201, res.content)
+        got = self.client.get(f"/api/events/{res.json()['id']}/").json()
+        self.assertEqual(got["dishes"], posted)  # add-order preserved, not re-sorted

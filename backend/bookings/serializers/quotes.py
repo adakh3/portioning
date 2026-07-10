@@ -4,6 +4,7 @@ from bookings.models import Quote, BookingLineItem
 from bookings.serializers.leads import _get_event_type_labels
 from bookings.serializers.meals import BookingMealSerializer, replace_meals
 from dishes.models import Dish
+from dishes.ordering import dish_ids_in_added_order, dish_names_in_added_order
 from users.mixins import get_request_org
 from users.serializer_mixins import OrgScopedModelSerializer
 
@@ -156,7 +157,14 @@ class QuoteSerializer(OrgScopedModelSerializer):
         return None
 
     def get_dish_names(self, obj):
-        return list(obj.dishes.values_list('name', flat=True))
+        return dish_names_in_added_order(obj)
+
+    def to_representation(self, instance):
+        # Present dishes in the order they were added, not Dish's alphabetical default.
+        data = super().to_representation(instance)
+        if 'dishes' in data:
+            data['dishes'] = dish_ids_in_added_order(instance)
+        return data
 
     @staticmethod
     def _save_line_items(quote, items_data):

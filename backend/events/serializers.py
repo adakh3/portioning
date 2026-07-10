@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from .models import Event, EventConstraintOverride, EventDishComment
 from dishes.models import Dish
+from dishes.ordering import dish_ids_in_added_order
 from staff.serializers import ShiftSerializer
 from equipment.serializers import EquipmentReservationSerializer
 from bookings.serializers.finance import InvoiceSerializer
@@ -121,6 +122,13 @@ class EventSerializer(OrgScopedModelSerializer):
     def get_source_quote_id(self, obj):
         quote = getattr(obj, 'source_quote', None)
         return quote.id if quote else None
+
+    def to_representation(self, instance):
+        # Present dishes in the order they were added, not Dish's alphabetical default.
+        data = super().to_representation(instance)
+        if 'dishes' in data:
+            data['dishes'] = dish_ids_in_added_order(instance)
+        return data
 
     def create(self, validated_data):
         override_data = validated_data.pop('constraint_override', None)
