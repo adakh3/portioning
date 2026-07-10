@@ -458,8 +458,8 @@ export function useStaffReport(params?: { date_from?: string; date_to?: string }
   });
 }
 
-export function useReminders(params?: { status?: string; due_before?: string; due_after?: string }) {
-  const key = `reminders-${params?.status || "all"}-${params?.due_before || ""}-${params?.due_after || ""}`;
+export function useReminders(params?: { status?: string; due_before?: string; due_after?: string; user?: string }) {
+  const key = `reminders-${params?.status || "all"}-${params?.due_before || ""}-${params?.due_after || ""}-${params?.user || ""}`;
   return useSWR<Reminder[]>(key, () => api.getReminders(params), {
     dedupingInterval: 15000,
   });

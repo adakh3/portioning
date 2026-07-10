@@ -24,6 +24,7 @@ here. Keep it test-focused — numbered cases with concrete steps and expected r
 | Subscription billing (Stripe) | [subscription-billing.md](subscription-billing.md) | Built (backend + frontend + access gating) — awaiting manual sign-off |
 | Event client payments (advances / part / full) | [event-payments.md](event-payments.md) | Built (backend + frontend) — awaiting manual sign-off |
 | Tiered + regional subscription pricing | [tiered-regional-pricing.md](tiered-regional-pricing.md) | Built (backend + frontend) — awaiting manual sign-off |
+| Follow-ups — team visibility & lead-owner assignment | [follow-ups-team-visibility.md](follow-ups-team-visibility.md) | Built — awaiting manual sign-off |
 
 ## Template
 
