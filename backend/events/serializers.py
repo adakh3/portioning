@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from .models import Event, EventConstraintOverride, EventDishComment, EventPayment
 from dishes.models import Dish
+from dishes.ordering import dish_ids_in_added_order
 from staff.serializers import ShiftSerializer
 from equipment.serializers import EquipmentReservationSerializer
 from bookings.serializers.finance import InvoiceSerializer
@@ -70,6 +71,7 @@ class EventSerializer(OrgScopedModelSerializer):
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     source_quote_id = serializers.SerializerMethodField()
     assigned_to_name = serializers.SerializerMethodField()
+    created_by_name = serializers.SerializerMethodField()
 
     # Nested read-only relations
     shifts = ShiftSerializer(many=True, read_only=True)
@@ -107,6 +109,10 @@ class EventSerializer(OrgScopedModelSerializer):
         u = obj.assigned_to
         return f"{u.first_name} {u.last_name}".strip() if u else None
 
+    def get_created_by_name(self, obj):
+        u = obj.created_by
+        return f"{u.first_name} {u.last_name}".strip() if u else None
+
     class Meta:
         model = Event
         fields = ['id', 'name', 'date', 'gents', 'ladies',
@@ -120,6 +126,7 @@ class EventSerializer(OrgScopedModelSerializer):
                   'venue', 'venue_name', 'venue_address',
                   'product', 'product_name',
                   'assigned_to', 'assigned_to_name',
+                  'created_by', 'created_by_name',
                   'event_type', 'meal_type', 'service_style', 'booking_date', 'price_per_head',
                   'status', 'status_display', 'is_taxable', 'tax_rate',
                   'subtotal', 'tax_amount', 'total',
@@ -132,7 +139,8 @@ class EventSerializer(OrgScopedModelSerializer):
                   'source_quote_id', 'shifts', 'equipment_reservations', 'invoices',
                   # Client payments
                   'payments', 'amount_paid', 'balance_due', 'payment_status']
-        read_only_fields = ['created_at', 'subtotal', 'tax_amount', 'total']
+        # created_by is stamped server-side on create; never client-writable.
+        read_only_fields = ['created_at', 'subtotal', 'tax_amount', 'total', 'created_by']
         extra_kwargs = {
             'notes': {'max_length': 5000},
             'kitchen_instructions': {'max_length': 5000},
@@ -144,6 +152,13 @@ class EventSerializer(OrgScopedModelSerializer):
     def get_source_quote_id(self, obj):
         quote = getattr(obj, 'source_quote', None)
         return quote.id if quote else None
+
+    def to_representation(self, instance):
+        # Present dishes in the order they were added, not Dish's alphabetical default.
+        data = super().to_representation(instance)
+        if 'dishes' in data:
+            data['dishes'] = dish_ids_in_added_order(instance)
+        return data
 
     def create(self, validated_data):
         override_data = validated_data.pop('constraint_override', None)
@@ -233,8 +248,6 @@ EVENT_LIST_EXCLUDE = {
     'shifts', 'equipment_reservations', 'invoices',
     'dish_comments', 'constraint_override',
     'dish_ids', 'line_items', 'additional_meals',
-    # computed name needs a per-row fetch; the list keeps the cheap assigned_to pk
-    'assigned_to_name',
     # payment detail + balance read event.payments per row — detail-view only
     'payments', 'amount_paid', 'balance_due', 'payment_status',
 }
@@ -249,11 +262,23 @@ class EventListSerializer(serializers.ModelSerializer):
     product_name = serializers.CharField(source='product.name', read_only=True, default=None)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     source_quote_id = serializers.SerializerMethodField()
+    # Method fields aren't inherited from EventSerializer — redeclare for the list.
+    # Backed by select_related on the view, so these stay one query.
+    assigned_to_name = serializers.SerializerMethodField()
+    created_by_name = serializers.SerializerMethodField()
 
     class Meta:
         model = Event
         fields = [f for f in EventSerializer.Meta.fields if f not in EVENT_LIST_EXCLUDE]
         read_only_fields = ['created_at']
+
+    def get_assigned_to_name(self, obj):
+        u = obj.assigned_to
+        return f"{u.first_name} {u.last_name}".strip() if u else None
+
+    def get_created_by_name(self, obj):
+        u = obj.created_by
+        return f"{u.first_name} {u.last_name}".strip() if u else None
 
     def get_source_quote_id(self, obj):
         quote = getattr(obj, 'source_quote', None)

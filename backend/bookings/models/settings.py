@@ -83,10 +83,11 @@ class OrgSettings(models.Model):
         help_text='Terms & Conditions text printed on quotation PDFs.',
     )
 
-    # WhatsApp / Twilio integration (per-org)
+    # WhatsApp / Twilio integration.
+    # The Twilio account (SID + auth token) is platform-level — see
+    # settings.TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN. Each org configures only
+    # its own WhatsApp sender number.
     whatsapp_enabled = models.BooleanField(default=False)
-    twilio_account_sid = models.CharField(max_length=64, blank=True, default='')
-    twilio_auth_token_encrypted = models.TextField(blank=True, default='')
     twilio_whatsapp_number = models.CharField(
         max_length=20, blank=True, default='',
         help_text='Twilio WhatsApp sender number, e.g. +14155238886',
@@ -115,6 +116,23 @@ class OrgSettings(models.Model):
         help_text="Month the financial year starts (1 = calendar year). Drives 'this year' and yearly targets.",
     )
 
+    # AI follow-up drafting. The Anthropic key is platform-level
+    # (settings.ANTHROPIC_API_KEY); orgs only toggle the feature and tune it.
+    ai_followups_enabled = models.BooleanField(
+        default=False,
+        help_text='Let the AI agent draft WhatsApp follow-ups for stale leads (always reviewed before sending).',
+    )
+    followup_stale_hours = models.PositiveIntegerField(
+        default=168,
+        validators=[MaxValueValidator(8760)],
+        help_text='Hours a lead can sit untouched before the agent drafts a follow-up (default 168 = 7 days).',
+    )
+    followup_max_drafts_per_lead = models.PositiveIntegerField(
+        default=3,
+        validators=[MaxValueValidator(50)],
+        help_text='Never generate more than this many follow-up drafts for a single lead.',
+    )
+
     class Meta:
         verbose_name = 'Organisation Settings'
         verbose_name_plural = 'Organisation Settings'
@@ -123,32 +141,27 @@ class OrgSettings(models.Model):
         return f"Settings for {self.organisation.name}"
 
     @property
-    def twilio_auth_token(self):
-        """Decrypt and return the Twilio auth token."""
-        if not self.twilio_auth_token_encrypted:
-            return ''
-        try:
-            from bookings.services.encryption import decrypt
-            return decrypt(self.twilio_auth_token_encrypted)
-        except Exception:
-            # If decryption fails (e.g. old plaintext value), return as-is
-            return self.twilio_auth_token_encrypted
+    def ai_followups_configured(self):
+        """Whether the AI agent can *draft* follow-ups for this org.
 
-    @twilio_auth_token.setter
-    def twilio_auth_token(self, value):
-        """Encrypt and store the Twilio auth token."""
-        if value:
-            from bookings.services.encryption import encrypt
-            self.twilio_auth_token_encrypted = encrypt(value)
-        else:
-            self.twilio_auth_token_encrypted = ''
+        Drafting only needs the org opted-in plus the platform Anthropic key.
+        Delivery is a separate concern: approving a draft sends it via WhatsApp,
+        which surfaces its own error if Twilio isn't configured. Keeping these
+        decoupled lets an org review AI drafts before wiring up WhatsApp.
+        """
+        from django.conf import settings as django_settings
+        return bool(
+            self.ai_followups_enabled
+            and django_settings.ANTHROPIC_API_KEY
+        )
 
     @property
     def twilio_configured(self):
-        """Check whether this org has Twilio credentials configured."""
+        """Platform Twilio account present AND this org has a sender number."""
+        from django.conf import settings as django_settings
         return bool(
-            self.twilio_account_sid
-            and self.twilio_auth_token_encrypted
+            django_settings.TWILIO_ACCOUNT_SID
+            and django_settings.TWILIO_AUTH_TOKEN
             and self.twilio_whatsapp_number
         )
 

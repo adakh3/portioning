@@ -3,8 +3,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { api, Lead, Account, AuthUser, ProductLine, Reminder, WhatsAppMessage } from "@/lib/api";
-import { useLead, useSiteSettings, useDateFormat, useProductLines, useUsers, useSources, useEventTypes, useServiceStyles, useMealTypes, useLeadStatuses, useLostReasons, useLeadReminders, useLeadWhatsAppMessages, revalidate } from "@/lib/hooks";
+import { api, Lead, Account, AuthUser, ProductLine, Reminder, WhatsAppMessage, FollowUpDraft } from "@/lib/api";
+import { useLead, useSiteSettings, useDateFormat, useProductLines, useUsers, useSources, useEventTypes, useServiceStyles, useMealTypes, useLeadStatuses, useLostReasons, useLeadReminders, useLeadWhatsAppMessages, useLeadFollowUpDrafts, revalidate } from "@/lib/hooks";
 import { formatDate, formatDateTime } from "@/lib/dateFormat";
 import { formatCurrency } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -736,6 +736,9 @@ export default function LeadDetailPage() {
       {/* Reminders */}
       <LeadReminders leadId={l.id} />
 
+      {/* AI-suggested follow-up drafts (only renders when one is pending) */}
+      <LeadFollowUpDrafts leadId={l.id} />
+
       {/* WhatsApp Messages — only show when Twilio is configured */}
       {rawSettings?.twilio_configured && (
         <LeadWhatsApp leadId={l.id} contactPhone={l.contact_phone} contactName={l.contact_name} eventType={l.event_type} eventDate={l.event_date} />
@@ -999,6 +1002,87 @@ function LeadReminders({ leadId }: { leadId: number }) {
             })}
           </div>
         )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function LeadFollowUpDraftCard({ draft, leadId, onDone }: {
+  draft: FollowUpDraft;
+  leadId: number;
+  onDone: () => void;
+}) {
+  const [body, setBody] = useState(draft.body);
+  const [busy, setBusy] = useState<"" | "approve" | "dismiss">("");
+  const [error, setError] = useState("");
+
+  const refresh = () => {
+    onDone();
+    revalidate("followup-draft-count", `lead-whatsapp-${leadId}`, `lead-activity-${leadId}`);
+  };
+
+  const handleApprove = async () => {
+    setBusy("approve");
+    setError("");
+    try {
+      await api.approveFollowUpDraft(draft.id, body !== draft.body ? body : undefined);
+      refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to send");
+    } finally {
+      setBusy("");
+    }
+  };
+
+  const handleDismiss = async () => {
+    setBusy("dismiss");
+    setError("");
+    try {
+      await api.dismissFollowUpDraft(draft.id);
+      refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to dismiss");
+    } finally {
+      setBusy("");
+    }
+  };
+
+  return (
+    <div className="p-3 border rounded-lg bg-muted/30 space-y-2">
+      {draft.reasoning && (
+        <p className="text-xs text-muted-foreground italic">{draft.reasoning}</p>
+      )}
+      <Textarea value={body} onChange={(e) => setBody(e.target.value)} rows={3} />
+      {error && <p className="text-sm text-destructive">{error}</p>}
+      <div className="flex items-center gap-2">
+        <Button size="sm" onClick={handleApprove} disabled={!!busy || !body.trim()}>
+          {busy === "approve" ? "Sending..." : "Approve & Send"}
+        </Button>
+        <Button size="sm" variant="ghost" onClick={handleDismiss} disabled={!!busy}>
+          {busy === "dismiss" ? "Dismissing..." : "Dismiss"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function LeadFollowUpDrafts({ leadId }: { leadId: number }) {
+  const { data: drafts = [], mutate } = useLeadFollowUpDrafts(leadId);
+  const pending = drafts.filter((d) => d.status === "pending");
+  if (pending.length === 0) return null;
+
+  return (
+    <Card>
+      <CardContent className="p-6">
+        <div className="flex items-center gap-2 mb-3">
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Suggested Follow-up</h2>
+          <Badge variant="secondary">AI</Badge>
+        </div>
+        <div className="space-y-3">
+          {pending.map((d) => (
+            <LeadFollowUpDraftCard key={d.id} draft={d} leadId={leadId} onDone={() => mutate()} />
+          ))}
+        </div>
       </CardContent>
     </Card>
   );

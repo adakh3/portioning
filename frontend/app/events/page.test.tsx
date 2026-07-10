@@ -27,6 +27,7 @@ import EventsPage from "./page";
 const mkEvent = (over: Record<string, unknown> = {}) => ({
   id: 1, name: "Smith Wedding", date: "2026-08-01", gents: 50, ladies: 40,
   contact_name: "John Smith", account_name: null, assigned_to: 1, assigned_to_name: "Demo Rep",
+  created_by: 1, created_by_name: "Demo Rep",
   product: 1, event_type: "wedding", venue_name: "Grand Hall", venue_address: "",
   total: "1200000.00", created_at: "2026-06-01", status: "confirmed", status_display: "Confirmed",
   ...over,
@@ -46,6 +47,13 @@ describe("Events list", () => {
     expect(screen.getByText("Demo Rep")).toBeInTheDocument();
     expect(screen.getByText("90")).toBeInTheDocument();      // 50 + 40 guests
     expect(screen.getByText("£1,200,000.00")).toBeInTheDocument();
+  });
+
+  it("offers distinct Assigned-to and Created-by filters", () => {
+    render(<EventsPage />);
+    // Both salesperson filters are present and clearly labelled (not one ambiguous one).
+    expect(screen.getByText("Assigned to: All")).toBeInTheDocument();
+    expect(screen.getByText("Created by: All")).toBeInTheDocument();
   });
 
   it("shows a tinted status pill", () => {

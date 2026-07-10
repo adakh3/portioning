@@ -12,6 +12,8 @@ def _choices(pairs):
 
 
 class OrgSettingsSerializer(serializers.ModelSerializer):
+    # Twilio account + Anthropic key are platform-level (env). The org config
+    # here is just the WhatsApp number (admin-managed) and on/off toggles.
     twilio_configured = serializers.BooleanField(read_only=True)
     twilio_whatsapp_number = serializers.CharField(read_only=True)
     date_format_choices = serializers.SerializerMethodField()
@@ -20,6 +22,7 @@ class OrgSettingsSerializer(serializers.ModelSerializer):
     target_period_choices = serializers.SerializerMethodField()
     commission_basis_choices = serializers.SerializerMethodField()
     fiscal_year_start_month_choices = serializers.SerializerMethodField()
+    ai_followups_configured = serializers.BooleanField(read_only=True)
 
     class Meta:
         model = OrgSettings
@@ -36,6 +39,9 @@ class OrgSettingsSerializer(serializers.ModelSerializer):
             'fiscal_year_start_month', 'fiscal_year_start_month_choices',
             # WhatsApp (read-only config, org can only toggle enabled)
             'whatsapp_enabled', 'twilio_configured', 'twilio_whatsapp_number',
+            # AI follow-ups
+            'ai_followups_enabled', 'followup_stale_hours', 'followup_max_drafts_per_lead',
+            'ai_followups_configured',
         ]
 
     def get_date_format_choices(self, obj):

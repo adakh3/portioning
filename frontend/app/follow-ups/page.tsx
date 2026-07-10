@@ -2,13 +2,15 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { api, Reminder } from "@/lib/api";
-import { useReminders, useDateFormat } from "@/lib/hooks";
+import { api, Reminder, FollowUpDraft } from "@/lib/api";
+import { useReminders, useDateFormat, useFollowUpDrafts } from "@/lib/hooks";
 import { revalidate } from "@/lib/hooks";
 import { formatDateTime as sharedFormatDateTime } from "@/lib/dateFormat";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
 
 function formatDue(dateStr: string, dateFormat: string) {
   const d = new Date(dateStr);
@@ -139,7 +141,7 @@ function ReminderCard({
   );
 }
 
-export default function FollowUpsPage() {
+function RemindersTab() {
   const { data: reminders = [], mutate } = useReminders({ status: "pending" });
 
   const now = new Date();
@@ -166,17 +168,10 @@ export default function FollowUpsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Follow-ups</h1>
-        <p className="text-muted-foreground mt-1">
-          Your pending follow-up reminders
-        </p>
-      </div>
-
       {reminders.length === 0 && (
         <Card>
           <CardContent className="p-8 text-center text-muted-foreground">
-            No pending follow-ups. You&apos;re all caught up!
+            No pending reminders. You&apos;re all caught up!
           </CardContent>
         </Card>
       )}
@@ -244,6 +239,151 @@ export default function FollowUpsPage() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function DraftReviewCard({ draft, onDone }: { draft: FollowUpDraft; onDone: () => void }) {
+  const [body, setBody] = useState(draft.body);
+  const [busy, setBusy] = useState<"" | "approve" | "dismiss">("");
+  const [error, setError] = useState("");
+
+  const handleApprove = async () => {
+    setBusy("approve");
+    setError("");
+    try {
+      await api.approveFollowUpDraft(draft.id, body !== draft.body ? body : undefined);
+      revalidate("followup-draft-count");
+      onDone();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to send");
+      setBusy("");
+    }
+  };
+
+  const handleDismiss = async () => {
+    setBusy("dismiss");
+    setError("");
+    try {
+      await api.dismissFollowUpDraft(draft.id);
+      revalidate("followup-draft-count");
+      onDone();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to dismiss");
+      setBusy("");
+    }
+  };
+
+  return (
+    <div className="p-3 border border-border rounded-lg space-y-2">
+      <div className="flex items-center gap-2">
+        <Link href={`/leads/${draft.lead}`} className="text-sm font-medium text-primary hover:underline truncate">
+          {draft.lead_name || `Lead #${draft.lead}`}
+        </Link>
+        <Badge variant="secondary">AI</Badge>
+      </div>
+      {draft.reasoning && <p className="text-xs text-muted-foreground italic">{draft.reasoning}</p>}
+      <Textarea value={body} onChange={(e) => setBody(e.target.value)} rows={3} />
+      {error && <p className="text-sm text-destructive">{error}</p>}
+      <div className="flex items-center gap-2">
+        <Button size="sm" onClick={handleApprove} disabled={!!busy || !body.trim()}>
+          {busy === "approve" ? "Sending..." : "Approve & Send"}
+        </Button>
+        <Button size="sm" variant="ghost" onClick={handleDismiss} disabled={!!busy}>
+          {busy === "dismiss" ? "Dismissing..." : "Dismiss"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function DraftsTab() {
+  const { data: drafts = [], mutate } = useFollowUpDrafts("pending");
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkError, setBulkError] = useState("");
+
+  const handleBulkApprove = async () => {
+    setBulkBusy(true);
+    setBulkError("");
+    try {
+      const res = await api.bulkApproveFollowUpDrafts();
+      revalidate("followup-draft-count");
+      await mutate();
+      if (res.failed.length > 0) {
+        setBulkError(`${res.sent.length} sent, ${res.failed.length} failed (check WhatsApp is configured).`);
+      }
+    } catch (err) {
+      setBulkError(err instanceof Error ? err.message : "Bulk approve failed");
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  if (drafts.length === 0) {
+    return (
+      <Card>
+        <CardContent className="p-8 text-center text-muted-foreground">
+          No AI drafts to review. The agent adds drafts here as leads go quiet.
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">
+          {drafts.length} draft{drafts.length === 1 ? "" : "s"} awaiting your review.
+        </p>
+        <Button size="sm" onClick={handleBulkApprove} disabled={bulkBusy}>
+          {bulkBusy ? "Sending..." : `Approve all (${drafts.length})`}
+        </Button>
+      </div>
+      {bulkError && <p className="text-sm text-destructive">{bulkError}</p>}
+      <div className="space-y-2">
+        {drafts.map((d) => (
+          <DraftReviewCard key={d.id} draft={d} onDone={() => mutate()} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export default function FollowUpsPage() {
+  const [tab, setTab] = useState<"reminders" | "drafts">("reminders");
+  const { data: drafts = [] } = useFollowUpDrafts("pending");
+
+  const tabs: { id: "reminders" | "drafts"; label: string; count?: number }[] = [
+    { id: "reminders", label: "Reminders" },
+    { id: "drafts", label: "AI Drafts", count: drafts.length },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-foreground">Follow-ups</h1>
+        <p className="text-muted-foreground mt-1">Reminders and AI-suggested follow-ups for quiet leads</p>
+      </div>
+
+      <div className="flex items-center gap-1 border-b border-border">
+        {tabs.map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            className={cn(
+              "px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors flex items-center gap-2",
+              tab === t.id
+                ? "border-primary text-foreground"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            )}
+          >
+            {t.label}
+            {t.count ? <Badge variant="secondary">{t.count}</Badge> : null}
+          </button>
+        ))}
+      </div>
+
+      {tab === "reminders" ? <RemindersTab /> : <DraftsTab />}
     </div>
   );
 }

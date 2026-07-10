@@ -645,6 +645,11 @@ export interface SiteSettingsData {
   whatsapp_enabled?: boolean;
   twilio_configured?: boolean;
   twilio_whatsapp_number?: string;
+  // AI follow-ups
+  ai_followups_enabled?: boolean;
+  ai_followups_configured?: boolean;
+  followup_stale_hours?: number;
+  followup_max_drafts_per_lead?: number;
 }
 
 export interface CommissionPlanConfig {
@@ -711,6 +716,8 @@ export interface EventData {
   product_name: string | null;
   assigned_to: number | null;
   assigned_to_name: string | null;
+  created_by: number | null;
+  created_by_name: string | null;
   primary_contact: number | null;
   contact_name: string | null;
   venue: number | null;
@@ -885,6 +892,23 @@ export interface WhatsAppMessage {
   sent_by_name: string | null;
   created_at: string;
   updated_at: string;
+}
+
+// AI follow-up drafts
+export interface FollowUpDraft {
+  id: number;
+  lead: number;
+  lead_name: string | null;
+  channel: string;
+  body: string;
+  reasoning: string;
+  status: "pending" | "sent" | "dismissed";
+  model_used: string;
+  whatsapp_message: number | null;
+  reviewed_by: number | null;
+  reviewed_by_name: string | null;
+  reviewed_at: string | null;
+  created_at: string;
 }
 
 // Calendar types
@@ -1547,6 +1571,26 @@ export const api = {
     fetchApi<WhatsAppMessage>(`/bookings/leads/${leadId}/whatsapp/send/`, { method: "POST", body: JSON.stringify(data) }),
   markWhatsAppRead: (leadId: number) =>
     fetchApi<{ marked_read: number }>(`/bookings/leads/${leadId}/whatsapp/mark-read/`, { method: "POST" }),
+
+  // AI follow-up drafts
+  getFollowUpDrafts: (status: string = "pending") =>
+    fetchList<FollowUpDraft>(`/bookings/followup-drafts/?page_size=all&status=${status}`),
+  getLeadFollowUpDrafts: (leadId: number) =>
+    fetchList<FollowUpDraft>(`/bookings/leads/${leadId}/followup-drafts/?page_size=all`),
+  getFollowUpDraftCount: () =>
+    fetchApi<{ pending: number }>(`/bookings/followup-drafts/count/`),
+  approveFollowUpDraft: (id: number, body?: string) =>
+    fetchApi<FollowUpDraft>(`/bookings/followup-drafts/${id}/approve/`, {
+      method: "POST",
+      body: JSON.stringify(body !== undefined ? { body } : {}),
+    }),
+  dismissFollowUpDraft: (id: number) =>
+    fetchApi<FollowUpDraft>(`/bookings/followup-drafts/${id}/dismiss/`, { method: "POST" }),
+  bulkApproveFollowUpDrafts: (ids?: number[]) =>
+    fetchApi<{ sent: number[]; failed: { id: number; error: string }[] }>(
+      `/bookings/followup-drafts/bulk-approve/`,
+      { method: "POST", body: JSON.stringify(ids ? { ids } : {}) },
+    ),
 
   // Calendar
   getEventCalendar: (month: string, status?: string, product?: string) => {

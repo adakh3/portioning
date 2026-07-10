@@ -15,6 +15,7 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 
 from bookings.models.settings import OrgSettings
 from bookings.models.choices import EventTypeOption, ServiceStyleOption, MealTypeOption
+from dishes.ordering import dish_names_in_added_order
 
 
 # ── Colour palette ──
@@ -259,7 +260,7 @@ def _meal_flowables(booking, cs, s, time_format='24h'):
     out = []
     for m in meals:
         line = meal_line_text(m, cs, time_format)
-        dishes = list(m.dishes.values_list('name', flat=True))
+        dishes = dish_names_in_added_order(m)
         if not line and not dishes:
             continue
         if line:
@@ -487,7 +488,7 @@ def generate_quote_pdf(quote):
         elements.append(Spacer(1, 6 * mm))
 
     # ── 3. Menu Items Table (2-column layout with summary row) ──
-    dish_names = list(quote.dishes.values_list('name', flat=True))
+    dish_names = dish_names_in_added_order(quote)
     has_food_total = quote.food_total and quote.food_total > 0
 
     ADDON_COL_WIDTHS = [CONTENT_W * 0.18, CONTENT_W * 0.42, CONTENT_W * 0.20, CONTENT_W * 0.20]
@@ -784,7 +785,7 @@ def generate_event_pdf(event):
         elements.append(Spacer(1, 6 * mm))
 
     # ── Menu items + main food line ──
-    dish_names = list(event.dishes.values_list('name', flat=True))
+    dish_names = dish_names_in_added_order(event)
     if dish_names:
         elements.append(_section_header([Paragraph('MENU ITEMS', s['section_title'])], [CONTENT_W]))
         elements.append(_dish_table(dish_names, s))

@@ -46,6 +46,14 @@ if not DEBUG and ALLOWED_HOSTS == ['localhost', '127.0.0.1']:
         "ALLOWED_HOSTS must be explicitly set in production (DEBUG=False)."
     )
 
+# ── Platform integrations (shared across all orgs) ──
+# Twilio is the platform's single account; each org configures only its own
+# WhatsApp sender number (OrgSettings.twilio_whatsapp_number). Anthropic is
+# likewise a single platform key — orgs only toggle AI follow-ups on/off.
+TWILIO_ACCOUNT_SID = os.environ.get('TWILIO_ACCOUNT_SID', '')
+TWILIO_AUTH_TOKEN = os.environ.get('TWILIO_AUTH_TOKEN', '')
+ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY', '')
+
 
 # Application definition
 

@@ -81,15 +81,17 @@ class EventListCreateView(generics.ListCreateAPIView):
         _auto_advance_event_statuses(org=get_request_org(self.request))
         qs = Event.objects.select_related(
             'account', 'primary_contact', 'venue', 'based_on_template', 'product', 'source_quote',
+            'assigned_to', 'created_by',  # list shows both names — keep it a single query
         ).prefetch_related(
             'dishes',
         )
         qs = apply_org_filter(qs, self.request)
 
-        # Salesperson sees only events they created
+        # Salesperson sees their own workload: events assigned to them OR that
+        # they created (matches Lead/Quote list scoping — see bookings views).
         user = self.request.user
         if is_salesperson(user):
-            qs = qs.filter(Q(created_by=user))
+            qs = qs.filter(Q(assigned_to=user) | Q(created_by=user))
 
         status = self.request.query_params.get('status')
         if status:
@@ -113,6 +115,7 @@ class EventDetailView(generics.RetrieveUpdateDestroyAPIView):
         _auto_advance_event_statuses(org=get_request_org(self.request))
         qs = Event.objects.select_related(
             'account', 'primary_contact', 'venue', 'based_on_template', 'product', 'source_quote',
+            'assigned_to', 'created_by',
         ).prefetch_related(
             'dishes', 'dish_comments', 'dish_comments__dish',
             'shifts', 'shifts__staff_member', 'shifts__role',

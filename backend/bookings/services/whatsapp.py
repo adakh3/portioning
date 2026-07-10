@@ -1,5 +1,6 @@
 import logging
 
+from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 
 from bookings.models import OrgSettings, WhatsAppMessage, ActivityLog
@@ -43,7 +44,7 @@ class WhatsAppService:
 
         try:
             from twilio.rest import Client
-            client = Client(s.twilio_account_sid, s.twilio_auth_token)
+            client = Client(settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN)
             twilio_msg = client.messages.create(
                 body=body,
                 from_=from_phone,
