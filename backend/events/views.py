@@ -5,14 +5,17 @@ from datetime import date
 from django.db.models import Q
 from django.http import HttpResponse
 from rest_framework import generics, status as http_status
+from rest_framework.exceptions import ValidationError
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from bookings.models import LockedDate
 from bookings.permissions import is_salesperson
 from bookings.pdf import generate_event_pdf
-from .models import Event, EventStatus
-from users.mixins import get_request_org, apply_org_filter, get_org_object_or_404
-from .serializers import EventSerializer, EventListSerializer
+from .models import Event, EventStatus, EventPayment
+from users.mixins import (
+    get_request_org, apply_org_filter, get_org_object_or_404, is_superuser_without_org,
+)
+from .serializers import EventSerializer, EventListSerializer, EventPaymentSerializer
 
 
 class EventPDFView(APIView):
@@ -66,10 +69,12 @@ class EventListCreateView(generics.ListCreateAPIView):
                     'date': f'This date is locked: {reason}',
                 })
         user = self.request.user if self.request.user.is_authenticated else None
+        from bookings.models import ProductLine
         serializer.save(
             created_by=user,
             organisation=org,
             assigned_to=serializer.validated_data.get('assigned_to') or user,
+            product=serializer.validated_data.get('product') or ProductLine.default_for(org),
         )
 
     def get_queryset(self):
@@ -116,6 +121,7 @@ class EventDetailView(generics.RetrieveUpdateDestroyAPIView):
             'shifts', 'shifts__staff_member', 'shifts__role',
             'equipment_reservations', 'equipment_reservations__equipment',
             'invoices', 'invoices__payments',
+            'payments', 'payments__received_by',
         )
         return apply_org_filter(qs, self.request)
 
@@ -233,3 +239,39 @@ class EventCalendarView(APIView):
             })
 
         return Response(result)
+
+
+def _event_payments_qs(request, event_pk):
+    """Payments for an event, scoped to the caller's org via the event."""
+    qs = EventPayment.objects.filter(event_id=event_pk).select_related('received_by')
+    if not is_superuser_without_org(request):
+        org = get_request_org(request)
+        qs = qs.filter(event__organisation=org) if org is not None else qs.none()
+    return qs
+
+
+class EventPaymentListCreateView(generics.ListCreateAPIView):
+    """List / record client payments (advance, part, full) against an event."""
+    serializer_class = EventPaymentSerializer
+
+    def get_queryset(self):
+        return _event_payments_qs(self.request, self.kwargs['event_pk'])
+
+    def perform_create(self, serializer):
+        event_pk = self.kwargs['event_pk']
+        org = get_request_org(self.request)
+        # Only let a user record against an event in their own org.
+        if org is not None and not Event.objects.filter(
+            pk=event_pk, organisation=org
+        ).exists():
+            raise ValidationError({'event': 'Event does not belong to your organisation.'})
+        received_by = serializer.validated_data.get('received_by') or self.request.user
+        serializer.save(event_id=event_pk, received_by=received_by)
+
+
+class EventPaymentDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """Retrieve / edit / delete a single event payment."""
+    serializer_class = EventPaymentSerializer
+
+    def get_queryset(self):
+        return _event_payments_qs(self.request, self.kwargs['event_pk'])

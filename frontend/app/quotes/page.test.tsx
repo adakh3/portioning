@@ -6,8 +6,8 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
 vi.mock("@/lib/useQueryState", () => ({ useQueryState: (_k: string, d: string) => [d, vi.fn()] }));
 
 const QUOTES = [
-  { id: 10, version: 1, status: "draft", status_display: "Draft", contact_name: "Zara", account_name: "", contact_email: "", contact_phone: "", venue_name: "", event_date: "2026-09-01", guest_count: 100, total: "5000.00", created_at: "2026-06-02", created_by: 1, created_by_name: "Rep One", product: null, event_type: "" },
-  { id: 11, version: 2, status: "sent", status_display: "Sent", contact_name: "Adam", account_name: "", contact_email: "", contact_phone: "", venue_name: "", event_date: "2026-08-01", guest_count: 50, total: "9000.00", created_at: "2026-06-01", created_by: 2, created_by_name: "Rep Two", product: null, event_type: "" },
+  { id: 10, version: 1, status: "draft", status_display: "Draft", contact_name: "Zara", account_name: "", contact_email: "", contact_phone: "", venue_name: "", event_date: "2026-09-01", guest_count: 100, total: "5000.00", created_at: "2026-06-02", created_by: 1, created_by_name: "Rep One", assigned_to_name: "Rep One", assigned_to: 1, product: null, event_type: "" },
+  { id: 11, version: 2, status: "sent", status_display: "Sent", contact_name: "Adam", account_name: "", contact_email: "", contact_phone: "", venue_name: "", event_date: "2026-08-01", guest_count: 50, total: "9000.00", created_at: "2026-06-01", created_by: 2, created_by_name: "Rep Two", assigned_to_name: "Rep Two", assigned_to: 2, product: null, event_type: "" },
 ];
 
 vi.mock("@/lib/hooks", () => ({

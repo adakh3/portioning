@@ -818,6 +818,16 @@ class TestQuoteAPI(TestCase):
         self.assertEqual(res.status_code, 201, res.content)
         self.assertEqual(res.json()["line_items"][0]["description"], "")
 
+    def test_create_assigns_the_default_product_when_none_given(self):
+        from bookings.models import ProductLine
+        ProductLine.objects.create(organisation=self.org, name="Aardvark")  # first active
+        default = ProductLine.objects.create(organisation=self.org, name="Zeta", is_default=True)
+        res = self.client.post("/api/bookings/quotes/", {
+            "primary_contact": self.contact.id, "event_date": "2026-09-01", "guest_count": 20,
+        }, format="json")
+        self.assertEqual(res.status_code, 201, res.content)
+        self.assertEqual(res.json()["product"], default.id)  # the marked default, not the first
+
     def test_additional_meal_label_is_optional(self):
         res = self.client.post("/api/bookings/quotes/", {
             "primary_contact": self.contact.id,
@@ -849,6 +859,28 @@ class TestQuoteAPI(TestCase):
         self.assertEqual(res.status_code, 200, res.content)
         quote.refresh_from_db()
         self.assertEqual(quote.event.product_id, product.id)
+
+    def test_create_defaults_the_assignee_to_the_creator(self):
+        # A quote must always have an owner for commission attribution.
+        res = self.client.post("/api/bookings/quotes/", {
+            "primary_contact": self.contact.id, "event_date": "2026-09-01", "guest_count": 20,
+        }, format="json")
+        self.assertEqual(res.status_code, 201, res.content)
+        self.assertEqual(res.json()["assigned_to"], get_test_user().id)
+
+    def test_accept_carries_the_quote_assignee_to_the_event(self):
+        # A quote's explicit owner takes precedence over the lead/creator fallback
+        # and carries straight to the event, so commission lands on the right rep.
+        from django.contrib.auth import get_user_model
+        rep = get_user_model().objects.create(email="rep@ex.com", role="salesperson", organisation=self.org)
+        quote = make_quote(org=self.org, account=self.account, primary_contact=self.contact)
+        quote.assigned_to = rep
+        quote.save(update_fields=["assigned_to"])
+        res = self.client.post(f"/api/bookings/quotes/{quote.id}/transition/",
+                               {"status": "accepted"}, format="json")
+        self.assertEqual(res.status_code, 200, res.content)
+        quote.refresh_from_db()
+        self.assertEqual(quote.event.assigned_to_id, rep.id)
 
     def test_accept_carries_line_items_to_event(self):
         # Headline bug: accepting a quote used to drop its add-on items.

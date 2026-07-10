@@ -6,6 +6,10 @@ from django.db import models
 from users.managers import TenantManager
 from users.model_mixins import OrgScopedModel
 
+# Reuse the invoice-side payment methods so client-payment recording is
+# consistent app-wide. Safe import: bookings.models.finance imports no events.
+from bookings.models.finance import PaymentMethod
+
 class EventStatus(models.TextChoices):
     TENTATIVE = 'tentative', 'Tentative'
     CONFIRMED = 'confirmed', 'Confirmed'
@@ -132,11 +136,41 @@ class Event(OrgScopedModel, models.Model):
         # Shared engine — identical math to quotes. See bookings/services/totals.py.
         from bookings.services.totals import compute_booking_totals
         rate = self.tax_rate if self.is_taxable else Decimal('0')
+        # Drop any prefetch cache first: a caller may have loaded this event via
+        # prefetch_related('line_items'), and that cache predates rows added in the
+        # same save — so line_items.all() would omit the just-added add-ons and the
+        # stored subtotal would silently drop them.
+        for rel in ('line_items', 'additional_meals'):
+            getattr(self, '_prefetched_objects_cache', {}).pop(rel, None)
         totals = compute_booking_totals(self.food_total, self.line_items.all(), rate)
         self.subtotal = totals.subtotal
         self.tax_amount = totals.tax_amount
         self.total = totals.total
         self.save(update_fields=['subtotal', 'tax_amount', 'total'])
+
+    # ── Client payment tracking (advances / part / full) ──
+    # Read-only settlement view over the event's EventPayments. These record money
+    # the client has paid against `total`; they do NOT change the event's price, so
+    # they never touch recalculate_totals().
+    @property
+    def amount_paid(self):
+        paid = self.payments.aggregate(total=models.Sum('amount'))['total']
+        return (paid or Decimal('0.00')).quantize(Decimal('0.01'))
+
+    @property
+    def balance_due(self):
+        return (self.total - self.amount_paid).quantize(Decimal('0.01'))
+
+    @property
+    def payment_status(self):
+        """'unpaid' (nothing paid), 'partial' (some but < total), or 'paid'
+        (paid >= total). A zero-total event with any payment counts as paid."""
+        paid = self.amount_paid
+        if paid <= Decimal('0.00'):
+            return 'unpaid'
+        if paid >= self.total:
+            return 'paid'
+        return 'partial'
 
 
 class EventConstraintOverride(models.Model):
@@ -218,3 +252,37 @@ class BookingMealDishComment(models.Model):
 
     def __str__(self):
         return f"{self.meal.label} - {self.dish.name}"
+
+
+class EventPayment(models.Model):
+    """A payment the client has made against an event (advance / part / full).
+
+    This is operational settlement tracking — recording money already received
+    (cash, bank transfer, etc.) so ops can see paid-vs-owed against the event's
+    ``total``. It is NOT the SaaS subscription billing (``payments`` app), and NOT
+    a formal invoice/accounting ledger (see bookings.finance for that). Org scope
+    is inherited via ``event.organisation``.
+    """
+    event = models.ForeignKey(
+        Event, on_delete=models.CASCADE, related_name='payments',
+    )
+    amount = models.DecimalField(
+        max_digits=10, decimal_places=2,
+        validators=[MinValueValidator(Decimal('0.01')), MaxValueValidator(Decimal('9999999.99'))],
+    )
+    payment_date = models.DateField()
+    method = models.CharField(max_length=20, choices=PaymentMethod.choices)
+    received_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='event_payments_received',
+        help_text='Which team member took this payment.',
+    )
+    reference = models.CharField(max_length=200, blank=True)
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-payment_date', '-id']
+
+    def __str__(self):
+        return f"{self.amount} on {self.payment_date} ({self.get_method_display()})"

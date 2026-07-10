@@ -3,6 +3,7 @@
 import { EventMealData } from "@/lib/api";
 import { formatDateTime, todayISO } from "@/lib/dateFormat";
 import MenuBuilder from "@/components/MenuBuilder";
+import TimeField from "@/components/TimeField";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ValidatedInput } from "@/components/ui/validated-input";
@@ -20,6 +21,7 @@ export default function AdditionalMealsEditor({
   priceRoundingStep,
   defaultGuestCount = 0,
   eventDate,
+  timeFormat = "24h",
 }: {
   meals: EventMealData[];
   onChange: (meals: EventMealData[]) => void;
@@ -31,6 +33,8 @@ export default function AdditionalMealsEditor({
   defaultGuestCount?: number;
   /** The booking's event date ("YYYY-MM-DD"); meal times are anchored to it. */
   eventDate?: string;
+  /** Org time-entry preference ("12h"/"24h"). */
+  timeFormat?: "12h" | "24h";
 }) {
   const patch = (idx: number, fields: Partial<EventMealData>) =>
     onChange(meals.map((m, i) => (i === idx ? { ...m, ...fields } : m)));
@@ -101,12 +105,11 @@ export default function AdditionalMealsEditor({
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Meal Time</label>
                   {editing ? (
-                    <ValidatedInput
-                      type="time"
-                      aria-label="Additional meal time"
+                    <TimeField
+                      ariaLabel="Additional meal time"
+                      format={timeFormat}
                       value={meal.meal_time && meal.meal_time.includes("T") ? meal.meal_time.slice(11, 16) : ""}
-                      onChange={(e) => {
-                        const time = e.target.value;
+                      onChange={(time) => {
                         if (!time) { patch(idx, { meal_time: null }); return; }
                         const existingDate = meal.meal_time && meal.meal_time.includes("T") ? meal.meal_time.slice(0, 10) : "";
                         const date = existingDate || eventDate || todayISO();
@@ -114,7 +117,7 @@ export default function AdditionalMealsEditor({
                       }}
                     />
                   ) : (
-                    <span className="text-sm">{meal.meal_time ? formatDateTime(meal.meal_time, dateFormat) : "—"}</span>
+                    <span className="text-sm">{meal.meal_time ? formatDateTime(meal.meal_time, dateFormat, timeFormat) : "—"}</span>
                   )}
                 </div>
               </div>

@@ -7,7 +7,8 @@ from decimal import Decimal
 
 from django.test import TestCase
 
-from bookings.models import BookingLineItem
+from bookings.models import BookingLineItem, Quote
+from bookings.serializers.quotes import QuoteSerializer
 from bookings.services.totals import compute_booking_totals
 from bookings.tests import make_quote, _make_org
 
@@ -238,6 +239,43 @@ class TestTotalsReconciliation(TestCase):
         self.assertEqual(quote.subtotal, Decimal("800.00"))     # 1000 food - 200
         self.assertEqual(quote.tax_amount, Decimal("160.00"))   # 20% of the NET 800, not 1000
         self._assert_reconciles(quote, Decimal("0.20"))
+
+
+class TestSavePathReconciliation(TestCase):
+    """Regression for the prefetch-cache totals bug. QuoteDetailView loads a quote
+    with prefetch_related('line_items'); editing it to ADD an add-on used to leave
+    the stored subtotal computed against the STALE prefetch cache — so the new item
+    saved fine but silently vanished from the subtotal (and the PDF). recalc must
+    read line items fresh. This drives the REAL serializer update path."""
+
+    def setUp(self):
+        self.org = _make_org()
+
+    def _ctx(self):
+        from rest_framework.test import APIRequestFactory
+        from django.contrib.auth import get_user_model
+        req = APIRequestFactory().patch("/")
+        req.user = get_user_model().objects.filter(organisation=self.org).first()
+        return {"request": req}
+
+    def test_adding_addon_via_prefetched_update_updates_stored_subtotal(self):
+        quote = make_quote(org=self.org, guest_count=30,
+                           price_per_head=Decimal("1000.00"), tax_rate=Decimal("0.05"))
+        quote.recalculate_totals()
+        # Reload EXACTLY as the detail/edit endpoint does — this poisons the cache.
+        prefetched = Quote.objects.prefetch_related("line_items").get(pk=quote.pk)
+        list(prefetched.line_items.all())  # evaluate the (empty) prefetch cache
+        ser = QuoteSerializer(prefetched, partial=True, context=self._ctx(), data={
+            "line_items": [{"category": "fee", "description": "Decor", "quantity": "1",
+                            "unit": "each", "unit_price": "5000", "is_taxable": True}],
+        })
+        ser.is_valid(raise_exception=True)
+        ser.save()
+        quote.refresh_from_db()
+        # food 30000 + add-on 5000 = 35000 (the stale-cache bug left it at 30000).
+        self.assertEqual(quote.subtotal, Decimal("35000.00"))
+        self.assertEqual(quote.tax_amount, Decimal("1750.00"))   # 5% of 35000
+        self.assertEqual(quote.line_items.count(), 1)
 
     def test_big_eaters_does_not_change_food_total(self):
         # big_eaters is a portioning modifier (grams), not a price multiplier.

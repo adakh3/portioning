@@ -56,6 +56,11 @@ def _fmt(value, cs='£'):
     return f'{cs}{value:,.2f}'
 
 
+def _dt_fmt(time_format='24h'):
+    """strftime pattern for a date+time honouring the org's 12h/24h preference."""
+    return '%d %b %Y, %I:%M %p' if time_format == '12h' else '%d %b %Y, %H:%M'
+
+
 def food_summary_text(price_per_head, guest_count, food_total, cs='£'):
     """The 'X per head × N guests = total' food line, or None when there's no
     food cost. Pure + unit-tested (the PDF has no text-extraction test path)."""
@@ -64,7 +69,7 @@ def food_summary_text(price_per_head, guest_count, food_total, cs='£'):
     return f'{_fmt(price_per_head or 0, cs)} per head × {guest_count} guests = {_fmt(food_total, cs)}'
 
 
-def meal_line_text(meal, cs='£'):
+def meal_line_text(meal, cs='£', time_format='24h'):
     """One-line summary for an additional meal, or None when it has no price."""
     pph = meal.price_per_head
     if not pph or pph <= 0:
@@ -73,7 +78,7 @@ def meal_line_text(meal, cs='£'):
     when = ''
     mt = getattr(meal, 'meal_time', None)
     if mt:
-        when = f' @ {mt.strftime("%d %b %Y, %H:%M")}'
+        when = f' @ {mt.strftime(_dt_fmt(time_format))}'
     return f'{meal.label or "Additional Meal"}{when} — {_fmt(pph, cs)}/head × {meal.guest_count} = {_fmt(total, cs)}'
 
 
@@ -248,13 +253,13 @@ def _dish_table(dish_names, s):
     return t
 
 
-def _meal_flowables(booking, cs, s):
+def _meal_flowables(booking, cs, s, time_format='24h'):
     """Additional-meals section: a summary line per priced meal, plus that meal's
     own dish menu as a table when it has dishes. Shared by both PDFs."""
     meals = list(booking.additional_meals.all())
     out = []
     for m in meals:
-        line = meal_line_text(m, cs)
+        line = meal_line_text(m, cs, time_format)
         dishes = dish_names_in_added_order(m)
         if not line and not dishes:
             continue
@@ -467,7 +472,7 @@ def generate_quote_pdf(quote):
     ]
     timeline_rows = [
         [Paragraph(f'{label} Time:', s['info_label']),
-         Paragraph(dt.strftime('%d %b %Y, %H:%M'), s['info_value'])]
+         Paragraph(dt.strftime(_dt_fmt(settings.time_format)), s['info_value'])]
         for label, dt in timeline_items if dt
     ]
     if timeline_rows:
@@ -507,7 +512,7 @@ def generate_quote_pdf(quote):
         elements.append(Spacer(1, 6 * mm))
 
     # Additional meals — a summary line + that meal's own menu as a table.
-    elements.extend(_meal_flowables(quote, cs, s))
+    elements.extend(_meal_flowables(quote, cs, s, settings.time_format))
 
     # ── 4. Add-ons / Line Items ──
     line_items = list(quote.line_items.all())
@@ -764,7 +769,7 @@ def generate_event_pdf(event):
     ]
     timeline_rows = [
         [Paragraph(f'{label} Time:', s['info_label']),
-         Paragraph(dt.strftime('%d %b %Y, %H:%M'), s['info_value'])]
+         Paragraph(dt.strftime(_dt_fmt(settings.time_format)), s['info_value'])]
         for label, dt in timeline_items if dt
     ]
     if timeline_rows:
@@ -795,7 +800,7 @@ def generate_event_pdf(event):
         elements.append(Spacer(1, 6 * mm))
 
     # ── Additional meals — a summary line + that meal's own menu as a table. ──
-    elements.extend(_meal_flowables(event, cs, s))
+    elements.extend(_meal_flowables(event, cs, s, settings.time_format))
 
     # ── Add-ons / additional items ──
     line_items = list(event.line_items.all())

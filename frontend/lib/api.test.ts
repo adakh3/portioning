@@ -183,3 +183,37 @@ describe("api follow-up drafts", () => {
     expect(JSON.parse(lastInit().body as string)).toEqual({ ids: [1, 2, 3] });
   });
 });
+
+describe("subscription paywall (402)", () => {
+  it("redirects to /billing and rejects when the API returns 402", async () => {
+    Object.defineProperty(window, "location", {
+      writable: true,
+      value: { href: "", pathname: "/dishes" },
+    });
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 402,
+      json: () => Promise.resolve({ detail: "subscription_required" }),
+      text: () => Promise.resolve(""),
+    });
+
+    await expect(api.getDishes()).rejects.toThrow("subscription_required");
+    expect(window.location.href).toBe("/billing");
+  });
+
+  it("does not redirect when already on /billing", async () => {
+    Object.defineProperty(window, "location", {
+      writable: true,
+      value: { href: "", pathname: "/billing" },
+    });
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 402,
+      json: () => Promise.resolve({ detail: "subscription_required" }),
+      text: () => Promise.resolve(""),
+    });
+
+    await expect(api.getDishes()).rejects.toThrow("subscription_required");
+    expect(window.location.href).toBe("");
+  });
+});

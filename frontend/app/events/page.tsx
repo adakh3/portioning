@@ -9,6 +9,7 @@ import { formatCurrency, cn } from "@/lib/utils";
 import { statusColor } from "@/lib/statusColors";
 import { useQueryState } from "@/lib/useQueryState";
 import { Button } from "@/components/ui/button";
+import { Avatar } from "@/components/ui/avatar";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -204,7 +205,12 @@ function EventsContent() {
                   <TableRow key={e.id} className="cursor-pointer" onClick={() => router.push(`/events/${e.id}`)}>
                     <TableCell className="font-medium">{e.name || "—"}</TableCell>
                     <TableCell className="whitespace-nowrap">{customerOf(e) || "—"}</TableCell>
-                    <TableCell className="whitespace-nowrap text-muted-foreground">{e.assigned_to_name || "—"}</TableCell>
+                    <TableCell className="whitespace-nowrap text-muted-foreground">
+                      <span className="inline-flex items-center gap-2">
+                        <Avatar name={e.assigned_to_name} />
+                        {e.assigned_to_name || "—"}
+                      </span>
+                    </TableCell>
                     <TableCell className="whitespace-nowrap">{e.date ? formatDate(e.date, dateFormat) : "—"}</TableCell>
                     <TableCell className="text-right">{guestsOf(e)}</TableCell>
                     <TableCell className="text-right font-medium whitespace-nowrap">{formatCurrency(e.total, cs)}</TableCell>

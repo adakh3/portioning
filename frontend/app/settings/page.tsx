@@ -4,7 +4,9 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { api, SiteSettingsData } from "@/lib/api";
 import { useSiteSettings } from "@/lib/hooks";
+import { useAuth } from "@/lib/auth";
 import { useQueryState } from "@/lib/useQueryState";
+import { settingsTabsFor } from "@/lib/settingsTabs";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,32 +17,28 @@ import LeadStatusesSettings from "@/components/LeadStatusesSettings";
 import ChoiceOptionsSettings from "@/components/ChoiceOptionsSettings";
 import ProductLinesSettings from "@/components/ProductLinesSettings";
 import CommissionSettings from "@/components/CommissionSettings";
+import BillingPanel from "@/components/BillingPanel";
 
 // default_tax_rate is stored as a fraction (0.20 = 20%); show it as a percentage.
 const pctFromFraction = (f: string) => String(Math.round(Number(f || 0) * 10000) / 100);
 const fractionFromPct = (p: string) => (Number(p || 0) / 100).toFixed(4);
 
-const SETTINGS_TABS = [
-  { id: "general", label: "General" },
-  { id: "pipeline", label: "Lead Pipeline" },
-  { id: "options", label: "Options" },
-  { id: "branding", label: "Product Lines" },
-  { id: "commission", label: "Commission" },
-  { id: "integrations", label: "Integrations" },
-] as const;
-
 export default function SettingsPage() {
   const { data: settings, isLoading: loading, mutate: mutateSettings } = useSiteSettings();
+  const { user } = useAuth();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [tabRaw, setTab] = useQueryState("tab", "general");
-  const tab = SETTINGS_TABS.some((t) => t.id === tabRaw) ? tabRaw : "general";
+  const isOwner = user?.role === "owner" || !!user?.is_superuser;
+  const tabs = settingsTabsFor(isOwner);
+  const tab = tabs.some((t) => t.id === tabRaw) ? tabRaw : "general";
 
   const [formData, setFormData] = useState({
     currency_symbol: "",
     currency_code: "",
     date_format: "DD/MM/YYYY",
+    time_format: "24h",
     timezone: "",
     tax_label: "",
     default_tax_rate: "",
@@ -65,6 +63,7 @@ export default function SettingsPage() {
         currency_symbol: settings.currency_symbol,
         currency_code: settings.currency_code,
         date_format: settings.date_format || "DD/MM/YYYY",
+        time_format: settings.time_format || "24h",
         timezone: settings.timezone || "",
         tax_label: settings.tax_label || "",
         default_tax_rate: settings.default_tax_rate || "",
@@ -126,7 +125,7 @@ export default function SettingsPage() {
       <h1 className="text-2xl font-bold text-foreground mb-6">Settings</h1>
 
       <div className="flex gap-1 border-b border-border mb-6 overflow-x-auto overflow-y-hidden">
-        {SETTINGS_TABS.map((t) => (
+        {tabs.map((t) => (
           <button
             key={t.id}
             type="button"
@@ -194,6 +193,21 @@ export default function SettingsPage() {
                   </select>
                   <p className="text-xs text-muted-foreground mt-1">
                     Controls how dates are displayed across the application.
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Time Format</label>
+                  <select
+                    value={formData.time_format}
+                    onChange={(e) => setFormData({ ...formData, time_format: e.target.value })}
+                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  >
+                    {(settings?.time_format_choices || [{ value: "24h", label: "24-hour (e.g. 19:00)" }, { value: "12h", label: "12-hour AM/PM (e.g. 7:00 PM)" }]).map((c: { value: string; label: string }) => (
+                      <option key={c.value} value={c.value}>{c.label}</option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Controls AM/PM vs 24-hour time entry and display.
                   </p>
                 </div>
                 <div>
@@ -392,6 +406,12 @@ export default function SettingsPage() {
       <div className="space-y-6 max-w-2xl">
         <WhatsAppSettings settings={settings} onSave={() => mutateSettings()} />
         <AIFollowUpSettings settings={settings} onSave={() => mutateSettings()} />
+      </div>
+      )}
+
+      {tab === "billing" && (
+      <div className="space-y-6 max-w-2xl">
+        <BillingPanel />
       </div>
       )}
     </div>

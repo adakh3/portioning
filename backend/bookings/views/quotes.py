@@ -34,7 +34,16 @@ class QuoteListCreateView(generics.ListCreateAPIView):
 
     def perform_create(self, serializer):
         user = self.request.user if self.request.user.is_authenticated else None
-        serializer.save(created_by=user, organisation=get_request_org(self.request))
+        org = get_request_org(self.request)
+        from bookings.models import ProductLine
+        product = serializer.validated_data.get('product') or ProductLine.default_for(org)
+        # Owner defaults to the linked lead's salesperson, else whoever created it —
+        # so a quote always has an owner for commission attribution (see conversion).
+        assigned = serializer.validated_data.get('assigned_to')
+        if assigned is None:
+            lead = serializer.validated_data.get('lead')
+            assigned = (lead.assigned_to if lead else None) or user
+        serializer.save(created_by=user, organisation=org, product=product, assigned_to=assigned)
 
     def get_queryset(self):
         # select_related covers every FK the (list & detail) serializer reads:
@@ -42,7 +51,7 @@ class QuoteListCreateView(generics.ListCreateAPIView):
         # Without product/created_by the list view did 2×N extra queries.
         qs = Quote.objects.select_related(
             'account', 'venue', 'lead', 'event', 'based_on_template',
-            'primary_contact', 'product', 'created_by',
+            'primary_contact', 'product', 'created_by', 'assigned_to',
         # food_total sums additional_meals, so the list serializer needs them
         # prefetched (one query, not per-row) to avoid an N+1.
         ).prefetch_related('additional_meals')
@@ -54,7 +63,7 @@ class QuoteListCreateView(generics.ListCreateAPIView):
         # Salesperson sees only quotes they created or linked to their leads
         user = self.request.user
         if is_salesperson(user):
-            qs = qs.filter(Q(lead__assigned_to=user) | Q(created_by=user))
+            qs = qs.filter(Q(assigned_to=user) | Q(lead__assigned_to=user) | Q(created_by=user))
 
         quote_status = self.request.query_params.get('status')
         if quote_status:
@@ -68,7 +77,7 @@ class QuoteDetailView(generics.RetrieveUpdateDestroyAPIView):
     def get_queryset(self):
         qs = Quote.objects.select_related(
             'account', 'venue', 'lead', 'event', 'based_on_template',
-            'primary_contact', 'product', 'created_by',
+            'primary_contact', 'product', 'created_by', 'assigned_to',
         ).prefetch_related('line_items', 'dishes')
         return apply_org_filter(qs, self.request)
 
@@ -124,7 +133,7 @@ class QuoteTransitionView(APIView):
                 created_by=user,
                 # Credit the deal owner (the quote/lead's salesperson) for sales
                 # targets; fall back to whoever accepted the quote.
-                assigned_to=(quote.lead.assigned_to if quote.lead_id else None) or user,
+                assigned_to=quote.assigned_to or (quote.lead.assigned_to if quote.lead_id else None) or user,
                 organisation=quote.organisation,
             )
             # Copy menu (dishes) from quote to event

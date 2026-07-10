@@ -102,6 +102,12 @@ class Quote(OrgScopedModel, models.Model):
         settings.AUTH_USER_MODEL, null=True, blank=True,
         on_delete=models.SET_NULL, related_name='created_quotes',
     )
+    assigned_to = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='assigned_quotes',
+        help_text='Salesperson who owns this quote; drives commission attribution '
+                  'and carries to the event on conversion.',
+    )
     sent_at = models.DateTimeField(null=True, blank=True)
     accepted_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -145,6 +151,12 @@ class Quote(OrgScopedModel, models.Model):
         # Shared engine — identical math to events. See bookings/services/totals.py.
         from bookings.services.totals import compute_booking_totals
         rate = self.tax_rate if self.is_taxable else Decimal('0')
+        # Drop any prefetch cache first: the caller may have loaded this quote via
+        # prefetch_related('line_items') (e.g. QuoteDetailView), and that cache
+        # predates rows added in the same save — so line_items.all() would omit the
+        # just-added add-ons and the stored subtotal would silently drop them.
+        for rel in ('line_items', 'additional_meals'):
+            getattr(self, '_prefetched_objects_cache', {}).pop(rel, None)
         totals = compute_booking_totals(self.food_total, self.line_items.all(), rate)
         self.subtotal = totals.subtotal
         self.tax_amount = totals.tax_amount

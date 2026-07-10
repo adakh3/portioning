@@ -59,6 +59,15 @@ class ProductLine(models.Model):
                 organisation_id=self.organisation_id, is_default=True,
             ).exclude(pk=self.pk).update(is_default=False)
 
+    @classmethod
+    def default_for(cls, org):
+        """The product line to pre-fill on a new booking: the org's marked default,
+        else its first active line (by name), else None."""
+        if org is None:
+            return None
+        active = cls.objects.filter(organisation=org, is_active=True)
+        return active.filter(is_default=True).first() or active.order_by('name').first()
+
 
 class Lead(OrgScopedModel, models.Model):
     objects = LeadManager()

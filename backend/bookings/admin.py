@@ -89,8 +89,9 @@ class VenueAdmin(OrgScopedAdmin):
 
 @admin.register(ProductLine)
 class ProductLineAdmin(OrgScopedAdmin):
-    list_display = ['name', 'organisation', 'is_active', 'created_at']
-    list_filter = ['is_active']
+    list_display = ['name', 'organisation', 'is_active', 'is_default', 'created_at']
+    list_editable = ['is_active', 'is_default']
+    list_filter = ['is_active', 'is_default']
     search_fields = ['name']
 
 

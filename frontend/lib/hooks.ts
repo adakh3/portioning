@@ -38,6 +38,8 @@ import {
   FollowUpDraft,
   CalendarDay,
   LockedDate,
+  Subscription,
+  Plan,
 } from "./api";
 
 // ── Revalidation helper ──
@@ -51,6 +53,16 @@ export function revalidate(...keys: string[]) {
 export function useDateFormat(): string {
   const { data } = useSiteSettings();
   return data?.date_format || "DD/MM/YYYY";
+}
+
+// ── Billing ──
+
+export function useSubscription() {
+  return useSWR<Subscription>("subscription", () => api.getSubscription());
+}
+
+export function usePlans() {
+  return useSWR<Plan[]>("billing-plans", () => api.getPlans());
 }
 
 // ── Shared lookups (long dedupe, used by many pages) ──

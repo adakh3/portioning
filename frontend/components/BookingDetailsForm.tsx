@@ -38,6 +38,8 @@ export interface BookingDetailsFormProps {
   serviceStyles: ChoiceOption[];
   /** Active product lines; the product select is hidden when the org has none. */
   productLines?: ProductLine[];
+  /** Set false to render Product elsewhere (e.g. the event header) instead of here. */
+  showProduct?: boolean;
   /** The selected customer's address, offered as a one-click venue prefill. */
   customerAddress?: string;
   /** Render notes here (Event groups it in this block; Quote groups it elsewhere). */
@@ -53,28 +55,28 @@ export default function BookingDetailsForm({
   mealTypes,
   serviceStyles,
   productLines = [],
+  showProduct = true,
   customerAddress,
   showNotes = false,
   eventDateSlot,
 }: BookingDetailsFormProps) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* B2B toggle spans the row so Customer + Business dropdowns line up below it. */}
+      <label className="md:col-span-2 inline-flex items-center gap-2 text-sm font-medium text-foreground">
+        <input type="checkbox" checked={value.is_b2b} onChange={(e) => onChange({ is_b2b: e.target.checked })} />
+        Business booking (B2B)
+      </label>
       <div>
         <label className="block text-sm font-medium text-foreground mb-1">Customer *</label>
         <CustomerSelect required value={value.contact} onChange={(v) => onChange({ contact: v })} />
       </div>
-      <div>
-        <label className="inline-flex items-center gap-2 text-sm font-medium text-foreground">
-          <input type="checkbox" checked={value.is_b2b} onChange={(e) => onChange({ is_b2b: e.target.checked })} />
-          Business booking (B2B)
-        </label>
-        {value.is_b2b && (
-          <div className="mt-2">
-            <label className="block text-sm font-medium text-foreground mb-1">Business *</label>
-            <BusinessSelect required value={value.account} onChange={(v) => onChange({ account: v })} />
-          </div>
-        )}
-      </div>
+      {value.is_b2b && (
+        <div>
+          <label className="block text-sm font-medium text-foreground mb-1">Business *</label>
+          <BusinessSelect required value={value.account} onChange={(v) => onChange({ account: v })} />
+        </div>
+      )}
 
       <div className="md:col-span-2">
         <label className="block text-sm font-medium text-foreground mb-1">Venue</label>
@@ -114,7 +116,7 @@ export default function BookingDetailsForm({
         <label className="block text-sm font-medium text-foreground mb-1">Booking Date</label>
         <ValidatedInput type="date" value={value.booking_date} onChange={(e) => onChange({ booking_date: e.target.value })} />
       </div>
-      {productLines.length > 0 && (
+      {showProduct && productLines.length > 0 && (
         <div>
           <label className="block text-sm font-medium text-foreground mb-1">Product</label>
           <select value={value.product} onChange={(e) => onChange({ product: e.target.value })} className={selectClass} aria-label="Product line">

@@ -1,6 +1,6 @@
 "use client";
 
-import { ValidatedInput } from "@/components/ui/validated-input";
+import TimeField from "@/components/TimeField";
 import { todayISO } from "@/lib/dateFormat";
 
 export interface BookingTimelineValue {
@@ -19,12 +19,15 @@ export default function BookingTimelineField({
   onChange,
   eventDate,
   disabled = false,
+  timeFormat = "24h",
 }: {
   value: BookingTimelineValue;
   onChange: (patch: Partial<BookingTimelineValue>) => void;
   /** The booking's event date ("YYYY-MM-DD"); entered times are anchored to it. */
   eventDate?: string;
   disabled?: boolean;
+  /** Org time-entry preference ("12h"/"24h"). */
+  timeFormat?: "12h" | "24h";
 }) {
   const timePart = (dt: string) => (dt && dt.includes("T") ? dt.slice(11, 16) : "");
 
@@ -43,12 +46,12 @@ export default function BookingTimelineField({
   const field = (key: keyof BookingTimelineValue, label: string) => (
     <div>
       <label className="block text-sm font-medium text-foreground mb-1">{label}</label>
-      <ValidatedInput
-        type="time"
-        aria-label={label}
+      <TimeField
+        ariaLabel={label}
         value={timePart(value[key])}
         disabled={disabled}
-        onChange={(e) => setTime(key, e.target.value)}
+        format={timeFormat}
+        onChange={(t) => setTime(key, t)}
       />
     </div>
   );

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { api } from "@/lib/api";
 import { useVenues } from "@/lib/hooks";
 
@@ -28,6 +28,18 @@ export default function VenueField({
 }) {
   const { data: venues = [], mutate } = useVenues();
   const [mode, setMode] = useState<"address" | "venue">(venue ? "venue" : "address");
+
+  // Auto-fill the customer's home address once they're picked and the address
+  // is still empty (an existing booking keeps its saved address; the button
+  // below re-applies it when switching to a different customer).
+  useEffect(() => {
+    if (mode === "address" && !address.trim() && customerAddress && customerAddress.trim()) {
+      onAddress(customerAddress);
+    }
+    // Intentionally keyed on the customer + mode only, so it fills on selection
+    // but never clobbers what the user then types.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customerAddress, mode]);
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState({ name: "", city: "" });
   const [saving, setSaving] = useState(false);

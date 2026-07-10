@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Event, EventConstraintOverride, EventDishComment
+from .models import Event, EventConstraintOverride, EventDishComment, EventPayment
 from dishes.models import Dish
 from dishes.ordering import dish_ids_in_added_order
 from staff.serializers import ShiftSerializer
@@ -28,6 +28,29 @@ class EventDishCommentSerializer(serializers.ModelSerializer):
         extra_kwargs = {'comment': {'max_length': 2000}}
 
 
+class EventPaymentSerializer(OrgScopedModelSerializer):
+    """A client payment recorded against an event (advance / part / full)."""
+    received_by_name = serializers.SerializerMethodField()
+    method_display = serializers.CharField(source='get_method_display', read_only=True)
+
+    class Meta:
+        model = EventPayment
+        fields = [
+            'id', 'event', 'amount', 'payment_date',
+            'method', 'method_display', 'received_by', 'received_by_name',
+            'reference', 'notes', 'created_at',
+        ]
+        read_only_fields = ['created_at']
+        extra_kwargs = {
+            'event': {'required': False},  # set from the URL in the view
+            'notes': {'max_length': 5000},
+        }
+
+    def get_received_by_name(self, obj):
+        u = obj.received_by
+        return f"{u.first_name} {u.last_name}".strip() or u.email if u else None
+
+
 class EventSerializer(OrgScopedModelSerializer):
     # The model field is `event_date` (shared booking name); the API keeps exposing
     # it as `date` for now — the frontend is realigned in the editor-unification step.
@@ -54,6 +77,11 @@ class EventSerializer(OrgScopedModelSerializer):
     shifts = ShiftSerializer(many=True, read_only=True)
     equipment_reservations = EquipmentReservationSerializer(many=True, read_only=True)
     invoices = InvoiceSerializer(many=True, read_only=True)
+    # Client payment tracking (advances / part / full)
+    payments = EventPaymentSerializer(many=True, read_only=True)
+    amount_paid = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+    balance_due = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+    payment_status = serializers.CharField(read_only=True)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -108,7 +136,9 @@ class EventSerializer(OrgScopedModelSerializer):
                   'guaranteed_count', 'final_count', 'final_count_due',
                   # Nested
                   'additional_meals',
-                  'source_quote_id', 'shifts', 'equipment_reservations', 'invoices']
+                  'source_quote_id', 'shifts', 'equipment_reservations', 'invoices',
+                  # Client payments
+                  'payments', 'amount_paid', 'balance_due', 'payment_status']
         # created_by is stamped server-side on create; never client-writable.
         read_only_fields = ['created_at', 'subtotal', 'tax_amount', 'total', 'created_by']
         extra_kwargs = {
@@ -218,6 +248,8 @@ EVENT_LIST_EXCLUDE = {
     'shifts', 'equipment_reservations', 'invoices',
     'dish_comments', 'constraint_override',
     'dish_ids', 'line_items', 'additional_meals',
+    # payment detail + balance read event.payments per row — detail-view only
+    'payments', 'amount_paid', 'balance_due', 'payment_status',
 }
 
 

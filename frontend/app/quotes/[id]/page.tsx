@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { api, Contact, EventMealData } from "@/lib/api";
-import { useQuote, useAccounts, useContacts, useSiteSettings, useDateFormat, useEventTypes, useServiceStyles, useMealTypes, useAllLeads, useProductLines, revalidate } from "@/lib/hooks";
+import { useQuote, useAccounts, useContacts, useSiteSettings, useDateFormat, useEventTypes, useServiceStyles, useMealTypes, useAllLeads, useProductLines, useUsers, revalidate } from "@/lib/hooks";
+import { useAuth } from "@/lib/auth";
 import { formatDate, todayISO } from "@/lib/dateFormat";
 import { formatCurrency } from "@/lib/utils";
 import MenuBuilder from "@/components/MenuBuilder";
@@ -12,6 +13,7 @@ import AdditionalMealsEditor from "@/components/AdditionalMealsEditor";
 import GuestCountField, { GuestCountValue } from "@/components/GuestCountField";
 import BookingTimelineField from "@/components/BookingTimelineField";
 import BookingDetailsForm, { BookingDetailsValue } from "@/components/BookingDetailsForm";
+import AssigneePicker from "@/components/AssigneePicker";
 import { computeQuoteTotals, buildQuoteSavePayload, bookingMealRows, LineItemInput } from "@/lib/quoteTotals";
 import AddOnItemsEditor from "@/components/AddOnItemsEditor";
 import BookingTotalsCard from "@/components/BookingTotalsCard";
@@ -49,6 +51,15 @@ export default function QuoteDetailPage() {
   const { data: rawSettings } = useSiteSettings();
   const settings = rawSettings || { currency_symbol: "£", currency_code: "GBP", date_format: "DD/MM/YYYY", default_price_per_head: "0.00", target_food_cost_percentage: "30.00", price_rounding_step: "50", tax_label: "VAT", default_tax_rate: "0.2000" };
   const dateFormat = useDateFormat();
+  const timeFormat: "12h" | "24h" = ((rawSettings as { time_format?: string } | undefined)?.time_format === "12h") ? "12h" : "24h";
+  const { data: users = [] } = useUsers();
+  const { user: currentUser } = useAuth();
+  const salespeople = users.filter((u) => u.role === "salesperson");
+  // Assignee options: salespeople, plus the current user if they aren't one, so
+  // an admin creating a quote can still credit themselves.
+  const assigneeOptions = currentUser && !salespeople.some((u) => u.id === currentUser.id)
+    ? [{ id: currentUser.id, first_name: currentUser.first_name, last_name: currentUser.last_name }, ...salespeople]
+    : salespeople;
   const { data: productLines = [] } = useProductLines();
   const activeProducts = productLines.filter((p) => p.is_active);
   const { data: eventTypes = [] } = useEventTypes();
@@ -127,6 +138,11 @@ export default function QuoteDetailPage() {
   // Additional meals (parity with events) — committed in the same save.
   const [editMeals, setEditMeals] = useState<EventMealData[]>([]);
   const [createMeals, setCreateMeals] = useState<EventMealData[]>([]);
+  // New-quote owner (existing quotes reassign via the header's instant-save select).
+  const [formAssigned, setFormAssigned] = useState<number | null>(null);
+  useEffect(() => {
+    if (isNew && formAssigned === null && currentUser) setFormAssigned(currentUser.id);
+  }, [isNew, currentUser, formAssigned]);
 
   // Default the per-head price from settings ONLY once a menu is chosen — otherwise
   // a no-menu quote silently carries a phantom food charge (the Q-59 bug).
@@ -214,6 +230,7 @@ export default function QuoteDetailPage() {
         big_eaters_percentage: createData.big_eaters_percentage,
         price_per_head: createData.price_per_head ? createData.price_per_head : null,
         product: createData.product ? Number(createData.product) : null,
+        assigned_to: formAssigned || null,
         event_type: createData.event_type,
         meal_type: createData.meal_type || undefined,
         booking_date: createData.booking_date || null,
@@ -239,6 +256,7 @@ export default function QuoteDetailPage() {
       router.push(`/quotes/${newQuote.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create quote");
+      window.scrollTo({ top: 0, behavior: "smooth" }); // bring the error banner into view
     } finally {
       setSaving(false);
     }
@@ -284,6 +302,32 @@ export default function QuoteDetailPage() {
     setEditing(true);
   }
 
+  async function handleAssign(value: string) {
+    if (!quote) return;
+    setSaving(true);
+    try {
+      await api.updateQuote(quote.id, { assigned_to: value ? Number(value) : null });
+      await mutateQuote();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Reassign failed");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleProductChange(value: string) {
+    if (!quote) return;
+    setSaving(true);
+    try {
+      await api.updateQuote(quote.id, { product: value ? Number(value) : null });
+      await mutateQuote();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to set product");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function handleSaveQuote() {
     if (!quote) return;
     setSaving(true);
@@ -294,6 +338,7 @@ export default function QuoteDetailPage() {
       setEditing(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save");
+      window.scrollTo({ top: 0, behavior: "smooth" }); // bring the error banner into view
     } finally {
       setSaving(false);
     }
@@ -364,20 +409,36 @@ export default function QuoteDetailPage() {
           <Link href="/quotes" className="text-primary hover:underline">&larr; Quotes</Link>
         </div>
 
-        {error && <p className="text-destructive">{error}</p>}
+        {error && (
+          <div role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm font-medium text-destructive">
+            {error}
+          </div>
+        )}
 
         <form onSubmit={handleCreateQuoteSubmit} noValidate className="space-y-6">
           {/* Header */}
           <Card>
             <CardContent className="p-6">
-              <h1 className="text-2xl font-bold text-foreground">New Quote</h1>
+              <div className="flex items-end gap-3 flex-wrap">
+                <h1 className="text-2xl font-bold text-foreground self-center">New Quote</h1>
+                <AssigneePicker value={formAssigned} options={assigneeOptions} onChange={setFormAssigned} />
+                {activeProducts.length > 0 && (
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-medium text-muted-foreground">Product</label>
+                    <select value={createData.product} onChange={setCreate("product")} aria-label="Product line"
+                      className="flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
+                      {activeProducts.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                  </div>
+                )}
+              </div>
             </CardContent>
           </Card>
 
           {/* Customer & Event (shared booking details) */}
           <Card>
             <CardContent className="p-6">
-              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Customer &amp; Event</h2>
+              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Event Details</h2>
               <div className="mb-4">
                 <label className="block text-sm font-medium text-foreground mb-1">Link to Lead</label>
                 <select value={createData.lead} onChange={handleLeadSelect} className={selectClass}>
@@ -396,6 +457,7 @@ export default function QuoteDetailPage() {
                 mealTypes={mealTypes}
                 serviceStyles={serviceStyles}
                 productLines={activeProducts}
+                showProduct={false}
                 customerAddress={orgContacts.find((c) => String(c.id) === createData.primary_contact)?.address}
                 eventDateSlot={
                   <div>
@@ -413,6 +475,7 @@ export default function QuoteDetailPage() {
               <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Timeline</h2>
               <BookingTimelineField
                 eventDate={createData.event_date}
+                timeFormat={timeFormat}
                 value={{ setup_time: createData.setup_time, guest_arrival_time: createData.guest_arrival_time, meal_time: createData.meal_time, end_time: createData.end_time }}
                 onChange={(patch) => setCreateData((prev) => ({ ...prev, ...patch }))}
               />
@@ -452,6 +515,7 @@ export default function QuoteDetailPage() {
             priceRoundingStep={Number(settings.price_rounding_step) || 50}
             defaultGuestCount={createData.gents + createData.ladies}
             eventDate={createData.event_date}
+            timeFormat={timeFormat}
           />
 
           {/* Additional Items */}
@@ -552,11 +616,41 @@ export default function QuoteDetailPage() {
         <CardContent className="p-6">
           <div className="flex items-start justify-between">
             <div>
-              <div className="flex items-center gap-3">
-                <h1 className="text-2xl font-bold text-foreground">Quote #{q.id} v{q.version}</h1>
-                <Badge variant={STATUS_BADGE_VARIANT[q.status] || "secondary"}>
-                  {q.status_display}
-                </Badge>
+              <div className="flex items-end gap-3 flex-wrap">
+                <div className="flex items-center gap-3">
+                  <h1 className="text-2xl font-bold text-foreground">Quote #{q.id} v{q.version}</h1>
+                  <Badge variant={STATUS_BADGE_VARIANT[q.status] || "secondary"}>
+                    {q.status_display}
+                  </Badge>
+                </div>
+                <AssigneePicker
+                  value={q.assigned_to}
+                  currentName={q.assigned_to_name}
+                  disabled={saving}
+                  onChange={(pid) => handleAssign(pid ? String(pid) : "")}
+                  options={(() => {
+                    const opts = [...salespeople];
+                    if (q.assigned_to && !opts.some((u) => u.id === q.assigned_to)) {
+                      opts.unshift({ id: q.assigned_to, first_name: q.assigned_to_name || "Assigned", last_name: "", role: "" } as (typeof salespeople)[number]);
+                    }
+                    return opts;
+                  })()}
+                />
+                {activeProducts.length > 0 && (
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-medium text-muted-foreground">Product</label>
+                    <select
+                      value={q.product ?? ""}
+                      onChange={(e) => handleProductChange(e.target.value)}
+                      disabled={saving}
+                      title="Product line for this quote"
+                      aria-label="Product line"
+                      className="flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    >
+                      {activeProducts.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                  </div>
+                )}
               </div>
               <p className="text-sm text-muted-foreground mt-1">
                 Created {formatDate(q.created_at, dateFormat)}
@@ -648,7 +742,7 @@ export default function QuoteDetailPage() {
       {editing && (
         <Card>
           <CardContent className="p-6">
-            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Customer &amp; Event</h2>
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Event Details</h2>
             <BookingDetailsForm
               value={toBdValue(editData)}
               onChange={(patch) => setEditData((prev) => ({ ...prev, ...fromBdPatch(patch) }))}
@@ -656,6 +750,7 @@ export default function QuoteDetailPage() {
               mealTypes={mealTypes}
               serviceStyles={serviceStyles}
                 productLines={activeProducts}
+                showProduct={false}
               customerAddress={orgContacts.find((c) => String(c.id) === editData.primary_contact)?.address}
               eventDateSlot={
                 <div>
@@ -786,6 +881,7 @@ export default function QuoteDetailPage() {
             <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Timeline</h2>
             <BookingTimelineField
               eventDate={editData.event_date}
+              timeFormat={timeFormat}
               value={{ setup_time: editData.setup_time, guest_arrival_time: editData.guest_arrival_time, meal_time: editData.meal_time, end_time: editData.end_time }}
               onChange={(patch) => setEditData((prev) => ({ ...prev, ...patch }))}
             />
@@ -867,6 +963,7 @@ export default function QuoteDetailPage() {
           priceRoundingStep={Number(settings.price_rounding_step) || 50}
           defaultGuestCount={editData.gents + editData.ladies}
           eventDate={editData.event_date}
+          timeFormat={timeFormat}
         />
       )}
 

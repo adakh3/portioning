@@ -49,6 +49,7 @@ class QuoteSerializer(OrgScopedModelSerializer):
     lead_name = serializers.SerializerMethodField()
     event_id = serializers.SerializerMethodField()
     created_by_name = serializers.SerializerMethodField()
+    assigned_to_name = serializers.SerializerMethodField()
 
     food_total = serializers.SerializerMethodField()
 
@@ -91,6 +92,7 @@ class QuoteSerializer(OrgScopedModelSerializer):
             'sent_at', 'accepted_at',
             'event', 'event_id',
             'created_by', 'created_by_name',
+            'assigned_to', 'assigned_to_name',
             'line_items', 'created_at', 'updated_at',
         ]
         read_only_fields = [
@@ -142,6 +144,12 @@ class QuoteSerializer(OrgScopedModelSerializer):
 
     def get_created_by_name(self, obj):
         u = obj.created_by
+        if not u:
+            return None
+        return (u.get_full_name() or "").strip() or u.email
+
+    def get_assigned_to_name(self, obj):
+        u = obj.assigned_to
         if not u:
             return None
         return (u.get_full_name() or "").strip() or u.email

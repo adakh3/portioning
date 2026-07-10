@@ -14,6 +14,11 @@ DATE_FORMAT_CHOICES = [
     ('MMM DD, YYYY', 'MMM DD, YYYY (e.g. Mar 14, 2026)'),
 ]
 
+TIME_FORMAT_CHOICES = [
+    ('24h', '24-hour (e.g. 19:00)'),
+    ('12h', '12-hour AM/PM (e.g. 7:00 PM)'),
+]
+
 COMMISSION_MODEL_CHOICES = [
     ('flat', 'Flat rate'),
     ('accelerated', 'Accelerated (banded by target attainment)'),
@@ -49,6 +54,10 @@ class OrgSettings(models.Model):
     date_format = models.CharField(
         max_length=20, choices=DATE_FORMAT_CHOICES, default='DD/MM/YYYY',
         help_text='Date display format across the application',
+    )
+    time_format = models.CharField(
+        max_length=3, choices=TIME_FORMAT_CHOICES, default='24h',
+        help_text='Time display format (12-hour AM/PM or 24-hour) across the application',
     )
     timezone = models.CharField(max_length=50, default='Europe/London')
     tax_label = models.CharField(max_length=20, default='VAT', help_text='e.g. VAT, Sales Tax, GST')

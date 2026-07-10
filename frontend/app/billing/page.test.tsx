@@ -1,0 +1,192 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import type { Subscription, Plan } from "@/lib/api";
+
+let searchParamsString = "";
+vi.mock("next/navigation", () => ({
+  useSearchParams: () => new URLSearchParams(searchParamsString),
+}));
+
+let mockUser: { id: number; role: string; is_superuser?: boolean } | null;
+vi.mock("@/lib/auth", () => ({ useAuth: () => ({ user: mockUser }) }));
+
+let mockSub: Subscription | null;
+let mockLoading = false;
+let mockPlans: Plan[] = [];
+vi.mock("@/lib/hooks", () => ({
+  useSubscription: () => ({ data: mockSub, isLoading: mockLoading }),
+  usePlans: () => ({ data: mockPlans }),
+}));
+
+const startCheckout = vi.fn().mockResolvedValue({ url: "https://checkout.test/go" });
+const openBillingPortal = vi.fn().mockResolvedValue({ url: "https://portal.test/go" });
+vi.mock("@/lib/api", () => ({
+  api: {
+    startCheckout: (plan?: string) => startCheckout(plan),
+    openBillingPortal: () => openBillingPortal(),
+  },
+}));
+
+import BillingPage from "./page";
+
+function makeSub(overrides: Partial<Subscription> = {}): Subscription {
+  return {
+    status: "trialing",
+    plan_name: "",
+    current_period_end: null,
+    cancel_at_period_end: false,
+    trial_ends_at: "2030-01-08T00:00:00Z",
+    is_trialing: true,
+    trial_days_remaining: 5,
+    has_access: true,
+    has_billing_account: false,
+    comped: false,
+    ...overrides,
+  };
+}
+
+beforeEach(() => {
+  startCheckout.mockClear();
+  openBillingPortal.mockClear();
+  searchParamsString = "";
+  mockLoading = false;
+  mockPlans = [];
+  // jsdom doesn't implement navigation; make href assignable + observable.
+  Object.defineProperty(window, "location", {
+    writable: true,
+    value: { href: "" },
+  });
+});
+
+function makePlan(over: Partial<Plan> = {}): Plan {
+  return {
+    code: "pro", name: "Pro", description: "Everything",
+    display_amount: "99.00", currency: "USD", currency_symbol: "$", ...over,
+  };
+}
+
+describe("BillingPage", () => {
+  it("shows trial days remaining", () => {
+    mockUser = { id: 1, role: "owner" };
+    mockSub = makeSub({ trial_days_remaining: 5 });
+    render(<BillingPage />);
+    expect(screen.getByText(/5/)).toBeTruthy();
+    expect(screen.getByText(/left in your free trial/i)).toBeTruthy();
+    expect(screen.getByText("Free trial")).toBeTruthy();
+  });
+
+  it("new org can start the card-required free trial — redirects to checkout", async () => {
+    mockUser = { id: 1, role: "owner" };
+    mockSub = makeSub({ status: "none", is_trialing: false, has_access: false });
+    render(<BillingPage />);
+    fireEvent.click(screen.getByRole("button", { name: "Start your free trial" }));
+    await waitFor(() => expect(startCheckout).toHaveBeenCalled());
+    await waitFor(() => expect(window.location.href).toBe("https://checkout.test/go"));
+  });
+
+  it("expired/canceled with a prior account prompts to Subscribe", () => {
+    mockUser = { id: 1, role: "owner" };
+    mockSub = makeSub({
+      status: "canceled",
+      is_trialing: false,
+      has_access: false,
+      has_billing_account: true, // had a subscription before
+    });
+    render(<BillingPage />);
+    // Returning customer subscribes (no second trial); can also manage billing.
+    expect(screen.getByRole("button", { name: "Subscribe" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Manage billing" })).toBeTruthy();
+  });
+
+  it("active plan shows Manage billing and renewal date, no CTA", () => {
+    mockUser = { id: 1, role: "owner" };
+    mockSub = makeSub({
+      status: "active",
+      is_trialing: false,
+      plan_name: "Pro",
+      current_period_end: "2030-02-01T00:00:00Z",
+      has_billing_account: true,
+    });
+    render(<BillingPage />);
+    expect(screen.getByText("Active")).toBeTruthy();
+    expect(screen.getByText(/Renews on/i)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Manage billing" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Subscribe" })).toBeNull();
+  });
+
+  it("during a card-on-file trial shows Manage billing + charge note, no CTA", () => {
+    mockUser = { id: 1, role: "owner" };
+    mockSub = makeSub({ has_billing_account: true }); // Stripe-managed trial
+    render(<BillingPage />);
+    expect(screen.getByText(/left in your free trial/i)).toBeTruthy();
+    expect(screen.getByText(/card will be charged when the trial ends/i)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Manage billing" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Subscribe" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Start your free trial" })).toBeNull();
+  });
+
+  it("comped org shows complimentary access and no billing buttons", () => {
+    mockUser = { id: 1, role: "owner" };
+    mockSub = makeSub({ status: "none", is_trialing: false, has_access: true, comped: true });
+    render(<BillingPage />);
+    expect(screen.getByText(/no payment needed/i)).toBeTruthy();
+    expect(screen.getByText("Free")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Start your free trial" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Subscribe" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Manage billing" })).toBeNull();
+  });
+
+  it("non-owner sees a read-only message, no buttons", () => {
+    mockUser = { id: 2, role: "manager" };
+    mockSub = makeSub({ status: "none", is_trialing: false, has_access: false });
+    render(<BillingPage />);
+    expect(screen.getByText(/Only the account owner can manage billing/i)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Start your free trial" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Subscribe" })).toBeNull();
+  });
+
+  it("shows a success banner after returning from checkout", () => {
+    searchParamsString = "status=success";
+    mockUser = { id: 1, role: "owner" };
+    mockSub = makeSub({ status: "active", is_trialing: false, has_billing_account: true });
+    render(<BillingPage />);
+    expect(screen.getByText(/all set/i)).toBeTruthy();
+  });
+
+  it("with tiers configured, shows a plan-picker and checks out with the picked plan", async () => {
+    mockUser = { id: 1, role: "owner" };
+    mockSub = makeSub({ status: "none", is_trialing: false, has_access: false });
+    mockPlans = [
+      makePlan({ code: "starter", name: "Starter", display_amount: "29.00" }),
+      makePlan({ code: "pro", name: "Pro", display_amount: "99.00" }),
+    ];
+    render(<BillingPage />);
+    // Both tiers + prices are shown.
+    expect(screen.getByText("Starter")).toBeTruthy();
+    expect(screen.getByText("Pro")).toBeTruthy();
+    expect(screen.getByText("$ 99.00")).toBeTruthy();
+    // Pick "Pro", then start the trial → checkout is called with that plan code.
+    fireEvent.click(screen.getByText("Pro"));
+    fireEvent.click(screen.getByRole("button", { name: "Start your free trial" }));
+    await waitFor(() => expect(startCheckout).toHaveBeenCalledWith("pro"));
+  });
+
+  it("defaults to the first tier when none is explicitly picked", async () => {
+    mockUser = { id: 1, role: "owner" };
+    mockSub = makeSub({ status: "none", is_trialing: false, has_access: false });
+    mockPlans = [makePlan({ code: "starter", name: "Starter" }), makePlan({ code: "pro", name: "Pro" })];
+    render(<BillingPage />);
+    fireEvent.click(screen.getByRole("button", { name: "Start your free trial" }));
+    await waitFor(() => expect(startCheckout).toHaveBeenCalledWith("starter"));
+  });
+
+  it("with NO tiers configured, falls back to the single Subscribe/trial button", async () => {
+    mockUser = { id: 1, role: "owner" };
+    mockSub = makeSub({ status: "none", is_trialing: false, has_access: false });
+    mockPlans = [];
+    render(<BillingPage />);
+    expect(screen.queryByText("Pro")).toBeNull(); // no picker
+    fireEvent.click(screen.getByRole("button", { name: "Start your free trial" }));
+    await waitFor(() => expect(startCheckout).toHaveBeenCalledWith(undefined));
+  });
+});

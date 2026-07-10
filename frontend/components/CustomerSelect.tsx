@@ -78,7 +78,7 @@ export default function CustomerSelect({
 
   return (
     <div>
-      <select required={required} value={value} onChange={(e) => onChange(e.target.value)} className={selectClass}>
+      <select aria-label="Customer" required={required} value={value} onChange={(e) => onChange(e.target.value)} className={selectClass}>
         <option value="">-- Select customer --</option>
         {contacts.map((c) => (
           <option key={c.id} value={c.id}>

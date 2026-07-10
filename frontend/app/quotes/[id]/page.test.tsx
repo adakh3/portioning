@@ -43,7 +43,12 @@ vi.mock("@/lib/hooks", () => ({
   useMealTypes: () => ({ data: [] }),
   useAllLeads: () => ({ data: [] }),
   useProductLines: () => ({ data: [] }),
+  useUsers: () => ({ data: [] }),
   revalidate: vi.fn(),
+}));
+
+vi.mock("@/lib/auth", () => ({
+  useAuth: () => ({ user: { id: 4, first_name: "Olivia", last_name: "Owner", role: "owner" } }),
 }));
 
 vi.mock("@/lib/api", () => ({

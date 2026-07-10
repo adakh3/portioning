@@ -1,0 +1,214 @@
+"""SaaS subscription billing for the app itself.
+
+This app is about *the organisation paying us to use the product* — NOT about a
+catering business invoicing its own event clients (that lives in
+``bookings.finance`` as ``Invoice`` / ``Payment``). Keep the two separate: this
+domain is Org ↔ Stripe Customer ↔ Stripe Subscription.
+
+One ``Subscription`` row per ``Organisation`` (the tenant). Stripe is the source
+of truth for billing state; this row is a local mirror kept in sync by the
+webhook handlers so the app can gate access without a round-trip to Stripe.
+"""
+import math
+from datetime import timedelta
+
+from django.db import models
+from django.utils import timezone
+
+
+class SubscriptionStatus(models.TextChoices):
+    """Mirrors Stripe's subscription ``status`` values, plus a local ``NONE``
+    for orgs that have never started checkout."""
+    NONE = 'none', 'No Subscription'
+    INCOMPLETE = 'incomplete', 'Incomplete'
+    INCOMPLETE_EXPIRED = 'incomplete_expired', 'Incomplete Expired'
+    TRIALING = 'trialing', 'Trialing'
+    ACTIVE = 'active', 'Active'
+    PAST_DUE = 'past_due', 'Past Due'
+    CANCELED = 'canceled', 'Canceled'
+    UNPAID = 'unpaid', 'Unpaid'
+
+
+# Paid statuses that grant access outright. ``past_due`` keeps access during
+# Stripe's dunning/retry window; access is only cut once Stripe gives up
+# (``unpaid``/``canceled``). ``trialing`` is handled separately because its
+# access is time-boxed by ``trial_ends_at`` (a no-card local trial).
+PAID_ACCESS_STATUSES = frozenset({
+    SubscriptionStatus.ACTIVE,
+    SubscriptionStatus.PAST_DUE,
+})
+
+
+class Subscription(models.Model):
+    organisation = models.OneToOneField(
+        'users.Organisation',
+        on_delete=models.CASCADE,
+        related_name='subscription',
+    )
+    # Stripe identifiers. Blank until the org starts checkout.
+    stripe_customer_id = models.CharField(max_length=255, blank=True, db_index=True)
+    stripe_subscription_id = models.CharField(max_length=255, blank=True, db_index=True)
+    stripe_price_id = models.CharField(max_length=255, blank=True)
+    plan_name = models.CharField(max_length=100, blank=True)
+
+    status = models.CharField(
+        max_length=30,
+        choices=SubscriptionStatus.choices,
+        default=SubscriptionStatus.NONE,
+    )
+    # End of the current paid period (also when a cancelled sub stops working).
+    current_period_end = models.DateTimeField(null=True, blank=True)
+    cancel_at_period_end = models.BooleanField(default=False)
+
+    # No-card free trial. Set on org sign-up; a superuser can extend it. Only
+    # meaningful while ``status == TRIALING``.
+    trial_ends_at = models.DateTimeField(null=True, blank=True)
+
+    # Complimentary ("comp") access — full access with no payment, indefinitely.
+    # Used for friendly/beta users and orgs grandfathered in before billing
+    # launched. Independent of Stripe status; toggle in admin.
+    comped = models.BooleanField(
+        default=False,
+        help_text="Complimentary free access (friendly/beta/grandfathered). "
+                  "Grants access regardless of subscription status.",
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.organisation.name} — {self.get_status_display()}"
+
+    @property
+    def is_trialing(self):
+        """On an active (non-expired) free trial."""
+        return (
+            self.status == SubscriptionStatus.TRIALING
+            and self.trial_ends_at is not None
+            and self.trial_ends_at > timezone.now()
+        )
+
+    @property
+    def trial_days_remaining(self):
+        """Whole days left on the trial, rounded UP so day one of a 7-day trial
+        reads "7" (matching Stripe's copy), and the final day reads "1". 0 if not
+        trialing / expired."""
+        if not self.is_trialing:
+            return 0
+        seconds = (self.trial_ends_at - timezone.now()).total_seconds()
+        return max(0, math.ceil(seconds / 86400))
+
+    @property
+    def has_access(self):
+        """True when the org may use the product: comped (complimentary),
+        paying, in dunning, or on a live free trial. An expired trial (status
+        still ``TRIALING`` but past ``trial_ends_at``) returns False until they
+        subscribe."""
+        return (
+            self.comped
+            or self.status in PAID_ACCESS_STATUSES
+            or self.is_trialing
+        )
+
+    @property
+    def has_billing_account(self):
+        """True once a Stripe customer exists for this org (i.e. they've been
+        through Checkout). Gates the Billing Portal — there's nothing to manage
+        on a pure free trial that never subscribed."""
+        return bool(self.stripe_customer_id)
+
+    def extend_trial(self, days):
+        """Push the trial end out by ``days``, measured from the later of now or
+        the current end (so extending an expired trial gives a full window).
+        Re-marks the row as trialing."""
+        base = max(self.trial_ends_at or timezone.now(), timezone.now())
+        self.status = SubscriptionStatus.TRIALING
+        self.trial_ends_at = base + timedelta(days=days)
+
+
+# ─────────────────────────── Tiered + regional pricing ───────────────────────
+# The subscription price varies by (tier × region). A tier (``Plan``) is what the
+# org owner picks; the *amount* differs by ``PricingRegion`` (purchasing-power
+# pricing), chosen from the org's country. Each (plan, region) cell is a
+# ``PlanPrice`` pointing at a Stripe Price. All admin-configured; if nothing is
+# set up, checkout falls back to ``settings.STRIPE_PRICE_ID``.
+
+class PricingRegion(models.Model):
+    """A pricing region — a group of countries billed in one currency at one set
+    of tier prices (e.g. 'South Asia' / PKR). Exactly one region should be
+    ``is_default`` (the rest-of-world fallback for unmapped countries)."""
+    code = models.SlugField(max_length=40, unique=True)
+    name = models.CharField(max_length=100)
+    currency_code = models.CharField(max_length=3, help_text='ISO 4217, e.g. PKR, USD, GBP')
+    currency_symbol = models.CharField(max_length=8, default='')
+    countries = models.JSONField(
+        default=list, blank=True,
+        help_text='ISO 3166-1 alpha-2 codes in this region, e.g. ["PK","IN","BD"].',
+    )
+    is_default = models.BooleanField(
+        default=False,
+        help_text='The fallback region for countries not listed anywhere. Exactly one.',
+    )
+    sort_order = models.IntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['sort_order', 'name']
+
+    def __str__(self):
+        return f"{self.name} ({self.currency_code})"
+
+    @classmethod
+    def for_country(cls, country_code):
+        """Resolve the region for an ISO country code: the active region listing
+        that country, else the active default region, else None."""
+        code = (country_code or '').upper()
+        active = cls.objects.filter(is_active=True)
+        for region in active:
+            if code in [c.upper() for c in (region.countries or [])]:
+                return region
+        return active.filter(is_default=True).first()
+
+
+class Plan(models.Model):
+    """A subscription tier (e.g. Starter / Pro). Region-agnostic — the tier is the
+    *what*; the price-per-region lives on ``PlanPrice``."""
+    code = models.SlugField(max_length=40, unique=True)
+    name = models.CharField(max_length=100)
+    description = models.CharField(max_length=255, blank=True)
+    sort_order = models.IntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['sort_order', 'name']
+
+    def __str__(self):
+        return self.name
+
+    def price_for_region(self, region):
+        """The active PlanPrice for this tier in ``region``, or None."""
+        if region is None:
+            return None
+        return self.prices.filter(region=region, is_active=True).first()
+
+
+class PlanPrice(models.Model):
+    """The price of one tier in one region — points at a Stripe Price. The
+    ``display_amount`` is stored locally for the UI; keep it in sync with the
+    Stripe Price's actual amount."""
+    plan = models.ForeignKey(Plan, on_delete=models.CASCADE, related_name='prices')
+    region = models.ForeignKey(PricingRegion, on_delete=models.CASCADE, related_name='prices')
+    stripe_price_id = models.CharField(max_length=255)
+    display_amount = models.DecimalField(
+        max_digits=12, decimal_places=2,
+        help_text="Shown in the UI. Must match the Stripe Price's amount.",
+    )
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['plan', 'region'], name='uniq_plan_region_price'),
+        ]
+
+    def __str__(self):
+        return f"{self.plan.name} — {self.region.currency_code} {self.display_amount}"
