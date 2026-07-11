@@ -132,7 +132,7 @@ class TestEventTotalsIntegration(TestCase):
     def test_event_food_plus_items_with_tax(self):
         from events.models import Event
         event = Event.objects.create(organisation=self.org, name="E", event_date="2026-09-01",
-                                     gents=20, ladies=30, price_per_head=Decimal("40.00"),
+                                     guest_count=50, gents=20, ladies=30, price_per_head=Decimal("40.00"),
                                      is_taxable=True, tax_rate=Decimal("0.15"))
         # food = 40 * (20+30) = 2000 (taxable)
         BookingLineItem.objects.create(event=event, category="rental", description="Chairs",
@@ -149,7 +149,7 @@ class TestEventTotalsIntegration(TestCase):
     def test_event_not_taxable_has_no_tax(self):
         from events.models import Event
         event = Event.objects.create(organisation=self.org, name="E2", event_date="2026-09-01",
-                                     gents=10, ladies=10, price_per_head=Decimal("50.00"),
+                                     guest_count=20, gents=10, ladies=10, price_per_head=Decimal("50.00"),
                                      is_taxable=False, tax_rate=Decimal("0.20"))
         BookingLineItem.objects.create(event=event, category="rental", description="X",
                                        quantity=Decimal("1"), unit="flat", unit_price=Decimal("100.00"))
@@ -162,7 +162,7 @@ class TestEventTotalsIntegration(TestCase):
     def test_event_total_includes_additional_meals(self):
         from events.models import Event, BookingMeal
         event = Event.objects.create(organisation=self.org, name="E3", event_date="2026-09-01",
-                                     gents=10, ladies=10, price_per_head=Decimal("50.00"), is_taxable=False)
+                                     guest_count=20, gents=10, ladies=10, price_per_head=Decimal("50.00"), is_taxable=False)
         BookingMeal.objects.create(event=event, label="Sehri", guest_count=20, price_per_head=Decimal("15.00"))
         event.recalculate_totals()
         event.refresh_from_db()
@@ -222,7 +222,7 @@ class TestTotalsReconciliation(TestCase):
     def test_event_not_taxable_reconciles_at_zero_rate(self):
         from events.models import Event
         event = Event.objects.create(organisation=self.org, name="E", event_date="2026-09-01",
-                                     gents=25, ladies=25, price_per_head=Decimal("40"),
+                                     guest_count=50, gents=25, ladies=25, price_per_head=Decimal("40"),
                                      is_taxable=False, tax_rate=Decimal("0.15"))
         BookingLineItem.objects.create(event=event, category="rental", description="X",
                                        quantity=Decimal("1"), unit="flat", unit_price=Decimal("300"))
@@ -281,8 +281,8 @@ class TestSavePathReconciliation(TestCase):
         # big_eaters is a portioning modifier (grams), not a price multiplier.
         from events.models import Event
         plain = Event.objects.create(organisation=self.org, name="A", event_date="2026-09-01",
-                                     gents=10, ladies=10, price_per_head=Decimal("50"))
+                                     guest_count=20, gents=10, ladies=10, price_per_head=Decimal("50"))
         big = Event.objects.create(organisation=self.org, name="B", event_date="2026-09-01",
-                                   gents=10, ladies=10, price_per_head=Decimal("50"),
+                                   guest_count=20, gents=10, ladies=10, price_per_head=Decimal("50"),
                                    big_eaters=True, big_eaters_percentage=30.0)
         self.assertEqual(plain.food_total, big.food_total)

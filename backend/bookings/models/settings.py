@@ -69,6 +69,11 @@ class OrgSettings(models.Model):
         max_digits=10, decimal_places=2, default=Decimal('0.00'),
         help_text='Default food price per head for new quotes/events',
     )
+    default_guest_profile = models.CharField(
+        max_length=10, default='gents',
+        choices=[('gents', 'Standard (gents)'), ('ladies', 'Ladies')],
+        help_text='Portion rule applied to all guests when an event has no gents/ladies split',
+    )
     target_food_cost_percentage = models.DecimalField(
         max_digits=5, decimal_places=2, default=Decimal('30.00'),
         help_text='Target food cost as % of selling price (e.g. 30 means 30%)',

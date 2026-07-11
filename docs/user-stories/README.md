@@ -23,6 +23,7 @@ here. Keep it test-focused — numbered cases with concrete steps and expected r
 | AI follow-up drafts (agent + review queue) | [ai-followup-drafts.md](ai-followup-drafts.md) | Built — awaiting manual sign-off |
 | Subscription billing (Stripe) | [subscription-billing.md](subscription-billing.md) | Built (backend + frontend + access gating) — awaiting manual sign-off |
 | Event client payments (advances / part / full) | [event-payments.md](event-payments.md) | Built (backend + frontend) — awaiting manual sign-off |
+| Event guest count (primary number, optional split) | [event-guest-count.md](event-guest-count.md) | Built — awaiting manual sign-off |
 | Tiered + regional subscription pricing | [tiered-regional-pricing.md](tiered-regional-pricing.md) | Built (backend + frontend) — awaiting manual sign-off |
 
 ## Template

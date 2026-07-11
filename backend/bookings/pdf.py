@@ -712,7 +712,9 @@ def generate_event_pdf(event):
         ('RIGHTPADDING', (0, 0), (-1, -1), 2),
     ]))
 
-    guests_text = f'{event.gents + event.ladies} ({event.gents} gents / {event.ladies} ladies)'
+    guests_text = str(event.guest_count)
+    if event.has_guest_split:
+        guests_text += f' ({event.gents} gents / {event.ladies} ladies)'
     right_rows = [
         ['Event Date:', event.event_date.strftime('%d %B %Y')],
         ['Event Day:', event.event_date.strftime('%A')],
@@ -791,8 +793,8 @@ def generate_event_pdf(event):
         elements.append(_dish_table(dish_names, s))
         elements.append(Spacer(1, 3 * mm))
 
-    main_food = (event.price_per_head or 0) * (event.gents + event.ladies)
-    food_line = food_summary_text(event.price_per_head, event.gents + event.ladies, main_food, cs)
+    main_food = (event.price_per_head or 0) * event.guest_count
+    food_line = food_summary_text(event.price_per_head, event.guest_count, main_food, cs)
     if food_line:
         if not dish_names:
             elements.append(_section_header([Paragraph('FOOD / MENU', s['section_title'])], [CONTENT_W]))

@@ -3,17 +3,24 @@
 import { ValidatedInput } from "@/components/ui/validated-input";
 
 export interface GuestCountValue {
-  gents: number;
+  guest_count: number;             // THE number — drives money and displays
+  gents: number;                   // optional split; 0/0 = not specified
   ladies: number;
-  custom_split: boolean;           // UI-only: edit gents/ladies directly vs auto 50/50
+  custom_split: boolean;           // UI: the split section is open
   big_eaters: boolean;
   big_eaters_percentage: number;
 }
 
-/** The shared guest-count field: a Total Guests input, an optional Customise-split
- * into gents/ladies, and a Big Eaters modifier. Controlled — the canonical value
- * is gents/ladies (total is derived). Used by both the quote and event editors so
- * guests are entered identically. */
+/** True when the split is absent or adds up to the guest count. */
+export function splitAddsUp(v: Pick<GuestCountValue, "guest_count" | "gents" | "ladies" | "custom_split">) {
+  if (!v.custom_split) return true;
+  return v.gents + v.ladies === v.guest_count;
+}
+
+/** The shared guest field: a Guest Count input (the canonical number), an optional
+ * gents/ladies split that must add up to it, and a Big Eaters modifier. Changing
+ * the count clears an entered split — we never scale numbers the user didn't type.
+ * Used by both the quote and event editors so guests are entered identically. */
 export default function GuestCountField({
   value,
   onChange,
@@ -23,33 +30,33 @@ export default function GuestCountField({
   onChange: (patch: Partial<GuestCountValue>) => void;
   disabled?: boolean;
 }) {
-  const total = (value.gents || 0) + (value.ladies || 0);
+  const total = value.guest_count || 0;
+  const splitTotal = (value.gents || 0) + (value.ladies || 0);
+  const addsUp = splitTotal === total;
 
   const setTotal = (raw: number) => {
     const t = Math.max(0, raw || 0);
-    if (value.custom_split) {
-      // Keep the current gents:ladies ratio when the total changes.
-      const ratio = total > 0 ? value.gents / total : 0.5;
-      const gents = Math.round(t * ratio);
-      onChange({ gents, ladies: t - gents });
-    } else {
-      onChange({ gents: Math.ceil(t / 2), ladies: Math.floor(t / 2) });
-    }
+    // The split was for the old number — clear it and ask again.
+    onChange({ guest_count: t, gents: 0, ladies: 0, custom_split: false });
   };
 
   const toggleCustom = (custom: boolean) => {
-    if (custom) onChange({ custom_split: true });
-    else onChange({ custom_split: false, gents: Math.ceil(total / 2), ladies: Math.floor(total / 2) });
+    if (custom) {
+      // Open with a suggested even split; the user confirms/adjusts it.
+      onChange({ custom_split: true, gents: Math.ceil(total / 2), ladies: Math.floor(total / 2) });
+    } else {
+      onChange({ custom_split: false, gents: 0, ladies: 0 });
+    }
   };
 
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         <div>
-          <label className="block text-sm font-medium text-foreground mb-1">Total Guests</label>
+          <label className="block text-sm font-medium text-foreground mb-1">Guest Count</label>
           <ValidatedInput
             type="number" min={1} max={100000} disabled={disabled}
-            aria-label="Total Guests"
+            aria-label="Guest Count"
             value={total || ""}
             onChange={(e) => setTotal(Number(e.target.value))}
           />
@@ -61,40 +68,48 @@ export default function GuestCountField({
               onChange={(e) => toggleCustom(e.target.checked)}
               className="rounded border-input"
             />
-            Customise gender split
+            Gents / ladies split
           </label>
         </div>
       </div>
-      {value.custom_split && (
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-1">Gents</label>
-            <ValidatedInput
-              type="number" min={0} max={total} disabled={disabled}
-              value={value.gents}
-              onChange={(e) => {
-                const gents = Math.max(0, Number(e.target.value) || 0);
-                onChange({ gents, ladies: Math.max(0, total - gents) });
-              }}
-            />
+      {value.custom_split ? (
+        <div>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Gents</label>
+              <ValidatedInput
+                type="number" min={0} max={total} disabled={disabled}
+                aria-label="Gents"
+                value={value.gents}
+                onChange={(e) => {
+                  const gents = Math.max(0, Number(e.target.value) || 0);
+                  onChange({ gents, ladies: Math.max(0, total - gents) });
+                }}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Ladies</label>
+              <ValidatedInput
+                type="number" min={0} max={total} disabled={disabled}
+                aria-label="Ladies"
+                value={value.ladies}
+                onChange={(e) => {
+                  const ladies = Math.max(0, Number(e.target.value) || 0);
+                  onChange({ ladies, gents: Math.max(0, total - ladies) });
+                }}
+              />
+            </div>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-1">Ladies</label>
-            <ValidatedInput
-              type="number" min={0} max={total} disabled={disabled}
-              value={value.ladies}
-              onChange={(e) => {
-                const ladies = Math.max(0, Number(e.target.value) || 0);
-                onChange({ ladies, gents: Math.max(0, total - ladies) });
-              }}
-            />
-          </div>
+          <p className={`text-xs mt-1 ${addsUp ? "text-muted-foreground" : "text-destructive"}`}>
+            {addsUp
+              ? `✓ adds up to ${total}`
+              : `Gents + ladies must add up to ${total} (currently ${splitTotal})`}
+          </p>
         </div>
-      )}
-      {!value.custom_split && total > 0 && (
-        <p className="text-xs text-muted-foreground">
-          Split: {Math.ceil(total / 2)} gents / {Math.floor(total / 2)} ladies
-        </p>
+      ) : (
+        total > 0 && (
+          <p className="text-xs text-muted-foreground">Split: not specified</p>
+        )
       )}
       <div className="flex items-end pb-1">
         <label className="flex items-center gap-2 text-sm">

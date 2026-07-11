@@ -124,15 +124,12 @@ class QuoteTransitionView(APIView):
             who = quote.account.name if quote.account_id else (
                 quote.primary_contact.name if quote.primary_contact_id else 'Event')
             event_name = f"{who} — {quote.event_type}"
-            # The quote's money math (food + per-guest items) uses guest_count,
-            # but the event's uses gents+ladies. If the split doesn't add up to
-            # guest_count (no split at all, or stale data), the event would be
-            # priced off the wrong headcount — re-derive it the way the UI does
-            # (ceil/floor).
+            # guest_count is the number on both sides; the gents/ladies split
+            # only carries when the quote has a real one (it adds up) — never
+            # fabricate a split the customer didn't give us.
             gents, ladies = quote.gents, quote.ladies
             if gents + ladies != quote.guest_count:
-                gents = (quote.guest_count + 1) // 2
-                ladies = quote.guest_count // 2
+                gents = ladies = 0
             notes = quote.notes
             if quote.internal_notes:
                 notes = (f"{notes}\n\n" if notes else "") + \
@@ -140,6 +137,7 @@ class QuoteTransitionView(APIView):
             event = Event.objects.create(
                 name=event_name,
                 event_date=quote.event_date,
+                guest_count=quote.guest_count,
                 gents=gents,
                 ladies=ladies,
                 big_eaters=quote.big_eaters,
@@ -179,7 +177,7 @@ class QuoteTransitionView(APIView):
                 from events.models import EventDishComment
                 result = calculate_portions(
                     dish_ids=list(event.dishes.values_list('id', flat=True)),
-                    guests={'gents': event.gents, 'ladies': event.ladies},
+                    guests=event.portioning_guests(),
                     org=quote.organisation,
                 )
                 for p in result['portions']:

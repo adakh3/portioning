@@ -432,19 +432,15 @@ class LeadCreateQuoteView(APIView):
 
         user = request.user if request.user.is_authenticated else None
 
-        # Keep the gender split in sync with guest_count (ceil/floor, like the
-        # UI) — events compute food from gents+ladies, so a 0/0 split would
-        # convert to an event with £0 food.
-        guest_count = lead.guest_estimate or 1
+        # guest_count is the number; gents/ladies stays 0/0 (no split given) —
+        # never fabricate one from an estimate.
         quote = Quote.objects.create(
             lead=lead,
             primary_contact=contact,
             is_b2b=bool(company),
             account=company,
             event_date=lead.event_date or lead.created_at.date(),
-            guest_count=guest_count,
-            gents=(guest_count + 1) // 2,
-            ladies=guest_count // 2,
+            guest_count=lead.guest_estimate or 1,
             event_type=lead.event_type,
             meal_type=lead.meal_type,
             service_style=lead.service_style,
@@ -547,11 +543,17 @@ class LeadWonView(APIView):
                 account=account,
             )
 
+        # Carry the quote's gents/ladies split only when it's real (adds up);
+        # otherwise the event stays unsplit — no fabricated 50/50.
+        gents = ladies = 0
+        if quote and quote.gents + quote.ladies == quote.guest_count:
+            gents, ladies = quote.gents, quote.ladies
         event = Event.objects.create(
             name=event_name,
             event_date=lead.event_date or lead.created_at.date(),
-            gents=guest_count // 2,
-            ladies=guest_count - (guest_count // 2),
+            guest_count=guest_count,
+            gents=gents,
+            ladies=ladies,
             account=account,
             is_b2b=bool(account),
             primary_contact=primary_contact,
@@ -577,7 +579,7 @@ class LeadWonView(APIView):
             from events.models import EventDishComment
             result = calculate_portions(
                 dish_ids=list(event.dishes.values_list('id', flat=True)),
-                guests={'gents': event.gents, 'ladies': event.ladies},
+                guests=event.portioning_guests(),
                 org=lead.organisation,
             )
             for p in result['portions']:

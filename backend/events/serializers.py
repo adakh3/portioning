@@ -103,6 +103,19 @@ class EventSerializer(OrgScopedModelSerializer):
             raise serializers.ValidationError(
                 {'account': 'A business is required for a B2B event.'}
             )
+        # guest_count is the number; the gents/ladies split is optional but,
+        # when given, must add up to it. Older API clients that send only a
+        # split get guest_count derived from it (create only).
+        gents = attrs.get('gents', getattr(self.instance, 'gents', 0)) or 0
+        ladies = attrs.get('ladies', getattr(self.instance, 'ladies', 0)) or 0
+        if self.instance is None and 'guest_count' not in attrs:
+            attrs['guest_count'] = gents + ladies
+        guest_count = attrs.get('guest_count', getattr(self.instance, 'guest_count', 0))
+        if (gents or ladies) and gents + ladies != guest_count:
+            raise serializers.ValidationError(
+                {'gents': 'Gents + ladies must add up to the guest count '
+                          '(or leave the split empty).'}
+            )
         return attrs
 
     def get_assigned_to_name(self, obj):
@@ -115,7 +128,7 @@ class EventSerializer(OrgScopedModelSerializer):
 
     class Meta:
         model = Event
-        fields = ['id', 'name', 'date', 'gents', 'ladies',
+        fields = ['id', 'name', 'date', 'guest_count', 'gents', 'ladies',
                   'big_eaters', 'big_eaters_percentage',
                   'dishes', 'dish_ids', 'based_on_template', 'notes',
                   'kitchen_instructions', 'banquet_instructions', 'setup_instructions',
@@ -221,7 +234,7 @@ class EventSerializer(OrgScopedModelSerializer):
             from calculator.engine.calculator import calculate_portions
             result = calculate_portions(
                 dish_ids=list(instance.dishes.values_list('id', flat=True)),
-                guests={'gents': instance.gents, 'ladies': instance.ladies},
+                guests=instance.portioning_guests(),
                 org=instance.organisation,
             )
             for p in result['portions']:

@@ -19,7 +19,7 @@ test.describe("Booking timeline persists end-to-end", () => {
     // A customer is required to save.
     await page.getByLabel("Customer", { exact: false }).selectOption({ label: "Aisha Khan" });
 
-    await page.getByLabel("Total Guests").fill("30");
+    await page.getByLabel("Guest Count").fill("30");
 
     // The timeline field is a single 30-min-slot dropdown.
     await page.getByLabel("Setup Time").selectOption("14:30");

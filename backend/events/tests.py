@@ -130,7 +130,7 @@ class TestEventAssigneePersistence(TestCase):
         body = self._create(assigned_to=self.rep.id)
         res = self.client.patch(
             f"/api/events/{body['id']}/",
-            {"name": "Edited", "gents": 20, "ladies": 5,
+            {"name": "Edited", "guest_count": 25, "gents": 20, "ladies": 5,
              "dish_ids": self._dish_ids(), "assigned_to": self.rep.id},
             format="json",
         )
@@ -219,3 +219,75 @@ class TestDishAddOrder(TestCase):
         self.assertEqual(res.status_code, 201, res.content)
         got = self.client.get(f"/api/events/{res.json()['id']}/").json()
         self.assertEqual(got["dishes"], posted)  # add-order preserved, not re-sorted
+
+
+class TestEventGuestCount(TestCase):
+    """guest_count is the primary number; gents/ladies is an optional split."""
+
+    def setUp(self):
+        self.user = get_test_user()
+        self.org = self.user.organisation
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
+
+    def _post(self, **payload):
+        base = {"name": "G", "date": "2026-05-01"}
+        base.update(payload)
+        return self.client.post("/api/events/", base, format="json")
+
+    def test_create_with_count_only(self):
+        res = self._post(guest_count=150, price_per_head="40.00", tax_rate="0")
+        self.assertEqual(res.status_code, 201, res.content)
+        body = res.json()
+        self.assertEqual(body["guest_count"], 150)
+        self.assertEqual((body["gents"], body["ladies"]), (0, 0))
+        self.assertEqual(body["subtotal"], "6000.00")  # 150 × 40 — no split needed
+
+    def test_create_with_matching_split(self):
+        res = self._post(guest_count=150, gents=80, ladies=70)
+        self.assertEqual(res.status_code, 201, res.content)
+        body = res.json()
+        self.assertEqual((body["gents"], body["ladies"]), (80, 70))
+
+    def test_split_that_does_not_add_up_is_rejected(self):
+        res = self._post(guest_count=150, gents=80, ladies=60)
+        self.assertEqual(res.status_code, 400, res.content)
+        self.assertIn("gents", res.json())
+
+    def test_update_split_mismatch_is_rejected(self):
+        event_id = self._post(guest_count=150).json()["id"]
+        res = self.client.patch(f"/api/events/{event_id}/",
+                                {"gents": 80, "ladies": 60}, format="json")
+        self.assertEqual(res.status_code, 400, res.content)
+
+    def test_create_without_count_derives_it_from_the_split(self):
+        # Back-compat for API clients that still send only gents/ladies.
+        res = self._post(gents=60, ladies=40)
+        self.assertEqual(res.status_code, 201, res.content)
+        self.assertEqual(res.json()["guest_count"], 100)
+
+    def test_portioning_uses_the_split_when_present(self):
+        from events.models import Event
+        event = Event.objects.create(
+            organisation=self.org, name="E", event_date="2026-05-01",
+            guest_count=100, gents=60, ladies=40)
+        self.assertEqual(event.portioning_guests(), {"gents": 60, "ladies": 40})
+
+    def test_portioning_without_split_uses_the_org_default_profile(self):
+        from bookings.models import OrgSettings
+        from events.models import Event
+        event = Event.objects.create(
+            organisation=self.org, name="E", event_date="2026-05-01", guest_count=100)
+        self.assertEqual(event.portioning_guests(), {"gents": 100, "ladies": 0})
+        settings = OrgSettings.for_org(self.org)
+        settings.default_guest_profile = "ladies"
+        settings.save(update_fields=["default_guest_profile"])
+        self.assertEqual(event.portioning_guests(), {"gents": 0, "ladies": 100})
+
+    def test_stale_split_is_ignored_for_portioning(self):
+        # A split that doesn't add up (legacy data) is treated as no split.
+        from events.models import Event
+        event = Event.objects.create(
+            organisation=self.org, name="E", event_date="2026-05-01",
+            guest_count=100, gents=10, ladies=5)
+        self.assertEqual(event.portioning_guests(), {"gents": 100, "ladies": 0})

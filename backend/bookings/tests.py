@@ -239,7 +239,7 @@ class TestBookingLineItemCalculation(TestCase):
     def test_exactly_one_parent_constraint(self):
         from django.db.utils import IntegrityError
         from events.models import Event
-        event = Event.objects.create(organisation=self.org, name="E", event_date="2026-09-01", gents=25, ladies=25)
+        event = Event.objects.create(organisation=self.org, name="E", event_date="2026-09-01", guest_count=50, gents=25, ladies=25)
         with self.assertRaises(IntegrityError):
             BookingLineItem.objects.create(
                 quote=self.quote, event=event, category="fee", description="bad",
@@ -248,12 +248,12 @@ class TestBookingLineItemCalculation(TestCase):
 
     def test_event_line_item_uses_event_guest_count(self):
         from events.models import Event
-        event = Event.objects.create(organisation=self.org, name="E", event_date="2026-09-01", gents=20, ladies=30)
+        event = Event.objects.create(organisation=self.org, name="E", event_date="2026-09-01", guest_count=50, gents=20, ladies=30)
         item = BookingLineItem.objects.create(
             event=event, category="beverage", description="Soft drinks",
             quantity=Decimal("1"), unit="per_guest", unit_price=Decimal("2.00"),
         )
-        self.assertEqual(item.line_total, Decimal("100.00"))  # 2 * (20+30)
+        self.assertEqual(item.line_total, Decimal("100.00"))  # 2 * guest_count
 
     def test_quote_totals_recalculated(self):
         BookingLineItem.objects.create(
@@ -517,17 +517,16 @@ class TestLeadAPI(TestCase):
         }, format="json")
         self.assertEqual(res.status_code, 400)
 
-    def test_create_quote_from_lead_sets_gender_split(self):
-        # The quote's food total uses guest_count, but the event built on
-        # acceptance uses gents+ladies — leaving them 0 here made converted
-        # events show £0 food. Split the estimate like the UI does (ceil/floor).
+    def test_create_quote_from_lead_leaves_split_unspecified(self):
+        # guest_count is the number; the gents/ladies split is optional detail.
+        # A lead's estimate must not be fabricated into a 50/50 split.
         lead = make_lead(org=self.org, guest_estimate=101)
         res = self.client.post(f"/api/bookings/leads/{lead.id}/convert/", {}, format="json")
         self.assertEqual(res.status_code, 201, res.content)
         body = res.json()
         self.assertEqual(body["guest_count"], 101)
-        self.assertEqual(body["gents"], 51)
-        self.assertEqual(body["ladies"], 50)
+        self.assertEqual(body["gents"], 0)
+        self.assertEqual(body["ladies"], 0)
 
     def test_create_quote_from_lead(self):
         """Creating a quote does NOT change lead status."""
@@ -1027,9 +1026,9 @@ class TestQuoteAPI(TestCase):
         self.assertFalse(quote.event.is_taxable)
         self.assertEqual(quote.event.total, Decimal("3000.00"))
 
-    def test_accept_splits_guest_count_when_no_gender_split(self):
-        # Lead-created quotes have guest_count but no gents/ladies; the event
-        # computes food from gents+ladies, so it used to convert with £0 food.
+    def test_accept_unsplit_quote_stays_unsplit_with_right_total(self):
+        # A quote with no gents/ladies split converts to an event priced off
+        # guest_count, with the split left unspecified (no fabricated 50/50).
         quote = make_quote(org=self.org, account=self.account, primary_contact=self.contact,
                            guest_count=101, gents=0, ladies=0,
                            price_per_head=Decimal("30.00"), tax_rate=Decimal("0"))
@@ -1041,13 +1040,25 @@ class TestQuoteAPI(TestCase):
         self.assertEqual(res.status_code, 200, res.content)
         quote.refresh_from_db()
         event = quote.event
-        self.assertEqual(event.gents + event.ladies, 101)
+        self.assertEqual(event.guest_count, 101)
+        self.assertEqual((event.gents, event.ladies), (0, 0))
         self.assertEqual(event.total, quote.total)
 
-    def test_accept_uses_guest_count_when_split_disagrees(self):
-        # The quote's money math prices guest_count; a stale/partial gender
-        # split (possible via the raw API) must not carry a wrong headcount
-        # onto the event.
+    def test_accept_carries_a_real_split_to_the_event(self):
+        # A split that adds up to guest_count is real customer data — keep it.
+        quote = make_quote(org=self.org, account=self.account, primary_contact=self.contact,
+                           guest_count=100, gents=60, ladies=40,
+                           price_per_head=Decimal("30.00"), tax_rate=Decimal("0"))
+        res = self.client.post(f"/api/bookings/quotes/{quote.id}/transition/",
+                               {"status": "accepted"}, format="json")
+        self.assertEqual(res.status_code, 200, res.content)
+        quote.refresh_from_db()
+        self.assertEqual(quote.event.guest_count, 100)
+        self.assertEqual((quote.event.gents, quote.event.ladies), (60, 40))
+
+    def test_accept_drops_a_split_that_does_not_add_up(self):
+        # A stale/partial split (possible via the raw API) must not carry to
+        # the event; the event stays unsplit and priced off guest_count.
         quote = make_quote(org=self.org, account=self.account, primary_contact=self.contact,
                            guest_count=100, gents=10, ladies=5,
                            price_per_head=Decimal("30.00"), tax_rate=Decimal("0"))
@@ -1058,7 +1069,8 @@ class TestQuoteAPI(TestCase):
                                {"status": "accepted"}, format="json")
         self.assertEqual(res.status_code, 200, res.content)
         quote.refresh_from_db()
-        self.assertEqual(quote.event.gents + quote.event.ladies, 100)
+        self.assertEqual(quote.event.guest_count, 100)
+        self.assertEqual((quote.event.gents, quote.event.ladies), (0, 0))
         self.assertEqual(quote.event.total, quote.total)
 
     def test_accept_prefers_the_quotes_booking_date(self):

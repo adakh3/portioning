@@ -168,6 +168,7 @@ export default function EventDetailPage() {
   const [formSetupInstructions, setFormSetupInstructions] = useState("");
 
   // Guest form fields
+  const [formGuestCount, setFormGuestCount] = useState(0);
   const [formCustomSplit, setFormCustomSplit] = useState(false);
   const [formGents, setFormGents] = useState(0);
   const [formLadies, setFormLadies] = useState(0);
@@ -176,9 +177,10 @@ export default function EventDetailPage() {
   const [formFinalCountDue, setFormFinalCountDue] = useState("");
   const [formBigEaters, setFormBigEaters] = useState(false);
   const [formBigEatersPercent, setFormBigEatersPercent] = useState(0);
-  const totalGuests = formGents + formLadies;
-  // Adapter for the shared GuestCountField (canonical value = gents/ladies).
+  const totalGuests = formGuestCount;
+  // Adapter for the shared GuestCountField (canonical value = guest_count).
   const applyGuestPatch = (patch: Partial<GuestCountValue>) => {
+    if (patch.guest_count !== undefined) setFormGuestCount(patch.guest_count);
     if (patch.gents !== undefined) setFormGents(patch.gents);
     if (patch.ladies !== undefined) setFormLadies(patch.ladies);
     if (patch.custom_split !== undefined) setFormCustomSplit(patch.custom_split);
@@ -222,11 +224,11 @@ export default function EventDetailPage() {
     setFormKitchenInstructions(data.kitchen_instructions || "");
     setFormBanquetInstructions(data.banquet_instructions || "");
     setFormSetupInstructions(data.setup_instructions || "");
-    const total = data.gents + data.ladies;
+    setFormGuestCount(data.guest_count);
     setFormGents(data.gents);
     setFormLadies(data.ladies);
-    const is5050 = total === 0 || (data.gents === Math.ceil(total / 2) && data.ladies === Math.floor(total / 2));
-    setFormCustomSplit(!is5050);
+    // The split section opens only when a real split exists (it adds up).
+    setFormCustomSplit((data.gents > 0 || data.ladies > 0) && data.gents + data.ladies === data.guest_count);
     setFormGuaranteed(data.guaranteed_count);
     setFormFinalCount(data.final_count);
     setFormFinalCountDue(data.final_count_due || "");
@@ -279,6 +281,10 @@ export default function EventDetailPage() {
       setError("A business is required for a B2B event");
       return;
     }
+    if (formCustomSplit && formGents + formLadies !== formGuestCount) {
+      setError(`Gents + ladies must add up to the guest count (${formGuestCount})`);
+      return;
+    }
     setSaving(true);
     const customerName = orgContacts.find((c) => c.id === formContact)?.name
       || accounts.find((a) => a.id === formAccount)?.name || "Event";
@@ -300,8 +306,9 @@ export default function EventDetailPage() {
       kitchen_instructions: formKitchenInstructions,
       banquet_instructions: formBanquetInstructions,
       setup_instructions: formSetupInstructions,
-      gents: formGents,
-      ladies: formLadies,
+      guest_count: formGuestCount,
+      gents: formCustomSplit ? formGents : 0,
+      ladies: formCustomSplit ? formLadies : 0,
       guaranteed_count: formGuaranteed,
       final_count: formFinalCount,
       final_count_due: formFinalCountDue,
@@ -787,7 +794,7 @@ export default function EventDetailPage() {
             {editing ? (
               <div className="space-y-4">
                 <GuestCountField
-                  value={{ gents: formGents, ladies: formLadies, custom_split: formCustomSplit, big_eaters: formBigEaters, big_eaters_percentage: formBigEatersPercent }}
+                  value={{ guest_count: formGuestCount, gents: formGents, ladies: formLadies, custom_split: formCustomSplit, big_eaters: formBigEaters, big_eaters_percentage: formBigEatersPercent }}
                   onChange={applyGuestPatch}
                 />
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
@@ -848,9 +855,9 @@ export default function EventDetailPage() {
             ) : (
               <div className="space-y-4">
                 <dl className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  <InfoRow label="Total Guests" value={event!.gents + event!.ladies} />
-                  <InfoRow label="Gents" value={event!.gents} />
-                  <InfoRow label="Ladies" value={event!.ladies} />
+                  <InfoRow label="Guest Count" value={event!.guest_count} />
+                  {(event!.gents > 0 || event!.ladies > 0) && <InfoRow label="Gents" value={event!.gents} />}
+                  {(event!.gents > 0 || event!.ladies > 0) && <InfoRow label="Ladies" value={event!.ladies} />}
                   {event!.big_eaters && <InfoRow label="Big Eaters" value={`+${event!.big_eaters_percentage}%`} />}
                   {event!.guaranteed_count != null && <InfoRow label="Guaranteed Count" value={event!.guaranteed_count} />}
                   {event!.final_count != null && <InfoRow label="Final Count" value={event!.final_count} />}
@@ -866,7 +873,7 @@ export default function EventDetailPage() {
                       onSave={handleMenuSave}
                       pricePerHead={formPricePerHead}
                       onPricePerHeadChange={undefined}
-                      guestCount={event!.gents + event!.ladies}
+                      guestCount={event!.guest_count}
                       currencySymbol={settings.currency_symbol}
                       disabled={true}
                     />
@@ -922,7 +929,7 @@ export default function EventDetailPage() {
       {/* Pricing Section — shared BookingTotalsCard + engine (same as quotes) */}
       {(() => {
         const pph = editing ? parseFloat(formPricePerHead) || 0 : parseFloat(event?.price_per_head || "0");
-        const guests = editing ? totalGuests : ((event?.gents || 0) + (event?.ladies || 0));
+        const guests = editing ? totalGuests : (event?.guest_count || 0);
         const foodTotal = pph * guests;
         const meals = editing ? formAdditionalMeals : (event?.additional_meals || []);
         const mealsTotal = meals.reduce((sum, m) => sum + m.guest_count * (parseFloat(m.price_per_head || "0") || 0), 0);

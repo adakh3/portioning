@@ -109,6 +109,7 @@ export interface QuoteEditData {
   is_b2b: boolean;
   account: string;
   event_date: string;
+  guest_count: number;
   gents: number;
   ladies: number;
   big_eaters: boolean;
@@ -182,7 +183,7 @@ export function buildQuoteSavePayload(
     event_date: editData.event_date,
     gents: editData.gents,
     ladies: editData.ladies,
-    guest_count: editData.gents + editData.ladies,
+    guest_count: editData.guest_count,
     big_eaters: editData.big_eaters,
     big_eaters_percentage: editData.big_eaters_percentage,
     price_per_head: editData.price_per_head ? editData.price_per_head : null,
@@ -229,6 +230,7 @@ export interface EventSaveInput {
   kitchen_instructions: string;
   banquet_instructions: string;
   setup_instructions: string;
+  guest_count: number;
   gents: number;
   ladies: number;
   guaranteed_count: number | null;
@@ -266,6 +268,7 @@ export function buildEventSavePayload(v: EventSaveInput) {
     kitchen_instructions: v.kitchen_instructions,
     banquet_instructions: v.banquet_instructions,
     setup_instructions: v.setup_instructions,
+    guest_count: v.guest_count,
     gents: v.gents,
     ladies: v.ladies,
     guaranteed_count: v.guaranteed_count,
