@@ -24,6 +24,22 @@ def _copy_line_items_to_event(quote, event):
         )
 
 
+def _copy_additional_meals_to_event(quote, event):
+    """Copy a quote's additional meals (menus, prices, portions) onto its event."""
+    from events.models import BookingMeal, BookingMealDishComment
+    for meal in quote.additional_meals.all():
+        copy = BookingMeal.objects.create(
+            event=event, label=meal.label, guest_count=meal.guest_count,
+            price_per_head=meal.price_per_head, based_on_template=meal.based_on_template,
+            meal_time=meal.meal_time, notes=meal.notes,
+        )
+        copy.dishes.set(meal.dishes.all())
+        for dc in meal.dish_comments.all():
+            BookingMealDishComment.objects.create(
+                meal=copy, dish=dc.dish, comment=dc.comment, portion_grams=dc.portion_grams,
+            )
+
+
 class QuoteListCreateView(generics.ListCreateAPIView):
     serializer_class = QuoteSerializer
 
@@ -108,11 +124,23 @@ class QuoteTransitionView(APIView):
             who = quote.account.name if quote.account_id else (
                 quote.primary_contact.name if quote.primary_contact_id else 'Event')
             event_name = f"{who} — {quote.event_type}"
+            # The quote's food total uses guest_count, but the event's uses
+            # gents+ladies — a quote with no gender split (e.g. created from a
+            # lead) would convert to an event with £0 food. Split the count the
+            # way the UI does (ceil/floor).
+            gents, ladies = quote.gents, quote.ladies
+            if not (gents or ladies) and quote.guest_count:
+                gents = (quote.guest_count + 1) // 2
+                ladies = quote.guest_count // 2
+            notes = quote.notes
+            if quote.internal_notes:
+                notes = (f"{notes}\n\n" if notes else "") + \
+                    f"Internal notes (from quote):\n{quote.internal_notes}"
             event = Event.objects.create(
                 name=event_name,
                 event_date=quote.event_date,
-                gents=quote.gents,
-                ladies=quote.ladies,
+                gents=gents,
+                ladies=ladies,
                 big_eaters=quote.big_eaters,
                 big_eaters_percentage=quote.big_eaters_percentage,
                 account=quote.account,
@@ -126,7 +154,12 @@ class QuoteTransitionView(APIView):
                 booking_date=quote.accepted_at.date() if quote.accepted_at else None,
                 price_per_head=quote.price_per_head,
                 tax_rate=quote.tax_rate or 0,
-                is_taxable=bool(quote.tax_rate and quote.tax_rate > 0),
+                is_taxable=quote.is_taxable and bool(quote.tax_rate and quote.tax_rate > 0),
+                setup_time=quote.setup_time,
+                guest_arrival_time=quote.guest_arrival_time,
+                meal_time=quote.meal_time,
+                end_time=quote.end_time,
+                notes=notes,
                 status='confirmed',
                 product=quote.product,
                 based_on_template=quote.based_on_template,
@@ -155,8 +188,10 @@ class QuoteTransitionView(APIView):
                         portion_grams=p['grams_per_person'],
                     )
 
-            # Carry the add-on line items across to the event (previously dropped).
+            # Carry the add-on line items and additional meals across to the
+            # event (previously dropped — the event total lost the meals).
             _copy_line_items_to_event(quote, event)
+            _copy_additional_meals_to_event(quote, event)
 
             # Recompute via the shared engine so the event total matches the
             # quote even when there are no add-on items (food-only quotes).

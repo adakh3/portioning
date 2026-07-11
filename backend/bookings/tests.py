@@ -517,6 +517,18 @@ class TestLeadAPI(TestCase):
         }, format="json")
         self.assertEqual(res.status_code, 400)
 
+    def test_create_quote_from_lead_sets_gender_split(self):
+        # The quote's food total uses guest_count, but the event built on
+        # acceptance uses gents+ladies — leaving them 0 here made converted
+        # events show £0 food. Split the estimate like the UI does (ceil/floor).
+        lead = make_lead(org=self.org, guest_estimate=101)
+        res = self.client.post(f"/api/bookings/leads/{lead.id}/convert/", {}, format="json")
+        self.assertEqual(res.status_code, 201, res.content)
+        body = res.json()
+        self.assertEqual(body["guest_count"], 101)
+        self.assertEqual(body["gents"], 51)
+        self.assertEqual(body["ladies"], 50)
+
     def test_create_quote_from_lead(self):
         """Creating a quote does NOT change lead status."""
         account = make_account(org=self.org)
@@ -935,6 +947,102 @@ class TestQuoteAPI(TestCase):
         quote.refresh_from_db()
         self.assertEqual(quote.event.total, quote.total)
         self.assertEqual(quote.event.total, Decimal("6000.00"))
+
+    def test_accept_carries_additional_meals_to_event(self):
+        # Accepting a quote used to drop its additional meals, so the event's
+        # food total (and money totals) silently lost those meals.
+        from dishes.models import Dish, DishCategory
+        from events.models import BookingMeal, BookingMealDishComment
+        cat = DishCategory.objects.create(
+            name="mains", display_name="Mains", organisation=self.org)
+        dish = Dish.objects.create(
+            organisation=self.org, name="Biryani", category=cat, default_portion_grams=250)
+        quote = make_quote(org=self.org, account=self.account, primary_contact=self.contact,
+                           guest_count=100, price_per_head=Decimal("30.00"), tax_rate=Decimal("0.20"))
+        meal = BookingMeal.objects.create(
+            quote=quote, label="Welcome drinks", guest_count=100,
+            price_per_head=Decimal("5.00"), notes="Serve on arrival",
+        )
+        meal.dishes.add(dish)
+        BookingMealDishComment.objects.create(
+            meal=meal, dish=dish, comment="extra ice", portion_grams=150)
+        quote.recalculate_totals()
+        quote.refresh_from_db()
+        # food 3000 + meal 500 = 3500, tax 700 → 4200
+        self.assertEqual(quote.total, Decimal("4200.00"))
+
+        res = self.client.post(f"/api/bookings/quotes/{quote.id}/transition/",
+                               {"status": "accepted"}, format="json")
+        self.assertEqual(res.status_code, 200, res.content)
+        quote.refresh_from_db()
+        event = quote.event
+        meals = list(event.additional_meals.all())
+        self.assertEqual(len(meals), 1)
+        copy = meals[0]
+        self.assertEqual(copy.label, "Welcome drinks")
+        self.assertEqual(copy.guest_count, 100)
+        self.assertEqual(copy.price_per_head, Decimal("5.00"))
+        self.assertEqual(copy.notes, "Serve on arrival")
+        self.assertEqual(list(copy.dishes.all()), [dish])
+        dc = copy.dish_comments.get()
+        self.assertEqual((dc.dish_id, dc.comment, dc.portion_grams), (dish.id, "extra ice", 150))
+        # The quote keeps its own copy, and the event total matches the quote.
+        self.assertEqual(quote.additional_meals.count(), 1)
+        self.assertEqual(event.total, quote.total)
+
+    def test_accept_carries_timeline_and_notes_to_event(self):
+        from datetime import datetime, timezone as dt_tz
+        times = {
+            "setup_time": datetime(2026, 6, 15, 14, 0, tzinfo=dt_tz.utc),
+            "guest_arrival_time": datetime(2026, 6, 15, 18, 0, tzinfo=dt_tz.utc),
+            "meal_time": datetime(2026, 6, 15, 19, 30, tzinfo=dt_tz.utc),
+            "end_time": datetime(2026, 6, 15, 23, 0, tzinfo=dt_tz.utc),
+        }
+        quote = make_quote(org=self.org, account=self.account, primary_contact=self.contact,
+                           notes="No nuts please", internal_notes="Repeat client — priority",
+                           **times)
+        res = self.client.post(f"/api/bookings/quotes/{quote.id}/transition/",
+                               {"status": "accepted"}, format="json")
+        self.assertEqual(res.status_code, 200, res.content)
+        quote.refresh_from_db()
+        event = quote.event
+        for field, value in times.items():
+            self.assertEqual(getattr(event, field), value, field)
+        self.assertIn("No nuts please", event.notes)
+        self.assertIn("Repeat client — priority", event.notes)
+
+    def test_accept_preserves_non_taxable_quote(self):
+        # A quote flagged non-taxable (its tax_rate field still holding the org
+        # default) used to convert into a *taxable* event, inflating the total.
+        quote = make_quote(org=self.org, account=self.account, primary_contact=self.contact,
+                           guest_count=100, price_per_head=Decimal("30.00"),
+                           tax_rate=Decimal("0.20"), is_taxable=False)
+        quote.recalculate_totals()
+        quote.refresh_from_db()
+        self.assertEqual(quote.total, Decimal("3000.00"))  # no tax
+        res = self.client.post(f"/api/bookings/quotes/{quote.id}/transition/",
+                               {"status": "accepted"}, format="json")
+        self.assertEqual(res.status_code, 200, res.content)
+        quote.refresh_from_db()
+        self.assertFalse(quote.event.is_taxable)
+        self.assertEqual(quote.event.total, Decimal("3000.00"))
+
+    def test_accept_splits_guest_count_when_no_gender_split(self):
+        # Lead-created quotes have guest_count but no gents/ladies; the event
+        # computes food from gents+ladies, so it used to convert with £0 food.
+        quote = make_quote(org=self.org, account=self.account, primary_contact=self.contact,
+                           guest_count=101, gents=0, ladies=0,
+                           price_per_head=Decimal("30.00"), tax_rate=Decimal("0"))
+        quote.recalculate_totals()
+        quote.refresh_from_db()
+        self.assertEqual(quote.total, Decimal("3030.00"))
+        res = self.client.post(f"/api/bookings/quotes/{quote.id}/transition/",
+                               {"status": "accepted"}, format="json")
+        self.assertEqual(res.status_code, 200, res.content)
+        quote.refresh_from_db()
+        event = quote.event
+        self.assertEqual(event.gents + event.ladies, 101)
+        self.assertEqual(event.total, quote.total)
 
     def test_quote_list_avoids_n_plus_one(self):
         # The list serializes product_name + created_by_name per row; without

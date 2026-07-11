@@ -432,13 +432,19 @@ class LeadCreateQuoteView(APIView):
 
         user = request.user if request.user.is_authenticated else None
 
+        # Keep the gender split in sync with guest_count (ceil/floor, like the
+        # UI) — events compute food from gents+ladies, so a 0/0 split would
+        # convert to an event with £0 food.
+        guest_count = lead.guest_estimate or 1
         quote = Quote.objects.create(
             lead=lead,
             primary_contact=contact,
             is_b2b=bool(company),
             account=company,
             event_date=lead.event_date or lead.created_at.date(),
-            guest_count=lead.guest_estimate or 1,
+            guest_count=guest_count,
+            gents=(guest_count + 1) // 2,
+            ladies=guest_count // 2,
             event_type=lead.event_type,
             meal_type=lead.meal_type,
             service_style=lead.service_style,
