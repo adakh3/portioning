@@ -124,12 +124,13 @@ class QuoteTransitionView(APIView):
             who = quote.account.name if quote.account_id else (
                 quote.primary_contact.name if quote.primary_contact_id else 'Event')
             event_name = f"{who} — {quote.event_type}"
-            # The quote's food total uses guest_count, but the event's uses
-            # gents+ladies — a quote with no gender split (e.g. created from a
-            # lead) would convert to an event with £0 food. Split the count the
-            # way the UI does (ceil/floor).
+            # The quote's money math (food + per-guest items) uses guest_count,
+            # but the event's uses gents+ladies. If the split doesn't add up to
+            # guest_count (no split at all, or stale data), the event would be
+            # priced off the wrong headcount — re-derive it the way the UI does
+            # (ceil/floor).
             gents, ladies = quote.gents, quote.ladies
-            if not (gents or ladies) and quote.guest_count:
+            if gents + ladies != quote.guest_count:
                 gents = (quote.guest_count + 1) // 2
                 ladies = quote.guest_count // 2
             notes = quote.notes
@@ -151,7 +152,7 @@ class QuoteTransitionView(APIView):
                 event_type=quote.event_type,
                 meal_type=quote.meal_type,
                 service_style=quote.service_style,
-                booking_date=quote.accepted_at.date() if quote.accepted_at else None,
+                booking_date=quote.booking_date or (quote.accepted_at.date() if quote.accepted_at else None),
                 price_per_head=quote.price_per_head,
                 tax_rate=quote.tax_rate or 0,
                 is_taxable=quote.is_taxable and bool(quote.tax_rate and quote.tax_rate > 0),

@@ -1044,6 +1044,35 @@ class TestQuoteAPI(TestCase):
         self.assertEqual(event.gents + event.ladies, 101)
         self.assertEqual(event.total, quote.total)
 
+    def test_accept_uses_guest_count_when_split_disagrees(self):
+        # The quote's money math prices guest_count; a stale/partial gender
+        # split (possible via the raw API) must not carry a wrong headcount
+        # onto the event.
+        quote = make_quote(org=self.org, account=self.account, primary_contact=self.contact,
+                           guest_count=100, gents=10, ladies=5,
+                           price_per_head=Decimal("30.00"), tax_rate=Decimal("0"))
+        quote.recalculate_totals()
+        quote.refresh_from_db()
+        self.assertEqual(quote.total, Decimal("3000.00"))
+        res = self.client.post(f"/api/bookings/quotes/{quote.id}/transition/",
+                               {"status": "accepted"}, format="json")
+        self.assertEqual(res.status_code, 200, res.content)
+        quote.refresh_from_db()
+        self.assertEqual(quote.event.gents + quote.event.ladies, 100)
+        self.assertEqual(quote.event.total, quote.total)
+
+    def test_accept_prefers_the_quotes_booking_date(self):
+        # A booking date typed on the quote used to be overwritten by the
+        # acceptance date on conversion.
+        from datetime import date
+        quote = make_quote(org=self.org, account=self.account, primary_contact=self.contact,
+                           booking_date=date(2026, 5, 1))
+        res = self.client.post(f"/api/bookings/quotes/{quote.id}/transition/",
+                               {"status": "accepted"}, format="json")
+        self.assertEqual(res.status_code, 200, res.content)
+        quote.refresh_from_db()
+        self.assertEqual(quote.event.booking_date, date(2026, 5, 1))
+
     def test_quote_list_avoids_n_plus_one(self):
         # The list serializes product_name + created_by_name per row; without
         # select_related on those FKs the query count grew with the row count.
