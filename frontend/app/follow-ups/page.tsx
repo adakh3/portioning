@@ -3,8 +3,9 @@
 import { useState } from "react";
 import Link from "next/link";
 import { api, Reminder, FollowUpDraft } from "@/lib/api";
-import { useReminders, useDateFormat, useFollowUpDrafts } from "@/lib/hooks";
+import { useReminders, useDateFormat, useFollowUpDrafts, useUsers } from "@/lib/hooks";
 import { revalidate } from "@/lib/hooks";
+import { useAuth } from "@/lib/auth";
 import { formatDateTime as sharedFormatDateTime } from "@/lib/dateFormat";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -35,9 +36,11 @@ function formatDue(dateStr: string, dateFormat: string) {
 function ReminderCard({
   reminder,
   onAction,
+  showAssignee,
 }: {
   reminder: Reminder;
   onAction: () => void;
+  showAssignee?: boolean;
 }) {
   const dateFormat = useDateFormat();
   const [acting, setActing] = useState(false);
@@ -89,6 +92,9 @@ function ReminderCard({
           )}
           <p className="text-xs text-muted-foreground mt-1">
             Due: {formatDue(reminder.due_at, dateFormat)}
+            {showAssignee && reminder.user_name && (
+              <span> · {reminder.user_name}</span>
+            )}
           </p>
         </div>
         <div className="flex items-center gap-1 shrink-0">
@@ -142,7 +148,19 @@ function ReminderCard({
 }
 
 function RemindersTab() {
-  const { data: reminders = [], mutate } = useReminders({ status: "pending" });
+  const { user: currentUser } = useAuth();
+  // Salespeople only ever see their own follow-ups; admins/owners can view the
+  // whole team and filter by person.
+  const canViewTeam = !!currentUser && currentUser.role !== "salesperson";
+  const [personFilter, setPersonFilter] = useState("");
+
+  const { data: users = [] } = useUsers();
+  const { data: reminders = [], mutate } = useReminders({
+    status: "pending",
+    user: canViewTeam ? personFilter || undefined : undefined,
+  });
+
+  const viewingTeam = canViewTeam && personFilter === "";
 
   const now = new Date();
   const todayEnd = new Date(now);
@@ -168,6 +186,25 @@ function RemindersTab() {
 
   return (
     <div className="space-y-6">
+      {canViewTeam && (
+        <div className="flex justify-end">
+          <select
+            value={personFilter}
+            onChange={(e) => setPersonFilter(e.target.value)}
+            className="h-9 rounded-md border border-border bg-background px-3 text-sm"
+            aria-label="Filter follow-ups by person"
+          >
+            <option value="">All (team)</option>
+            <option value="me">Me</option>
+            {users.map((u) => (
+              <option key={u.id} value={String(u.id)}>
+                {`${u.first_name} ${u.last_name}`.trim() || u.email}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
       {reminders.length === 0 && (
         <Card>
           <CardContent className="p-8 text-center text-muted-foreground">
@@ -185,7 +222,7 @@ function RemindersTab() {
           <div className="space-y-2">
             {overdue.map((r) => (
               <div key={r.id} className="relative">
-                <ReminderCard reminder={r} onAction={handleRefresh} />
+                <ReminderCard reminder={r} onAction={handleRefresh} showAssignee={viewingTeam} />
               </div>
             ))}
           </div>
@@ -201,7 +238,7 @@ function RemindersTab() {
           <div className="space-y-2">
             {dueToday.map((r) => (
               <div key={r.id} className="relative">
-                <ReminderCard reminder={r} onAction={handleRefresh} />
+                <ReminderCard reminder={r} onAction={handleRefresh} showAssignee={viewingTeam} />
               </div>
             ))}
           </div>
@@ -217,7 +254,7 @@ function RemindersTab() {
           <div className="space-y-2">
             {upcoming.map((r) => (
               <div key={r.id} className="relative">
-                <ReminderCard reminder={r} onAction={handleRefresh} />
+                <ReminderCard reminder={r} onAction={handleRefresh} showAssignee={viewingTeam} />
               </div>
             ))}
           </div>
@@ -233,7 +270,7 @@ function RemindersTab() {
           <div className="space-y-2">
             {later.map((r) => (
               <div key={r.id} className="relative">
-                <ReminderCard reminder={r} onAction={handleRefresh} />
+                <ReminderCard reminder={r} onAction={handleRefresh} showAssignee={viewingTeam} />
               </div>
             ))}
           </div>

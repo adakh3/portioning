@@ -1546,12 +1546,13 @@ export const api = {
     fetchApi<SiteSettingsData>("/bookings/settings/", { method: "PATCH", body: JSON.stringify(data) }),
 
   // Reminders
-  getReminders: (params?: { status?: string; due_before?: string; due_after?: string; lead?: number }) => {
+  getReminders: (params?: { status?: string; due_before?: string; due_after?: string; lead?: number; user?: string }) => {
     const searchParams = new URLSearchParams({ page_size: "all" });
     if (params?.status) searchParams.set("status", params.status);
     if (params?.due_before) searchParams.set("due_before", params.due_before);
     if (params?.due_after) searchParams.set("due_after", params.due_after);
     if (params?.lead) searchParams.set("lead", params.lead.toString());
+    if (params?.user) searchParams.set("user", params.user);
     return fetchList<Reminder>(`/bookings/reminders/?${searchParams.toString()}`);
   },
   getReminderCounts: () => fetchApi<ReminderCounts>("/bookings/reminders/counts/"),
