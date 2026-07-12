@@ -1,20 +1,23 @@
 """AI drafting for lead follow-ups.
 
-Given a stale lead, ask Claude to either draft a concise WhatsApp follow-up or
+Given a stale lead, ask an LLM to either draft a concise WhatsApp follow-up or
 decide the lead should be left alone. The model never sends anything — it only
 produces a draft a human reviews.
+
+Which model (and supplier) does the drafting is configured by the
+LLM_FOLLOWUP_DRAFTER setting — see portioning/llm.py. Drafting one short
+message is a cheap-and-fast-tier job on any provider.
 """
-import json
 import logging
 
 from django.contrib.contenttypes.models import ContentType
 
 from bookings.models import ActivityLog, WhatsAppMessage
+from portioning import llm
 
 logger = logging.getLogger(__name__)
 
-# Cheap, fast model — drafting one short message is its sweet spot.
-DRAFT_MODEL = 'claude-haiku-4-5'
+MODEL_SETTING = 'LLM_FOLLOWUP_DRAFTER'
 
 SYSTEM_PROMPT = (
     "You are a sales assistant for a catering company. Your job is to draft a "
@@ -82,45 +85,23 @@ def _build_context(lead):
     return "\n".join(lines)
 
 
-def draft_followup(lead, api_key):
-    """Ask Claude to draft a follow-up for a lead.
+def draft_followup(lead):
+    """Ask the configured LLM to draft a follow-up for a lead.
 
     Returns a dict {should_follow_up, message, reasoning, model_used}, or None
     if the model declined or the call failed.
     """
-    import anthropic
-
-    client = anthropic.Anthropic(api_key=api_key)
     context = _build_context(lead)
-
     try:
-        response = client.messages.create(
-            model=DRAFT_MODEL,
-            max_tokens=1024,
-            system=SYSTEM_PROMPT,
-            messages=[{
-                "role": "user",
-                "content": (
-                    "Draft a WhatsApp follow-up for this lead, or decide to skip it.\n\n"
-                    + context
-                ),
-            }],
-            output_config={"format": {"type": "json_schema", "schema": DRAFT_SCHEMA}},
+        data, model_used = llm.complete_structured(
+            MODEL_SETTING,
+            SYSTEM_PROMPT,
+            "Draft a WhatsApp follow-up for this lead, or decide to skip it.\n\n" + context,
+            DRAFT_SCHEMA,
         )
     except Exception as exc:
         logger.exception("Follow-up draft failed for lead %s: %s", lead.pk, exc)
         return None
 
-    if response.stop_reason == "refusal":
-        logger.warning("Follow-up draft refused for lead %s", lead.pk)
-        return None
-
-    text = next((b.text for b in response.content if b.type == "text"), "")
-    try:
-        data = json.loads(text)
-    except (ValueError, TypeError):
-        logger.warning("Follow-up draft returned unparseable output for lead %s", lead.pk)
-        return None
-
-    data["model_used"] = DRAFT_MODEL
+    data["model_used"] = model_used
     return data

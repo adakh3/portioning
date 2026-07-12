@@ -9,24 +9,30 @@ from scratch — while still reviewing every message before it's sent.
 - A scheduled agent (`manage.py run_followup_agent`, run by cron) finds **stale**
   leads (not won/lost, untouched for `followup_stale_hours`, has a phone number,
   no existing pending draft).
-- For each, Claude (Haiku 4.5) reads the lead's details + recent activity + recent
-  WhatsApp thread and either **drafts** a short follow-up or **skips** the lead.
+- For each, an LLM reads the lead's details + recent activity + recent WhatsApp
+  thread and either **drafts** a short follow-up or **skips** the lead. The model
+  is supplier-agnostic: `LLM_FOLLOWUP_DRAFTER` env var as `provider:model`
+  (default `openai:gpt-5.4-nano`; e.g. `anthropic:claude-haiku-4-5` to switch) —
+  see `backend/portioning/llm.py`.
 - Drafts land in a review queue as `pending`. **Nothing is auto-sent.**
 - A human approves (optionally editing the text) → the message goes out via the
   existing WhatsApp/Twilio path; or dismisses it.
 
 ### Platform vs. org configuration
-- **Anthropic API key** and **Twilio account** are platform-level (env vars) — not
-  per-org.
+- **LLM provider keys** (`OPENAI_API_KEY` / `ANTHROPIC_API_KEY` — only the provider
+  in use needs one), the **drafting model** (`LLM_FOLLOWUP_DRAFTER`), and the
+  **Twilio account** are platform-level (env vars) — not per-org.
 - Each org only: toggles **AI Follow-ups** on/off, sets the **stale threshold** and
   **max drafts per lead**, and (for delivery) has a WhatsApp sender number.
 - **Drafting is decoupled from Twilio**: drafts generate with just the org opt-in +
-  platform Anthropic key. Sending requires WhatsApp configured; if it isn't, approve
+  the configured provider's key. Sending requires WhatsApp configured; if it isn't, approve
   fails with a clear message and the draft stays pending.
 
 ## Acceptance criteria
-- [ ] With AI Follow-ups enabled + a platform Anthropic key, running the agent
+- [ ] With AI Follow-ups enabled + the configured provider's key, running the agent
       creates a pending draft for a stale lead.
+- [ ] Switching `LLM_FOLLOWUP_DRAFTER` between `openai:*` and `anthropic:*` changes
+      which supplier drafts (visible in the draft's `model_used`) with no code change.
 - [ ] The agent skips leads it judges shouldn't be contacted (no draft created).
 - [ ] The agent never exceeds `followup_max_drafts_per_lead` for one lead, and never
       stacks a second pending draft on a lead that already has one.
@@ -44,7 +50,9 @@ from scratch — while still reviewing every message before it's sent.
 
 ## Manual test cases
 
-> Setup: in `backend/.env` set `ANTHROPIC_API_KEY` (real key). For send tests also set
+> Setup: in `backend/.env` set the key for the provider named in `LLM_FOLLOWUP_DRAFTER`
+> (default `openai:gpt-5.4-nano` → `OPENAI_API_KEY`; set `LLM_FOLLOWUP_DRAFTER=anthropic:claude-haiku-4-5`
+> + `ANTHROPIC_API_KEY` to test the Claude path). For send tests also set
 > `TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN` (Twilio WhatsApp Sandbox is fine) and, in
 > Settings → Integrations, an org WhatsApp number. Enable **AI Follow-ups** in Settings.
 
@@ -56,7 +64,7 @@ from scratch — while still reviewing every message before it's sent.
    draft, without writing or calling Claude.
 3. Run `python manage.py run_followup_agent`.
 **Expected:** A pending draft is created. Its text references the lead by name; the
-reasoning is populated; `model_used` is `claude-haiku-4-5`.
+reasoning is populated; `model_used` records the configured `provider:model`.
 
 ### TC2 — Review on the lead page
 **Steps:**
@@ -84,7 +92,7 @@ reasoning is populated; `model_used` is `claude-haiku-4-5`.
 
 ### TC6 — Drafting without Twilio, and approve failure
 **Steps:**
-1. Unset the Twilio env vars (keep the Anthropic key). Run the agent on a stale lead.
+1. Unset the Twilio env vars (keep the LLM provider key). Run the agent on a stale lead.
 2. Try to **Approve & Send** the resulting draft.
 **Expected:** The draft is still created (drafting is decoupled). Approve returns a
 clear "WhatsApp is not configured" error and the draft stays pending.

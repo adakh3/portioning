@@ -447,7 +447,8 @@ class OrgSettingsAdmin(admin.ModelAdmin):
         ('AI follow-ups', {
             'fields': ('ai_followups_enabled', 'followup_stale_hours', 'followup_max_drafts_per_lead', 'ai_followups_configured'),
             'description': (
-                'Uses the platform Anthropic key (ANTHROPIC_API_KEY env var). '
+                'Model set platform-wide by the LLM_FOLLOWUP_DRAFTER env var '
+                '(provider:model) plus that provider\'s API key. '
                 'Requires WhatsApp configured above to deliver approved drafts.'
             ),
         }),

@@ -7,7 +7,6 @@ to approve — nothing is sent.
 import logging
 from datetime import timedelta
 
-from django.conf import settings as django_settings
 from django.utils import timezone
 
 from bookings.activity import log_activity
@@ -34,7 +33,6 @@ def run_for_org(org, dry_run=False):
     if not settings.ai_followups_configured:
         return {'org': org.pk, 'skipped': 'not configured', 'created': 0}
 
-    api_key = django_settings.ANTHROPIC_API_KEY
     created = skipped = 0
 
     for lead in find_stale_leads(org, settings).distinct():
@@ -47,7 +45,7 @@ def run_for_org(org, dry_run=False):
             created += 1
             continue
 
-        result = draft_followup(lead, api_key)
+        result = draft_followup(lead)
         if not result or not result.get('should_follow_up'):
             skipped += 1
             continue

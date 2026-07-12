@@ -13,13 +13,14 @@ from bookings.tests import _authenticated_client
 from tests.base import get_test_user
 from users.models import Organisation, User
 
-# Twilio account + Anthropic key are platform-level (env), not per-org. Tests
+# Twilio account + LLM config are platform-level (env), not per-org. Tests
 # that need a "configured" org set the org's WhatsApp number here and supply the
 # platform credentials via @platform_creds.
 platform_creds = override_settings(
     TWILIO_ACCOUNT_SID='AC123',
     TWILIO_AUTH_TOKEN='twilio-secret',
-    ANTHROPIC_API_KEY='sk-ant-test',
+    LLM_FOLLOWUP_DRAFTER='openai:gpt-test',
+    OPENAI_API_KEY='sk-openai-test',
 )
 
 
@@ -280,13 +281,23 @@ class OrgSettingsConfiguredTests(TestCase):
         s.save()
         self.assertTrue(OrgSettings.for_org(org).ai_followups_configured)
 
-    @override_settings(ANTHROPIC_API_KEY='')
-    def test_not_configured_without_anthropic_key(self):
+    @override_settings(LLM_FOLLOWUP_DRAFTER='openai:gpt-test', OPENAI_API_KEY='')
+    def test_not_configured_without_provider_key(self):
         org = get_test_user().organisation
-        _configure_ai(org)  # opted in, but no platform key
+        _configure_ai(org)  # opted in, but no key for the configured provider
         self.assertFalse(OrgSettings.for_org(org).ai_followups_configured)
 
-    @override_settings(TWILIO_ACCOUNT_SID='', TWILIO_AUTH_TOKEN='', ANTHROPIC_API_KEY='sk-ant-test')
+    @override_settings(LLM_FOLLOWUP_DRAFTER='anthropic:claude-test',
+                       ANTHROPIC_API_KEY='sk-ant-test', OPENAI_API_KEY='')
+    def test_configured_checks_the_selected_providers_key(self):
+        # Only the provider named in LLM_FOLLOWUP_DRAFTER needs a key —
+        # the other provider's key can be absent.
+        org = get_test_user().organisation
+        _configure_ai(org)
+        self.assertTrue(OrgSettings.for_org(org).ai_followups_configured)
+
+    @override_settings(TWILIO_ACCOUNT_SID='', TWILIO_AUTH_TOKEN='',
+                       LLM_FOLLOWUP_DRAFTER='openai:gpt-test', OPENAI_API_KEY='sk-openai-test')
     def test_drafting_decoupled_from_twilio(self):
         # Twilio absent, but drafting is still allowed — delivery is a separate
         # concern handled at approve-time.
