@@ -30,7 +30,8 @@ test.describe("Follow-ups team visibility", () => {
     const personFilter = page.getByLabel("Filter follow-ups by person");
     await expect(personFilter).toBeVisible();
     await expect(page.getByText(note)).toBeVisible();
-    await expect(page.getByText("· Demo Rep").first()).toBeVisible();
+    // The assignee renders as an initials avatar (titled with the name) + name.
+    await expect(page.locator("span[title='Demo Rep']").first()).toBeVisible();
 
     // Narrowing to the rep keeps it; narrowing to "Me" (the owner) hides it.
     await personFilter.selectOption({ label: "Demo Rep" });

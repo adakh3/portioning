@@ -39,8 +39,9 @@ describe("FollowUpsPage", () => {
   it("shows a team view + person filter for an admin", () => {
     mockUser = { id: 1, role: "admin" };
     render(<FollowUpsPage />);
-    // Team view shows the assignee on each card (the "·" separator is unique to it).
-    expect(screen.getByText(/· Rep A/)).toBeTruthy();
+    // Team view shows the assignee on each card: initials avatar (titled with
+    // the name) + name. getByTitle avoids matching the filter's <option>s.
+    expect(screen.getByTitle("Rep A")).toBeTruthy();
     const select = screen.getByLabelText("Filter follow-ups by person") as HTMLSelectElement;
     expect(select).toBeTruthy();
   });
