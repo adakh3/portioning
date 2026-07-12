@@ -163,7 +163,7 @@ export default function KitchenEventDetailPage() {
     (r) => !r.pool || !poolOrder.includes(r.pool)
   );
 
-  const totalGuests = event.gents + event.ladies;
+  const totalGuests = event.guest_count;
 
   return (
     <div className="space-y-6">
@@ -182,7 +182,7 @@ export default function KitchenEventDetailPage() {
           </div>
           <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground">
             <span>{formatDate(event.date, dateFormat)}</span>
-            <span>{totalGuests} guests ({event.gents}G / {event.ladies}L)</span>
+            <span>{totalGuests} guests{(event.gents > 0 || event.ladies > 0) ? ` (${event.gents}G / ${event.ladies}L)` : ""}</span>
             {event.venue_name && <span>{event.venue_name}</span>}
             {event.account_name && <span>{event.account_name}</span>}
           </div>

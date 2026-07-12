@@ -31,6 +31,7 @@ class OrgSettingsSerializer(serializers.ModelSerializer):
             'time_format', 'time_format_choices', 'timezone',
             'tax_label', 'default_tax_rate',
             'default_price_per_head', 'target_food_cost_percentage', 'price_rounding_step',
+            'default_guest_profile',
             'quotation_terms',
             # Commission & targets (model/rate are per-plan now; choices kept for the plan form)
             'commission_model_choices',

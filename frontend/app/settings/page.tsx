@@ -43,6 +43,7 @@ export default function SettingsPage() {
     tax_label: "",
     default_tax_rate: "",
     default_price_per_head: "",
+    default_guest_profile: "gents",
     target_food_cost_percentage: "",
     price_rounding_step: "50",
     quotation_terms: "",
@@ -68,6 +69,7 @@ export default function SettingsPage() {
         tax_label: settings.tax_label || "",
         default_tax_rate: settings.default_tax_rate || "",
         default_price_per_head: settings.default_price_per_head,
+        default_guest_profile: settings.default_guest_profile || "gents",
         target_food_cost_percentage: settings.target_food_cost_percentage,
         price_rounding_step: settings.price_rounding_step || "50",
         quotation_terms: settings.quotation_terms || "",
@@ -305,6 +307,20 @@ export default function SettingsPage() {
                   <p className="text-xs text-muted-foreground mt-1">
                     Round calculated prices to the nearest N. For example, 50 rounds {formData.currency_symbol}2,017 to {formData.currency_symbol}2,000.
                     Set to 1 to disable rounding.
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Default Portion Rule (no guest split)</label>
+                  <select
+                    value={formData.default_guest_profile}
+                    onChange={(e) => setFormData({ ...formData, default_guest_profile: e.target.value })}
+                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  >
+                    <option value="gents">Standard (gents)</option>
+                    <option value="ladies">Ladies</option>
+                  </select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Which portion rule applies to all guests when an event has no gents/ladies split.
                   </p>
                 </div>
               </div>

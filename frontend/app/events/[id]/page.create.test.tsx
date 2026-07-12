@@ -53,23 +53,41 @@ import EventCreatePage from "./page";
 describe("Event create — guest split + anchored timeline reach the payload", () => {
   beforeEach(() => { h.createEvent.mockClear(); h.push.mockClear(); });
 
-  it("sends the gents/ladies split and a timeline time anchored to the event date", async () => {
+  it("sends the guest count with no fabricated split, and an anchored timeline time", async () => {
     const today = todayISO();
     render(<EventCreatePage />);
 
     fireEvent.click(screen.getByText("select-customer"));  // event save requires a customer
-    fireEvent.change(screen.getByLabelText("Total Guests"), { target: { value: "40" } });
+    fireEvent.change(screen.getByLabelText("Guest Count"), { target: { value: "40" } });
     fireEvent.change(screen.getByLabelText("Setup Time"), { target: { value: "10:00" } });
 
     fireEvent.click(screen.getByText("Create Event"));
 
     await waitFor(() => expect(h.createEvent).toHaveBeenCalledTimes(1));
     const payload = h.createEvent.mock.calls[0][0] as Record<string, unknown>;
-    expect(payload.gents).toBe(20);
-    expect(payload.ladies).toBe(20);
+    expect(payload.guest_count).toBe(40);
+    expect(payload.gents).toBe(0);                 // split not specified — never invented
+    expect(payload.ladies).toBe(0);
     expect(payload.date).toBe(today);              // defaults to today
     expect(payload.setup_time).toBe(`${today}T10:00`);
     expect(payload.assigned_to).toBe(7);           // defaults to the current user
     expect(payload.product).toBe(5);               // defaults to the org's first active product
+  });
+
+  it("sends a real gents/ladies split when one is entered", async () => {
+    render(<EventCreatePage />);
+
+    fireEvent.click(screen.getByText("select-customer"));
+    fireEvent.change(screen.getByLabelText("Guest Count"), { target: { value: "40" } });
+    fireEvent.click(screen.getByRole("checkbox", { name: /gents \/ ladies split/i }));
+    fireEvent.change(screen.getByLabelText("Gents"), { target: { value: "25" } });
+
+    fireEvent.click(screen.getByText("Create Event"));
+
+    await waitFor(() => expect(h.createEvent).toHaveBeenCalledTimes(1));
+    const payload = h.createEvent.mock.calls[0][0] as Record<string, unknown>;
+    expect(payload.guest_count).toBe(40);
+    expect(payload.gents).toBe(25);
+    expect(payload.ladies).toBe(15);               // auto-compensated to add up
   });
 });

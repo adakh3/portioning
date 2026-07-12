@@ -539,7 +539,7 @@ export default function Dashboard() {
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                       <span>{formatDate(ev.date, dateFormat)}</span>
                       <span className="text-border">|</span>
-                      <span>{ev.gents + ev.ladies} guests</span>
+                      <span>{ev.guest_count} guests</span>
                       <Badge variant="secondary" className="text-[10px] px-1.5 py-0.5">{ev.status_display}</Badge>
                     </div>
                   </Link>

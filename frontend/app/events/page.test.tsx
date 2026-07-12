@@ -25,7 +25,7 @@ vi.mock("@/lib/hooks", () => ({
 import EventsPage from "./page";
 
 const mkEvent = (over: Record<string, unknown> = {}) => ({
-  id: 1, name: "Smith Wedding", date: "2026-08-01", gents: 50, ladies: 40,
+  id: 1, name: "Smith Wedding", date: "2026-08-01", guest_count: 90, gents: 50, ladies: 40,
   contact_name: "John Smith", account_name: null, assigned_to: 1, assigned_to_name: "Demo Rep",
   created_by: 1, created_by_name: "Demo Rep",
   product: 1, event_type: "wedding", venue_name: "Grand Hall", venue_address: "",

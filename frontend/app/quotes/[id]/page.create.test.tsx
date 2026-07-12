@@ -52,12 +52,12 @@ import QuoteCreatePage from "./page";
 describe("Quote create — guest split, timeline, meals reach the payload", () => {
   beforeEach(() => { h.createQuote.mockClear(); h.push.mockClear(); });
 
-  it("sends the gents/ladies split, an anchored timeline time, and an additional meal", async () => {
+  it("sends the guest count, an anchored timeline time, and an additional meal", async () => {
     const today = todayISO();
     render(<QuoteCreatePage />);
 
-    // 1) Total guests → auto 50/50 split (the guest_count→gents/ladies bug).
-    fireEvent.change(screen.getByLabelText("Total Guests"), { target: { value: "40" } });
+    // 1) Guest count is the number; the split stays unspecified unless opened.
+    fireEvent.change(screen.getByLabelText("Guest Count"), { target: { value: "40" } });
 
     // 2) A timeline time → anchored to the (defaulted-to-today) event date.
     fireEvent.change(screen.getByLabelText("Setup Time"), { target: { value: "10:00" } });
@@ -71,10 +71,10 @@ describe("Quote create — guest split, timeline, meals reach the payload", () =
     await waitFor(() => expect(h.createQuote).toHaveBeenCalledTimes(1));
     const payload = h.createQuote.mock.calls[0][0] as Record<string, unknown>;
 
-    // Guest split
-    expect(payload.gents).toBe(20);
-    expect(payload.ladies).toBe(20);
+    // Guest count primary; split not specified — never invented
     expect(payload.guest_count).toBe(40);
+    expect(payload.gents).toBe(0);
+    expect(payload.ladies).toBe(0);
     // Event date defaults to today (not empty → no "wrong format")
     expect(payload.event_date).toBe(today);
     // Timeline time anchored to the event date

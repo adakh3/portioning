@@ -36,6 +36,11 @@ class Event(OrgScopedModel, models.Model):
     )
     name = models.CharField(max_length=200)
     event_date = models.DateField()
+    # Guest count is THE number: it drives all money math and every display.
+    # gents/ladies is an optional split for kitchen portioning only — when set,
+    # it must add up to guest_count (serializer-enforced); 0/0 = not specified.
+    guest_count = models.IntegerField(
+        default=0, validators=[MinValueValidator(0), MaxValueValidator(50000)])
     gents = models.IntegerField(default=0, validators=[MinValueValidator(0), MaxValueValidator(50000)])
     ladies = models.IntegerField(default=0, validators=[MinValueValidator(0), MaxValueValidator(50000)])
     big_eaters = models.BooleanField(default=False)
@@ -120,13 +125,31 @@ class Event(OrgScopedModel, models.Model):
         return f"{self.name} ({self.event_date})"
 
     @property
+    def has_guest_split(self):
+        """True when a real gents/ladies split was entered (it adds up)."""
+        return bool((self.gents or self.ladies)
+                    and self.gents + self.ladies == self.guest_count)
+
+    def portioning_guests(self):
+        """Guest mix for the portion calculator: the entered split when there
+        is one, otherwise everyone under the org's default guest profile."""
+        if self.has_guest_split:
+            return {'gents': self.gents, 'ladies': self.ladies}
+        from bookings.models import OrgSettings
+        default = OrgSettings.for_org(self.organisation).default_guest_profile
+        return {
+            'gents': self.guest_count if default != 'ladies' else 0,
+            'ladies': self.guest_count if default == 'ladies' else 0,
+        }
+
+    @property
     def food_total(self):
-        """Taxable food/menu cost: main menu (price_per_head × guests) + any
-        additional meals (their own price_per_head × guest_count)."""
+        """Taxable food/menu cost: main menu (price_per_head × guest_count) +
+        any additional meals (their own price_per_head × guest_count)."""
         total = Decimal('0.00')
         pph = self.price_per_head
         if pph and pph > 0:
-            total += pph * ((self.gents or 0) + (self.ladies or 0))
+            total += pph * (self.guest_count or 0)
         for meal in self.additional_meals.all():
             if meal.price_per_head and meal.guest_count:
                 total += meal.price_per_head * meal.guest_count

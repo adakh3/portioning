@@ -41,7 +41,7 @@ class EventPDFTests(TestCase):
     def _event(self, org=None):
         e = Event.objects.create(
             organisation=org or self.org, name="Khan Wedding",
-            event_date=datetime.date(2026, 8, 1), gents=60, ladies=40,
+            event_date=datetime.date(2026, 8, 1), guest_count=100, gents=60, ladies=40,
             big_eaters=True, big_eaters_percentage=20, event_type="wedding",
             price_per_head=Decimal("50"), guaranteed_count=100, final_count=95,
             status="confirmed", setup_time=_dt(16), meal_time=_dt(20),
@@ -96,7 +96,7 @@ class EventPDFTests(TestCase):
         a = make_dish(org=self.org, category=cat, name="Apple Tart")
         e = Event.objects.create(
             organisation=self.org, name="Order Test",
-            event_date=datetime.date(2026, 8, 1), gents=10, ladies=10,
+            event_date=datetime.date(2026, 8, 1), guest_count=20, gents=10, ladies=10,
         )
         e.dishes.set([z, a])  # added Zebra first — reverse-alphabetical
         text = self._text(e)

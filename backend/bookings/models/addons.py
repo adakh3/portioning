@@ -142,7 +142,7 @@ class BookingLineItem(models.Model):
         if self.quote_id:
             return self.quote.guest_count
         if self.event_id:
-            return self.event.gents + self.event.ladies
+            return self.event.guest_count
         return 0
 
     def save(self, *args, **kwargs):

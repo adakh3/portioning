@@ -19,7 +19,7 @@ test.describe("Add-ons stay in the saved subtotal after an edit", () => {
     // 1) create a bare quote (no add-ons yet — this is what poisons the cache).
     await page.goto("/quotes/new");
     await page.getByLabel("Customer", { exact: false }).selectOption({ label: "Aisha Khan" });
-    await page.getByLabel("Total Guests").fill("100");
+    await page.getByLabel("Guest Count").fill("100");
     await page.getByRole("button", { name: "Create Quote" }).click();
     await page.waitForURL(/\/quotes\/\d+$/, { timeout: 15_000 });
 

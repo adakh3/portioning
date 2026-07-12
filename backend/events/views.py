@@ -141,7 +141,7 @@ class EventCalculateView(APIView):
 
         result = calculate_portions(
             dish_ids=list(event.dishes.values_list('id', flat=True)),
-            guests={'gents': event.gents, 'ladies': event.ladies},
+            guests=event.portioning_guests(),
             constraint_overrides=constraint_overrides,
             big_eaters=event.big_eaters,
             big_eaters_percentage=event.big_eaters_percentage,
@@ -206,7 +206,7 @@ class EventCalendarView(APIView):
 
         for event in base_qs:
             d = str(event.event_date)
-            guests = (event.gents or 0) + (event.ladies or 0)
+            guests = event.guest_count or 0
 
             # Org-wide totals (always counted)
             days[d]['org_event_count'] += 1

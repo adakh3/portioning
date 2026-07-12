@@ -628,6 +628,7 @@ export interface SiteSettingsData {
   time_format_choices?: { value: string; label: string }[];
   timezone: string;
   default_price_per_head: string;
+  default_guest_profile?: string;
   target_food_cost_percentage: string;
   price_rounding_step: string;
   quotation_terms: string;
@@ -692,6 +693,7 @@ export interface EventData {
   id: number;
   name: string;
   date: string;
+  guest_count: number;
   gents: number;
   ladies: number;
   big_eaters: boolean;

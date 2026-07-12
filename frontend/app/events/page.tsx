@@ -75,7 +75,7 @@ function EventsContent() {
   if (loadError) return <p className="text-destructive">Error: {loadError.message}</p>;
 
   const customerOf = (e: typeof events[number]) => e.contact_name || e.account_name || "";
-  const guestsOf = (e: typeof events[number]) => (e.gents || 0) + (e.ladies || 0);
+  const guestsOf = (e: typeof events[number]) => e.guest_count || 0;
   const s = search.toLowerCase();
   const filtered = events.filter((e) => {
     if (search && !(
