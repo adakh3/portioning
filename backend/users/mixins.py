@@ -5,30 +5,64 @@ from users.managers import TenantManager
 security_logger = logging.getLogger('tenant.security')
 
 
-def get_request_org(request):
-    """Get effective organisation from the request (set by OrgMiddleware).
+def _superuser_session_override(request):
+    """A superuser's org-switcher choice, read from the session. Returns
+    ``(org, all_orgs)``; ``(None, False)`` means "no override → own org".
 
-    Falls back to user.organisation when middleware hasn't run (e.g. in tests).
-    Returns None only for superusers in all-orgs mode.
+    Resolved HERE (view layer, after DRF auth) rather than trusted from
+    OrgMiddleware, because OrgMiddleware runs BEFORE JWT authentication. For the
+    app's JWT-authenticated API requests ``request.user`` is anonymous at
+    middleware time, so the middleware never applies the switch endpoint's
+    ``org_override`` — leaving a superuser stuck on their own org whatever they
+    pick in the switcher. Reading it post-auth fixes that.
+    """
+    session = getattr(request, 'session', None)
+    override = session.get('org_override') if session is not None else None
+    if override == '__all__':
+        return None, True
+    if override:
+        from users.models import Organisation
+        return Organisation.objects.filter(pk=override, is_active=True).first(), False
+    return None, False
+
+
+def get_request_org(request):
+    """Effective organisation for the request.
+
+    Prefers what OrgMiddleware set (the session-auth path, e.g. Django admin).
+    For JWT-authenticated API requests OrgMiddleware couldn't resolve it (it runs
+    before auth), so resolve here with the now-authenticated user — honouring a
+    superuser's org-switcher override. Returns None for a superuser in all-orgs
+    mode, or a non-superuser with no org.
     """
     org = getattr(request, 'organisation', None)
     if org is not None:
         return org
-    # Fallback: middleware didn't run (DRF test client, etc.)
     user = getattr(request, 'user', None)
-    if user is not None and getattr(user, 'is_authenticated', False):
-        return getattr(user, 'organisation', None)
-    return None
+    if not (user and getattr(user, 'is_authenticated', False)):
+        return None
+    if getattr(user, 'is_superuser', False):
+        override_org, all_orgs = _superuser_session_override(request)
+        if all_orgs:
+            return None
+        if override_org is not None:
+            return override_org
+        # no (or stale) override → fall through to the superuser's own org
+    return getattr(user, 'organisation', None)
 
 
 def is_superuser_all_orgs(request):
-    """True if user is superuser with explicit all-orgs override active."""
+    """True if a superuser has the explicit all-orgs override active."""
     user = getattr(request, 'user', None)
-    if user is None or not getattr(user, 'is_authenticated', False):
+    if not (user and getattr(user, 'is_authenticated', False)
+            and getattr(user, 'is_superuser', False)):
         return False
-    if not getattr(user, 'is_superuser', False):
-        return False
-    return getattr(request, '_org_all_override', False)
+    # Trust the middleware flag on the session-auth path; otherwise (JWT) read the
+    # session ourselves, since middleware ran before auth.
+    if getattr(request, '_org_all_override', False):
+        return True
+    _, all_orgs = _superuser_session_override(request)
+    return all_orgs
 
 
 # Keep old name as alias during migration — views still import it
