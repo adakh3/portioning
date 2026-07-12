@@ -11,6 +11,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
+import { Avatar } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 
 function formatDue(dateStr: string, dateFormat: string) {
@@ -92,11 +93,14 @@ function ReminderCard({
           )}
           <p className="text-xs text-muted-foreground mt-1">
             Due: {formatDue(reminder.due_at, dateFormat)}
-            {showAssignee && reminder.user_name && (
-              <span> · {reminder.user_name}</span>
-            )}
           </p>
         </div>
+        {showAssignee && reminder.user_name && (
+          <span className="flex items-center gap-1.5 shrink-0 text-xs text-muted-foreground">
+            <Avatar name={reminder.user_name} size="sm" />
+            {reminder.user_name}
+          </span>
+        )}
         <div className="flex items-center gap-1 shrink-0">
           <Button
             size="sm"
