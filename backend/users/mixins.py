@@ -6,19 +6,50 @@ security_logger = logging.getLogger('tenant.security')
 
 
 def get_request_org(request):
-    """Get effective organisation from the request (set by OrgMiddleware).
+    """Get effective organisation from the request.
 
-    Falls back to user.organisation when middleware hasn't run (e.g. in tests).
+    OrgMiddleware resolves the org for session-authenticated traffic (Django
+    admin). App/API traffic authenticates via JWT cookies at the DRF layer —
+    AFTER middleware — so the middleware saw an anonymous user and set no org.
+    For that traffic the superuser's session org-override must be resolved
+    here, off the DRF-authenticated user; otherwise the frontend org switcher
+    silently shows the superuser's own org.
     Returns None only for superusers in all-orgs mode.
     """
     org = getattr(request, 'organisation', None)
     if org is not None:
         return org
-    # Fallback: middleware didn't run (DRF test client, etc.)
     user = getattr(request, 'user', None)
-    if user is not None and getattr(user, 'is_authenticated', False):
-        return getattr(user, 'organisation', None)
-    return None
+    if user is None or not getattr(user, 'is_authenticated', False):
+        return None
+    if getattr(user, 'is_superuser', False):
+        override = _session_org_override(request)
+        if override is not None:
+            return override
+    return getattr(user, 'organisation', None)
+
+
+def _session_org_override(request):
+    """The superuser's switched-to org from the session, or None.
+
+    Memoized on the underlying HttpRequest — org resolution runs several times
+    per request (filters, serializers) and must not re-query each time.
+    """
+    session = getattr(request, 'session', None)
+    override_pk = session.get('org_override') if session is not None else None
+    if not override_pk or override_pk == '__all__':
+        return None
+    underlying = getattr(request, '_request', request)
+    cached = getattr(underlying, '_org_override_cache', None)
+    if cached is not None and cached.pk == override_pk:
+        return cached
+    from users.models import Organisation
+    try:
+        org = Organisation.objects.get(pk=override_pk, is_active=True)
+    except Organisation.DoesNotExist:
+        return None
+    underlying._org_override_cache = org
+    return org
 
 
 def is_superuser_all_orgs(request):
