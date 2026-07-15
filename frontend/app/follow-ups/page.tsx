@@ -2,11 +2,11 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { api, Reminder, FollowUpDraft } from "@/lib/api";
+import { api, Reminder, FollowUpDraft, FollowUpPreview } from "@/lib/api";
 import { useReminders, useDateFormat, useFollowUpDrafts, useUsers } from "@/lib/hooks";
 import { revalidate } from "@/lib/hooks";
 import { useAuth } from "@/lib/auth";
-import { formatDateTime as sharedFormatDateTime } from "@/lib/dateFormat";
+import { formatDate, formatDateTime as sharedFormatDateTime } from "@/lib/dateFormat";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -338,6 +338,225 @@ function DraftReviewCard({ draft, onDone }: { draft: FollowUpDraft; onDone: () =
   );
 }
 
+type GenerateSummary = {
+  created: number;
+  skipped: { name: string; reasoning: string }[];
+  ineligible: number;
+  failed: number;
+};
+
+function GeneratePanel({ onDraftCreated }: { onDraftCreated: () => void }) {
+  const dateFormat = useDateFormat();
+  const [preview, setPreview] = useState<FollowUpPreview | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  const [summary, setSummary] = useState<GenerateSummary | null>(null);
+  const [error, setError] = useState("");
+
+  const openPreview = async () => {
+    setLoading(true);
+    setError("");
+    setSummary(null);
+    try {
+      const p = await api.getFollowUpPreview();
+      setPreview(p);
+      setSelected(new Set(p.leads.map((l) => l.id)));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not load the preview");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const toggle = (id: number) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAll = () => {
+    if (!preview) return;
+    setSelected((prev) =>
+      prev.size === preview.leads.length ? new Set() : new Set(preview.leads.map((l) => l.id)),
+    );
+  };
+
+  const generate = async () => {
+    if (!preview) return;
+    const targets = preview.leads.filter((l) => selected.has(l.id));
+    const result: GenerateSummary = { created: 0, skipped: [], ineligible: 0, failed: 0 };
+    setProgress({ done: 0, total: targets.length });
+    for (const lead of targets) {
+      try {
+        const res = await api.generateFollowUpDraft(lead.id);
+        if (res.status === "created") {
+          result.created += 1;
+          onDraftCreated(); // draft appears in the queue as it lands
+        } else if (res.status === "skipped") {
+          result.skipped.push({ name: lead.contact_name, reasoning: res.reasoning });
+        } else {
+          result.ineligible += 1;
+        }
+      } catch {
+        result.failed += 1;
+      }
+      setProgress((p) => (p ? { ...p, done: p.done + 1 } : p));
+    }
+    setProgress(null);
+    setPreview(null);
+    setSummary(result);
+    revalidate("followup-draft-count");
+  };
+
+  if (progress) {
+    return (
+      <Card>
+        <CardContent className="p-4 space-y-2">
+          <p className="text-sm font-medium text-foreground">
+            Drafting follow-ups… {progress.done} of {progress.total}
+          </p>
+          <div className="h-2 rounded-full bg-muted overflow-hidden">
+            <div
+              className="h-full bg-primary transition-all"
+              style={{ width: `${(progress.done / Math.max(progress.total, 1)) * 100}%` }}
+            />
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Drafts appear in the queue below as they're created. Leaving this page keeps
+            whatever has finished.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (preview) {
+    if (preview.leads.length === 0) {
+      return (
+        <Card>
+          <CardContent className="p-4 flex items-center justify-between gap-4">
+            <p className="text-sm text-muted-foreground">
+              No stale leads right now — nothing has gone quiet for more than{" "}
+              {Math.round(preview.stale_hours / 24)} days.
+            </p>
+            <Button size="sm" variant="ghost" onClick={() => setPreview(null)}>
+              Close
+            </Button>
+          </CardContent>
+        </Card>
+      );
+    }
+    return (
+      <Card>
+        <CardContent className="p-4 space-y-3">
+          <div className="flex items-center justify-between gap-4">
+            <p className="text-sm font-medium text-foreground">
+              {selected.size} of {preview.leads.length} stale lead
+              {preview.leads.length === 1 ? "" : "s"} selected for a follow-up draft
+            </p>
+            <button
+              onClick={toggleAll}
+              className="text-xs font-medium text-primary hover:underline"
+            >
+              {selected.size === preview.leads.length ? "Deselect all" : "Select all"}
+            </button>
+          </div>
+          {!preview.configured && (
+            <p className="text-sm text-destructive">
+              AI follow-ups aren&apos;t fully configured (model or API key missing) —
+              generation will fail until that's set up.
+            </p>
+          )}
+          <div className="space-y-1 max-h-96 overflow-y-auto">
+            {preview.leads.map((lead) => (
+              <label
+                key={lead.id}
+                className="flex items-center gap-3 p-2 border border-border rounded-lg cursor-pointer hover:bg-muted/50"
+              >
+                <input
+                  type="checkbox"
+                  checked={selected.has(lead.id)}
+                  onChange={() => toggle(lead.id)}
+                  aria-label={`Draft a follow-up for ${lead.contact_name}`}
+                />
+                <div className="flex-1 min-w-0 flex items-center gap-3">
+                  <Link
+                    href={`/leads/${lead.id}`}
+                    className="text-sm font-medium text-primary hover:underline truncate"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {lead.contact_name}
+                  </Link>
+                  <span className="text-xs text-amber-600 font-medium shrink-0">
+                    {lead.days_stale}d stale
+                  </span>
+                  <span className="text-xs text-muted-foreground uppercase tracking-wide shrink-0">
+                    {lead.status}
+                  </span>
+                </div>
+                <div className="flex items-center gap-3 shrink-0 text-xs text-muted-foreground">
+                  {lead.event_date && <span>{formatDate(lead.event_date, dateFormat)}</span>}
+                  {lead.budget && <span>{Number(lead.budget).toLocaleString()}</span>}
+                  <span className="flex items-center gap-1.5">
+                    <Avatar name={lead.assigned_to_name} size="sm" />
+                    {lead.assigned_to_name || "Unassigned"}
+                  </span>
+                </div>
+              </label>
+            ))}
+          </div>
+          <div className="flex items-center gap-2">
+            <Button size="sm" onClick={generate} disabled={selected.size === 0}>
+              Create {selected.size} draft{selected.size === 1 ? "" : "s"}
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setPreview(null)}>
+              Cancel
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-end gap-2">
+        {error && <p className="text-sm text-destructive">{error}</p>}
+        <Button size="sm" variant="secondary" onClick={openPreview} disabled={loading}>
+          {loading ? "Checking stale leads…" : "Generate follow-ups"}
+        </Button>
+      </div>
+      {summary && (
+        <Card>
+          <CardContent className="p-4 space-y-2">
+            <p className="text-sm font-medium text-foreground">
+              {summary.created} draft{summary.created === 1 ? "" : "s"} created
+              {summary.skipped.length > 0 && `, ${summary.skipped.length} skipped by the AI`}
+              {summary.ineligible > 0 && `, ${summary.ineligible} no longer eligible`}
+              {summary.failed > 0 && `, ${summary.failed} failed`}
+            </p>
+            {summary.skipped.map((s, i) => (
+              <p key={i} className="text-xs text-muted-foreground">
+                <span className="font-medium">{s.name}:</span> {s.reasoning}
+              </p>
+            ))}
+            <button
+              onClick={() => setSummary(null)}
+              className="text-xs font-medium text-primary hover:underline"
+            >
+              Dismiss
+            </button>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
 function DraftsTab() {
   const { data: drafts = [], mutate } = useFollowUpDrafts("pending");
   const [bulkBusy, setBulkBusy] = useState(false);
@@ -360,32 +579,35 @@ function DraftsTab() {
     }
   };
 
-  if (drafts.length === 0) {
-    return (
-      <Card>
-        <CardContent className="p-8 text-center text-muted-foreground">
-          No AI drafts to review. The agent adds drafts here as leads go quiet.
-        </CardContent>
-      </Card>
-    );
-  }
-
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
-          {drafts.length} draft{drafts.length === 1 ? "" : "s"} awaiting your review.
-        </p>
-        <Button size="sm" onClick={handleBulkApprove} disabled={bulkBusy}>
-          {bulkBusy ? "Sending..." : `Approve all (${drafts.length})`}
-        </Button>
-      </div>
-      {bulkError && <p className="text-sm text-destructive">{bulkError}</p>}
-      <div className="space-y-2">
-        {drafts.map((d) => (
-          <DraftReviewCard key={d.id} draft={d} onDone={() => mutate()} />
-        ))}
-      </div>
+      <GeneratePanel onDraftCreated={() => mutate()} />
+
+      {drafts.length === 0 ? (
+        <Card>
+          <CardContent className="p-8 text-center text-muted-foreground">
+            No AI drafts to review. Use &quot;Generate follow-ups&quot; to draft messages
+            for leads that have gone quiet.
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-muted-foreground">
+              {drafts.length} draft{drafts.length === 1 ? "" : "s"} awaiting your review.
+            </p>
+            <Button size="sm" onClick={handleBulkApprove} disabled={bulkBusy}>
+              {bulkBusy ? "Sending..." : `Approve all (${drafts.length})`}
+            </Button>
+          </div>
+          {bulkError && <p className="text-sm text-destructive">{bulkError}</p>}
+          <div className="space-y-2">
+            {drafts.map((d) => (
+              <DraftReviewCard key={d.id} draft={d} onDone={() => mutate()} />
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }

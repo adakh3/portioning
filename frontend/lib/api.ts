@@ -911,6 +911,29 @@ export interface FollowUpDraft {
   created_at: string;
 }
 
+// On-demand generation: the preview of stale leads the generator would draft for
+export interface FollowUpPreviewLead {
+  id: number;
+  contact_name: string;
+  days_stale: number;
+  status: string;
+  event_date: string | null;
+  budget: string | null;
+  assigned_to: number | null;
+  assigned_to_name: string | null;
+}
+
+export interface FollowUpPreview {
+  configured: boolean;
+  stale_hours: number;
+  leads: FollowUpPreviewLead[];
+}
+
+export type FollowUpGenerateResult =
+  | { status: "created"; draft: FollowUpDraft }
+  | { status: "skipped"; reasoning: string }
+  | { status: "ineligible"; detail: string };
+
 // Calendar types
 export interface CalendarEvent {
   id: number;
@@ -1587,6 +1610,13 @@ export const api = {
     }),
   dismissFollowUpDraft: (id: number) =>
     fetchApi<FollowUpDraft>(`/bookings/followup-drafts/${id}/dismiss/`, { method: "POST" }),
+  getFollowUpPreview: () =>
+    fetchApi<FollowUpPreview>(`/bookings/followup-drafts/preview/`),
+  generateFollowUpDraft: (leadId: number) =>
+    fetchApi<FollowUpGenerateResult>(`/bookings/followup-drafts/generate/`, {
+      method: "POST",
+      body: JSON.stringify({ lead: leadId }),
+    }),
   bulkApproveFollowUpDrafts: (ids?: number[]) =>
     fetchApi<{ sent: number[]; failed: { id: number; error: string }[] }>(
       `/bookings/followup-drafts/bulk-approve/`,
