@@ -62,7 +62,7 @@ class LeadSerializer(OrgScopedModelSerializer):
         model = Lead
         fields = [
             'id', 'account', 'account_name',
-            'contact_name', 'contact_email', 'contact_phone',
+            'contact_title', 'contact_name', 'contact_email', 'contact_phone',
             'source', 'event_date', 'lead_date', 'guest_estimate',
             'budget',
             'event_type', 'event_type_display',

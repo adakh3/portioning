@@ -342,6 +342,7 @@ export interface Lead {
   id: number;
   account: number | null;
   account_name: string | null;
+  contact_title: string;
   contact_name: string;
   contact_email: string;
   contact_phone: string;

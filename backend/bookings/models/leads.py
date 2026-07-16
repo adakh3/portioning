@@ -80,6 +80,14 @@ class Lead(OrgScopedModel, models.Model):
         'bookings.Account', null=True, blank=True,
         on_delete=models.SET_NULL, related_name='leads',
     )
+    TITLE_CHOICES = [
+        ('Mr', 'Mr'), ('Mrs', 'Mrs'), ('Ms', 'Ms'), ('Miss', 'Miss'),
+        ('Dr', 'Dr'), ('Prof', 'Prof'),
+    ]
+    contact_title = models.CharField(
+        max_length=10, blank=True, default='', choices=TITLE_CHOICES,
+        help_text='How to address the contact in messages (e.g. Ms Rizvi)',
+    )
     contact_name = models.CharField(max_length=200)
     contact_email = models.EmailField(blank=True)
     contact_phone = models.CharField(max_length=50, blank=True)

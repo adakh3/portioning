@@ -461,3 +461,22 @@ class FollowUpGenerateTests(TestCase):
         res = self._generate(lead)
         self.assertEqual(res.status_code, 502)
         self.assertEqual(res.json()['status'], 'failed')
+
+
+class DrafterContextTests(TestCase):
+    """What the AI is told about a lead."""
+
+    def setUp(self):
+        self.org = get_test_user().organisation
+
+    def test_context_includes_title_when_set(self):
+        from bookings.services.followup_drafter import _build_context
+        lead = _stale_lead(self.org, contact_name='Batool Rizvi', contact_title='Ms')
+        ctx = _build_context(lead)
+        self.assertIn('Contact title: Ms', ctx)
+        self.assertIn('Contact name: Batool Rizvi', ctx)
+
+    def test_context_omits_title_when_absent(self):
+        from bookings.services.followup_drafter import _build_context
+        lead = _stale_lead(self.org, contact_name='Sam Jones')
+        self.assertNotIn('Contact title', _build_context(lead))

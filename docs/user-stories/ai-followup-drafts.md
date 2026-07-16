@@ -14,6 +14,10 @@ from scratch — while still reviewing every message before it's sent.
   is supplier-agnostic: `LLM_FOLLOWUP_DRAFTER` env var as `provider:model`
   (default `openai:gpt-5.4-nano`; e.g. `anthropic:claude-haiku-4-5` to switch) —
   see `backend/portioning/llm.py`.
+- Tone: formal and courteous — opens with a greeting using the contact's **title +
+  surname** when a title is set on the lead (e.g. "Hello Ms Rizvi,"), first name
+  otherwise; refers to the event by ONE name (a "nikkah" note beats the generic
+  "Wedding" type — never "nikkah wedding"); no emoji.
 - Drafts land in a review queue as `pending`. **Nothing is auto-sent.**
 - A human approves (optionally editing the text) → the message goes out via the
   existing WhatsApp/Twilio path; or dismisses it.
