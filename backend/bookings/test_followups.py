@@ -13,13 +13,14 @@ from bookings.tests import _authenticated_client
 from tests.base import get_test_user
 from users.models import Organisation, User
 
-# Twilio account + Anthropic key are platform-level (env), not per-org. Tests
+# Twilio account + LLM config are platform-level (env), not per-org. Tests
 # that need a "configured" org set the org's WhatsApp number here and supply the
 # platform credentials via @platform_creds.
 platform_creds = override_settings(
     TWILIO_ACCOUNT_SID='AC123',
     TWILIO_AUTH_TOKEN='twilio-secret',
-    ANTHROPIC_API_KEY='sk-ant-test',
+    LLM_FOLLOWUP_DRAFTER='openai:gpt-test',
+    OPENAI_API_KEY='sk-openai-test',
 )
 
 
@@ -280,13 +281,23 @@ class OrgSettingsConfiguredTests(TestCase):
         s.save()
         self.assertTrue(OrgSettings.for_org(org).ai_followups_configured)
 
-    @override_settings(ANTHROPIC_API_KEY='')
-    def test_not_configured_without_anthropic_key(self):
+    @override_settings(LLM_FOLLOWUP_DRAFTER='openai:gpt-test', OPENAI_API_KEY='')
+    def test_not_configured_without_provider_key(self):
         org = get_test_user().organisation
-        _configure_ai(org)  # opted in, but no platform key
+        _configure_ai(org)  # opted in, but no key for the configured provider
         self.assertFalse(OrgSettings.for_org(org).ai_followups_configured)
 
-    @override_settings(TWILIO_ACCOUNT_SID='', TWILIO_AUTH_TOKEN='', ANTHROPIC_API_KEY='sk-ant-test')
+    @override_settings(LLM_FOLLOWUP_DRAFTER='anthropic:claude-test',
+                       ANTHROPIC_API_KEY='sk-ant-test', OPENAI_API_KEY='')
+    def test_configured_checks_the_selected_providers_key(self):
+        # Only the provider named in LLM_FOLLOWUP_DRAFTER needs a key —
+        # the other provider's key can be absent.
+        org = get_test_user().organisation
+        _configure_ai(org)
+        self.assertTrue(OrgSettings.for_org(org).ai_followups_configured)
+
+    @override_settings(TWILIO_ACCOUNT_SID='', TWILIO_AUTH_TOKEN='',
+                       LLM_FOLLOWUP_DRAFTER='openai:gpt-test', OPENAI_API_KEY='sk-openai-test')
     def test_drafting_decoupled_from_twilio(self):
         # Twilio absent, but drafting is still allowed — delivery is a separate
         # concern handled at approve-time.
@@ -295,3 +306,158 @@ class OrgSettingsConfiguredTests(TestCase):
         s = OrgSettings.for_org(org)
         self.assertFalse(s.twilio_configured)
         self.assertTrue(s.ai_followups_configured)
+
+
+@platform_creds
+class FollowUpPreviewTests(TestCase):
+    """GET /followup-drafts/preview/ — eligibility + role scoping."""
+
+    def setUp(self):
+        self.user = get_test_user()
+        self.org = self.user.organisation
+        _configure_ai(self.org)
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
+
+    def test_preview_lists_only_eligible_leads(self):
+        eligible = _stale_lead(self.org, contact_name='Eligible')
+        _stale_lead(self.org, contact_name='NoPhone', contact_phone='')
+        _stale_lead(self.org, contact_name='Won', status='won')
+        Lead.objects.create(organisation=self.org, contact_name='Fresh',
+                            contact_phone='+15550000001', status='new')
+        pending = _stale_lead(self.org, contact_name='HasPending')
+        FollowUpDraft.objects.create(organisation=self.org, lead=pending, body='x')
+
+        res = self.client.get('/api/bookings/followup-drafts/preview/')
+        self.assertEqual(res.status_code, 200)
+        rows = res.json()['leads']
+        self.assertEqual([r['id'] for r in rows], [eligible.id])
+        row = rows[0]
+        self.assertEqual(row['contact_name'], 'Eligible')
+        self.assertGreaterEqual(row['days_stale'], 29)
+        self.assertIn('status', row)
+        self.assertIn('event_date', row)
+        self.assertIn('budget', row)
+        self.assertIn('assigned_to_name', row)
+
+    def test_preview_excludes_leads_at_the_draft_cap(self):
+        s = OrgSettings.for_org(self.org)
+        s.followup_max_drafts_per_lead = 1
+        s.save()
+        capped = _stale_lead(self.org, contact_name='Capped')
+        FollowUpDraft.objects.create(organisation=self.org, lead=capped,
+                                     body='old', status='dismissed')
+        res = self.client.get('/api/bookings/followup-drafts/preview/')
+        self.assertEqual(res.json()['leads'], [])
+
+    def test_preview_sorted_most_stale_first(self):
+        newer = _stale_lead(self.org, contact_name='Newer')
+        older = _stale_lead(self.org, contact_name='Older')
+        Lead.objects.filter(pk=older.pk).update(
+            updated_at=timezone.now() - timedelta(days=90))
+        res = self.client.get('/api/bookings/followup-drafts/preview/')
+        self.assertEqual([r['id'] for r in res.json()['leads']],
+                         [older.id, newer.id])
+
+    def test_salesperson_sees_only_their_own_leads(self):
+        rep = User.objects.create(
+            email='rep@preview.test', first_name='Rep', last_name='One',
+            role='salesperson', organisation=self.org,
+        )
+        mine = _stale_lead(self.org, contact_name='Mine', assigned_to=rep)
+        _stale_lead(self.org, contact_name='NotMine')
+        client = APIClient()
+        client.force_authenticate(user=rep)
+        res = client.get('/api/bookings/followup-drafts/preview/')
+        self.assertEqual([r['id'] for r in res.json()['leads']], [mine.id])
+
+    def test_preview_is_org_scoped(self):
+        other_org = Organisation.objects.create(name='Other Preview Co', slug='other-preview-co')
+        _stale_lead(other_org, contact_name='Foreign')
+        res = self.client.get('/api/bookings/followup-drafts/preview/')
+        names = [r['contact_name'] for r in res.json()['leads']]
+        self.assertNotIn('Foreign', names)
+
+    def test_preview_reports_configuration(self):
+        res = self.client.get('/api/bookings/followup-drafts/preview/')
+        body = res.json()
+        self.assertTrue(body['configured'])
+        self.assertEqual(body['stale_hours'],
+                         OrgSettings.for_org(self.org).followup_stale_hours)
+
+
+@platform_creds
+class FollowUpGenerateTests(TestCase):
+    """POST /followup-drafts/generate/ — one lead per call, re-validated."""
+
+    def setUp(self):
+        self.user = get_test_user()
+        self.org = self.user.organisation
+        _configure_ai(self.org)
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
+
+    def _generate(self, lead):
+        return self.client.post('/api/bookings/followup-drafts/generate/',
+                                {'lead': lead.pk}, format='json')
+
+    @patch('bookings.views.followups.draft_followup', return_value=DRAFT_OK)
+    def test_creates_draft_for_selected_lead(self, mock_draft):
+        lead = _stale_lead(self.org)
+        res = self._generate(lead)
+        self.assertEqual(res.status_code, 200, res.content)
+        body = res.json()
+        self.assertEqual(body['status'], 'created')
+        self.assertEqual(body['draft']['body'], DRAFT_OK['message'])
+        self.assertEqual(FollowUpDraft.objects.filter(lead=lead, status='pending').count(), 1)
+
+    @patch('bookings.views.followups.draft_followup', return_value=DRAFT_SKIP)
+    def test_reports_ai_skip_with_reasoning(self, mock_draft):
+        lead = _stale_lead(self.org)
+        res = self._generate(lead)
+        body = res.json()
+        self.assertEqual(body['status'], 'skipped')
+        self.assertEqual(body['reasoning'], DRAFT_SKIP['reasoning'])
+        self.assertFalse(FollowUpDraft.objects.filter(lead=lead).exists())
+
+    @patch('bookings.views.followups.draft_followup', return_value=DRAFT_OK)
+    def test_revalidates_eligibility_at_generate_time(self, mock_draft):
+        # Lead was in the preview, but got touched before confirm — no draft.
+        lead = _stale_lead(self.org)
+        Lead.objects.filter(pk=lead.pk).update(updated_at=timezone.now())
+        res = self._generate(lead)
+        self.assertEqual(res.json()['status'], 'ineligible')
+        mock_draft.assert_not_called()
+
+    @patch('bookings.views.followups.draft_followup', return_value=DRAFT_OK)
+    def test_salesperson_cannot_generate_for_others_lead(self, mock_draft):
+        rep = User.objects.create(
+            email='rep@gen.test', first_name='Rep', last_name='Two',
+            role='salesperson', organisation=self.org,
+        )
+        others_lead = _stale_lead(self.org)  # unassigned — not the rep's
+        client = APIClient()
+        client.force_authenticate(user=rep)
+        res = client.post('/api/bookings/followup-drafts/generate/',
+                          {'lead': others_lead.pk}, format='json')
+        self.assertEqual(res.json()['status'], 'ineligible')
+        mock_draft.assert_not_called()
+
+    def test_rejects_other_orgs_lead(self):
+        other_org = Organisation.objects.create(name='Other Gen Co', slug='other-gen-co')
+        foreign = _stale_lead(other_org)
+        res = self._generate(foreign)
+        self.assertEqual(res.status_code, 404)
+
+    @override_settings(OPENAI_API_KEY='')
+    def test_rejects_when_not_configured(self):
+        lead = _stale_lead(self.org)
+        res = self._generate(lead)
+        self.assertEqual(res.status_code, 400)
+
+    @patch('bookings.views.followups.draft_followup', return_value=None)
+    def test_reports_llm_failure(self, mock_draft):
+        lead = _stale_lead(self.org)
+        res = self._generate(lead)
+        self.assertEqual(res.status_code, 502)
+        self.assertEqual(res.json()['status'], 'failed')

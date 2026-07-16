@@ -39,5 +39,6 @@ from .followups import (
     FollowUpDraftListView, LeadFollowUpDraftListView,
     FollowUpDraftApproveView, FollowUpDraftDismissView,
     FollowUpDraftBulkApproveView, FollowUpDraftCountView,
+    FollowUpPreviewView, FollowUpGenerateView,
 )
 from .locked_dates import LockedDateListCreateView, LockedDateDeleteView

@@ -149,15 +149,16 @@ class OrgSettings(models.Model):
     def ai_followups_configured(self):
         """Whether the AI agent can *draft* follow-ups for this org.
 
-        Drafting only needs the org opted-in plus the platform Anthropic key.
+        Drafting only needs the org opted-in plus a configured drafting model
+        (LLM_FOLLOWUP_DRAFTER + that provider's API key — see portioning/llm.py).
         Delivery is a separate concern: approving a draft sends it via WhatsApp,
         which surfaces its own error if Twilio isn't configured. Keeping these
         decoupled lets an org review AI drafts before wiring up WhatsApp.
         """
-        from django.conf import settings as django_settings
+        from portioning import llm
         return bool(
             self.ai_followups_enabled
-            and django_settings.ANTHROPIC_API_KEY
+            and llm.is_configured('LLM_FOLLOWUP_DRAFTER')
         )
 
     @property

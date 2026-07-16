@@ -33,6 +33,7 @@ from bookings.views import (
     FollowUpDraftListView, LeadFollowUpDraftListView,
     FollowUpDraftApproveView, FollowUpDraftDismissView,
     FollowUpDraftBulkApproveView, FollowUpDraftCountView,
+    FollowUpPreviewView, FollowUpGenerateView,
     LockedDateListCreateView, LockedDateDeleteView,
 )
 
@@ -74,6 +75,8 @@ urlpatterns = [
 
     # AI follow-up drafts (review queue)
     path('bookings/followup-drafts/', FollowUpDraftListView.as_view(), name='followup-draft-list'),
+    path('bookings/followup-drafts/preview/', FollowUpPreviewView.as_view(), name='followup-draft-preview'),
+    path('bookings/followup-drafts/generate/', FollowUpGenerateView.as_view(), name='followup-draft-generate'),
     path('bookings/followup-drafts/count/', FollowUpDraftCountView.as_view(), name='followup-draft-count'),
     path('bookings/followup-drafts/bulk-approve/', FollowUpDraftBulkApproveView.as_view(), name='followup-draft-bulk-approve'),
     path('bookings/followup-drafts/<int:pk>/approve/', FollowUpDraftApproveView.as_view(), name='followup-draft-approve'),
