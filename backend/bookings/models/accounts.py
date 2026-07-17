@@ -98,9 +98,12 @@ class Contact(models.Model):
         # Same rule as Lead: name is the display column, parts win when set,
         # a bare two-word name is split into parts.
         from bookings.names import compose_full_name, split_full_name
+        from bookings.phones import normalize_phone
         composed = compose_full_name(self.first_name, self.last_name)
         if composed:
             self.name = composed
         elif self.name:
             self.first_name, self.last_name = split_full_name(self.name)
+        if self.phone and self.organisation_id:
+            self.phone = normalize_phone(self.phone, self.organisation.country)
         super().save(*args, **kwargs)

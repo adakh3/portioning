@@ -146,11 +146,14 @@ class Lead(OrgScopedModel, models.Model):
         # contact_name stays the display/search/sort column; first/last are the
         # structured parts. Parts win when set; a bare two-word name is split.
         from bookings.names import compose_full_name, split_full_name
+        from bookings.phones import normalize_phone
         composed = compose_full_name(self.contact_first_name, self.contact_last_name)
         if composed:
             self.contact_name = composed
         elif self.contact_name:
             self.contact_first_name, self.contact_last_name = split_full_name(self.contact_name)
+        if self.contact_phone and self.organisation_id:
+            self.contact_phone = normalize_phone(self.contact_phone, self.organisation.country)
         super().save(*args, **kwargs)
 
     def __str__(self):

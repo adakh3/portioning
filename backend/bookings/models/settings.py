@@ -153,6 +153,15 @@ class OrgSettings(models.Model):
         verbose_name = 'Organisation Settings'
         verbose_name_plural = 'Organisation Settings'
 
+    def save(self, *args, **kwargs):
+        # The Twilio sender must be E.164 like every other number we dial.
+        from bookings.phones import normalize_phone
+        if self.twilio_whatsapp_number and self.organisation_id:
+            self.twilio_whatsapp_number = normalize_phone(
+                self.twilio_whatsapp_number, self.organisation.country,
+            )
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return f"Settings for {self.organisation.name}"
 
