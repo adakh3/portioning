@@ -692,22 +692,40 @@ class DraftSerializerSummaryTests(TestCase):
 
 
 class DrafterOccasionTests(TestCase):
-    """One event word, resolved in code — the model never sees two."""
+    """The event line carries the org's configured LABEL, not the raw value."""
 
     def setUp(self):
         self.org = get_test_user().organisation
 
-    def test_subtype_replaces_the_generic_type_entirely(self):
+    def test_event_line_uses_the_orgs_label(self):
+        from bookings.models.choices import EventTypeOption
         from bookings.services.followup_drafter import _build_context
-        lead = _stale_lead(self.org, contact_name='Batool Rizvi',
-                           event_type='wedding',
-                           notes='Event subtype: mehndi\nAlready in contact.')
+        EventTypeOption.objects.create(
+            organisation=self.org, value='mehndi_mayoon',
+            label='Mehndi / Mayoon / Qawali Night',
+        )
+        lead = _stale_lead(self.org, contact_name='Bisma Abbasi',
+                           event_type='mehndi_mayoon')
         ctx = _build_context(lead)
-        self.assertIn('Event occasion: mehndi', ctx)
-        self.assertIn('never combine it', ctx)
-        self.assertNotIn('Event type: wedding', ctx)
+        self.assertIn('Event type: Mehndi / Mayoon / Qawali Night', ctx)
+        self.assertNotIn('mehndi_mayoon', ctx)
 
-    def test_no_subtype_keeps_the_type(self):
+    def test_unknown_value_falls_back_to_raw(self):
         from bookings.services.followup_drafter import _build_context
-        lead = _stale_lead(self.org, contact_name='Sam', event_type='corporate')
-        self.assertIn('Event type: corporate', _build_context(lead))
+        lead = _stale_lead(self.org, contact_name='Sam', event_type='zz_unmapped')
+        self.assertIn('Event type: zz_unmapped', _build_context(lead))
+
+
+class DaysQuietTests(TestCase):
+    """'Days quiet' shows the same three-clock measure the scheduler uses."""
+
+    def test_sent_followup_resets_the_display_clock(self):
+        from bookings.services.followup_scheduler import lead_last_touch
+        org = get_test_user().organisation
+        lead = _stale_lead(org)  # record untouched for 30 days
+        FollowUpDraft.objects.create(
+            organisation=org, lead=lead, body='x', status='sent',
+            reviewed_at=timezone.now() - timedelta(days=2),
+        )
+        quiet_days = (timezone.now() - lead_last_touch(lead)).days
+        self.assertEqual(quiet_days, 2)

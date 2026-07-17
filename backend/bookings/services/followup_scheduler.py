@@ -85,6 +85,23 @@ def find_stale_leads(org, settings):
     )
 
 
+def lead_last_touch(lead):
+    """The freshest of the three quiet-clocks the cadence runs on: record
+    edits, our last sent follow-up, the lead's last reply. Display code uses
+    this so 'days quiet' always matches what the scheduler actually measures."""
+    from django.db.models import Max
+    stamps = [lead.updated_at]
+    last_sent = lead.followup_drafts.filter(status='sent').aggregate(
+        m=Max('reviewed_at'))['m']
+    if last_sent:
+        stamps.append(last_sent)
+    last_reply = WhatsAppMessage.objects.filter(
+        lead=lead, direction='inbound').aggregate(m=Max('created_at'))['m']
+    if last_reply:
+        stamps.append(last_reply)
+    return max(stamps)
+
+
 def run_for_org(org, dry_run=False):
     """Generate follow-up drafts for one org. Returns a summary dict."""
     settings = OrgSettings.for_org(org)

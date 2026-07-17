@@ -7,7 +7,7 @@ from bookings.activity import log_activity
 from bookings.models import FollowUpDraft, Lead, OrgSettings
 from bookings.permissions import is_salesperson
 from bookings.serializers.followups import FollowUpDraftSerializer
-from bookings.services.followup_scheduler import find_stale_leads
+from bookings.services.followup_scheduler import find_stale_leads, lead_last_touch
 from bookings.services.followup_drafter import draft_followup
 from bookings.services.whatsapp import WhatsAppService
 from users.mixins import (
@@ -163,7 +163,7 @@ def _eligible_stale_leads(request, org, settings):
 
 
 def _days_stale(lead):
-    return max((timezone.now() - lead.updated_at).days, 0)
+    return max((timezone.now() - lead_last_touch(lead)).days, 0)
 
 
 class FollowUpPreviewView(generics.GenericAPIView):
