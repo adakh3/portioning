@@ -371,7 +371,7 @@ export default function LeadDetailPage() {
             <form onSubmit={handleCreate}>
               <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Contact</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                <div className="flex gap-2">
+                <div className="flex gap-2 md:col-span-2">
                   <div className="w-24 shrink-0">
                     <label className="block text-sm font-medium text-foreground mb-1">Title</label>
                     <select

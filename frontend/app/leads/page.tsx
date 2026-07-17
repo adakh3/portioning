@@ -1537,7 +1537,7 @@ function LeadsTable({
                     }}
                     autoFocus
                     disabled={quickAddSaving}
-                    className="h-7 text-sm"
+                    className="h-7 text-sm min-w-[90px]"
                   />
                   <ValidatedInput
                     placeholder="Last"
@@ -1549,7 +1549,7 @@ function LeadsTable({
                       if (e.key === "Escape") cancelQuickAdd();
                     }}
                     disabled={quickAddSaving}
-                    className="h-7 text-sm"
+                    className="h-7 text-sm min-w-[90px]"
                   />
                 </div>
               </TableCell>
