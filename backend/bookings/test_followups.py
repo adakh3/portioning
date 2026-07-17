@@ -689,3 +689,25 @@ class DraftSerializerSummaryTests(TestCase):
         self.assertEqual(row['lead_guest_estimate'], 250)
         self.assertEqual(row['lead_assigned_to_name'], 'Rep Sum')
         self.assertGreaterEqual(row['lead_days_stale'], 29)
+
+
+class DrafterOccasionTests(TestCase):
+    """One event word, resolved in code — the model never sees two."""
+
+    def setUp(self):
+        self.org = get_test_user().organisation
+
+    def test_subtype_replaces_the_generic_type_entirely(self):
+        from bookings.services.followup_drafter import _build_context
+        lead = _stale_lead(self.org, contact_name='Batool Rizvi',
+                           event_type='wedding',
+                           notes='Event subtype: mehndi\nAlready in contact.')
+        ctx = _build_context(lead)
+        self.assertIn('Event occasion: mehndi', ctx)
+        self.assertIn('never combine it', ctx)
+        self.assertNotIn('Event type: wedding', ctx)
+
+    def test_no_subtype_keeps_the_type(self):
+        from bookings.services.followup_drafter import _build_context
+        lead = _stale_lead(self.org, contact_name='Sam', event_type='corporate')
+        self.assertIn('Event type: corporate', _build_context(lead))

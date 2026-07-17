@@ -82,10 +82,21 @@ DRAFT_SCHEMA = {
 
 def _build_context(lead):
     """Assemble the lead's details, recent activity, and recent WhatsApp thread."""
+    # Resolve the ONE word for the event in code, so the model never sees two
+    # competing terms. Lead capture writes 'Event subtype: mehndi' into notes;
+    # when present, that specific occasion replaces the generic type entirely.
+    subtype = re.search(r'event subtype:\s*([^\n]+)', lead.notes or '', re.I)
+    if subtype:
+        occasion_line = (
+            f"Event occasion: {subtype.group(1).strip()} — use exactly this word "
+            "for the event; never combine it with any other event word."
+        )
+    else:
+        occasion_line = f"Event type: {lead.event_type}"
     lines = [
         f"Our business name: {lead.organisation.name}",
         f"Contact name: {lead.contact_name}",
-        f"Event type: {lead.event_type}",
+        occasion_line,
     ]
     if lead.contact_title:
         lines.insert(0, f"Contact title: {lead.contact_title}")
