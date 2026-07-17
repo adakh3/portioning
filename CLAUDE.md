@@ -2,6 +2,8 @@
 
 Catering food portioning calculator — Django + DRF backend, Next.js + Tailwind frontend.
 
+**The US market wedge is agentic AI.** Features win by feeding the agent (correct, expressive data on the record) — not by becoming standalone products (e.g. WhatsApp is a channel logged on the lead, never a chat app).
+
 ## Project Structure
 
 - `backend/` — Django project with apps: `dishes`, `menus`, `rules`, `events`, `calculator`, `bookings`, `staff`, `equipment`, `users`
