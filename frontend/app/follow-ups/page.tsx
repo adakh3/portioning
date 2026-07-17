@@ -286,6 +286,11 @@ function RemindersTab() {
 
 function DraftReviewCard({ draft, onDone }: { draft: FollowUpDraft; onDone: () => void }) {
   const [body, setBody] = useState(draft.body);
+  // Size the editor to the message so the whole draft is readable at once.
+  const rows = Math.min(
+    14,
+    Math.max(4, body.split("\n").reduce((n, line) => n + Math.max(1, Math.ceil(line.length / 70)), 1)),
+  );
   const [busy, setBusy] = useState<"" | "approve" | "dismiss">("");
   const [error, setError] = useState("");
 
@@ -324,7 +329,7 @@ function DraftReviewCard({ draft, onDone }: { draft: FollowUpDraft; onDone: () =
         <Badge variant="secondary">AI</Badge>
       </div>
       {draft.reasoning && <p className="text-xs text-muted-foreground italic">{draft.reasoning}</p>}
-      <Textarea value={body} onChange={(e) => setBody(e.target.value)} rows={3} />
+      <Textarea value={body} onChange={(e) => setBody(e.target.value)} rows={rows} />
       {error && <p className="text-sm text-destructive">{error}</p>}
       <div className="flex items-center gap-2">
         <Button size="sm" onClick={handleApprove} disabled={!!busy || !body.trim()}>
@@ -541,7 +546,7 @@ function GeneratePanel({ onDraftCreated }: { onDraftCreated: () => void }) {
         </Button>
       </div>
       {summary && (
-        <Card>
+        <Card className="max-w-3xl">
           <CardContent className="p-4 space-y-2">
             <p className="text-sm font-medium text-foreground">
               {summary.created} draft{summary.created === 1 ? "" : "s"} created
@@ -601,7 +606,7 @@ function DraftsTab() {
           </CardContent>
         </Card>
       ) : (
-        <>
+        <div className="max-w-3xl space-y-4">
           <div className="flex items-center justify-between">
             <p className="text-sm text-muted-foreground">
               {drafts.length} draft{drafts.length === 1 ? "" : "s"} awaiting your review.
@@ -616,7 +621,7 @@ function DraftsTab() {
               <DraftReviewCard key={d.id} draft={d} onDone={() => mutate()} />
             ))}
           </div>
-        </>
+        </div>
       )}
     </div>
   );
