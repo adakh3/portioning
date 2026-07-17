@@ -37,6 +37,11 @@ SYSTEM_PROMPT = (
     "specific, use the note's version — don't state both or repeat the same "
     "detail twice. Only fall back to the field's version when there's no note "
     "covering that detail.\n"
+    "- The lead's record (budget, pipeline status, internal notes, activity log) "
+    "is background for YOUR judgment only — never quote it back to the customer. "
+    "Never mention their budget or any money figure, internal status words, or "
+    "note text. Only reference things the customer themselves would recognise: "
+    "their event, its date, the occasion, their guest numbers.\n"
     "- Reference the specific details you were given (date, guest count) when they "
     "help; never invent details you weren't given.\n"
     "- Sign off as the catering team, not a named person.\n"
@@ -76,8 +81,6 @@ def _build_context(lead):
         lines.append(f"Event date: {lead.event_date.isoformat()}")
     if lead.guest_estimate:
         lines.append(f"Guest estimate: {lead.guest_estimate}")
-    if lead.budget:
-        lines.append(f"Budget: {lead.budget}")
     if lead.notes:
         lines.append(f"Notes: {lead.notes}")
 

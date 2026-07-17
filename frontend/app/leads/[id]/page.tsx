@@ -596,14 +596,20 @@ export default function LeadDetailPage() {
         <CardContent className="p-6">
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Contact</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <AutoSaveField
-              {...fieldProps("contact_title")}
-              label="Title"
-              type="select"
-              value={l.contact_title || ""}
-              options={[{ value: "", label: "—" }, ...TITLE_OPTIONS.map((t) => ({ value: t, label: t }))]}
-            />
-            <AutoSaveField {...fieldProps("contact_first_name")} label="First name" type="text" value={l.contact_first_name} required />
+            <div className="flex gap-2">
+              <div className="w-24 shrink-0">
+                <AutoSaveField
+                  {...fieldProps("contact_title")}
+                  label="Title"
+                  type="select"
+                  value={l.contact_title || ""}
+                  options={[{ value: "", label: "—" }, ...TITLE_OPTIONS.map((t) => ({ value: t, label: t }))]}
+                />
+              </div>
+              <div className="flex-1 min-w-[90px]">
+                <AutoSaveField {...fieldProps("contact_first_name")} label="First name" type="text" value={l.contact_first_name} required />
+              </div>
+            </div>
             <AutoSaveField {...fieldProps("contact_last_name")} label="Last name" type="text" value={l.contact_last_name} />
             <AutoSaveField {...fieldProps("contact_phone")} label="Phone / WhatsApp" type="tel" value={l.contact_phone} required />
             <AutoSaveField {...fieldProps("contact_email")} label="Email" type="email" value={l.contact_email} />
