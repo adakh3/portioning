@@ -1565,7 +1565,7 @@ function LeadsTable({
                     if (e.key === "Escape") cancelQuickAdd();
                   }}
                   disabled={quickAddSaving}
-                  className="h-7 text-sm"
+                  className="h-7 text-sm min-w-[130px]"
                 />
               </TableCell>
               {/* Event Type */}
@@ -1574,7 +1574,7 @@ function LeadsTable({
                   value={quickAdd.event_type || ""}
                   onValueChange={(v) => setQuickAdd((p) => ({ ...p, event_type: v }))}
                 >
-                  <SelectTrigger className="h-7 text-sm">
+                  <SelectTrigger className="h-7 text-sm min-w-[90px]">
                     <SelectValue placeholder="Type" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1595,7 +1595,7 @@ function LeadsTable({
                     if (e.key === "Escape") cancelQuickAdd();
                   }}
                   disabled={quickAddSaving}
-                  className="h-7 text-sm"
+                  className="h-7 text-sm min-w-[120px]"
                 />
               </TableCell>
               {/* Lead Date */}
@@ -1614,7 +1614,7 @@ function LeadsTable({
                     if (e.key === "Escape") cancelQuickAdd();
                   }}
                   disabled={quickAddSaving}
-                  className="h-7 text-sm"
+                  className="h-7 text-sm min-w-[70px]"
                 />
               </TableCell>
               {/* Product */}
@@ -1623,7 +1623,7 @@ function LeadsTable({
                   value={quickAdd.product?.toString() || ""}
                   onValueChange={(v) => setQuickAdd((p) => ({ ...p, product: parseInt(v, 10) }))}
                 >
-                  <SelectTrigger className="h-7 text-sm">
+                  <SelectTrigger className="h-7 text-sm min-w-[90px]">
                     <SelectValue placeholder="Product" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1639,7 +1639,7 @@ function LeadsTable({
                   value={quickAdd.assigned_to?.toString() || ""}
                   onValueChange={(v) => setQuickAdd((p) => ({ ...p, assigned_to: parseInt(v, 10) }))}
                 >
-                  <SelectTrigger className="h-7 text-sm">
+                  <SelectTrigger className="h-7 text-sm min-w-[90px]">
                     <SelectValue placeholder="Assign" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1672,7 +1672,7 @@ function LeadsTable({
                   value={quickAdd.source || ""}
                   onValueChange={(v) => setQuickAdd((p) => ({ ...p, source: v }))}
                 >
-                  <SelectTrigger className="h-7 text-sm">
+                  <SelectTrigger className="h-7 text-sm min-w-[90px]">
                     <SelectValue placeholder="Source" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1688,7 +1688,7 @@ function LeadsTable({
                   value={quickAdd.status || "new"}
                   onValueChange={(v) => setQuickAdd((p) => ({ ...p, status: v }))}
                 >
-                  <SelectTrigger className="h-7 text-sm">
+                  <SelectTrigger className="h-7 text-sm min-w-[90px]">
                     <SelectValue placeholder="Status" />
                   </SelectTrigger>
                   <SelectContent>
