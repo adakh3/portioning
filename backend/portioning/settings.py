@@ -250,6 +250,17 @@ LOGGING = {
         },
     },
     'loggers': {
+        # LLM call timings (portioning.llm) + agent activity (bookings.*)
+        'portioning': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'bookings': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
         'tenant.security': {
             'handlers': ['console'],
             'level': 'WARNING',
