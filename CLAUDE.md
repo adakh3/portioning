@@ -2,7 +2,7 @@
 
 Catering food portioning calculator — Django + DRF backend, Next.js + Tailwind frontend.
 
-**The US market wedge is agentic AI.** Features win by feeding the agent (correct, expressive data on the record) — not by becoming standalone products (e.g. WhatsApp is a channel logged on the lead, never a chat app).
+**AI agents are the wedge — the app needs to be an AI-first rethink of traditional SaaS.**
 
 ## Project Structure
 
