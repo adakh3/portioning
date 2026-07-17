@@ -1,13 +1,13 @@
 from django.core.management.base import BaseCommand
 
 from bookings.models import OrgSettings
-from bookings.services.followup_agent import run_all, run_for_org
+from bookings.services.followup_scheduler import run_all, run_for_org
 from users.models import Organisation
 
 
 class Command(BaseCommand):
     help = (
-        "Draft AI follow-ups for stale leads (for review — nothing is sent). "
+        "Draft AI follow-ups for eligible stale leads (for review — nothing is sent). "
         "Intended to be run on a cron, e.g. every 15 minutes."
     )
 
@@ -34,7 +34,7 @@ class Command(BaseCommand):
             self.stdout.write(str(s))
         verb = "would create" if dry_run else "created"
         self.stdout.write(self.style.SUCCESS(
-            f"Follow-up agent done — {verb} {total_created} draft(s) across {len(summaries)} org(s)."
+            f"Follow-ups done — {verb} {total_created} draft(s) across {len(summaries)} org(s)."
         ))
 
     def _resolve_org(self, value):

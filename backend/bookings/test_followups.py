@@ -8,7 +8,7 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from bookings.models import FollowUpDraft, Lead, OrgSettings, WhatsAppMessage
-from bookings.services import followup_agent
+from bookings.services import followup_scheduler
 from bookings.tests import _authenticated_client
 from tests.base import get_test_user
 from users.models import Organisation, User
@@ -65,15 +65,15 @@ class StaleQuerysetTests(TestCase):
 
 
 @platform_creds
-class FollowupAgentTests(TestCase):
+class FollowupSchedulerTests(TestCase):
     def setUp(self):
         self.org = get_test_user().organisation
         _configure_ai(self.org)
 
-    @patch('bookings.services.followup_agent.draft_followup', return_value=DRAFT_OK)
+    @patch('bookings.services.followup_scheduler.draft_followup', return_value=DRAFT_OK)
     def test_creates_pending_draft_for_stale_lead(self, mock_draft):
         lead = _stale_lead(self.org)
-        summary = followup_agent.run_for_org(self.org)
+        summary = followup_scheduler.run_for_org(self.org)
         self.assertEqual(summary['created'], 1)
         draft = FollowUpDraft.objects.get(lead=lead)
         self.assertEqual(draft.status, 'pending')
@@ -81,21 +81,21 @@ class FollowupAgentTests(TestCase):
         self.assertEqual(draft.model_used, 'claude-haiku-4-5')
 
     @override_settings(TWILIO_ACCOUNT_SID='', TWILIO_AUTH_TOKEN='')
-    @patch('bookings.services.followup_agent.draft_followup', return_value=DRAFT_OK)
+    @patch('bookings.services.followup_scheduler.draft_followup', return_value=DRAFT_OK)
     def test_drafts_even_without_twilio(self, mock_draft):
         # Twilio not configured: the agent still drafts (delivery is separate).
         lead = _stale_lead(self.org)
-        summary = followup_agent.run_for_org(self.org)
+        summary = followup_scheduler.run_for_org(self.org)
         self.assertEqual(summary['created'], 1)
         self.assertTrue(FollowUpDraft.objects.filter(lead=lead, status='pending').exists())
 
-    @patch('bookings.services.followup_agent.draft_followup', return_value=DRAFT_SKIP)
+    @patch('bookings.services.followup_scheduler.draft_followup', return_value=DRAFT_SKIP)
     def test_agent_can_skip(self, mock_draft):
         _stale_lead(self.org)
-        followup_agent.run_for_org(self.org)
+        followup_scheduler.run_for_org(self.org)
         self.assertEqual(FollowUpDraft.objects.count(), 0)
 
-    @patch('bookings.services.followup_agent.draft_followup', return_value=DRAFT_OK)
+    @patch('bookings.services.followup_scheduler.draft_followup', return_value=DRAFT_OK)
     def test_cap_counts_only_sent_followups(self, mock_draft):
         s = OrgSettings.for_org(self.org)
         s.followup_max_drafts_per_lead = 2
@@ -107,11 +107,11 @@ class FollowupAgentTests(TestCase):
                 organisation=self.org, lead=lead, body=body,
                 status='sent', reviewed_at=long_ago,
             )
-        followup_agent.run_for_org(self.org)
+        followup_scheduler.run_for_org(self.org)
         # 2 follow-ups SENT already → quit; no new draft
         self.assertEqual(FollowUpDraft.objects.filter(lead=lead, status='pending').count(), 0)
 
-    @patch('bookings.services.followup_agent.draft_followup', return_value=DRAFT_OK)
+    @patch('bookings.services.followup_scheduler.draft_followup', return_value=DRAFT_OK)
     def test_dismissed_drafts_do_not_burn_the_budget(self, mock_draft):
         s = OrgSettings.for_org(self.org)
         s.followup_max_drafts_per_lead = 2
@@ -119,11 +119,11 @@ class FollowupAgentTests(TestCase):
         lead = _stale_lead(self.org)
         FollowUpDraft.objects.create(organisation=self.org, lead=lead, body='1', status='dismissed')
         FollowUpDraft.objects.create(organisation=self.org, lead=lead, body='2', status='dismissed')
-        followup_agent.run_for_org(self.org)
+        followup_scheduler.run_for_org(self.org)
         # dismissed drafts don't count toward the sent cap → a fresh draft is made
         self.assertEqual(FollowUpDraft.objects.filter(lead=lead, status='pending').count(), 1)
 
-    @patch('bookings.services.followup_agent.draft_followup', return_value=DRAFT_OK)
+    @patch('bookings.services.followup_scheduler.draft_followup', return_value=DRAFT_OK)
     def test_spacing_no_new_draft_soon_after_a_send(self, mock_draft):
         # A follow-up sent yesterday: the lead record is stale, but the send
         # clock isn't — no new draft until the threshold passes again.
@@ -132,19 +132,19 @@ class FollowupAgentTests(TestCase):
             organisation=self.org, lead=lead, body='sent recently',
             status='sent', reviewed_at=timezone.now() - timedelta(days=1),
         )
-        followup_agent.run_for_org(self.org)
+        followup_scheduler.run_for_org(self.org)
         self.assertEqual(FollowUpDraft.objects.filter(lead=lead, status='pending').count(), 0)
         mock_draft.assert_not_called()
 
-    @patch('bookings.services.followup_agent.draft_followup', return_value=DRAFT_OK)
+    @patch('bookings.services.followup_scheduler.draft_followup', return_value=DRAFT_OK)
     def test_no_followups_after_the_event_date(self, mock_draft):
         _stale_lead(self.org, contact_name='Past Event',
                     event_date=timezone.now().date() - timedelta(days=2))
-        followup_agent.run_for_org(self.org)
+        followup_scheduler.run_for_org(self.org)
         self.assertEqual(FollowUpDraft.objects.count(), 0)
         mock_draft.assert_not_called()
 
-    @patch('bookings.services.followup_agent.draft_followup', return_value=DRAFT_OK)
+    @patch('bookings.services.followup_scheduler.draft_followup', return_value=DRAFT_OK)
     def test_escalating_gaps_second_stage_waits_longer(self, mock_draft):
         # First follow-up sent 5 days ago: past the 3-day first gap but inside
         # the 7-day second gap — the cadence says wait.
@@ -153,15 +153,15 @@ class FollowupAgentTests(TestCase):
             organisation=self.org, lead=lead, body='fu1', status='sent',
             reviewed_at=timezone.now() - timedelta(days=5),
         )
-        followup_agent.run_for_org(self.org)
+        followup_scheduler.run_for_org(self.org)
         self.assertEqual(FollowUpDraft.objects.filter(status='pending').count(), 0)
         # ...and once 8 days have passed, stage two opens.
         FollowUpDraft.objects.filter(lead=lead).update(
             reviewed_at=timezone.now() - timedelta(days=8))
-        followup_agent.run_for_org(self.org)
+        followup_scheduler.run_for_org(self.org)
         self.assertEqual(FollowUpDraft.objects.filter(status='pending').count(), 1)
 
-    @patch('bookings.services.followup_agent.draft_followup', return_value=DRAFT_OK)
+    @patch('bookings.services.followup_scheduler.draft_followup', return_value=DRAFT_OK)
     def test_unanswered_reply_reenters_the_cadence(self, mock_draft):
         # The lead replied, nobody answered for longer than the first gap:
         # the lead is eligible again (the draft will acknowledge the reply).
@@ -171,10 +171,10 @@ class FollowupAgentTests(TestCase):
         )
         WhatsAppMessage.objects.filter(pk=msg.pk).update(
             created_at=timezone.now() - timedelta(days=4))
-        followup_agent.run_for_org(self.org)
+        followup_scheduler.run_for_org(self.org)
         self.assertEqual(FollowUpDraft.objects.filter(lead=lead, status='pending').count(), 1)
 
-    @patch('bookings.services.followup_agent.draft_followup', return_value=DRAFT_OK)
+    @patch('bookings.services.followup_scheduler.draft_followup', return_value=DRAFT_OK)
     def test_never_chases_a_lead_who_spoke_last(self, mock_draft):
         lead = _stale_lead(self.org)
         WhatsAppMessage.objects.create(
@@ -183,46 +183,46 @@ class FollowupAgentTests(TestCase):
         WhatsAppMessage.objects.create(
             organisation=self.org, lead=lead, direction='inbound', body='Lead: one sec',
         )
-        followup_agent.run_for_org(self.org)
+        followup_scheduler.run_for_org(self.org)
         # the lead spoke last — a human should reply, never the agent
         self.assertEqual(FollowUpDraft.objects.filter(lead=lead).count(), 0)
         mock_draft.assert_not_called()
 
-    @patch('bookings.services.followup_agent.draft_followup', return_value=DRAFT_OK)
+    @patch('bookings.services.followup_scheduler.draft_followup', return_value=DRAFT_OK)
     def test_skips_lead_with_existing_pending_draft(self, mock_draft):
         lead = _stale_lead(self.org)
         FollowUpDraft.objects.create(organisation=self.org, lead=lead, body='waiting', status='pending')
-        followup_agent.run_for_org(self.org)
+        followup_scheduler.run_for_org(self.org)
         mock_draft.assert_not_called()
 
-    @patch('bookings.services.followup_agent.draft_followup', return_value=DRAFT_OK)
+    @patch('bookings.services.followup_scheduler.draft_followup', return_value=DRAFT_OK)
     def test_skips_lead_without_phone(self, mock_draft):
         _stale_lead(self.org, contact_phone='')
-        followup_agent.run_for_org(self.org)
+        followup_scheduler.run_for_org(self.org)
         self.assertEqual(FollowUpDraft.objects.count(), 0)
 
-    @patch('bookings.services.followup_agent.draft_followup', return_value=DRAFT_OK)
+    @patch('bookings.services.followup_scheduler.draft_followup', return_value=DRAFT_OK)
     def test_dry_run_writes_nothing(self, mock_draft):
         _stale_lead(self.org)
-        summary = followup_agent.run_for_org(self.org, dry_run=True)
+        summary = followup_scheduler.run_for_org(self.org, dry_run=True)
         self.assertEqual(summary['created'], 1)
         self.assertEqual(FollowUpDraft.objects.count(), 0)
         mock_draft.assert_not_called()
 
-    @patch('bookings.services.followup_agent.draft_followup', return_value=DRAFT_OK)
+    @patch('bookings.services.followup_scheduler.draft_followup', return_value=DRAFT_OK)
     def test_unconfigured_org_skipped(self, mock_draft):
         other = Organisation.objects.create(name='NoAI', slug='no-ai', country='PK')
         _stale_lead(other)
-        summary = followup_agent.run_for_org(other)
+        summary = followup_scheduler.run_for_org(other)
         self.assertEqual(summary.get('skipped'), 'not configured')
         self.assertEqual(FollowUpDraft.objects.count(), 0)
 
-    @patch('bookings.services.followup_agent.draft_followup', return_value=DRAFT_OK)
+    @patch('bookings.services.followup_scheduler.draft_followup', return_value=DRAFT_OK)
     def test_run_all_only_configured_orgs(self, mock_draft):
         _stale_lead(self.org)
         other = Organisation.objects.create(name='NoAI', slug='no-ai', country='PK')
         _stale_lead(other)
-        summaries = followup_agent.run_all()
+        summaries = followup_scheduler.run_all()
         org_ids = {s['org'] for s in summaries}
         self.assertIn(self.org.id, org_ids)
         self.assertNotIn(other.id, org_ids)
@@ -345,10 +345,10 @@ class ManagementCommandTests(TestCase):
         self.org = get_test_user().organisation
         _configure_ai(self.org)
 
-    @patch('bookings.services.followup_agent.draft_followup', return_value=DRAFT_OK)
+    @patch('bookings.services.followup_scheduler.draft_followup', return_value=DRAFT_OK)
     def test_dry_run_command_writes_nothing(self, mock_draft):
         _stale_lead(self.org)
-        call_command('run_followup_agent', '--dry-run')
+        call_command('run_followups', '--dry-run')
         self.assertEqual(FollowUpDraft.objects.count(), 0)
 
 

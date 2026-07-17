@@ -7,7 +7,7 @@ from scratch — while still reviewing every message before it's sent.
 
 ## How it works (v1 scope)
 - Stale-lead eligibility is deterministic, enforced in queries (one source of
-  truth: `followup_agent.find_stale_leads`), never by the model's judgment:
+  truth: `followup_scheduler.find_stale_leads`), never by the model's judgment:
   active lead, has a phone, event date not already passed, no pending draft,
   fewer than `followup_max_drafts_per_lead` follow-ups **actually sent**
   (dismissed drafts don't count), and the escalating per-org cadence: first
@@ -75,9 +75,9 @@ from scratch — while still reviewing every message before it's sent.
 **Steps:**
 1. Create a lead with a phone number, status `contacted`; make it stale (set the
    stale threshold low, or leave it untouched past the threshold).
-2. Run `python manage.py run_followup_agent --dry-run` — note it reports it *would*
+2. Run `python manage.py run_followups --dry-run` — note it reports it *would*
    draft, without writing or calling Claude.
-3. Run `python manage.py run_followup_agent`.
+3. Run `python manage.py run_followups`.
 **Expected:** A pending draft is created. Its text references the lead by name; the
 reasoning is populated; `model_used` records the configured `provider:model`.
 

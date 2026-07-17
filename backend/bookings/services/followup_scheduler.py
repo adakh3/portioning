@@ -1,4 +1,8 @@
-"""The follow-up agent loop: find stale leads, draft follow-ups for review.
+"""The follow-up scheduler: decide WHO gets a follow-up and WHEN.
+
+Deliberately not an "agent" — everything here is deterministic query logic
+(eligibility, cadence, caps). The only AI is in followup_drafter, which this
+scheduler hands one approved lead at a time.
 
 This is the code the scheduled management command calls. It is deliberately
 side-effect-light: it only ever creates *pending* FollowUpDraft rows for a human
