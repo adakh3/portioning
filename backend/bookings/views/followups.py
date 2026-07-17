@@ -20,7 +20,7 @@ def _scoped_drafts(request):
     salespeople only ever touch drafts for their own leads (assigned to them
     or created by them) — same rule as the lead list. Approve/dismiss resolve
     drafts through this, so the scope is also the permission boundary."""
-    qs = FollowUpDraft.objects.select_related('lead', 'reviewed_by').all()
+    qs = FollowUpDraft.objects.select_related('lead', 'lead__assigned_to', 'reviewed_by').all()
     if not is_superuser_without_org(request):
         org = get_request_org(request)
         if org is None:
@@ -75,7 +75,7 @@ class LeadFollowUpDraftListView(generics.ListAPIView):
 
     def get_queryset(self):
         get_org_object_or_404(Lead, self.request, pk=self.kwargs['pk'])
-        return FollowUpDraft.objects.select_related('lead', 'reviewed_by').filter(
+        return FollowUpDraft.objects.select_related('lead', 'lead__assigned_to', 'reviewed_by').filter(
             lead_id=self.kwargs['pk'],
         )
 

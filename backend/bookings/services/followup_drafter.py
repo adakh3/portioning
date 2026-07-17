@@ -9,6 +9,7 @@ LLM_FOLLOWUP_DRAFTER setting — see portioning/llm.py. Drafting one short
 message is a cheap-and-fast-tier job on any provider.
 """
 import logging
+import re
 
 from django.contrib.contenttypes.models import ContentType
 
@@ -44,9 +45,14 @@ SYSTEM_PROMPT = (
     "their event, its date, the occasion, their guest numbers.\n"
     "- Reference the specific details you were given (date, guest count) when they "
     "help; never invent details you weren't given.\n"
-    "- If the lead's most recent message to us went unanswered, open by briefly "
-    "acknowledging it and apologising for the delayed reply — never write as if "
-    "the silence was theirs.\n"
+    "- Apologise for a delayed reply ONLY when the lead sent us a WhatsApp "
+    "message that went unanswered (you will see it in the recent messages). If "
+    "we have never messaged them before, or the last message was ours, do NOT "
+    "apologise. First contact on an older enquiry should be warm and get "
+    "straight to the point.\n"
+    "- Use plain punctuation. Never use long dashes (the \u2014 or \u2013 "
+    "characters); use a comma or start a new sentence instead. The greeting "
+    "line ends with exactly one comma and nothing else (e.g. 'Hello Usman,').\n"
     "- End with ONE clear call to action — the single most useful next step. If "
     "details you need are missing (event date, guest count, venue), ask for them "
     "specifically. If you have enough, propose the concrete next step (e.g. "
@@ -169,5 +175,8 @@ def draft_followup(lead):
         logger.exception("Follow-up draft failed for lead %s: %s", lead.pk, exc)
         return None
 
+    # Belt-and-braces on top of the prompt rule: long dashes never survive.
+    if data.get("message"):
+        data["message"] = re.sub(r"\s*\u2014\s*", ", ", data["message"])
     data["model_used"] = model_used
     return data

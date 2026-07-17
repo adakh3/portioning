@@ -664,3 +664,28 @@ class DrafterQuoteContextTests(TestCase):
         from bookings.services.followup_drafter import _build_context
         lead = _stale_lead(self.org, contact_name='Unquoted')
         self.assertNotIn('Quotations', _build_context(lead))
+
+
+class DraftSerializerSummaryTests(TestCase):
+    """The review queue carries a compact lead summary per draft."""
+
+    def test_draft_rows_include_lead_summary(self):
+        org = get_test_user().organisation
+        rep = User.objects.create(
+            email='rep@summary.test', first_name='Rep', last_name='Sum',
+            role='salesperson', organisation=org,
+        )
+        lead = _stale_lead(org, contact_name='Summ Lead', assigned_to=rep,
+                           event_type='wedding',
+                           event_date=timezone.now().date() + timedelta(days=60),
+                           guest_estimate=250)
+        FollowUpDraft.objects.create(organisation=org, lead=lead, body='hi')
+        client = APIClient()
+        client.force_authenticate(user=get_test_user())
+        res = client.get('/api/bookings/followup-drafts/')
+        body = res.json()
+        row = (body['results'] if isinstance(body, dict) else body)[0]
+        self.assertEqual(row['lead_event_type'], 'wedding')
+        self.assertEqual(row['lead_guest_estimate'], 250)
+        self.assertEqual(row['lead_assigned_to_name'], 'Rep Sum')
+        self.assertGreaterEqual(row['lead_days_stale'], 29)
