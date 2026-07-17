@@ -127,12 +127,21 @@ def _apply_lead_filters(qs, request):
 
     search = params.get('search')
     if search:
-        qs = qs.filter(
+        # Phones are stored E.164 (+923001269792); users search with dashes,
+        # spaces or a leading 0 — match on the cleaned digits too.
+        import re
+        phone_query = re.sub(r'[\s\-().]', '', search)
+        condition = (
             Q(contact_name__icontains=search) |
             Q(contact_email__icontains=search) |
             Q(contact_phone__icontains=search) |
             Q(account__name__icontains=search)
         )
+        if phone_query and phone_query != search:
+            condition |= Q(contact_phone__icontains=phone_query)
+        if phone_query.startswith('0') and len(phone_query) > 1:
+            condition |= Q(contact_phone__icontains=phone_query.lstrip('0'))
+        qs = qs.filter(condition)
 
     ordering = params.get('ordering')
     if ordering and ordering in LEAD_ORDERING_FIELDS:

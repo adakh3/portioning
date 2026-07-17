@@ -82,10 +82,22 @@ DRAFT_SCHEMA = {
 
 def _build_context(lead):
     """Assemble the lead's details, recent activity, and recent WhatsApp thread."""
+    # ONE event line, using the org's configured human label for the type
+    # (e.g. 'Mehndi / Mayoon / Qawali Night'), not the raw stored value. The
+    # org's Event Type list IS the occasion vocabulary — one field, one term.
+    from bookings.models.choices import EventTypeOption
+    event_label = lead.event_type
+    if lead.event_type:
+        opt = EventTypeOption.objects.filter(
+            organisation=lead.organisation, value=lead.event_type,
+        ).first()
+        if opt:
+            event_label = opt.label
+    occasion_line = f"Event type: {event_label}"
     lines = [
         f"Our business name: {lead.organisation.name}",
         f"Contact name: {lead.contact_name}",
-        f"Event type: {lead.event_type}",
+        occasion_line,
     ]
     if lead.contact_title:
         lines.insert(0, f"Contact title: {lead.contact_title}")

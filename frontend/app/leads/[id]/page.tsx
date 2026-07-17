@@ -13,6 +13,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ValidatedInput } from "@/components/ui/validated-input";
 import { Textarea } from "@/components/ui/textarea";
 import ActivityTimeline from "@/components/ActivityTimeline";
+import { TITLE_OPTIONS } from "@/lib/titles";
 
 
 const STATUS_BADGE_VARIANT: Record<string, "info" | "warning" | "default" | "success" | "secondary"> = {
@@ -47,8 +48,6 @@ function formatWholeNumber(val: string): string {
   if (isNaN(num)) return val;
   return num.toLocaleString();
 }
-
-const TITLE_OPTIONS = ["Mr", "Mrs", "Ms", "Miss", "Dr", "Prof"];
 
 function AutoSaveField({
   field,

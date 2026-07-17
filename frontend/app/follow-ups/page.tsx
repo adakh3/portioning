@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
+import { Sparkles } from "lucide-react";
 
 function formatDue(dateStr: string, dateFormat: string) {
   const d = new Date(dateStr);
@@ -649,12 +650,12 @@ function DraftsTab() {
 }
 
 export default function FollowUpsPage() {
-  const [tab, setTab] = useState<"reminders" | "drafts">("reminders");
+  const [tab, setTab] = useState<"reminders" | "drafts">("drafts");
   const { data: drafts = [] } = useFollowUpDrafts("pending");
 
   const tabs: { id: "reminders" | "drafts"; label: string; count?: number }[] = [
+    { id: "drafts", label: "AI Follow-ups", count: drafts.length },
     { id: "reminders", label: "Reminders" },
-    { id: "drafts", label: "AI Drafts", count: drafts.length },
   ];
 
   return (
@@ -676,6 +677,7 @@ export default function FollowUpsPage() {
                 : "border-transparent text-muted-foreground hover:text-foreground"
             )}
           >
+            {t.id === "drafts" && <Sparkles className="w-3.5 h-3.5 text-primary" aria-hidden />}
             {t.label}
             {t.count ? <Badge variant="secondary">{t.count}</Badge> : null}
           </button>

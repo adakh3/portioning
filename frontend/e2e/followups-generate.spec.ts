@@ -49,7 +49,7 @@ test.describe("On-demand follow-up generation", () => {
   }) => {
     await login(page); // owner sees the whole org
     await page.goto("/follow-ups");
-    await page.getByRole("button", { name: /AI Drafts/ }).click();
+    await page.getByRole("button", { name: /AI Follow-ups/ }).click();
     await page.getByRole("button", { name: "Generate follow-ups" }).click();
 
     // Seeded stale leads appear, all pre-ticked.

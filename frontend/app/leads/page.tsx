@@ -17,8 +17,9 @@ import {
 } from "@dnd-kit/core";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { api, Lead, LeadFilters, AuthUser, ProductLine, ChoiceOption } from "@/lib/api";
+import { TITLE_OPTIONS } from "@/lib/titles";
 import { useAuth } from "@/lib/auth";
-import { useKanbanData, useLeadsPaginated, useUsers, useProductLines, useEventTypes, useLeadStatuses, useLostReasons, useDateFormat, useSources, revalidate } from "@/lib/hooks";
+import { useKanbanData, useLeadsPaginated, useUsers, useProductLines, useEventTypes, useLeadStatuses, useLostReasons, useDateFormat, useSources, revalidate, revalidatePrefix } from "@/lib/hooks";
 import { formatDate } from "@/lib/dateFormat";
 import { statusColor } from "@/lib/statusColors";
 import { Button } from "@/components/ui/button";
@@ -489,13 +490,8 @@ function LeadsContent() {
     revalidateKanban();
     setExtraLeads({});
     pageRefs.current = {};
-    revalidate("leads-paginated");
-    const qs = Object.entries(baseFilters)
-      .filter(([, v]) => v != null && v !== "")
-      .map(([k, v]) => `${k}=${v}`)
-      .sort()
-      .join("&");
-    if (qs) revalidate(`leads-paginated?${qs}`);
+    // The table's key includes page/page_size/filters — hit the whole family.
+    revalidatePrefix("leads-paginated");
   }
 
   const hasFilters = search || filterAssigned || filterStatus || filterProduct || filterEventType || filterDateFrom || filterDateTo || filterLeadDateFrom || filterLeadDateTo;
@@ -1526,6 +1522,20 @@ function LeadsTable({
               {/* Name */}
               <TableCell>
                 <div className="flex gap-1">
+                  <Select
+                    value={quickAdd.contact_title || ""}
+                    onValueChange={(v) => setQuickAdd((p) => ({ ...p, contact_title: v === "none" ? "" : v }))}
+                  >
+                    <SelectTrigger className="h-7 text-sm w-20 shrink-0" aria-label="Title" autoFocus>
+                      <SelectValue placeholder="Title" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">—</SelectItem>
+                      {TITLE_OPTIONS.map((t) => (
+                        <SelectItem key={t} value={t}>{t}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <ValidatedInput
                     placeholder="First *"
                     aria-label="First name"
@@ -1535,7 +1545,6 @@ function LeadsTable({
                       if (e.key === "Enter") saveQuickAdd();
                       if (e.key === "Escape") cancelQuickAdd();
                     }}
-                    autoFocus
                     disabled={quickAddSaving}
                     className="h-7 text-sm min-w-[90px]"
                   />

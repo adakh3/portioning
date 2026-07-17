@@ -2,6 +2,8 @@
 
 Catering food portioning calculator — Django + DRF backend, Next.js + Tailwind frontend.
 
+**AI agents are the wedge — the app needs to be an AI-first rethink of traditional SaaS.**
+
 ## Project Structure
 
 - `backend/` — Django project with apps: `dishes`, `menus`, `rules`, `events`, `calculator`, `bookings`, `staff`, `equipment`, `users`

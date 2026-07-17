@@ -45,7 +45,7 @@ import FollowUpsPage from "./page";
 
 async function openDraftsPreview() {
   render(<FollowUpsPage />);
-  fireEvent.click(screen.getByRole("button", { name: /AI Drafts/ }));
+  fireEvent.click(screen.getByRole("button", { name: /AI Follow-ups/ }));
   fireEvent.click(screen.getByRole("button", { name: "Generate follow-ups" }));
   await screen.findByText("Quiet Lead"); // preview loaded
 }
@@ -56,6 +56,7 @@ describe("FollowUpsPage", () => {
   it("hides the person filter for a salesperson and requests their own scope", () => {
     mockUser = { id: 2, role: "salesperson" };
     render(<FollowUpsPage />);
+    fireEvent.click(screen.getByRole("button", { name: "Reminders" }));
     expect(screen.queryByLabelText("Filter follow-ups by person")).toBeNull();
     // Salespeople never pass a user filter — the backend forces their own.
     expect(useReminders).toHaveBeenLastCalledWith({ status: "pending", user: undefined });
@@ -64,6 +65,7 @@ describe("FollowUpsPage", () => {
   it("shows a team view + person filter for an admin", () => {
     mockUser = { id: 1, role: "admin" };
     render(<FollowUpsPage />);
+    fireEvent.click(screen.getByRole("button", { name: "Reminders" }));
     // Team view shows the assignee on each card: initials avatar (titled with
     // the name) + name. getByTitle avoids matching the filter's <option>s.
     expect(screen.getByTitle("Rep A")).toBeTruthy();
@@ -74,6 +76,7 @@ describe("FollowUpsPage", () => {
   it("passes the selected person as the user filter", () => {
     mockUser = { id: 1, role: "admin" };
     render(<FollowUpsPage />);
+    fireEvent.click(screen.getByRole("button", { name: "Reminders" }));
     const select = screen.getByLabelText("Filter follow-ups by person") as HTMLSelectElement;
     fireEvent.change(select, { target: { value: "3" } });
     expect(useReminders).toHaveBeenLastCalledWith({ status: "pending", user: "3" });
@@ -128,7 +131,7 @@ describe("Generate follow-ups (preview → select → generate)", () => {
   it("shows the empty state when nothing is stale", async () => {
     getFollowUpPreview.mockResolvedValueOnce({ configured: true, first_gap_days: 7, leads: [] });
     render(<FollowUpsPage />);
-    fireEvent.click(screen.getByRole("button", { name: /AI Drafts/ }));
+    fireEvent.click(screen.getByRole("button", { name: /AI Follow-ups/ }));
     fireEvent.click(screen.getByRole("button", { name: "Generate follow-ups" }));
     await screen.findByText(/No stale leads right now/);
     expect(screen.getByText(/7 days/)).toBeTruthy();

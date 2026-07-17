@@ -36,7 +36,7 @@ test.describe("Event guest count + optional split persist end-to-end", () => {
     await page.getByLabel("Customer", { exact: false }).selectOption({ label: "Aisha Khan" });
     await page.getByLabel("Guest Count").fill("100");
     await page.getByRole("checkbox", { name: /gents \/ ladies split/i }).check();
-    await page.getByLabel("Gents").fill("60"); // ladies auto-compensates to 40
+    await page.getByRole("textbox", { name: "Gents" }).fill("60"); // ladies auto-compensates to 40
     await expect(page.getByText("adds up to 100")).toBeVisible();
 
     await page.getByRole("button", { name: "Create Event" }).click();
@@ -44,8 +44,8 @@ test.describe("Event guest count + optional split persist end-to-end", () => {
 
     // The split survived the round-trip.
     await page.getByRole("button", { name: "Edit", exact: true }).click();
-    await expect(page.getByLabel("Gents")).toHaveValue("60");
-    await expect(page.getByLabel("Ladies")).toHaveValue("40");
+    await expect(page.getByRole("textbox", { name: "Gents" })).toHaveValue("60");
+    await expect(page.getByRole("textbox", { name: "Ladies" })).toHaveValue("40");
 
     // Changing the count clears the split (ask again, never scale).
     await page.getByLabel("Guest Count").fill("120");
