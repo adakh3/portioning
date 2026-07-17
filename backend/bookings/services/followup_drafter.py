@@ -104,6 +104,25 @@ def _build_context(lead):
         for entry in recent_activity:
             lines.append(f"- {entry.created_at:%Y-%m-%d}: {entry.description or entry.action}")
 
+    # Quotations tied to this lead — stated as facts so the model never has
+    # to guess. The sent/not-sent distinction matters: a draft quote is
+    # internal and the customer has NOT seen it.
+    quotes = lead.quotes.order_by('-created_at')[:3]
+    if quotes:
+        lines.append("\nQuotations for this lead:")
+        for q in quotes:
+            if q.status == 'sent':
+                lines.append(
+                    f"- A quotation WAS SENT to the lead (on {q.updated_at:%Y-%m-%d})."
+                )
+            elif q.status in ('accepted', 'declined'):
+                lines.append(f"- A quotation was sent and the lead {q.status} it.")
+            else:
+                lines.append(
+                    "- A quotation has been drafted internally but NOT sent — "
+                    "the lead has not seen it; do not refer to it."
+                )
+
     # The authoritative follow-up ledger — the model must base "how many times
     # have we nudged them" on THIS, never on counting messages in the thread.
     sent = lead.followup_drafts.filter(status='sent').order_by('-reviewed_at')

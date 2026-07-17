@@ -632,3 +632,35 @@ class DraftRoleScopeTests(TestCase):
         body = res.json()
         rows = body['results'] if isinstance(body, dict) else body
         self.assertEqual({d['id'] for d in rows}, {self.my_draft.id, self.other_draft.id})
+
+
+class DrafterQuoteContextTests(TestCase):
+    """The AI is told about quotes as facts — sent vs internal-draft."""
+
+    def setUp(self):
+        self.org = get_test_user().organisation
+
+    def _lead_with_quote(self, status):
+        from bookings.tests import make_account, make_contact, make_quote
+        lead = _stale_lead(self.org, contact_name='Quoted Lead')
+        account = make_account(org=self.org)
+        contact = make_contact(account=account, org=self.org)
+        make_quote(org=self.org, account=account, primary_contact=contact,
+                   lead=lead, status=status)
+        return lead
+
+    def test_sent_quote_is_a_stated_fact(self):
+        from bookings.services.followup_drafter import _build_context
+        ctx = _build_context(self._lead_with_quote('sent'))
+        self.assertIn('A quotation WAS SENT to the lead', ctx)
+
+    def test_draft_quote_is_marked_unseen(self):
+        from bookings.services.followup_drafter import _build_context
+        ctx = _build_context(self._lead_with_quote('draft'))
+        self.assertIn('NOT sent', ctx)
+        self.assertIn('do not refer to it', ctx)
+
+    def test_no_quote_no_quote_lines(self):
+        from bookings.services.followup_drafter import _build_context
+        lead = _stale_lead(self.org, contact_name='Unquoted')
+        self.assertNotIn('Quotations', _build_context(lead))
