@@ -290,6 +290,8 @@ export interface AddOnProduct {
 
 export interface Contact {
   id: number;
+  first_name?: string;
+  last_name?: string;
   account: number | null;
   name: string;
   email: string;
@@ -342,7 +344,10 @@ export interface Lead {
   id: number;
   account: number | null;
   account_name: string | null;
+  contact_title: string;
   contact_name: string;
+  contact_first_name: string;
+  contact_last_name: string;
   contact_email: string;
   contact_phone: string;
   source: string;
@@ -493,6 +498,8 @@ export interface StaffReportEntry {
 export interface StaffMember {
   id: number;
   name: string;
+  first_name?: string;
+  last_name?: string;
   email: string;
   phone: string;
   roles: number[];
@@ -649,7 +656,9 @@ export interface SiteSettingsData {
   // AI follow-ups
   ai_followups_enabled?: boolean;
   ai_followups_configured?: boolean;
-  followup_stale_hours?: number;
+  followup_gap_first_days?: number;
+  followup_gap_second_days?: number;
+  followup_gap_final_days?: number;
   followup_max_drafts_per_lead?: number;
 }
 
@@ -927,7 +936,7 @@ export interface FollowUpPreviewLead {
 
 export interface FollowUpPreview {
   configured: boolean;
-  stale_hours: number;
+  first_gap_days: number;
   leads: FollowUpPreviewLead[];
 }
 

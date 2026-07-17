@@ -23,7 +23,7 @@ vi.mock("@/lib/hooks", () => ({
 
 const PREVIEW = {
   configured: true,
-  stale_hours: 168,
+  first_gap_days: 3,
   leads: [
     { id: 10, contact_name: "Quiet Lead", days_stale: 30, status: "contacted", event_date: "2026-09-01", budget: "5000.00", assigned_to: 2, assigned_to_name: "Rep A" },
     { id: 11, contact_name: "Silent Lead", days_stale: 12, status: "qualified", event_date: null, budget: null, assigned_to: 3, assigned_to_name: "Rep B" },
@@ -126,7 +126,7 @@ describe("Generate follow-ups (preview → select → generate)", () => {
   });
 
   it("shows the empty state when nothing is stale", async () => {
-    getFollowUpPreview.mockResolvedValueOnce({ configured: true, stale_hours: 168, leads: [] });
+    getFollowUpPreview.mockResolvedValueOnce({ configured: true, first_gap_days: 7, leads: [] });
     render(<FollowUpsPage />);
     fireEvent.click(screen.getByRole("button", { name: /AI Drafts/ }));
     fireEvent.click(screen.getByRole("button", { name: "Generate follow-ups" }));

@@ -14,11 +14,18 @@ class LaborRoleSerializer(serializers.ModelSerializer):
 
 class StaffMemberSerializer(serializers.ModelSerializer):
     role_names = serializers.SerializerMethodField()
+    # The display name is composed from first/last on save; forms send parts.
+    name = serializers.CharField(required=False, allow_blank=True, max_length=200)
+
+    def validate(self, attrs):
+        if self.instance is None and not (attrs.get('name') or attrs.get('first_name')):
+            raise serializers.ValidationError({'first_name': 'First name is required.'})
+        return attrs
 
     class Meta:
         model = StaffMember
         fields = [
-            'id', 'name', 'email', 'phone', 'roles', 'role_names',
+            'id', 'name', 'first_name', 'last_name', 'email', 'phone', 'roles', 'role_names',
             'hourly_rate', 'certifications',
             'emergency_contact', 'emergency_phone',
             'is_active', 'notes', 'created_at', 'updated_at',

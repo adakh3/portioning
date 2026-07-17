@@ -10,8 +10,12 @@ Current task settings:
     LLM_FOLLOWUP_DRAFTER — the follow-up drafting agent
 """
 import json
+import logging
+import time
 
 from django.conf import settings
+
+logger = logging.getLogger(__name__)
 
 PROVIDER_KEYS = {
     'anthropic': 'ANTHROPIC_API_KEY',
@@ -63,7 +67,13 @@ def complete_structured(task_setting, system, user_content, schema, max_tokens=1
     # Looked up at call time (not a dict frozen at import) so tests can patch
     # the per-provider callers.
     caller = globals()[f'_call_{provider}']
+    started = time.monotonic()
     text = caller(model, api_key, system, user_content, schema, max_tokens)
+    logger.info(
+        "LLM call %s:%s took %.0f ms (in≈%d chars, out≈%d chars)",
+        provider, model, (time.monotonic() - started) * 1000,
+        len(system) + len(user_content), len(text),
+    )
     try:
         data = json.loads(text)
     except (ValueError, TypeError) as exc:
@@ -91,9 +101,16 @@ def _call_openai(model, api_key, system, user_content, schema, max_tokens):
     from openai import OpenAI
 
     client = OpenAI(api_key=api_key)
+    kwargs = {}
+    if model.startswith('gpt-5'):
+        # GPT-5-family models can spend hidden 'reasoning' tokens before
+        # answering; drafting a 3-sentence message needs none of that, and the
+        # default has changed between 5.x releases — pin it off explicitly.
+        kwargs['reasoning_effort'] = 'none'
     response = client.chat.completions.create(
         model=model,
         max_completion_tokens=max_tokens,
+        **kwargs,
         messages=[
             {"role": "system", "content": system},
             {"role": "user", "content": user_content},

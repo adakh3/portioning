@@ -6,14 +6,29 @@ gone quiet, so that I can nudge them in one click instead of writing each messag
 from scratch — while still reviewing every message before it's sent.
 
 ## How it works (v1 scope)
-- A scheduled agent (`manage.py run_followup_agent`, run by cron) finds **stale**
-  leads (not won/lost, untouched for `followup_stale_hours`, has a phone number,
-  no existing pending draft).
+- Stale-lead eligibility is deterministic, enforced in queries (one source of
+  truth: `followup_scheduler.find_stale_leads`), never by the model's judgment:
+  active lead, has a phone, event date not already passed, no pending draft,
+  fewer than `followup_max_drafts_per_lead` follow-ups **actually sent**
+  (dismissed drafts don't count), and the escalating per-org cadence: first
+  follow-up after `followup_gap_first_days` of quiet (default 3), second
+  `followup_gap_second_days` after that (default 7), later ones
+  `followup_gap_final_days` apart (default 14). "Quiet" counts all three
+  clocks — record edits, our last send, and the lead's last reply — so a fresh
+  reply pauses the agent (a human should answer) while an unanswered reply
+  older than the gap re-enters the cadence, with the draft acknowledging it.
+- The AI's context carries an explicit ledger (follow-ups sent so far, last
+  sent date, last reply date) plus the last 6 thread messages and 8 activity
+  entries. Pipeline status is NOT shared — it's aspiration, not fact.
 - For each, an LLM reads the lead's details + recent activity + recent WhatsApp
   thread and either **drafts** a short follow-up or **skips** the lead. The model
   is supplier-agnostic: `LLM_FOLLOWUP_DRAFTER` env var as `provider:model`
   (default `openai:gpt-5.4-nano`; e.g. `anthropic:claude-haiku-4-5` to switch) —
   see `backend/portioning/llm.py`.
+- Tone: formal and courteous — opens with a greeting using the contact's **title +
+  surname** when a title is set on the lead (e.g. "Hello Ms Rizvi,"), first name
+  otherwise; refers to the event by ONE name (a "nikkah" note beats the generic
+  "Wedding" type — never "nikkah wedding"); no emoji.
 - Drafts land in a review queue as `pending`. **Nothing is auto-sent.**
 - A human approves (optionally editing the text) → the message goes out via the
   existing WhatsApp/Twilio path; or dismisses it.
@@ -60,9 +75,9 @@ from scratch — while still reviewing every message before it's sent.
 **Steps:**
 1. Create a lead with a phone number, status `contacted`; make it stale (set the
    stale threshold low, or leave it untouched past the threshold).
-2. Run `python manage.py run_followup_agent --dry-run` — note it reports it *would*
+2. Run `python manage.py run_followups --dry-run` — note it reports it *would*
    draft, without writing or calling Claude.
-3. Run `python manage.py run_followup_agent`.
+3. Run `python manage.py run_followups`.
 **Expected:** A pending draft is created. Its text references the lead by name; the
 reasoning is populated; `model_used` records the configured `provider:model`.
 

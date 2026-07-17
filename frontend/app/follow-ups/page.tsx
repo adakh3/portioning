@@ -286,6 +286,11 @@ function RemindersTab() {
 
 function DraftReviewCard({ draft, onDone }: { draft: FollowUpDraft; onDone: () => void }) {
   const [body, setBody] = useState(draft.body);
+  // Size the editor to the message so the whole draft is readable at once.
+  const rows = Math.min(
+    14,
+    Math.max(4, body.split("\n").reduce((n, line) => n + Math.max(1, Math.ceil(line.length / 70)), 1)),
+  );
   const [busy, setBusy] = useState<"" | "approve" | "dismiss">("");
   const [error, setError] = useState("");
 
@@ -324,7 +329,7 @@ function DraftReviewCard({ draft, onDone }: { draft: FollowUpDraft; onDone: () =
         <Badge variant="secondary">AI</Badge>
       </div>
       {draft.reasoning && <p className="text-xs text-muted-foreground italic">{draft.reasoning}</p>}
-      <Textarea value={body} onChange={(e) => setBody(e.target.value)} rows={3} />
+      <Textarea value={body} onChange={(e) => setBody(e.target.value)} rows={rows} />
       {error && <p className="text-sm text-destructive">{error}</p>}
       <div className="flex items-center gap-2">
         <Button size="sm" onClick={handleApprove} disabled={!!busy || !body.trim()}>
@@ -390,22 +395,32 @@ function GeneratePanel({ onDraftCreated }: { onDraftCreated: () => void }) {
     const targets = preview.leads.filter((l) => selected.has(l.id));
     const result: GenerateSummary = { created: 0, skipped: [], ineligible: 0, failed: 0 };
     setProgress({ done: 0, total: targets.length });
-    for (const lead of targets) {
-      try {
-        const res = await api.generateFollowUpDraft(lead.id);
-        if (res.status === "created") {
-          result.created += 1;
-          onDraftCreated(); // draft appears in the queue as it lands
-        } else if (res.status === "skipped") {
-          result.skipped.push({ name: lead.contact_name, reasoning: res.reasoning });
-        } else {
-          result.ineligible += 1;
+    // A few drafts in flight at once — each lead is still its own isolated
+    // call (no cross-lead data), this only shortens the wall-clock wait.
+    const CONCURRENCY = 4;
+    let next = 0;
+    const worker = async () => {
+      while (next < targets.length) {
+        const lead = targets[next++];
+        try {
+          const res = await api.generateFollowUpDraft(lead.id);
+          if (res.status === "created") {
+            result.created += 1;
+            onDraftCreated(); // draft appears in the queue as it lands
+          } else if (res.status === "skipped") {
+            result.skipped.push({ name: lead.contact_name, reasoning: res.reasoning });
+          } else {
+            result.ineligible += 1;
+          }
+        } catch {
+          result.failed += 1;
         }
-      } catch {
-        result.failed += 1;
+        setProgress((p) => (p ? { ...p, done: p.done + 1 } : p));
       }
-      setProgress((p) => (p ? { ...p, done: p.done + 1 } : p));
-    }
+    };
+    await Promise.all(
+      Array.from({ length: Math.min(CONCURRENCY, targets.length) }, () => worker()),
+    );
     setProgress(null);
     setPreview(null);
     setSummary(result);
@@ -441,7 +456,7 @@ function GeneratePanel({ onDraftCreated }: { onDraftCreated: () => void }) {
           <CardContent className="p-4 flex items-center justify-between gap-4">
             <p className="text-sm text-muted-foreground">
               No stale leads right now — nothing has gone quiet for more than{" "}
-              {Math.round(preview.stale_hours / 24)} days.
+              {preview.first_gap_days} days.
             </p>
             <Button size="sm" variant="ghost" onClick={() => setPreview(null)}>
               Close
@@ -531,7 +546,7 @@ function GeneratePanel({ onDraftCreated }: { onDraftCreated: () => void }) {
         </Button>
       </div>
       {summary && (
-        <Card>
+        <Card className="max-w-3xl">
           <CardContent className="p-4 space-y-2">
             <p className="text-sm font-medium text-foreground">
               {summary.created} draft{summary.created === 1 ? "" : "s"} created
@@ -591,7 +606,7 @@ function DraftsTab() {
           </CardContent>
         </Card>
       ) : (
-        <>
+        <div className="max-w-3xl space-y-4">
           <div className="flex items-center justify-between">
             <p className="text-sm text-muted-foreground">
               {drafts.length} draft{drafts.length === 1 ? "" : "s"} awaiting your review.
@@ -606,7 +621,7 @@ function DraftsTab() {
               <DraftReviewCard key={d.id} draft={d} onDone={() => mutate()} />
             ))}
           </div>
-        </>
+        </div>
       )}
     </div>
   );

@@ -512,7 +512,9 @@ function WhatsAppSettings({ settings, onSave }: { settings: SiteSettingsData | u
 
 function AIFollowUpSettings({ settings, onSave }: { settings: SiteSettingsData | undefined; onSave: () => void }) {
   const [enabled, setEnabled] = useState(false);
-  const [staleHours, setStaleHours] = useState("168");
+  const [gapFirst, setGapFirst] = useState("3");
+  const [gapSecond, setGapSecond] = useState("7");
+  const [gapFinal, setGapFinal] = useState("14");
   const [maxDrafts, setMaxDrafts] = useState("3");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -521,7 +523,9 @@ function AIFollowUpSettings({ settings, onSave }: { settings: SiteSettingsData |
   useEffect(() => {
     if (settings) {
       setEnabled(settings.ai_followups_enabled || false);
-      setStaleHours(String(settings.followup_stale_hours ?? 168));
+      setGapFirst(String(settings.followup_gap_first_days ?? 3));
+      setGapSecond(String(settings.followup_gap_second_days ?? 7));
+      setGapFinal(String(settings.followup_gap_final_days ?? 14));
       setMaxDrafts(String(settings.followup_max_drafts_per_lead ?? 3));
     }
   }, [settings]);
@@ -533,7 +537,9 @@ function AIFollowUpSettings({ settings, onSave }: { settings: SiteSettingsData |
     try {
       await api.updateSiteSettings({
         ai_followups_enabled: enabled,
-        followup_stale_hours: Number(staleHours),
+        followup_gap_first_days: Number(gapFirst),
+        followup_gap_second_days: Number(gapSecond),
+        followup_gap_final_days: Number(gapFinal),
         followup_max_drafts_per_lead: Number(maxDrafts),
       });
       onSave();
@@ -583,14 +589,34 @@ function AIFollowUpSettings({ settings, onSave }: { settings: SiteSettingsData |
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Stale after (hours)</label>
+              <label className="block text-sm font-medium text-foreground mb-1">First follow-up after (days)</label>
               <Input
                 type="number"
                 min={1}
-                value={staleHours}
-                onChange={(e) => setStaleHours(e.target.value)}
+                value={gapFirst}
+                onChange={(e) => setGapFirst(e.target.value)}
               />
-              <p className="text-xs text-muted-foreground mt-1">Untouched time before drafting (168 = 7 days).</p>
+              <p className="text-xs text-muted-foreground mt-1">Quiet days before the first nudge.</p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Second follow-up after (days)</label>
+              <Input
+                type="number"
+                min={1}
+                value={gapSecond}
+                onChange={(e) => setGapSecond(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground mt-1">Days after the first follow-up.</p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Final follow-up gap (days)</label>
+              <Input
+                type="number"
+                min={1}
+                value={gapFinal}
+                onChange={(e) => setGapFinal(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground mt-1">Days after the second (and later) follow-ups.</p>
             </div>
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">Max drafts per lead</label>

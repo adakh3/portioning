@@ -41,7 +41,8 @@ class OrgSettingsSerializer(serializers.ModelSerializer):
             # WhatsApp (read-only config, org can only toggle enabled)
             'whatsapp_enabled', 'twilio_configured', 'twilio_whatsapp_number',
             # AI follow-ups
-            'ai_followups_enabled', 'followup_stale_hours', 'followup_max_drafts_per_lead',
+            'ai_followups_enabled', 'followup_gap_first_days', 'followup_gap_second_days',
+            'followup_gap_final_days', 'followup_max_drafts_per_lead',
             'ai_followups_configured',
         ]
 

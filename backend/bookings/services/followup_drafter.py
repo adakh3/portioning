@@ -21,13 +21,40 @@ MODEL_SETTING = 'LLM_FOLLOWUP_DRAFTER'
 
 SYSTEM_PROMPT = (
     "You are a sales assistant for a catering company. Your job is to draft a "
-    "short, friendly WhatsApp follow-up to a lead who has gone quiet, so a human "
+    "short, courteous WhatsApp follow-up to a lead who has gone quiet, so a human "
     "can review and send it.\n\n"
     "Rules:\n"
-    "- Keep it to 2-3 sentences, warm and conversational, no emoji spam.\n"
-    "- Reference the specific event details you were given (type, date, guests) "
-    "when they help; never invent details you weren't given.\n"
-    "- Open by name. Sign off as the catering team, not a named person.\n"
+    "- Formal, professional tone — polite and warm, never chatty. No emoji.\n"
+    "- Open with a proper greeting: 'Hello' followed by the contact's title and "
+    "surname if a title is present in the contact record (Mr, Mrs, Ms, Miss, Dr, "
+    "Prof — copy the title exactly as stored, never infer or choose one based on "
+    "the name). If no title is present, greet by first name (e.g. 'Hello "
+    "Batool,'). If neither a title nor a first name is available, use 'Hello,' "
+    "with no name. Never address someone by their bare full name.\n"
+    "- Keep it to 2-4 short sentences after the greeting.\n"
+    "- If a detail (event type, guest count, date, etc.) appears in both a "
+    "structured field and a note, and they conflict or the note is more "
+    "specific, use the note's version — don't state both or repeat the same "
+    "detail twice. Only fall back to the field's version when there's no note "
+    "covering that detail.\n"
+    "- The lead's record (budget, pipeline status, internal notes, activity log) "
+    "is background for YOUR judgment only — never quote it back to the customer. "
+    "Never mention their budget or any money figure, internal status words, or "
+    "note text. Only reference things the customer themselves would recognise: "
+    "their event, its date, the occasion, their guest numbers.\n"
+    "- Reference the specific details you were given (date, guest count) when they "
+    "help; never invent details you weren't given.\n"
+    "- If the lead's most recent message to us went unanswered, open by briefly "
+    "acknowledging it and apologising for the delayed reply — never write as if "
+    "the silence was theirs.\n"
+    "- End with ONE clear call to action — the single most useful next step. If "
+    "details you need are missing (event date, guest count, venue), ask for them "
+    "specifically. If you have enough, propose the concrete next step (e.g. "
+    "sharing menu options and a quote). Never end on a vague 'let us know if you "
+    "need anything'.\n"
+    "- Sign off once at the end as the business's team using the business name "
+    "you were given (e.g. 'The Honey Flash Booth team') — never as a named "
+    "person, and don't repeat the business name elsewhere in the message.\n"
     "- If following up would be inappropriate (the lead just replied, is waiting "
     "on us, explicitly asked for space, or there is nothing useful to say), set "
     "should_follow_up to false and leave message empty.\n"
@@ -50,16 +77,20 @@ DRAFT_SCHEMA = {
 def _build_context(lead):
     """Assemble the lead's details, recent activity, and recent WhatsApp thread."""
     lines = [
+        f"Our business name: {lead.organisation.name}",
         f"Contact name: {lead.contact_name}",
-        f"Current pipeline status: {lead.status}",
         f"Event type: {lead.event_type}",
     ]
+    if lead.contact_title:
+        lines.insert(0, f"Contact title: {lead.contact_title}")
+    if lead.contact_first_name:
+        lines.insert(1, f"Contact first name: {lead.contact_first_name}")
+    if lead.contact_last_name:
+        lines.insert(2, f"Contact surname: {lead.contact_last_name}")
     if lead.event_date:
         lines.append(f"Event date: {lead.event_date.isoformat()}")
     if lead.guest_estimate:
         lines.append(f"Guest estimate: {lead.guest_estimate}")
-    if lead.budget:
-        lines.append(f"Budget: {lead.budget}")
     if lead.notes:
         lines.append(f"Notes: {lead.notes}")
 
@@ -72,6 +103,41 @@ def _build_context(lead):
         lines.append("\nRecent activity (newest first):")
         for entry in recent_activity:
             lines.append(f"- {entry.created_at:%Y-%m-%d}: {entry.description or entry.action}")
+
+    # Quotations tied to this lead — stated as facts so the model never has
+    # to guess. The sent/not-sent distinction matters: a draft quote is
+    # internal and the customer has NOT seen it.
+    quotes = lead.quotes.order_by('-created_at')[:3]
+    if quotes:
+        lines.append("\nQuotations for this lead:")
+        for q in quotes:
+            if q.status == 'sent':
+                lines.append(
+                    f"- A quotation WAS SENT to the lead (on {q.updated_at:%Y-%m-%d})."
+                )
+            elif q.status in ('accepted', 'declined'):
+                lines.append(f"- A quotation was sent and the lead {q.status} it.")
+            else:
+                lines.append(
+                    "- A quotation has been drafted internally but NOT sent — "
+                    "the lead has not seen it; do not refer to it."
+                )
+
+    # The authoritative follow-up ledger — the model must base "how many times
+    # have we nudged them" on THIS, never on counting messages in the thread.
+    sent = lead.followup_drafts.filter(status='sent').order_by('-reviewed_at')
+    sent_count = sent.count()
+    lines.append(f"\nFollow-ups already sent to this lead: {sent_count}")
+    if sent_count:
+        lines.append(f"Most recent follow-up sent: {sent[0].reviewed_at:%Y-%m-%d}")
+    last_reply = (
+        WhatsAppMessage.objects.filter(lead=lead, direction='inbound')
+        .order_by('-created_at').first()
+    )
+    if last_reply:
+        lines.append(f"Most recent reply from the lead: {last_reply.created_at:%Y-%m-%d}")
+    else:
+        lines.append("The lead has never replied on WhatsApp.")
 
     recent_messages = (
         WhatsAppMessage.objects.filter(lead=lead).order_by('-created_at')[:6]

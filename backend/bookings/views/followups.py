@@ -1,4 +1,4 @@
-from django.db.models import Count, Q
+from django.db.models import Q
 from django.utils import timezone
 from rest_framework import generics, status
 from rest_framework.response import Response
@@ -7,7 +7,7 @@ from bookings.activity import log_activity
 from bookings.models import FollowUpDraft, Lead, OrgSettings
 from bookings.permissions import is_salesperson
 from bookings.serializers.followups import FollowUpDraftSerializer
-from bookings.services.followup_agent import find_stale_leads
+from bookings.services.followup_scheduler import find_stale_leads
 from bookings.services.followup_drafter import draft_followup
 from bookings.services.whatsapp import WhatsAppService
 from users.mixins import (
@@ -16,13 +16,20 @@ from users.mixins import (
 
 
 def _scoped_drafts(request):
-    """All follow-up drafts visible to the requester, org-scoped."""
+    """Follow-up drafts the requester may see AND act on: org-scoped, and
+    salespeople only ever touch drafts for their own leads (assigned to them
+    or created by them) — same rule as the lead list. Approve/dismiss resolve
+    drafts through this, so the scope is also the permission boundary."""
     qs = FollowUpDraft.objects.select_related('lead', 'reviewed_by').all()
     if not is_superuser_without_org(request):
         org = get_request_org(request)
         if org is None:
             return qs.none()
         qs = qs.filter(organisation=org)
+    if request.user.is_authenticated and is_salesperson(request.user):
+        qs = qs.filter(
+            Q(lead__assigned_to=request.user) | Q(lead__created_by=request.user)
+        )
     return qs
 
 
@@ -77,7 +84,9 @@ class FollowUpDraftApproveView(generics.GenericAPIView):
     """POST /api/bookings/followup-drafts/<pk>/approve/ — edit (optional) + send."""
 
     def post(self, request, pk):
-        draft = get_org_object_or_404(FollowUpDraft, request, pk=pk)
+        draft = _scoped_drafts(request).filter(pk=pk).first()
+        if draft is None:
+            return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
         if draft.status != 'pending':
             return Response({'detail': 'Draft is not pending.'}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -98,7 +107,9 @@ class FollowUpDraftDismissView(generics.GenericAPIView):
     """POST /api/bookings/followup-drafts/<pk>/dismiss/ — discard without sending."""
 
     def post(self, request, pk):
-        draft = get_org_object_or_404(FollowUpDraft, request, pk=pk)
+        draft = _scoped_drafts(request).filter(pk=pk).first()
+        if draft is None:
+            return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
         if draft.status != 'pending':
             return Response({'detail': 'Draft is not pending.'}, status=status.HTTP_400_BAD_REQUEST)
         user = request.user if request.user.is_authenticated else None
@@ -145,11 +156,7 @@ def _eligible_stale_leads(request, org, settings):
     rules (single source of truth: find_stale_leads + the per-lead cap), plus
     the requester's role scope: salespeople only ever act on their own leads.
     """
-    qs = (
-        find_stale_leads(org, settings)
-        .annotate(draft_count=Count('followup_drafts'))
-        .filter(draft_count__lt=settings.followup_max_drafts_per_lead)
-    )
+    qs = find_stale_leads(org, settings)
     if is_salesperson(request.user):
         qs = qs.filter(Q(assigned_to=request.user) | Q(created_by=request.user))
     return qs.select_related('assigned_to').distinct()
@@ -188,7 +195,7 @@ class FollowUpPreviewView(generics.GenericAPIView):
         } for lead in leads]
         return Response({
             'configured': settings.ai_followups_configured,
-            'stale_hours': settings.followup_stale_hours,
+            'first_gap_days': settings.followup_gap_first_days,
             'leads': rows,
         })
 

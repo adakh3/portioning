@@ -28,10 +28,11 @@ describe("CustomerSelect — inline create", () => {
     render(<CustomerSelect value="" onChange={onChange} />);
 
     fireEvent.click(screen.getByText("+ New customer"));
-    fireEvent.change(screen.getByPlaceholderText("Name *"), { target: { value: "New Person" } });
+    fireEvent.change(screen.getByPlaceholderText("First name *"), { target: { value: "New" } });
+    fireEvent.change(screen.getByPlaceholderText("Last name"), { target: { value: "Person" } });
     fireEvent.click(screen.getByText("Add customer"));
 
-    await waitFor(() => expect(h.createCustomer).toHaveBeenCalledWith({ name: "New Person", phone: "", address: "" }));
+    await waitFor(() => expect(h.createCustomer).toHaveBeenCalledWith({ first_name: "New", last_name: "Person", phone: "", address: "" }));
     await waitFor(() => expect(onChange).toHaveBeenCalledWith("42"));
     expect(h.mutate).toHaveBeenCalled(); // refreshes the list so the option appears
   });
@@ -41,7 +42,7 @@ describe("CustomerSelect — inline create", () => {
     render(<CustomerSelect value="" onChange={onChange} />);
     fireEvent.click(screen.getByText("+ New customer"));
     fireEvent.click(screen.getByText("Add customer"));
-    expect(await screen.findByText("Name is required")).toBeInTheDocument();
+    expect(await screen.findByText("First name is required")).toBeInTheDocument();
     expect(h.createCustomer).not.toHaveBeenCalled();
   });
 });

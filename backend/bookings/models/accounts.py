@@ -69,6 +69,8 @@ class Contact(models.Model):
         Account, on_delete=models.SET_NULL, null=True, blank=True, related_name='contacts',
     )
     name = models.CharField(max_length=200)
+    first_name = models.CharField(max_length=100, blank=True, default='')
+    last_name = models.CharField(max_length=100, blank=True, default='')
     email = models.EmailField(blank=True)
     phone = models.CharField(max_length=50, blank=True)
     address = models.TextField(
@@ -91,3 +93,14 @@ class Contact(models.Model):
         if self.account_id:
             return f"{self.name} ({self.account.name})"
         return self.name
+
+    def save(self, *args, **kwargs):
+        # Same rule as Lead: name is the display column, parts win when set,
+        # a bare two-word name is split into parts.
+        from bookings.names import compose_full_name, split_full_name
+        composed = compose_full_name(self.first_name, self.last_name)
+        if composed:
+            self.name = composed
+        elif self.name:
+            self.first_name, self.last_name = split_full_name(self.name)
+        super().save(*args, **kwargs)

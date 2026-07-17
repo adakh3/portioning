@@ -48,6 +48,8 @@ function formatWholeNumber(val: string): string {
   return num.toLocaleString();
 }
 
+const TITLE_OPTIONS = ["Mr", "Mrs", "Ms", "Miss", "Dr", "Prof"];
+
 function AutoSaveField({
   field,
   label,
@@ -207,7 +209,9 @@ export default function LeadDetailPage() {
   // Create mode form state
   const [formData, setFormData] = useState({
     account: "" as string | number,
-    contact_name: "",
+    contact_title: "",
+    contact_first_name: "",
+    contact_last_name: "",
     contact_email: "",
     contact_phone: "",
     source: "",
@@ -367,11 +371,31 @@ export default function LeadDetailPage() {
             <form onSubmit={handleCreate}>
               <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Contact</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Contact Name *</label>
-                  <ValidatedInput type="text" required maxLength={60} value={formData.contact_name} onChange={setField("contact_name")} />
+                <div className="flex gap-2">
+                  <div className="w-24 shrink-0">
+                    <label className="block text-sm font-medium text-foreground mb-1">Title</label>
+                    <select
+                      aria-label="Title"
+                      value={formData.contact_title}
+                      onChange={setField("contact_title")}
+                      className="w-full h-9 rounded-md border border-border bg-background px-2 text-sm"
+                    >
+                      <option value="">—</option>
+                      {TITLE_OPTIONS.map((t) => (
+                        <option key={t} value={t}>{t}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex-1">
+                    <label className="block text-sm font-medium text-foreground mb-1">First Name *</label>
+                    <ValidatedInput type="text" required maxLength={60} value={formData.contact_first_name} onChange={setField("contact_first_name")} aria-label="First name" />
+                  </div>
+                  <div className="flex-1">
+                    <label className="block text-sm font-medium text-foreground mb-1">Last Name</label>
+                    <ValidatedInput type="text" maxLength={60} value={formData.contact_last_name} onChange={setField("contact_last_name")} aria-label="Last name" />
+                  </div>
                 </div>
-                <div>
+                <div className="md:col-start-1">
                   <label className="block text-sm font-medium text-foreground mb-1">Phone / WhatsApp *</label>
                   <ValidatedInput type="tel" required maxLength={20} value={formData.contact_phone} onChange={setField("contact_phone")} />
                 </div>
@@ -490,7 +514,7 @@ export default function LeadDetailPage() {
           <div className="flex items-start justify-between gap-4">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-3">
-                <h1 className="text-2xl font-bold text-foreground">{l.contact_name}</h1>
+                <h1 className="text-2xl font-bold text-foreground">{[l.contact_title, l.contact_name].filter(Boolean).join(" ")}</h1>
                 <Badge variant={STATUS_BADGE_VARIANT[l.status] || "secondary"}>
                   {l.status_display}
                 </Badge>
@@ -572,7 +596,21 @@ export default function LeadDetailPage() {
         <CardContent className="p-6">
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Contact</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <AutoSaveField {...fieldProps("contact_name")} label="Name" type="text" value={l.contact_name} required />
+            <div className="flex gap-2">
+              <div className="w-24 shrink-0">
+                <AutoSaveField
+                  {...fieldProps("contact_title")}
+                  label="Title"
+                  type="select"
+                  value={l.contact_title || ""}
+                  options={[{ value: "", label: "—" }, ...TITLE_OPTIONS.map((t) => ({ value: t, label: t }))]}
+                />
+              </div>
+              <div className="flex-1 min-w-[90px]">
+                <AutoSaveField {...fieldProps("contact_first_name")} label="First name" type="text" value={l.contact_first_name} required />
+              </div>
+            </div>
+            <AutoSaveField {...fieldProps("contact_last_name")} label="Last name" type="text" value={l.contact_last_name} />
             <AutoSaveField {...fieldProps("contact_phone")} label="Phone / WhatsApp" type="tel" value={l.contact_phone} required />
             <AutoSaveField {...fieldProps("contact_email")} label="Email" type="email" value={l.contact_email} />
             <AutoSaveField

@@ -166,14 +166,28 @@ function StaffRosterTab() {
         <form onSubmit={handleCreate} className="bg-background border border-border rounded-lg p-4 mb-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Name *</label>
-              <Input
-                type="text"
-                required
-                maxLength={60}
-                value={formData.name || ""}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              />
+              <label className="block text-sm font-medium text-foreground mb-1">Name</label>
+              <div className="flex gap-2">
+                <Input
+                  type="text"
+                  required
+                  maxLength={100}
+                  placeholder="First *"
+                  aria-label="First name"
+                  className="min-w-[90px]"
+                  value={formData.first_name || ""}
+                  onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
+                />
+                <Input
+                  type="text"
+                  maxLength={100}
+                  placeholder="Last"
+                  aria-label="Last name"
+                  className="min-w-[90px]"
+                  value={formData.last_name || ""}
+                  onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
+                />
+              </div>
             </div>
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">Email</label>
@@ -294,14 +308,28 @@ function StaffRosterTab() {
                   >
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-sm font-medium text-foreground mb-1">Name *</label>
-                        <Input
-                          type="text"
-                          required
-                          maxLength={60}
-                          value={editFormData.name || ""}
-                          onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
-                        />
+                        <label className="block text-sm font-medium text-foreground mb-1">Name</label>
+                        <div className="flex gap-2">
+                          <Input
+                            type="text"
+                            required
+                            maxLength={100}
+                            placeholder="First *"
+                            aria-label="First name"
+                            className="min-w-[90px]"
+                            value={editFormData.first_name || ""}
+                            onChange={(e) => setEditFormData({ ...editFormData, first_name: e.target.value })}
+                          />
+                          <Input
+                            type="text"
+                            maxLength={100}
+                            placeholder="Last"
+                            aria-label="Last name"
+                            className="min-w-[90px]"
+                            value={editFormData.last_name || ""}
+                            onChange={(e) => setEditFormData({ ...editFormData, last_name: e.target.value })}
+                          />
+                        </div>
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-foreground mb-1">Email</label>

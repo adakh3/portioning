@@ -12,9 +12,11 @@ draft — and untick any I want left alone — before the drafts are generated,
 - Each row shows: lead name (linked), **days since last touch**, assigned salesperson
   (avatar + name), pipeline status chip, event date, and budget.
 - **Eligibility** (same rules as the agent — single source of truth in
-  `followup_agent.find_stale_leads` + the per-lead cap): active lead (not won/lost),
-  untouched past the org's `followup_stale_hours`, has a phone number, no pending
-  draft already, under `followup_max_drafts_per_lead`.
+  `followup_scheduler.find_stale_leads`): active lead (not won/lost), has a phone,
+  event date not passed, no pending draft, fewer than
+  `followup_max_drafts_per_lead` follow-ups **sent** (dismissed don't count),
+  and the escalating cadence gates (first/second/final gap days, counting
+  record edits, our sends, and the lead's replies alike).
 - **Role scoping:** salespeople see and generate for their own leads only
   (assigned to them or created by them); managers/admins/owners see the whole org.
 - Confirming generates drafts **one lead at a time with live progress**
@@ -27,7 +29,7 @@ draft — and untick any I want left alone — before the drafts are generated,
   (or drafted by a colleague) between preview and confirm is skipped safely, never
   double-drafted.
 - **No cron is scheduled.** The button is the only trigger for now;
-  `manage.py run_followup_agent` stays for testing and as a future option.
+  `manage.py run_followups` stays for testing and as a future option.
 - Empty state: "No stale leads right now" mentioning the org's stale threshold.
 
 ### Out of scope (v1)

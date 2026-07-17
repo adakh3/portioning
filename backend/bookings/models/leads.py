@@ -80,7 +80,17 @@ class Lead(OrgScopedModel, models.Model):
         'bookings.Account', null=True, blank=True,
         on_delete=models.SET_NULL, related_name='leads',
     )
+    TITLE_CHOICES = [
+        ('Mr', 'Mr'), ('Mrs', 'Mrs'), ('Ms', 'Ms'), ('Miss', 'Miss'),
+        ('Dr', 'Dr'), ('Prof', 'Prof'),
+    ]
+    contact_title = models.CharField(
+        max_length=10, blank=True, default='', choices=TITLE_CHOICES,
+        help_text='How to address the contact in messages (e.g. Ms Rizvi)',
+    )
     contact_name = models.CharField(max_length=200)
+    contact_first_name = models.CharField(max_length=100, blank=True, default='')
+    contact_last_name = models.CharField(max_length=100, blank=True, default='')
     contact_email = models.EmailField(blank=True)
     contact_phone = models.CharField(max_length=50, blank=True)
     source = models.CharField(max_length=50, blank=True, default='')
@@ -131,6 +141,17 @@ class Lead(OrgScopedModel, models.Model):
 
     class Meta:
         ordering = ['-created_at']
+
+    def save(self, *args, **kwargs):
+        # contact_name stays the display/search/sort column; first/last are the
+        # structured parts. Parts win when set; a bare two-word name is split.
+        from bookings.names import compose_full_name, split_full_name
+        composed = compose_full_name(self.contact_first_name, self.contact_last_name)
+        if composed:
+            self.contact_name = composed
+        elif self.contact_name:
+            self.contact_first_name, self.contact_last_name = split_full_name(self.contact_name)
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.contact_name} — {self.event_type} ({self.status})"
