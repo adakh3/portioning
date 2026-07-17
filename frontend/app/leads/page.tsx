@@ -17,6 +17,7 @@ import {
 } from "@dnd-kit/core";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { api, Lead, LeadFilters, AuthUser, ProductLine, ChoiceOption } from "@/lib/api";
+import { TITLE_OPTIONS } from "@/lib/titles";
 import { useAuth } from "@/lib/auth";
 import { useKanbanData, useLeadsPaginated, useUsers, useProductLines, useEventTypes, useLeadStatuses, useLostReasons, useDateFormat, useSources, revalidate } from "@/lib/hooks";
 import { formatDate } from "@/lib/dateFormat";
@@ -1526,6 +1527,22 @@ function LeadsTable({
               {/* Name */}
               <TableCell>
                 <div className="flex gap-1">
+                  <select
+                    aria-label="Title"
+                    value={quickAdd.contact_title || ""}
+                    onChange={(e) => setQuickAdd((p) => ({ ...p, contact_title: e.target.value }))}
+                    onKeyDown={(e) => {
+                      if (e.key === "Escape") cancelQuickAdd();
+                    }}
+                    autoFocus
+                    disabled={quickAddSaving}
+                    className="h-7 w-16 shrink-0 rounded-md border border-input bg-transparent px-1 text-sm"
+                  >
+                    <option value="">—</option>
+                    {TITLE_OPTIONS.map((t) => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </select>
                   <ValidatedInput
                     placeholder="First *"
                     aria-label="First name"
@@ -1535,7 +1552,6 @@ function LeadsTable({
                       if (e.key === "Enter") saveQuickAdd();
                       if (e.key === "Escape") cancelQuickAdd();
                     }}
-                    autoFocus
                     disabled={quickAddSaving}
                     className="h-7 text-sm min-w-[90px]"
                   />
