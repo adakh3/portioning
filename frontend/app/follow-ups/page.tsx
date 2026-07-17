@@ -456,7 +456,7 @@ function GeneratePanel({ onDraftCreated }: { onDraftCreated: () => void }) {
           <CardContent className="p-4 flex items-center justify-between gap-4">
             <p className="text-sm text-muted-foreground">
               No stale leads right now — nothing has gone quiet for more than{" "}
-              {Math.round(preview.stale_hours / 24)} days.
+              {preview.first_gap_days} days.
             </p>
             <Button size="sm" variant="ghost" onClick={() => setPreview(null)}>
               Close

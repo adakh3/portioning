@@ -20,26 +20,52 @@ logger = logging.getLogger(__name__)
 def find_stale_leads(org, settings):
     """Leads worth drafting a follow-up for — ALL the eligibility rules, in one
     place, enforced by queries rather than by trusting the model to infer them
-    from message history:
+    from message history.
 
-      - active lead (not won/lost), untouched for `followup_stale_hours`
-      - has a phone number; no pending (unreviewed) draft
-      - fewer than `followup_max_drafts_per_lead` follow-ups actually SENT —
-        dismissed drafts don't burn the budget
-      - spacing: the last SENT follow-up is older than the stale threshold,
-        so the same knob paces quiet-gap and follow-up-gap alike
-      - the lead is not waiting on us: if the latest thread message is theirs,
-        a human should answer — the agent never chases someone who spoke last
+    Escalating per-org cadence: the FIRST follow-up after
+    `followup_gap_first_days` of quiet, the SECOND `followup_gap_second_days`
+    after that, the THIRD (and any later) `followup_gap_final_days` apart.
+    "Quiet" at every stage means all three clocks have passed the stage's gap:
+    the lead record untouched, nothing sent by us, and — crucially — no reply
+    from the lead. A fresh reply therefore PAUSES the agent (a human should
+    answer), but an unanswered reply older than the gap re-enters the cadence
+    instead of shelving the lead forever.
+
+    Also: active lead, has a phone, event date not already in the past,
+    no pending draft, and fewer than
+    `followup_max_drafts_per_lead` follow-ups actually SENT (dismissed drafts
+    don't burn the budget).
     """
-    cutoff = timezone.now() - timedelta(hours=settings.followup_stale_hours)
-    latest_message_direction = (
-        WhatsAppMessage.objects.filter(lead=OuterRef('pk'))
-        .order_by('-created_at').values('direction')[:1]
+    now = timezone.now()
+    cutoffs = [
+        now - timedelta(days=settings.followup_gap_first_days),
+        now - timedelta(days=settings.followup_gap_second_days),
+        now - timedelta(days=settings.followup_gap_final_days),
+    ]
+
+    latest_inbound_at = (
+        WhatsAppMessage.objects.filter(lead=OuterRef('pk'), direction='inbound')
+        .order_by('-created_at').values('created_at')[:1]
     )
+
+    def quiet_since(cutoff):
+        return (
+            Q(updated_at__lt=cutoff)
+            & (Q(last_followup_sent_at__isnull=True) | Q(last_followup_sent_at__lt=cutoff))
+            & (Q(last_inbound_at__isnull=True) | Q(last_inbound_at__lt=cutoff))
+        )
+
+    stage_gate = (
+        (Q(sent_followups=0) & quiet_since(cutoffs[0]))
+        | (Q(sent_followups=1) & quiet_since(cutoffs[1]))
+        | (Q(sent_followups__gte=2) & quiet_since(cutoffs[2]))
+    )
+
     return (
         Lead.objects.for_org(org)
-        .stale(cutoff)
+        .active()
         .exclude(contact_phone='')          # can't WhatsApp without a number
+        .exclude(event_date__lt=now.date())  # the event already happened — nothing to chase
         .exclude(followup_drafts__status='pending')  # don't pile up unreviewed drafts
         .annotate(
             sent_followups=Count(
@@ -48,16 +74,10 @@ def find_stale_leads(org, settings):
             last_followup_sent_at=Max(
                 'followup_drafts__reviewed_at', filter=Q(followup_drafts__status='sent'),
             ),
-            latest_message_direction=Subquery(latest_message_direction),
+            last_inbound_at=Subquery(latest_inbound_at),
         )
         .filter(sent_followups__lt=settings.followup_max_drafts_per_lead)
-        .filter(Q(last_followup_sent_at__isnull=True) | Q(last_followup_sent_at__lt=cutoff))
-        # NB: exclude() would also drop leads with NO messages (NULL != 'inbound'
-        # is NULL in SQL) — filter the two acceptable states explicitly.
-        .filter(
-            Q(latest_message_direction__isnull=True)
-            | Q(latest_message_direction='outbound')
-        )
+        .filter(stage_gate)
     )
 
 

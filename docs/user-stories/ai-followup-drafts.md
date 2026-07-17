@@ -8,11 +8,15 @@ from scratch — while still reviewing every message before it's sent.
 ## How it works (v1 scope)
 - Stale-lead eligibility is deterministic, enforced in queries (one source of
   truth: `followup_agent.find_stale_leads`), never by the model's judgment:
-  active lead, untouched for `followup_stale_hours`, has a phone, no pending
-  draft, fewer than `followup_max_drafts_per_lead` follow-ups **actually sent**
-  (dismissed drafts don't count), the last sent follow-up older than the stale
-  threshold (spacing), and the lead did NOT speak last on WhatsApp (a human
-  replies to humans — the agent never chases someone awaiting an answer).
+  active lead, has a phone, event date not already passed, no pending draft,
+  fewer than `followup_max_drafts_per_lead` follow-ups **actually sent**
+  (dismissed drafts don't count), and the escalating per-org cadence: first
+  follow-up after `followup_gap_first_days` of quiet (default 3), second
+  `followup_gap_second_days` after that (default 7), later ones
+  `followup_gap_final_days` apart (default 14). "Quiet" counts all three
+  clocks — record edits, our last send, and the lead's last reply — so a fresh
+  reply pauses the agent (a human should answer) while an unanswered reply
+  older than the gap re-enters the cadence, with the draft acknowledging it.
 - The AI's context carries an explicit ledger (follow-ups sent so far, last
   sent date, last reply date) plus the last 6 thread messages and 8 activity
   entries. Pipeline status is NOT shared — it's aspiration, not fact.

@@ -12,11 +12,11 @@ draft — and untick any I want left alone — before the drafts are generated,
 - Each row shows: lead name (linked), **days since last touch**, assigned salesperson
   (avatar + name), pipeline status chip, event date, and budget.
 - **Eligibility** (same rules as the agent — single source of truth in
-  `followup_agent.find_stale_leads`): active lead (not won/lost), untouched past
-  the org's `followup_stale_hours`, has a phone number, no pending draft, fewer
-  than `followup_max_drafts_per_lead` follow-ups **sent** (dismissed don't
-  count), last sent follow-up older than the threshold (spacing), and the lead
-  did not speak last on WhatsApp.
+  `followup_agent.find_stale_leads`): active lead (not won/lost), has a phone,
+  event date not passed, no pending draft, fewer than
+  `followup_max_drafts_per_lead` follow-ups **sent** (dismissed don't count),
+  and the escalating cadence gates (first/second/final gap days, counting
+  record edits, our sends, and the lead's replies alike).
 - **Role scoping:** salespeople see and generate for their own leads only
   (assigned to them or created by them); managers/admins/owners see the whole org.
 - Confirming generates drafts **one lead at a time with live progress**

@@ -656,7 +656,9 @@ export interface SiteSettingsData {
   // AI follow-ups
   ai_followups_enabled?: boolean;
   ai_followups_configured?: boolean;
-  followup_stale_hours?: number;
+  followup_gap_first_days?: number;
+  followup_gap_second_days?: number;
+  followup_gap_final_days?: number;
   followup_max_drafts_per_lead?: number;
 }
 
@@ -934,7 +936,7 @@ export interface FollowUpPreviewLead {
 
 export interface FollowUpPreview {
   configured: boolean;
-  stale_hours: number;
+  first_gap_days: number;
   leads: FollowUpPreviewLead[];
 }
 

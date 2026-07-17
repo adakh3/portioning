@@ -184,7 +184,7 @@ class FollowUpPreviewView(generics.GenericAPIView):
         } for lead in leads]
         return Response({
             'configured': settings.ai_followups_configured,
-            'stale_hours': settings.followup_stale_hours,
+            'first_gap_days': settings.followup_gap_first_days,
             'leads': rows,
         })
 

@@ -137,6 +137,44 @@ class FollowupAgentTests(TestCase):
         mock_draft.assert_not_called()
 
     @patch('bookings.services.followup_agent.draft_followup', return_value=DRAFT_OK)
+    def test_no_followups_after_the_event_date(self, mock_draft):
+        _stale_lead(self.org, contact_name='Past Event',
+                    event_date=timezone.now().date() - timedelta(days=2))
+        followup_agent.run_for_org(self.org)
+        self.assertEqual(FollowUpDraft.objects.count(), 0)
+        mock_draft.assert_not_called()
+
+    @patch('bookings.services.followup_agent.draft_followup', return_value=DRAFT_OK)
+    def test_escalating_gaps_second_stage_waits_longer(self, mock_draft):
+        # First follow-up sent 5 days ago: past the 3-day first gap but inside
+        # the 7-day second gap — the cadence says wait.
+        lead = _stale_lead(self.org)
+        FollowUpDraft.objects.create(
+            organisation=self.org, lead=lead, body='fu1', status='sent',
+            reviewed_at=timezone.now() - timedelta(days=5),
+        )
+        followup_agent.run_for_org(self.org)
+        self.assertEqual(FollowUpDraft.objects.filter(status='pending').count(), 0)
+        # ...and once 8 days have passed, stage two opens.
+        FollowUpDraft.objects.filter(lead=lead).update(
+            reviewed_at=timezone.now() - timedelta(days=8))
+        followup_agent.run_for_org(self.org)
+        self.assertEqual(FollowUpDraft.objects.filter(status='pending').count(), 1)
+
+    @patch('bookings.services.followup_agent.draft_followup', return_value=DRAFT_OK)
+    def test_unanswered_reply_reenters_the_cadence(self, mock_draft):
+        # The lead replied, nobody answered for longer than the first gap:
+        # the lead is eligible again (the draft will acknowledge the reply).
+        lead = _stale_lead(self.org)
+        msg = WhatsAppMessage.objects.create(
+            organisation=self.org, lead=lead, direction='inbound', body='ok thanks',
+        )
+        WhatsAppMessage.objects.filter(pk=msg.pk).update(
+            created_at=timezone.now() - timedelta(days=4))
+        followup_agent.run_for_org(self.org)
+        self.assertEqual(FollowUpDraft.objects.filter(lead=lead, status='pending').count(), 1)
+
+    @patch('bookings.services.followup_agent.draft_followup', return_value=DRAFT_OK)
     def test_never_chases_a_lead_who_spoke_last(self, mock_draft):
         lead = _stale_lead(self.org)
         WhatsAppMessage.objects.create(
@@ -427,8 +465,8 @@ class FollowUpPreviewTests(TestCase):
         res = self.client.get('/api/bookings/followup-drafts/preview/')
         body = res.json()
         self.assertTrue(body['configured'])
-        self.assertEqual(body['stale_hours'],
-                         OrgSettings.for_org(self.org).followup_stale_hours)
+        self.assertEqual(body['first_gap_days'],
+                         OrgSettings.for_org(self.org).followup_gap_first_days)
 
 
 @platform_creds

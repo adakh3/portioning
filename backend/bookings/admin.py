@@ -445,7 +445,7 @@ class OrgSettingsAdmin(admin.ModelAdmin):
             ),
         }),
         ('AI follow-ups', {
-            'fields': ('ai_followups_enabled', 'followup_stale_hours', 'followup_max_drafts_per_lead', 'ai_followups_configured'),
+            'fields': ('ai_followups_enabled', 'followup_gap_first_days', 'followup_gap_second_days', 'followup_gap_final_days', 'followup_max_drafts_per_lead', 'ai_followups_configured'),
             'description': (
                 'Model set platform-wide by the LLM_FOLLOWUP_DRAFTER env var '
                 '(provider:model) plus that provider\'s API key. '

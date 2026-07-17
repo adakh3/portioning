@@ -127,10 +127,21 @@ class OrgSettings(models.Model):
         default=False,
         help_text='Let the AI agent draft WhatsApp follow-ups for stale leads (always reviewed before sending).',
     )
-    followup_stale_hours = models.PositiveIntegerField(
-        default=168,
-        validators=[MaxValueValidator(8760)],
-        help_text='Hours a lead can sit untouched before the agent drafts a follow-up (default 168 = 7 days).',
+    # Escalating cadence: first touch soon, then progressively larger gaps.
+    followup_gap_first_days = models.PositiveIntegerField(
+        default=3,
+        validators=[MaxValueValidator(365)],
+        help_text='Quiet days before the FIRST follow-up is drafted.',
+    )
+    followup_gap_second_days = models.PositiveIntegerField(
+        default=7,
+        validators=[MaxValueValidator(365)],
+        help_text='Days after the first follow-up before the second.',
+    )
+    followup_gap_final_days = models.PositiveIntegerField(
+        default=14,
+        validators=[MaxValueValidator(365)],
+        help_text='Days after the second (and any later) follow-up before the next.',
     )
     followup_max_drafts_per_lead = models.PositiveIntegerField(
         default=3,
