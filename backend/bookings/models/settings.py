@@ -135,7 +135,7 @@ class OrgSettings(models.Model):
     followup_max_drafts_per_lead = models.PositiveIntegerField(
         default=3,
         validators=[MaxValueValidator(50)],
-        help_text='Never generate more than this many follow-up drafts for a single lead.',
+        help_text='Stop after this many follow-ups have been SENT to one lead (dismissed drafts don\'t count).',
     )
 
     class Meta:

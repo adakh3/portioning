@@ -96,7 +96,23 @@ class FollowupAgentTests(TestCase):
         self.assertEqual(FollowUpDraft.objects.count(), 0)
 
     @patch('bookings.services.followup_agent.draft_followup', return_value=DRAFT_OK)
-    def test_respects_per_lead_cap(self, mock_draft):
+    def test_cap_counts_only_sent_followups(self, mock_draft):
+        s = OrgSettings.for_org(self.org)
+        s.followup_max_drafts_per_lead = 2
+        s.save()
+        lead = _stale_lead(self.org)
+        long_ago = timezone.now() - timedelta(days=30)
+        for body in ('1', '2'):
+            FollowUpDraft.objects.create(
+                organisation=self.org, lead=lead, body=body,
+                status='sent', reviewed_at=long_ago,
+            )
+        followup_agent.run_for_org(self.org)
+        # 2 follow-ups SENT already → quit; no new draft
+        self.assertEqual(FollowUpDraft.objects.filter(lead=lead, status='pending').count(), 0)
+
+    @patch('bookings.services.followup_agent.draft_followup', return_value=DRAFT_OK)
+    def test_dismissed_drafts_do_not_burn_the_budget(self, mock_draft):
         s = OrgSettings.for_org(self.org)
         s.followup_max_drafts_per_lead = 2
         s.save()
@@ -104,8 +120,35 @@ class FollowupAgentTests(TestCase):
         FollowUpDraft.objects.create(organisation=self.org, lead=lead, body='1', status='dismissed')
         FollowUpDraft.objects.create(organisation=self.org, lead=lead, body='2', status='dismissed')
         followup_agent.run_for_org(self.org)
-        # cap of 2 already reached → no new draft
+        # dismissed drafts don't count toward the sent cap → a fresh draft is made
+        self.assertEqual(FollowUpDraft.objects.filter(lead=lead, status='pending').count(), 1)
+
+    @patch('bookings.services.followup_agent.draft_followup', return_value=DRAFT_OK)
+    def test_spacing_no_new_draft_soon_after_a_send(self, mock_draft):
+        # A follow-up sent yesterday: the lead record is stale, but the send
+        # clock isn't — no new draft until the threshold passes again.
+        lead = _stale_lead(self.org)
+        FollowUpDraft.objects.create(
+            organisation=self.org, lead=lead, body='sent recently',
+            status='sent', reviewed_at=timezone.now() - timedelta(days=1),
+        )
+        followup_agent.run_for_org(self.org)
         self.assertEqual(FollowUpDraft.objects.filter(lead=lead, status='pending').count(), 0)
+        mock_draft.assert_not_called()
+
+    @patch('bookings.services.followup_agent.draft_followup', return_value=DRAFT_OK)
+    def test_never_chases_a_lead_who_spoke_last(self, mock_draft):
+        lead = _stale_lead(self.org)
+        WhatsAppMessage.objects.create(
+            organisation=self.org, lead=lead, direction='outbound', body='Us: hello',
+        )
+        WhatsAppMessage.objects.create(
+            organisation=self.org, lead=lead, direction='inbound', body='Lead: one sec',
+        )
+        followup_agent.run_for_org(self.org)
+        # the lead spoke last — a human should reply, never the agent
+        self.assertEqual(FollowUpDraft.objects.filter(lead=lead).count(), 0)
+        mock_draft.assert_not_called()
 
     @patch('bookings.services.followup_agent.draft_followup', return_value=DRAFT_OK)
     def test_skips_lead_with_existing_pending_draft(self, mock_draft):
@@ -345,8 +388,10 @@ class FollowUpPreviewTests(TestCase):
         s.followup_max_drafts_per_lead = 1
         s.save()
         capped = _stale_lead(self.org, contact_name='Capped')
-        FollowUpDraft.objects.create(organisation=self.org, lead=capped,
-                                     body='old', status='dismissed')
+        FollowUpDraft.objects.create(
+            organisation=self.org, lead=capped, body='old', status='sent',
+            reviewed_at=timezone.now() - timedelta(days=30),
+        )
         res = self.client.get('/api/bookings/followup-drafts/preview/')
         self.assertEqual(res.json()['leads'], [])
 
@@ -480,6 +525,20 @@ class DrafterContextTests(TestCase):
         from bookings.services.followup_drafter import _build_context
         lead = _stale_lead(self.org, contact_name='Sam Jones')
         self.assertNotIn('Contact title', _build_context(lead))
+
+    def test_context_carries_the_followup_ledger_not_the_status(self):
+        from bookings.services.followup_drafter import _build_context
+        lead = _stale_lead(self.org, contact_name='Sam Jones')
+        FollowUpDraft.objects.create(
+            organisation=self.org, lead=lead, body='x', status='sent',
+            reviewed_at=timezone.now() - timedelta(days=9),
+        )
+        ctx = _build_context(lead)
+        self.assertIn('Follow-ups already sent to this lead: 1', ctx)
+        self.assertIn('Most recent follow-up sent:', ctx)
+        self.assertIn('The lead has never replied on WhatsApp.', ctx)
+        # pipeline status is aspiration, not fact — it is no longer shared
+        self.assertNotIn('pipeline status', ctx)
 
     def test_context_includes_the_business_name(self):
         from bookings.services.followup_drafter import _build_context

@@ -1,4 +1,4 @@
-from django.db.models import Count, Q
+from django.db.models import Q
 from django.utils import timezone
 from rest_framework import generics, status
 from rest_framework.response import Response
@@ -145,11 +145,7 @@ def _eligible_stale_leads(request, org, settings):
     rules (single source of truth: find_stale_leads + the per-lead cap), plus
     the requester's role scope: salespeople only ever act on their own leads.
     """
-    qs = (
-        find_stale_leads(org, settings)
-        .annotate(draft_count=Count('followup_drafts'))
-        .filter(draft_count__lt=settings.followup_max_drafts_per_lead)
-    )
+    qs = find_stale_leads(org, settings)
     if is_salesperson(request.user):
         qs = qs.filter(Q(assigned_to=request.user) | Q(created_by=request.user))
     return qs.select_related('assigned_to').distinct()

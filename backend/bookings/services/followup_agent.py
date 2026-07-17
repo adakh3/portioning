@@ -7,23 +7,57 @@ to approve — nothing is sent.
 import logging
 from datetime import timedelta
 
+from django.db.models import Count, Max, OuterRef, Q, Subquery
 from django.utils import timezone
 
 from bookings.activity import log_activity
-from bookings.models import FollowUpDraft, Lead, OrgSettings
+from bookings.models import FollowUpDraft, Lead, OrgSettings, WhatsAppMessage
 from bookings.services.followup_drafter import draft_followup
 
 logger = logging.getLogger(__name__)
 
 
 def find_stale_leads(org, settings):
-    """Leads worth drafting a follow-up for, per the shared stale definition."""
+    """Leads worth drafting a follow-up for — ALL the eligibility rules, in one
+    place, enforced by queries rather than by trusting the model to infer them
+    from message history:
+
+      - active lead (not won/lost), untouched for `followup_stale_hours`
+      - has a phone number; no pending (unreviewed) draft
+      - fewer than `followup_max_drafts_per_lead` follow-ups actually SENT —
+        dismissed drafts don't burn the budget
+      - spacing: the last SENT follow-up is older than the stale threshold,
+        so the same knob paces quiet-gap and follow-up-gap alike
+      - the lead is not waiting on us: if the latest thread message is theirs,
+        a human should answer — the agent never chases someone who spoke last
+    """
     cutoff = timezone.now() - timedelta(hours=settings.followup_stale_hours)
+    latest_message_direction = (
+        WhatsAppMessage.objects.filter(lead=OuterRef('pk'))
+        .order_by('-created_at').values('direction')[:1]
+    )
     return (
         Lead.objects.for_org(org)
         .stale(cutoff)
         .exclude(contact_phone='')          # can't WhatsApp without a number
         .exclude(followup_drafts__status='pending')  # don't pile up unreviewed drafts
+        .annotate(
+            sent_followups=Count(
+                'followup_drafts', filter=Q(followup_drafts__status='sent'), distinct=True,
+            ),
+            last_followup_sent_at=Max(
+                'followup_drafts__reviewed_at', filter=Q(followup_drafts__status='sent'),
+            ),
+            latest_message_direction=Subquery(latest_message_direction),
+        )
+        .filter(sent_followups__lt=settings.followup_max_drafts_per_lead)
+        .filter(Q(last_followup_sent_at__isnull=True) | Q(last_followup_sent_at__lt=cutoff))
+        # NB: exclude() would also drop leads with NO messages (NULL != 'inbound'
+        # is NULL in SQL) — filter the two acceptable states explicitly.
+        .filter(
+            Q(latest_message_direction__isnull=True)
+            | Q(latest_message_direction='outbound')
+        )
     )
 
 
@@ -36,11 +70,6 @@ def run_for_org(org, dry_run=False):
     created = skipped = 0
 
     for lead in find_stale_leads(org, settings).distinct():
-        # Per-lead cap: never bug a single lead more than N times.
-        if lead.followup_drafts.count() >= settings.followup_max_drafts_per_lead:
-            skipped += 1
-            continue
-
         if dry_run:
             created += 1
             continue

@@ -76,7 +76,6 @@ def _build_context(lead):
     lines = [
         f"Our business name: {lead.organisation.name}",
         f"Contact name: {lead.contact_name}",
-        f"Current pipeline status: {lead.status}",
         f"Event type: {lead.event_type}",
     ]
     if lead.contact_title:
@@ -101,6 +100,22 @@ def _build_context(lead):
         lines.append("\nRecent activity (newest first):")
         for entry in recent_activity:
             lines.append(f"- {entry.created_at:%Y-%m-%d}: {entry.description or entry.action}")
+
+    # The authoritative follow-up ledger — the model must base "how many times
+    # have we nudged them" on THIS, never on counting messages in the thread.
+    sent = lead.followup_drafts.filter(status='sent').order_by('-reviewed_at')
+    sent_count = sent.count()
+    lines.append(f"\nFollow-ups already sent to this lead: {sent_count}")
+    if sent_count:
+        lines.append(f"Most recent follow-up sent: {sent[0].reviewed_at:%Y-%m-%d}")
+    last_reply = (
+        WhatsAppMessage.objects.filter(lead=lead, direction='inbound')
+        .order_by('-created_at').first()
+    )
+    if last_reply:
+        lines.append(f"Most recent reply from the lead: {last_reply.created_at:%Y-%m-%d}")
+    else:
+        lines.append("The lead has never replied on WhatsApp.")
 
     recent_messages = (
         WhatsAppMessage.objects.filter(lead=lead).order_by('-created_at')[:6]

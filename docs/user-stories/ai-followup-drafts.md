@@ -6,9 +6,16 @@ gone quiet, so that I can nudge them in one click instead of writing each messag
 from scratch — while still reviewing every message before it's sent.
 
 ## How it works (v1 scope)
-- A scheduled agent (`manage.py run_followup_agent`, run by cron) finds **stale**
-  leads (not won/lost, untouched for `followup_stale_hours`, has a phone number,
-  no existing pending draft).
+- Stale-lead eligibility is deterministic, enforced in queries (one source of
+  truth: `followup_agent.find_stale_leads`), never by the model's judgment:
+  active lead, untouched for `followup_stale_hours`, has a phone, no pending
+  draft, fewer than `followup_max_drafts_per_lead` follow-ups **actually sent**
+  (dismissed drafts don't count), the last sent follow-up older than the stale
+  threshold (spacing), and the lead did NOT speak last on WhatsApp (a human
+  replies to humans — the agent never chases someone awaiting an answer).
+- The AI's context carries an explicit ledger (follow-ups sent so far, last
+  sent date, last reply date) plus the last 6 thread messages and 8 activity
+  entries. Pipeline status is NOT shared — it's aspiration, not fact.
 - For each, an LLM reads the lead's details + recent activity + recent WhatsApp
   thread and either **drafts** a short follow-up or **skips** the lead. The model
   is supplier-agnostic: `LLM_FOLLOWUP_DRAFTER` env var as `provider:model`
