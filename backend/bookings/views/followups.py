@@ -16,13 +16,20 @@ from users.mixins import (
 
 
 def _scoped_drafts(request):
-    """All follow-up drafts visible to the requester, org-scoped."""
+    """Follow-up drafts the requester may see AND act on: org-scoped, and
+    salespeople only ever touch drafts for their own leads (assigned to them
+    or created by them) — same rule as the lead list. Approve/dismiss resolve
+    drafts through this, so the scope is also the permission boundary."""
     qs = FollowUpDraft.objects.select_related('lead', 'reviewed_by').all()
     if not is_superuser_without_org(request):
         org = get_request_org(request)
         if org is None:
             return qs.none()
         qs = qs.filter(organisation=org)
+    if request.user.is_authenticated and is_salesperson(request.user):
+        qs = qs.filter(
+            Q(lead__assigned_to=request.user) | Q(lead__created_by=request.user)
+        )
     return qs
 
 
@@ -77,7 +84,9 @@ class FollowUpDraftApproveView(generics.GenericAPIView):
     """POST /api/bookings/followup-drafts/<pk>/approve/ — edit (optional) + send."""
 
     def post(self, request, pk):
-        draft = get_org_object_or_404(FollowUpDraft, request, pk=pk)
+        draft = _scoped_drafts(request).filter(pk=pk).first()
+        if draft is None:
+            return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
         if draft.status != 'pending':
             return Response({'detail': 'Draft is not pending.'}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -98,7 +107,9 @@ class FollowUpDraftDismissView(generics.GenericAPIView):
     """POST /api/bookings/followup-drafts/<pk>/dismiss/ — discard without sending."""
 
     def post(self, request, pk):
-        draft = get_org_object_or_404(FollowUpDraft, request, pk=pk)
+        draft = _scoped_drafts(request).filter(pk=pk).first()
+        if draft is None:
+            return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
         if draft.status != 'pending':
             return Response({'detail': 'Draft is not pending.'}, status=status.HTTP_400_BAD_REQUEST)
         user = request.user if request.user.is_authenticated else None

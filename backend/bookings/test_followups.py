@@ -582,3 +582,53 @@ class DrafterContextTests(TestCase):
         from bookings.services.followup_drafter import _build_context
         lead = _stale_lead(self.org, contact_name='Sam Jones')
         self.assertIn(f'Our business name: {self.org.name}', _build_context(lead))
+
+
+@platform_creds
+class DraftRoleScopeTests(TestCase):
+    """Salespeople only see and act on drafts for their own leads."""
+
+    def setUp(self):
+        self.owner = get_test_user()
+        self.org = self.owner.organisation
+        _configure_ai(self.org)
+        self.rep = User.objects.create(
+            email='rep@scope.test', first_name='Rep', last_name='Scope',
+            role='salesperson', organisation=self.org,
+        )
+        mine = _stale_lead(self.org, contact_name='Mine', assigned_to=self.rep)
+        other = _stale_lead(self.org, contact_name='NotMine')
+        self.my_draft = FollowUpDraft.objects.create(
+            organisation=self.org, lead=mine, body='mine')
+        self.other_draft = FollowUpDraft.objects.create(
+            organisation=self.org, lead=other, body='not mine')
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.rep)
+
+    def test_salesperson_list_and_count_show_only_their_drafts(self):
+        res = self.client.get('/api/bookings/followup-drafts/')
+        body = res.json()
+        rows = body['results'] if isinstance(body, dict) else body
+        self.assertEqual([d['id'] for d in rows], [self.my_draft.id])
+        count = self.client.get('/api/bookings/followup-drafts/count/').json()
+        self.assertEqual(count['pending'], 1)
+
+    def test_salesperson_cannot_approve_or_dismiss_others_draft(self):
+        res = self.client.post(f'/api/bookings/followup-drafts/{self.other_draft.id}/approve/')
+        self.assertEqual(res.status_code, 404)
+        res = self.client.post(f'/api/bookings/followup-drafts/{self.other_draft.id}/dismiss/')
+        self.assertEqual(res.status_code, 404)
+        self.other_draft.refresh_from_db()
+        self.assertEqual(self.other_draft.status, 'pending')
+
+    def test_salesperson_can_dismiss_their_own(self):
+        res = self.client.post(f'/api/bookings/followup-drafts/{self.my_draft.id}/dismiss/')
+        self.assertEqual(res.status_code, 200)
+
+    def test_manager_sees_the_whole_orgs_drafts(self):
+        client = APIClient()
+        client.force_authenticate(user=self.owner)
+        res = client.get('/api/bookings/followup-drafts/')
+        body = res.json()
+        rows = body['results'] if isinstance(body, dict) else body
+        self.assertEqual({d['id'] for d in rows}, {self.my_draft.id, self.other_draft.id})
