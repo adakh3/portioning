@@ -480,3 +480,8 @@ class DrafterContextTests(TestCase):
         from bookings.services.followup_drafter import _build_context
         lead = _stale_lead(self.org, contact_name='Sam Jones')
         self.assertNotIn('Contact title', _build_context(lead))
+
+    def test_context_includes_the_business_name(self):
+        from bookings.services.followup_drafter import _build_context
+        lead = _stale_lead(self.org, contact_name='Sam Jones')
+        self.assertIn(f'Our business name: {self.org.name}', _build_context(lead))

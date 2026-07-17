@@ -49,7 +49,9 @@ SYSTEM_PROMPT = (
     "specifically. If you have enough, propose the concrete next step (e.g. "
     "sharing menu options and a quote). Never end on a vague 'let us know if you "
     "need anything'.\n"
-    "- Sign off as the catering team, not a named person.\n"
+    "- Sign off once at the end as the business's team using the business name "
+    "you were given (e.g. 'The Honey Flash Booth team') — never as a named "
+    "person, and don't repeat the business name elsewhere in the message.\n"
     "- If following up would be inappropriate (the lead just replied, is waiting "
     "on us, explicitly asked for space, or there is nothing useful to say), set "
     "should_follow_up to false and leave message empty.\n"
@@ -72,6 +74,7 @@ DRAFT_SCHEMA = {
 def _build_context(lead):
     """Assemble the lead's details, recent activity, and recent WhatsApp thread."""
     lines = [
+        f"Our business name: {lead.organisation.name}",
         f"Contact name: {lead.contact_name}",
         f"Current pipeline status: {lead.status}",
         f"Event type: {lead.event_type}",
