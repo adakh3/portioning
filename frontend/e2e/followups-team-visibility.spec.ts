@@ -27,6 +27,7 @@ test.describe("Follow-ups team visibility", () => {
     // Owner's /follow-ups: team view — person filter present, reminder shown
     // and attributed to the lead's owner (Demo Rep), not the owner who clicked.
     await page.goto("/follow-ups");
+    await page.getByRole("button", { name: "Reminders" }).click();
     const personFilter = page.getByLabel("Filter follow-ups by person");
     await expect(personFilter).toBeVisible();
     await expect(page.getByText(note)).toBeVisible();
@@ -44,6 +45,7 @@ test.describe("Follow-ups team visibility", () => {
     const repPage = await repContext.newPage();
     await loginAs(repPage, "rep@demo.test", "Sales123!");
     await repPage.goto("/follow-ups");
+    await repPage.getByRole("button", { name: "Reminders" }).click();
     await expect(repPage.getByText(note)).toBeVisible();
     await expect(repPage.getByLabel("Filter follow-ups by person")).toHaveCount(0);
     await repContext.close();

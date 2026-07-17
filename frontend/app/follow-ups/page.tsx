@@ -650,12 +650,12 @@ function DraftsTab() {
 }
 
 export default function FollowUpsPage() {
-  const [tab, setTab] = useState<"reminders" | "drafts">("reminders");
+  const [tab, setTab] = useState<"reminders" | "drafts">("drafts");
   const { data: drafts = [] } = useFollowUpDrafts("pending");
 
   const tabs: { id: "reminders" | "drafts"; label: string; count?: number }[] = [
-    { id: "reminders", label: "Reminders" },
     { id: "drafts", label: "AI Follow-ups", count: drafts.length },
+    { id: "reminders", label: "Reminders" },
   ];
 
   return (
