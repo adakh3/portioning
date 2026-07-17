@@ -45,7 +45,7 @@ import FollowUpsPage from "./page";
 
 async function openDraftsPreview() {
   render(<FollowUpsPage />);
-  fireEvent.click(screen.getByRole("button", { name: /AI Drafts/ }));
+  fireEvent.click(screen.getByRole("button", { name: /AI Follow-ups/ }));
   fireEvent.click(screen.getByRole("button", { name: "Generate follow-ups" }));
   await screen.findByText("Quiet Lead"); // preview loaded
 }
@@ -128,7 +128,7 @@ describe("Generate follow-ups (preview → select → generate)", () => {
   it("shows the empty state when nothing is stale", async () => {
     getFollowUpPreview.mockResolvedValueOnce({ configured: true, first_gap_days: 7, leads: [] });
     render(<FollowUpsPage />);
-    fireEvent.click(screen.getByRole("button", { name: /AI Drafts/ }));
+    fireEvent.click(screen.getByRole("button", { name: /AI Follow-ups/ }));
     fireEvent.click(screen.getByRole("button", { name: "Generate follow-ups" }));
     await screen.findByText(/No stale leads right now/);
     expect(screen.getByText(/7 days/)).toBeTruthy();
