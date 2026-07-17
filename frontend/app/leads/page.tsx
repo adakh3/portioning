@@ -1536,9 +1536,9 @@ function LeadsTable({
                     }}
                     autoFocus
                     disabled={quickAddSaving}
-                    className="h-7 w-16 shrink-0 rounded-md border border-input bg-transparent px-1 text-sm"
+                    className={`h-7 w-16 shrink-0 rounded-md border border-input bg-transparent px-1 text-sm ${quickAdd.contact_title ? "" : "text-muted-foreground"}`}
                   >
-                    <option value="">—</option>
+                    <option value="">Title</option>
                     {TITLE_OPTIONS.map((t) => (
                       <option key={t} value={t}>{t}</option>
                     ))}
