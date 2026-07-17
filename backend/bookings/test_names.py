@@ -10,9 +10,13 @@ class SplitComposeTests(TestCase):
     def test_two_word_names_split(self):
         self.assertEqual(split_full_name('Batool Rizvi'), ('Batool', 'Rizvi'))
 
-    def test_other_shapes_do_not_split(self):
-        self.assertEqual(split_full_name('Batool'), ('', ''))
-        self.assertEqual(split_full_name('Batool Rizvi Khan'), ('', ''))
+    def test_last_word_is_the_surname(self):
+        self.assertEqual(split_full_name('Batool Rizvi Khan'), ('Batool Rizvi', 'Khan'))
+
+    def test_single_word_is_a_first_name(self):
+        self.assertEqual(split_full_name('Batool'), ('Batool', ''))
+
+    def test_empty_shapes(self):
         self.assertEqual(split_full_name(''), ('', ''))
         self.assertEqual(split_full_name(None), ('', ''))
 
@@ -39,12 +43,12 @@ class LeadNameSyncTests(TestCase):
         )
         self.assertEqual((lead.contact_first_name, lead.contact_last_name), ('Sam', 'Jones'))
 
-    def test_three_word_name_keeps_display_only(self):
+    def test_three_word_name_splits_before_last_word(self):
         lead = Lead.objects.create(
             organisation=self.org, contact_name='Batool Rizvi Khan', status='new',
         )
         self.assertEqual(lead.contact_name, 'Batool Rizvi Khan')
-        self.assertEqual((lead.contact_first_name, lead.contact_last_name), ('', ''))
+        self.assertEqual((lead.contact_first_name, lead.contact_last_name), ('Batool Rizvi', 'Khan'))
 
 
 class ContactNameSyncTests(TestCase):
@@ -59,7 +63,7 @@ class ContactNameSyncTests(TestCase):
 
 
 class BackfillMigrationTests(TestCase):
-    def test_backfill_splits_only_two_word_names(self):
+    def test_backfill_splits_all_multiword_names(self):
         import importlib
         from django.apps import apps as django_apps
         org = get_test_user().organisation
@@ -76,4 +80,4 @@ class BackfillMigrationTests(TestCase):
 
         two.refresh_from_db(); three.refresh_from_db()
         self.assertEqual((two.contact_first_name, two.contact_last_name), ('Two', 'Words'))
-        self.assertEqual((three.contact_first_name, three.contact_last_name), ('', ''))
+        self.assertEqual((three.contact_first_name, three.contact_last_name), ('Three Word', 'Name'))

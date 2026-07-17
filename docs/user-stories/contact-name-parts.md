@@ -12,17 +12,18 @@ Rizvi") instead of guessing from a single name blob.
 - Every name input in the app is now two fields (First name required, Last name
   optional): lead create form, lead detail page, leads quick-add row, and the
   account page's contact form. The AI drafter receives the parts explicitly.
-- **One splitting rule everywhere** (data migration + save): an exactly-two-word
-  name splits into first/last; one-word or 3+-word names keep the display name
-  only, parts left for a human. Existing rows were backfilled by migration
-  `bookings.0062` with the same rule.
+- **One splitting rule everywhere** (data migration + save): the last word is
+  the surname, everything before it the first name ("Batool Rizvi Khan" →
+  first "Batool Rizvi", last "Khan"); a single word is a first name with no
+  surname. Existing rows were backfilled by migration `bookings.0062` with the
+  same rule.
 
 ## Acceptance criteria
 - [ ] Creating a lead with First "Batool" + Last "Rizvi" shows "Batool Rizvi"
       everywhere the name displays; the parts round-trip on the detail page.
 - [ ] Quick-add requires First name; Last name optional.
-- [ ] Legacy two-word names were split; 1-word and 3+-word names untouched
-      (display still correct).
+- [ ] Legacy names were split (last word = surname); one-word names became a
+      first name with no surname (display still correct).
 - [ ] AI drafts greet with "Hello <Title> <Surname>," when title+surname exist.
 
 ## Manual test cases

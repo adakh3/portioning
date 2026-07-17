@@ -4,13 +4,17 @@ from django.db import migrations
 def split_two_word_names(apps, schema_editor):
     """Backfill first/last parts from existing single names.
 
-    Only an exactly-two-word name is split (same rule as bookings.names);
-    one-word or three-plus-word names are left for a human to structure —
-    the display name keeps working either way.
+    Same rule as bookings.names: the last word is the surname, everything
+    before it the first name; a single word is a first name with no surname.
+    The display name keeps working either way.
     """
     def split(full):
         parts = (full or '').strip().split()
-        return (parts[0], parts[1]) if len(parts) == 2 else ('', '')
+        if not parts:
+            return '', ''
+        if len(parts) == 1:
+            return parts[0], ''
+        return ' '.join(parts[:-1]), parts[-1]
 
     Lead = apps.get_model('bookings', 'Lead')
     Contact = apps.get_model('bookings', 'Contact')

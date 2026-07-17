@@ -390,22 +390,32 @@ function GeneratePanel({ onDraftCreated }: { onDraftCreated: () => void }) {
     const targets = preview.leads.filter((l) => selected.has(l.id));
     const result: GenerateSummary = { created: 0, skipped: [], ineligible: 0, failed: 0 };
     setProgress({ done: 0, total: targets.length });
-    for (const lead of targets) {
-      try {
-        const res = await api.generateFollowUpDraft(lead.id);
-        if (res.status === "created") {
-          result.created += 1;
-          onDraftCreated(); // draft appears in the queue as it lands
-        } else if (res.status === "skipped") {
-          result.skipped.push({ name: lead.contact_name, reasoning: res.reasoning });
-        } else {
-          result.ineligible += 1;
+    // A few drafts in flight at once — each lead is still its own isolated
+    // call (no cross-lead data), this only shortens the wall-clock wait.
+    const CONCURRENCY = 4;
+    let next = 0;
+    const worker = async () => {
+      while (next < targets.length) {
+        const lead = targets[next++];
+        try {
+          const res = await api.generateFollowUpDraft(lead.id);
+          if (res.status === "created") {
+            result.created += 1;
+            onDraftCreated(); // draft appears in the queue as it lands
+          } else if (res.status === "skipped") {
+            result.skipped.push({ name: lead.contact_name, reasoning: res.reasoning });
+          } else {
+            result.ineligible += 1;
+          }
+        } catch {
+          result.failed += 1;
         }
-      } catch {
-        result.failed += 1;
+        setProgress((p) => (p ? { ...p, done: p.done + 1 } : p));
       }
-      setProgress((p) => (p ? { ...p, done: p.done + 1 } : p));
-    }
+    };
+    await Promise.all(
+      Array.from({ length: Math.min(CONCURRENCY, targets.length) }, () => worker()),
+    );
     setProgress(null);
     setPreview(null);
     setSummary(result);

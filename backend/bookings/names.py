@@ -3,17 +3,24 @@
 The single display name ('Batool Rizvi') stays the stored, searchable,
 sortable column; first/last are the structured parts used for addressing
 people properly (greetings, titles). One rule, used by the data migration
-and by model save() alike: only an exactly-two-word name is split — anything
-else is left for a human to structure.
+and by model save() alike: the last word is the surname, everything before
+it is the first name; a single word is a first name with no surname.
 """
 
 
 def split_full_name(full):
-    """'Batool Rizvi' -> ('Batool', 'Rizvi'); anything else -> ('', '')."""
+    """Last word is the surname, everything before it the first name.
+
+    'Batool Rizvi'      -> ('Batool', 'Rizvi')
+    'Batool Rizvi Khan' -> ('Batool Rizvi', 'Khan')
+    'Batool'            -> ('Batool', '')
+    """
     parts = (full or '').strip().split()
-    if len(parts) == 2:
-        return parts[0], parts[1]
-    return '', ''
+    if not parts:
+        return '', ''
+    if len(parts) == 1:
+        return parts[0], ''
+    return ' '.join(parts[:-1]), parts[-1]
 
 
 def compose_full_name(first, last):
