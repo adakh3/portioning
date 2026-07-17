@@ -48,6 +48,12 @@ export function revalidate(...keys: string[]) {
   keys.forEach((k) => mutate(k));
 }
 
+/** Revalidate every cached key starting with `prefix` — for paginated/
+ * filtered families like `leads-paginated?...` where the exact key varies. */
+export function revalidatePrefix(prefix: string) {
+  mutate((key) => typeof key === "string" && key.startsWith(prefix));
+}
+
 // ── Date format ──
 
 export function useDateFormat(): string {
