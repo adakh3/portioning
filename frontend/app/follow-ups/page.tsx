@@ -285,6 +285,7 @@ function RemindersTab() {
 }
 
 function DraftReviewCard({ draft, onDone }: { draft: FollowUpDraft; onDone: () => void }) {
+  const dateFormat = useDateFormat();
   const [body, setBody] = useState(draft.body);
   // Size the editor to the message so the whole draft is readable at once.
   const rows = Math.min(
@@ -321,24 +322,44 @@ function DraftReviewCard({ draft, onDone }: { draft: FollowUpDraft; onDone: () =
   };
 
   return (
-    <div className="p-3 border border-border rounded-lg space-y-2">
-      <div className="flex items-center gap-2">
-        <Link href={`/leads/${draft.lead}`} className="text-sm font-medium text-primary hover:underline truncate">
-          {draft.lead_name || `Lead #${draft.lead}`}
-        </Link>
-        <Badge variant="secondary">AI</Badge>
+    <div className="p-3 border border-border rounded-lg flex gap-3">
+      <div className="flex-1 min-w-0 space-y-2">
+        <div className="flex items-center gap-2">
+          <Link href={`/leads/${draft.lead}`} className="text-sm font-medium text-primary hover:underline truncate">
+            {draft.lead_name || `Lead #${draft.lead}`}
+          </Link>
+          <Badge variant="secondary">AI</Badge>
+        </div>
+        {draft.reasoning && <p className="text-xs text-muted-foreground italic">{draft.reasoning}</p>}
+        <Textarea value={body} onChange={(e) => setBody(e.target.value)} rows={rows} />
+        {error && <p className="text-sm text-destructive">{error}</p>}
+        <div className="flex items-center gap-2">
+          <Button size="sm" onClick={handleApprove} disabled={!!busy || !body.trim()}>
+            {busy === "approve" ? "Sending..." : "Approve & Send"}
+          </Button>
+          <Button size="sm" variant="ghost" onClick={handleDismiss} disabled={!!busy}>
+            {busy === "dismiss" ? "Dismissing..." : "Dismiss"}
+          </Button>
+        </div>
       </div>
-      {draft.reasoning && <p className="text-xs text-muted-foreground italic">{draft.reasoning}</p>}
-      <Textarea value={body} onChange={(e) => setBody(e.target.value)} rows={rows} />
-      {error && <p className="text-sm text-destructive">{error}</p>}
-      <div className="flex items-center gap-2">
-        <Button size="sm" onClick={handleApprove} disabled={!!busy || !body.trim()}>
-          {busy === "approve" ? "Sending..." : "Approve & Send"}
-        </Button>
-        <Button size="sm" variant="ghost" onClick={handleDismiss} disabled={!!busy}>
-          {busy === "dismiss" ? "Dismissing..." : "Dismiss"}
-        </Button>
-      </div>
+      <aside className="hidden sm:block w-40 shrink-0 border-l border-border pl-3 text-xs text-muted-foreground space-y-1.5">
+        {draft.lead_event_type && (
+          <p className="uppercase tracking-wide">{draft.lead_event_type}</p>
+        )}
+        {draft.lead_event_date && (
+          <p>{formatDate(draft.lead_event_date, dateFormat)}</p>
+        )}
+        {draft.lead_guest_estimate != null && <p>{draft.lead_guest_estimate} guests</p>}
+        {draft.lead_days_stale != null && (
+          <p className="text-amber-600 font-medium">{draft.lead_days_stale}d quiet</p>
+        )}
+        {draft.lead_assigned_to_name && (
+          <p className="flex items-center gap-1.5 pt-1">
+            <Avatar name={draft.lead_assigned_to_name} size="sm" />
+            <span className="truncate">{draft.lead_assigned_to_name}</span>
+          </p>
+        )}
+      </aside>
     </div>
   );
 }
@@ -612,7 +633,7 @@ function DraftsTab() {
               {drafts.length} draft{drafts.length === 1 ? "" : "s"} awaiting your review.
             </p>
             <Button size="sm" onClick={handleBulkApprove} disabled={bulkBusy}>
-              {bulkBusy ? "Sending..." : `Approve all (${drafts.length})`}
+              {bulkBusy ? "Sending..." : `Approve & send all (${drafts.length})`}
             </Button>
           </div>
           {bulkError && <p className="text-sm text-destructive">{bulkError}</p>}

@@ -910,6 +910,11 @@ export interface FollowUpDraft {
   id: number;
   lead: number;
   lead_name: string | null;
+  lead_event_type?: string;
+  lead_event_date?: string | null;
+  lead_guest_estimate?: number | null;
+  lead_assigned_to_name?: string | null;
+  lead_days_stale?: number | null;
   channel: string;
   body: string;
   reasoning: string;
