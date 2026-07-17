@@ -1226,8 +1226,8 @@ function LeadsTable({
   }
 
   async function saveQuickAdd() {
-    if (!quickAdd.contact_name?.trim()) {
-      onToast("Name is required");
+    if (!quickAdd.contact_first_name?.trim()) {
+      onToast("First name is required");
       return;
     }
     if (!quickAdd.contact_phone?.trim()) {
@@ -1525,18 +1525,33 @@ function LeadsTable({
               </TableCell>
               {/* Name */}
               <TableCell>
-                <ValidatedInput
-                  placeholder="Name *"
-                  value={quickAdd.contact_name || ""}
-                  onChange={(e) => setQuickAdd((p) => ({ ...p, contact_name: e.target.value }))}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") saveQuickAdd();
-                    if (e.key === "Escape") cancelQuickAdd();
-                  }}
-                  autoFocus
-                  disabled={quickAddSaving}
-                  className="h-7 text-sm"
-                />
+                <div className="flex gap-1">
+                  <ValidatedInput
+                    placeholder="First *"
+                    aria-label="First name"
+                    value={quickAdd.contact_first_name || ""}
+                    onChange={(e) => setQuickAdd((p) => ({ ...p, contact_first_name: e.target.value }))}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") saveQuickAdd();
+                      if (e.key === "Escape") cancelQuickAdd();
+                    }}
+                    autoFocus
+                    disabled={quickAddSaving}
+                    className="h-7 text-sm"
+                  />
+                  <ValidatedInput
+                    placeholder="Last"
+                    aria-label="Last name"
+                    value={quickAdd.contact_last_name || ""}
+                    onChange={(e) => setQuickAdd((p) => ({ ...p, contact_last_name: e.target.value }))}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") saveQuickAdd();
+                      if (e.key === "Escape") cancelQuickAdd();
+                    }}
+                    disabled={quickAddSaving}
+                    className="h-7 text-sm"
+                  />
+                </div>
               </TableCell>
               {/* Phone / WhatsApp */}
               <TableCell className="hidden lg:table-cell">

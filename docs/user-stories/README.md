@@ -26,7 +26,8 @@ here. Keep it test-focused — numbered cases with concrete steps and expected r
 | Event guest count (primary number, optional split) | [event-guest-count.md](event-guest-count.md) | Built — awaiting manual sign-off |
 | Tiered + regional subscription pricing | [tiered-regional-pricing.md](tiered-regional-pricing.md) | Built (backend + frontend) — awaiting manual sign-off |
 | Follow-ups — team visibility & lead-owner assignment | [follow-ups-team-visibility.md](follow-ups-team-visibility.md) | Built — awaiting manual sign-off |
-| On-demand follow-up generation (preview → select → generate) | [followup-generate-on-demand.md](followup-generate-on-demand.md) | Agreed — in progress |
+| On-demand follow-up generation (preview → select → generate) | [followup-generate-on-demand.md](followup-generate-on-demand.md) | Built — awaiting manual sign-off |
+| Contact names split into first + last (leads & customers) | [contact-name-parts.md](contact-name-parts.md) | Built — awaiting manual sign-off |
 
 ## Template
 

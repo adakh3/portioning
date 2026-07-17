@@ -290,6 +290,8 @@ export interface AddOnProduct {
 
 export interface Contact {
   id: number;
+  first_name?: string;
+  last_name?: string;
   account: number | null;
   name: string;
   email: string;
@@ -344,6 +346,8 @@ export interface Lead {
   account_name: string | null;
   contact_title: string;
   contact_name: string;
+  contact_first_name: string;
+  contact_last_name: string;
   contact_email: string;
   contact_phone: string;
   source: string;

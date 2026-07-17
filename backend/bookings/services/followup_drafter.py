@@ -68,6 +68,10 @@ def _build_context(lead):
     ]
     if lead.contact_title:
         lines.insert(0, f"Contact title: {lead.contact_title}")
+    if lead.contact_first_name:
+        lines.insert(1, f"Contact first name: {lead.contact_first_name}")
+    if lead.contact_last_name:
+        lines.insert(2, f"Contact surname: {lead.contact_last_name}")
     if lead.event_date:
         lines.append(f"Event date: {lead.event_date.isoformat()}")
     if lead.guest_estimate:

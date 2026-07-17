@@ -210,7 +210,8 @@ export default function LeadDetailPage() {
   const [formData, setFormData] = useState({
     account: "" as string | number,
     contact_title: "",
-    contact_name: "",
+    contact_first_name: "",
+    contact_last_name: "",
     contact_email: "",
     contact_phone: "",
     source: "",
@@ -386,8 +387,12 @@ export default function LeadDetailPage() {
                     </select>
                   </div>
                   <div className="flex-1">
-                    <label className="block text-sm font-medium text-foreground mb-1">Contact Name *</label>
-                    <ValidatedInput type="text" required maxLength={60} value={formData.contact_name} onChange={setField("contact_name")} />
+                    <label className="block text-sm font-medium text-foreground mb-1">First Name *</label>
+                    <ValidatedInput type="text" required maxLength={60} value={formData.contact_first_name} onChange={setField("contact_first_name")} aria-label="First name" />
+                  </div>
+                  <div className="flex-1">
+                    <label className="block text-sm font-medium text-foreground mb-1">Last Name</label>
+                    <ValidatedInput type="text" maxLength={60} value={formData.contact_last_name} onChange={setField("contact_last_name")} aria-label="Last name" />
                   </div>
                 </div>
                 <div>
@@ -598,7 +603,8 @@ export default function LeadDetailPage() {
               value={l.contact_title || ""}
               options={[{ value: "", label: "—" }, ...TITLE_OPTIONS.map((t) => ({ value: t, label: t }))]}
             />
-            <AutoSaveField {...fieldProps("contact_name")} label="Name" type="text" value={l.contact_name} required />
+            <AutoSaveField {...fieldProps("contact_first_name")} label="First name" type="text" value={l.contact_first_name} required />
+            <AutoSaveField {...fieldProps("contact_last_name")} label="Last name" type="text" value={l.contact_last_name} />
             <AutoSaveField {...fieldProps("contact_phone")} label="Phone / WhatsApp" type="tel" value={l.contact_phone} required />
             <AutoSaveField {...fieldProps("contact_email")} label="Email" type="email" value={l.contact_email} />
             <AutoSaveField

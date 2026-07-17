@@ -63,7 +63,7 @@ export default function AccountDetailPage() {
       await api.createContact(account.id, contactData);
       await mutateAccount();
       setShowContactForm(false);
-      setContactData({ name: "", email: "", phone: "", role: "coordinator", is_primary: false });
+      setContactData({ first_name: "", last_name: "", email: "", phone: "", role: "coordinator", is_primary: false });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to add contact");
     } finally {
@@ -198,8 +198,11 @@ export default function AccountDetailPage() {
             <form onSubmit={handleAddContact} className="border border-border rounded-md p-4 mb-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Name</label>
-                  <ValidatedInput type="text" required maxLength={60} value={contactData.name || ""} onChange={(e) => setContactData({ ...contactData, name: e.target.value })} />
+                  <label className="block text-sm font-medium text-foreground mb-1">Contact name</label>
+                  <div className="flex gap-2">
+                    <ValidatedInput type="text" required maxLength={60} placeholder="First *" aria-label="First name" value={contactData.first_name || ""} onChange={(e) => setContactData({ ...contactData, first_name: e.target.value })} />
+                    <ValidatedInput type="text" maxLength={60} placeholder="Last" aria-label="Last name" value={contactData.last_name || ""} onChange={(e) => setContactData({ ...contactData, last_name: e.target.value })} />
+                  </div>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Email</label>

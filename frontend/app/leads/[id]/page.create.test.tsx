@@ -43,9 +43,10 @@ describe("Lead create form", () => {
   it("sends the contact title in the create payload", async () => {
     render(<LeadPage />);
     fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Ms" } });
-    const nameInput = screen.getAllByRole("textbox")[0]; // Contact Name is the first text input
-    fireEvent.change(nameInput, { target: { value: "Batool Rizvi" } });
-    const form = nameInput.closest("form")!;
+    const firstInput = screen.getByLabelText("First name");
+    fireEvent.change(firstInput, { target: { value: "Batool" } });
+    fireEvent.change(screen.getByLabelText("Last name"), { target: { value: "Rizvi" } });
+    const form = firstInput.closest("form")!;
     const phoneInput = form.querySelector("input[type=tel]")!;
     fireEvent.change(phoneInput, { target: { value: "03001269792" } });
     fireEvent.submit(form);
@@ -53,6 +54,7 @@ describe("Lead create form", () => {
     await waitFor(() => expect(createLead).toHaveBeenCalledTimes(1));
     const payload = createLead.mock.calls[0][0];
     expect(payload.contact_title).toBe("Ms");
-    expect(payload.contact_name).toBe("Batool Rizvi");
+    expect(payload.contact_first_name).toBe("Batool");
+    expect(payload.contact_last_name).toBe("Rizvi");
   });
 });
