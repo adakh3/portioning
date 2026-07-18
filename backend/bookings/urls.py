@@ -13,7 +13,7 @@ from bookings.views import (
     SalesTargetGridView, RepPlanManageView,
     QuoteListCreateView, QuoteDetailView, QuoteTransitionView,
     QuoteLineItemListCreateView, QuoteLineItemDetailView,
-    QuotePDFView,
+    QuotePDFView, QuoteMarkSharedWhatsAppView,
     InvoiceListCreateView, InvoiceDetailView,
     PaymentListCreateView, PaymentDetailView,
     SiteSettingsView,
@@ -34,6 +34,7 @@ from bookings.views import (
     FollowUpDraftApproveView, FollowUpDraftDismissView,
     FollowUpDraftBulkApproveView, FollowUpDraftCountView,
     FollowUpPreviewView, FollowUpGenerateView,
+    FollowUpDraftMarkSentView, LeadLogReplyView,
     LockedDateListCreateView, LockedDateDeleteView,
 )
 
@@ -81,6 +82,8 @@ urlpatterns = [
     path('bookings/followup-drafts/bulk-approve/', FollowUpDraftBulkApproveView.as_view(), name='followup-draft-bulk-approve'),
     path('bookings/followup-drafts/<int:pk>/approve/', FollowUpDraftApproveView.as_view(), name='followup-draft-approve'),
     path('bookings/followup-drafts/<int:pk>/dismiss/', FollowUpDraftDismissView.as_view(), name='followup-draft-dismiss'),
+    path('bookings/followup-drafts/<int:pk>/mark-sent/', FollowUpDraftMarkSentView.as_view(), name='followup-draft-mark-sent'),
+    path('bookings/leads/<int:pk>/log-reply/', LeadLogReplyView.as_view(), name='lead-log-reply'),
 
     # Reminders
     path('bookings/reminders/', ReminderListCreateView.as_view(), name='reminder-list'),
@@ -103,6 +106,7 @@ urlpatterns = [
     path('bookings/quotes/<int:pk>/', QuoteDetailView.as_view(), name='quote-detail'),
     path('bookings/quotes/<int:pk>/transition/', QuoteTransitionView.as_view(), name='quote-transition'),
     path('bookings/quotes/<int:pk>/pdf/', QuotePDFView.as_view(), name='quote-pdf'),
+    path('bookings/quotes/<int:pk>/mark-shared-whatsapp/', QuoteMarkSharedWhatsAppView.as_view(), name='quote-mark-shared-whatsapp'),
     path('bookings/quotes/<int:quote_pk>/items/', QuoteLineItemListCreateView.as_view(), name='quote-item-list'),
     path('bookings/quotes/<int:quote_pk>/items/<int:pk>/', QuoteLineItemDetailView.as_view(), name='quote-item-detail'),
 

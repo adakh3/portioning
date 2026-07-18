@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { api, Contact, EventMealData } from "@/lib/api";
 import { useQuote, useAccounts, useContacts, useSiteSettings, useDateFormat, useEventTypes, useServiceStyles, useMealTypes, useAllLeads, useProductLines, useUsers, revalidate } from "@/lib/hooks";
+import { canWhatsApp, waLink } from "@/lib/whatsapp";
 import { useAuth } from "@/lib/auth";
 import { formatDate, todayISO } from "@/lib/dateFormat";
 import { formatCurrency } from "@/lib/utils";
@@ -68,6 +69,7 @@ export default function QuoteDetailPage() {
   const { data: allLeads = [] } = useAllLeads();
   const leads = allLeads.filter((l) => !["won", "lost"].includes(l.status));
   const [saving, setSaving] = useState(false);
+  const [waAwaitingConfirm, setWaAwaitingConfirm] = useState(false);
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState("");
   const [editData, setEditData] = useState({
@@ -694,6 +696,42 @@ export default function QuoteDetailPage() {
             >
               Download PDF
             </Button>
+            {canWhatsApp(q.contact_phone) && (
+              waAwaitingConfirm ? (
+                <span className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">Did you send it?</span>
+                  <Button
+                    size="sm"
+                    onClick={async () => {
+                      try {
+                        const greeting = `Hello ${q.contact_name?.split(" ")[0] || ""}, sharing your quotation for your ${q.event_type || "event"}.`.replace("  ", " ");
+                        const updated = await api.markQuoteSharedWhatsApp(q.id, greeting);
+                        mutateQuote(updated, false);
+                        setWaAwaitingConfirm(false);
+                      } catch (err) {
+                        setError(err instanceof Error ? err.message : "Failed to record the share");
+                      }
+                    }}
+                  >
+                    Mark shared
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setWaAwaitingConfirm(false)}>
+                    Not sent
+                  </Button>
+                </span>
+              ) : (
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    const greeting = `Hello ${q.contact_name?.split(" ")[0] || ""}, sharing your quotation for your ${q.event_type || "event"}.`.replace("  ", " ");
+                    window.open(waLink(q.contact_phone!, greeting), "_blank");
+                    setWaAwaitingConfirm(true);
+                  }}
+                >
+                  Share via WhatsApp
+                </Button>
+              )
+            )}
             {q.status === "draft" && (
               <>
                 <Button onClick={() => handleTransition("sent")} disabled={saving}>

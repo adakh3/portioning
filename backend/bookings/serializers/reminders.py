@@ -5,13 +5,14 @@ from bookings.models.reminders import Reminder
 
 class ReminderSerializer(serializers.ModelSerializer):
     lead_name = serializers.SerializerMethodField()
+    lead_phone = serializers.CharField(source='lead.contact_phone', read_only=True, default='')
     user_name = serializers.SerializerMethodField()
     created_by_name = serializers.SerializerMethodField()
 
     class Meta:
         model = Reminder
         fields = [
-            'id', 'lead', 'lead_name', 'user', 'user_name',
+            'id', 'lead', 'lead_name', 'lead_phone', 'user', 'user_name',
             'due_at', 'note', 'status', 'snoozed_until',
             'completed_at', 'created_by', 'created_by_name', 'created_at',
         ]

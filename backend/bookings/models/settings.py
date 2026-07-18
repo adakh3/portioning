@@ -93,6 +93,12 @@ class OrgSettings(models.Model):
     # settings.TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN. Each org configures only
     # its own WhatsApp sender number.
     whatsapp_enabled = models.BooleanField(default=False)
+    whatsapp_shortcuts_enabled = models.BooleanField(
+        default=True,
+        help_text="Show 'open WhatsApp with the message prefilled' shortcut "
+                  "buttons when in-app (Twilio) sending isn't active. Off = no "
+                  "personal-number outreach from this org.",
+    )
     twilio_whatsapp_number = models.CharField(
         max_length=20, blank=True, default='',
         help_text='Twilio WhatsApp sender number, e.g. +14155238886',

@@ -5,6 +5,7 @@ from bookings.models.followups import FollowUpDraft
 
 class FollowUpDraftSerializer(serializers.ModelSerializer):
     lead_name = serializers.SerializerMethodField()
+    lead_phone = serializers.CharField(source='lead.contact_phone', read_only=True, default='')
     reviewed_by_name = serializers.SerializerMethodField()
     # Compact lead summary for the review card, so the reviewer can judge the
     # draft without opening the lead.
@@ -33,7 +34,7 @@ class FollowUpDraftSerializer(serializers.ModelSerializer):
     class Meta:
         model = FollowUpDraft
         fields = [
-            'id', 'lead', 'lead_name', 'lead_event_type', 'lead_event_date',
+            'id', 'lead', 'lead_name', 'lead_phone', 'lead_event_type', 'lead_event_date',
             'lead_guest_estimate', 'lead_assigned_to_name', 'lead_days_stale',
             'channel', 'body', 'reasoning',
             'status', 'model_used', 'whatsapp_message',

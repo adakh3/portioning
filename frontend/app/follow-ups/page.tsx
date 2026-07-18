@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { api, Reminder, FollowUpDraft, FollowUpPreview } from "@/lib/api";
-import { useReminders, useDateFormat, useFollowUpDrafts, useUsers } from "@/lib/hooks";
+import { useReminders, useDateFormat, useFollowUpDrafts, useUsers, useSiteSettings } from "@/lib/hooks";
 import { revalidate } from "@/lib/hooks";
 import { useAuth } from "@/lib/auth";
 import { formatDate, formatDateTime as sharedFormatDateTime } from "@/lib/dateFormat";
@@ -13,7 +13,8 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
-import { Sparkles } from "lucide-react";
+import { Sparkles, MessageCircle } from "lucide-react";
+import { canWhatsApp, waLink } from "@/lib/whatsapp";
 
 function formatDue(dateStr: string, dateFormat: string) {
   const d = new Date(dateStr);
@@ -45,6 +46,7 @@ function ReminderCard({
   showAssignee?: boolean;
 }) {
   const dateFormat = useDateFormat();
+  const shortcutsMode = useShortcutsMode();
   const [acting, setActing] = useState(false);
   const [showSnooze, setShowSnooze] = useState(false);
 
@@ -86,6 +88,17 @@ function ReminderCard({
             </Link>
             {isOverdue && <Badge variant="destructive">Overdue</Badge>}
             {isToday && <Badge variant="warning">Today</Badge>}
+            {shortcutsMode && canWhatsApp(reminder.lead_phone) && (
+              <a
+                href={waLink(reminder.lead_phone!)}
+                target="_blank"
+                rel="noreferrer"
+                aria-label={`WhatsApp ${reminder.lead_name}`}
+                className="text-emerald-600 hover:text-emerald-700"
+              >
+                <MessageCircle className="w-4 h-4" aria-hidden />
+              </a>
+            )}
           </div>
           {reminder.note && (
             <p className="text-sm text-muted-foreground line-clamp-2">
@@ -287,6 +300,8 @@ function RemindersTab() {
 
 function DraftReviewCard({ draft, onDone }: { draft: FollowUpDraft; onDone: () => void }) {
   const dateFormat = useDateFormat();
+  const shortcutsMode = useShortcutsMode();
+  const [awaitingConfirm, setAwaitingConfirm] = useState(false);
   const [body, setBody] = useState(draft.body);
   // Size the editor to the message so the whole draft is readable at once.
   const rows = Math.min(
@@ -305,6 +320,24 @@ function DraftReviewCard({ draft, onDone }: { draft: FollowUpDraft; onDone: () =
       onDone();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to send");
+      setBusy("");
+    }
+  };
+
+  const openWhatsApp = () => {
+    window.open(waLink(draft.lead_phone || "", body), "_blank");
+    setAwaitingConfirm(true);
+  };
+
+  const handleMarkSent = async () => {
+    setBusy("approve");
+    setError("");
+    try {
+      await api.markFollowUpSent(draft.id, body !== draft.body ? body : undefined);
+      revalidate("followup-draft-count");
+      onDone();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to mark as sent");
       setBusy("");
     }
   };
@@ -335,9 +368,33 @@ function DraftReviewCard({ draft, onDone }: { draft: FollowUpDraft; onDone: () =
         <Textarea value={body} onChange={(e) => setBody(e.target.value)} rows={rows} />
         {error && <p className="text-sm text-destructive">{error}</p>}
         <div className="flex items-center gap-2">
-          <Button size="sm" onClick={handleApprove} disabled={!!busy || !body.trim()}>
-            {busy === "approve" ? "Sending..." : "Approve & Send"}
-          </Button>
+          {shortcutsMode ? (
+            awaitingConfirm ? (
+              <>
+                <span className="text-sm text-muted-foreground">Did you send it?</span>
+                <Button size="sm" onClick={handleMarkSent} disabled={!!busy}>
+                  {busy === "approve" ? "Saving..." : "Mark sent"}
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setAwaitingConfirm(false)} disabled={!!busy}>
+                  Not sent
+                </Button>
+              </>
+            ) : (
+              <Button
+                size="sm"
+                onClick={openWhatsApp}
+                disabled={!!busy || !body.trim() || !canWhatsApp(draft.lead_phone)}
+                title={canWhatsApp(draft.lead_phone) ? undefined : "No valid WhatsApp number on this lead"}
+              >
+                <MessageCircle className="w-3.5 h-3.5 mr-1" aria-hidden />
+                Send via WhatsApp
+              </Button>
+            )
+          ) : (
+            <Button size="sm" onClick={handleApprove} disabled={!!busy || !body.trim()}>
+              {busy === "approve" ? "Sending..." : "Approve & Send"}
+            </Button>
+          )}
           <Button size="sm" variant="ghost" onClick={handleDismiss} disabled={!!busy}>
             {busy === "dismiss" ? "Dismissing..." : "Dismiss"}
           </Button>
@@ -363,6 +420,13 @@ function DraftReviewCard({ draft, onDone }: { draft: FollowUpDraft; onDone: () =
       </aside>
     </div>
   );
+}
+
+function useShortcutsMode(): boolean {
+  const { data: settings } = useSiteSettings();
+  if (!settings) return false;
+  const twilioActive = !!settings.twilio_configured && !!settings.whatsapp_enabled;
+  return !twilioActive && settings.whatsapp_shortcuts_enabled !== false;
 }
 
 type GenerateSummary = {
@@ -595,6 +659,7 @@ function GeneratePanel({ onDraftCreated }: { onDraftCreated: () => void }) {
 }
 
 function DraftsTab() {
+  const shortcutsMode = useShortcutsMode();
   const { data: drafts = [], mutate } = useFollowUpDrafts("pending");
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkError, setBulkError] = useState("");
@@ -633,9 +698,11 @@ function DraftsTab() {
             <p className="text-sm text-muted-foreground">
               {drafts.length} draft{drafts.length === 1 ? "" : "s"} awaiting your review.
             </p>
-            <Button size="sm" onClick={handleBulkApprove} disabled={bulkBusy}>
-              {bulkBusy ? "Sending..." : `Approve & send all (${drafts.length})`}
-            </Button>
+            {!shortcutsMode && (
+              <Button size="sm" onClick={handleBulkApprove} disabled={bulkBusy}>
+                {bulkBusy ? "Sending..." : `Approve & send all (${drafts.length})`}
+              </Button>
+            )}
           </div>
           {bulkError && <p className="text-sm text-destructive">{bulkError}</p>}
           <div className="space-y-2">

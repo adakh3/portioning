@@ -275,3 +275,46 @@ class QuotePDFView(APIView):
         response = HttpResponse(pdf_bytes, content_type='application/pdf')
         response['Content-Disposition'] = f'attachment; filename="Quote-{quote.pk}-v{quote.version}.pdf"'
         return response
+
+class QuoteMarkSharedWhatsAppView(APIView):
+    """POST /api/bookings/quotes/<pk>/mark-shared-whatsapp/ — the rep shared
+    this quotation via a WhatsApp shortcut (own device, PDF attached by hand).
+    Confirming makes the record match reality: a draft quote flips to sent,
+    the share is logged on the quote AND its lead (the AI reads the lead's
+    activity), and the greeting lands in the lead's message thread."""
+
+    def post(self, request, pk):
+        from django.utils import timezone as tz
+        from bookings.activity import log_activity
+        from bookings.models import WhatsAppMessage
+
+        quote = get_org_object_or_404(Quote, request, pk=pk)
+        user = request.user if request.user.is_authenticated else None
+
+        if quote.status == QuoteStatus.DRAFT:
+            quote.status = QuoteStatus.SENT
+            quote.save(update_fields=['status', 'updated_at'])
+
+        log_activity(
+            quote, 'updated', user=user,
+            field_name='whatsapp',
+            description='Quotation shared via WhatsApp (from own device)',
+        )
+        if quote.lead_id:
+            log_activity(
+                quote.lead, 'updated', user=user,
+                field_name='whatsapp',
+                description=f'Quotation #{quote.pk} shared via WhatsApp (from own device)',
+            )
+            body = request.data.get('body') or f'Quotation #{quote.pk} shared.'
+            WhatsAppMessage.objects.create(
+                organisation=quote.organisation,
+                lead=quote.lead,
+                to_phone=f'whatsapp:{quote.lead.contact_phone}',
+                from_phone='manual',
+                body=body,
+                direction='outbound',
+                status='sent',
+                sent_by=user,
+            )
+        return Response(QuoteSerializer(quote).data)
