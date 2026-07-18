@@ -13,6 +13,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ValidatedInput } from "@/components/ui/validated-input";
 import { Textarea } from "@/components/ui/textarea";
 import ActivityTimeline from "@/components/ActivityTimeline";
+import { canWhatsApp, waLink } from "@/lib/whatsapp";
+import { MessageCircle } from "lucide-react";
 import { TITLE_OPTIONS } from "@/lib/titles";
 
 
@@ -710,6 +712,13 @@ export default function LeadDetailPage() {
         </CardContent>
       </Card>
 
+      {/* WhatsApp Messages — only show when Twilio is configured */}
+      {rawSettings?.twilio_configured && rawSettings?.whatsapp_enabled ? (
+        <LeadWhatsApp leadId={l.id} contactPhone={l.contact_phone} contactName={l.contact_name} eventType={l.event_type} eventDate={l.event_date} />
+      ) : rawSettings?.whatsapp_shortcuts_enabled !== false && rawSettings ? (
+        <LeadWhatsAppShortcuts leadId={l.id} contactPhone={l.contact_phone} />
+      ) : null}
+
       {/* Timeline */}
       <Card>
         <CardContent className="p-6">
@@ -775,11 +784,6 @@ export default function LeadDetailPage() {
 
       {/* AI-suggested follow-up drafts (only renders when one is pending) */}
       <LeadFollowUpDrafts leadId={l.id} />
-
-      {/* WhatsApp Messages — only show when Twilio is configured */}
-      {rawSettings?.twilio_configured && (
-        <LeadWhatsApp leadId={l.id} contactPhone={l.contact_phone} contactName={l.contact_name} eventType={l.event_type} eventDate={l.event_date} />
-      )}
 
       {/* Activity Log */}
       <Card>
@@ -1129,6 +1133,51 @@ const WHATSAPP_TEMPLATES = [
   { value: "reminder", label: "Event Reminder" },
   { value: "follow_up", label: "Follow Up" },
 ];
+
+function LeadWhatsAppShortcuts({ leadId, contactPhone }: { leadId: number; contactPhone: string }) {
+  const [logging, setLogging] = useState(false);
+  const [logged, setLogged] = useState(false);
+
+  async function logReply() {
+    setLogging(true);
+    try {
+      await api.logLeadReply(leadId);
+      setLogged(true);
+      revalidate(`lead-activity-${leadId}`, `lead-whatsapp-${leadId}`);
+    } finally {
+      setLogging(false);
+    }
+  }
+
+  return (
+    <Card>
+      <CardContent className="p-6">
+        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">WhatsApp</h2>
+        <div className="flex flex-wrap items-center gap-3">
+          {canWhatsApp(contactPhone) ? (
+            <a
+              href={waLink(contactPhone)}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm font-medium text-emerald-700 hover:bg-muted"
+            >
+              <MessageCircle className="w-4 h-4" aria-hidden />
+              Open chat on WhatsApp
+            </a>
+          ) : (
+            <span className="text-sm text-muted-foreground">No valid WhatsApp number on this lead.</span>
+          )}
+          <Button size="sm" variant="secondary" onClick={logReply} disabled={logging || logged || !canWhatsApp(contactPhone)}>
+            {logged ? "Reply logged" : logging ? "Logging..." : "Customer replied"}
+          </Button>
+          <p className="w-full text-xs text-muted-foreground">
+            Conversations happen on your own WhatsApp. Log a reply here so follow-ups pause while the ball is in your court.
+          </p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 function LeadWhatsApp({ leadId, contactPhone, contactName, eventType, eventDate }: {
   leadId: number;

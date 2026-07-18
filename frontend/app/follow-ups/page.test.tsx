@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 
 let mockUser: { id: number; role: string } | null;
 vi.mock("@/lib/auth", () => ({ useAuth: () => ({ user: mockUser }) }));
@@ -13,10 +13,13 @@ const USERS = [
 ];
 
 const useReminders = vi.fn((_p?: unknown) => ({ data: REMINDERS, mutate: vi.fn() }));
+let mockSettings: Record<string, unknown> | undefined;
+let mockDrafts: unknown[] = [];
 vi.mock("@/lib/hooks", () => ({
   useReminders: (p: unknown) => useReminders(p),
   useUsers: () => ({ data: USERS }),
-  useFollowUpDrafts: () => ({ data: [], mutate: vi.fn() }),
+  useFollowUpDrafts: () => ({ data: mockDrafts, mutate: vi.fn() }),
+  useSiteSettings: () => ({ data: mockSettings }),
   useDateFormat: () => "DD/MM/YYYY",
   revalidate: vi.fn(),
 }));
@@ -33,13 +36,22 @@ const PREVIEW = {
 const getFollowUpPreview = vi.fn().mockResolvedValue(PREVIEW);
 const generateFollowUpDraft = vi.fn();
 
+const markFollowUpSent = vi.fn().mockResolvedValue({});
 vi.mock("@/lib/api", () => ({
   api: {
     updateReminder: vi.fn().mockResolvedValue({}),
     getFollowUpPreview: () => getFollowUpPreview(),
     generateFollowUpDraft: (id: number) => generateFollowUpDraft(id),
+    markFollowUpSent: (id: number, body?: string) => markFollowUpSent(id, body),
   },
 }));
+
+const DRAFT = {
+  id: 7, lead: 10, lead_name: "Quiet Lead", lead_phone: "+923001269792",
+  body: "Hello Ms Rizvi,", reasoning: "", status: "pending",
+  model_used: "openai:gpt-test", channel: "whatsapp", whatsapp_message: null,
+  reviewed_by: null, reviewed_by_name: null, reviewed_at: null, created_at: "2026-07-18",
+};
 
 import FollowUpsPage from "./page";
 
@@ -51,7 +63,11 @@ async function openDraftsPreview() {
 }
 
 describe("FollowUpsPage", () => {
-  beforeEach(() => useReminders.mockClear());
+  beforeEach(() => {
+    useReminders.mockClear();
+    mockSettings = undefined;
+    mockDrafts = [];
+  });
 
   it("hides the person filter for a salesperson and requests their own scope", () => {
     mockUser = { id: 2, role: "salesperson" };
@@ -86,6 +102,8 @@ describe("FollowUpsPage", () => {
 describe("Generate follow-ups (preview → select → generate)", () => {
   beforeEach(() => {
     mockUser = { id: 1, role: "admin" };
+    mockSettings = undefined;
+    mockDrafts = [];
     getFollowUpPreview.mockClear();
     generateFollowUpDraft.mockReset();
   });
@@ -135,5 +153,54 @@ describe("Generate follow-ups (preview → select → generate)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Generate follow-ups" }));
     await screen.findByText(/No stale leads right now/);
     expect(screen.getByText(/7 days/)).toBeTruthy();
+  });
+});
+
+describe("WhatsApp shortcuts mode (no Twilio)", () => {
+  beforeEach(() => {
+    mockUser = { id: 1, role: "admin" };
+    mockDrafts = [DRAFT];
+    markFollowUpSent.mockClear();
+    vi.spyOn(window, "open").mockImplementation(() => null);
+  });
+
+  it("swaps Approve & Send for the WhatsApp button and hides bulk", () => {
+    mockSettings = { twilio_configured: false, whatsapp_shortcuts_enabled: true };
+    render(<FollowUpsPage />);
+    expect(screen.getByRole("button", { name: /Send via WhatsApp/ })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Approve & Send/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Approve & send all/ })).toBeNull();
+  });
+
+  it("keeps the Twilio buttons when Twilio is active", () => {
+    mockSettings = { twilio_configured: true, whatsapp_enabled: true, whatsapp_shortcuts_enabled: true };
+    render(<FollowUpsPage />);
+    expect(screen.getByRole("button", { name: "Approve & Send" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Send via WhatsApp/ })).toBeNull();
+  });
+
+  it("hides shortcuts when the org disabled them", () => {
+    mockSettings = { twilio_configured: false, whatsapp_shortcuts_enabled: false };
+    render(<FollowUpsPage />);
+    expect(screen.queryByRole("button", { name: /Send via WhatsApp/ })).toBeNull();
+  });
+
+  it("opens wa.me with the edited body, then marks sent on confirm", async () => {
+    mockSettings = { twilio_configured: false, whatsapp_shortcuts_enabled: true };
+    render(<FollowUpsPage />);
+    fireEvent.click(screen.getByRole("button", { name: /Send via WhatsApp/ }));
+    expect(window.open).toHaveBeenCalledWith(
+      "https://wa.me/923001269792?text=Hello%20Ms%20Rizvi%2C", "_blank");
+    fireEvent.click(screen.getByRole("button", { name: "Mark sent" }));
+    await waitFor(() => expect(markFollowUpSent).toHaveBeenCalledWith(7, undefined));
+  });
+
+  it("Not sent returns the card to pending state", () => {
+    mockSettings = { twilio_configured: false, whatsapp_shortcuts_enabled: true };
+    render(<FollowUpsPage />);
+    fireEvent.click(screen.getByRole("button", { name: /Send via WhatsApp/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Not sent" }));
+    expect(screen.getByRole("button", { name: /Send via WhatsApp/ })).toBeTruthy();
+    expect(markFollowUpSent).not.toHaveBeenCalled();
   });
 });

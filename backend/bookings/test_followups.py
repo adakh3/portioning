@@ -729,3 +729,75 @@ class DaysQuietTests(TestCase):
         )
         quiet_days = (timezone.now() - lead_last_touch(lead)).days
         self.assertEqual(quiet_days, 2)
+
+
+@platform_creds
+class WhatsAppShortcutEndpointTests(TestCase):
+    """Mark-sent, log-reply, quote-share: the manual (shortcut) channel keeps
+    the ledger as truthful as the Twilio path would."""
+
+    def setUp(self):
+        self.user = get_test_user()
+        self.org = self.user.organisation
+        _configure_ai(self.org)
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
+
+    def test_mark_sent_flips_draft_and_feeds_the_ledger(self):
+        lead = _stale_lead(self.org)
+        draft = FollowUpDraft.objects.create(organisation=self.org, lead=lead, body='original')
+        res = self.client.post(
+            f'/api/bookings/followup-drafts/{draft.id}/mark-sent/',
+            {'body': 'edited before sending'}, format='json')
+        self.assertEqual(res.status_code, 200, res.content)
+        draft.refresh_from_db()
+        self.assertEqual(draft.status, 'sent')
+        self.assertEqual(draft.body, 'edited before sending')
+        msg = WhatsAppMessage.objects.get(lead=lead)
+        self.assertEqual(msg.direction, 'outbound')
+        self.assertEqual(msg.body, 'edited before sending')
+        self.assertEqual(msg.from_phone, 'manual')
+        # ledger effects: days-quiet resets, and the sent count blocks re-drafting
+        from bookings.services.followup_scheduler import lead_last_touch
+        self.assertEqual((timezone.now() - lead_last_touch(lead)).days, 0)
+
+    def test_mark_sent_respects_role_scope(self):
+        rep = User.objects.create(
+            email='rep@shortcut.test', first_name='R', last_name='S',
+            role='salesperson', organisation=self.org)
+        others = _stale_lead(self.org)
+        draft = FollowUpDraft.objects.create(organisation=self.org, lead=others, body='x')
+        client = APIClient()
+        client.force_authenticate(user=rep)
+        res = client.post(f'/api/bookings/followup-drafts/{draft.id}/mark-sent/')
+        self.assertEqual(res.status_code, 404)
+
+    def test_log_reply_pauses_the_agent(self):
+        lead = _stale_lead(self.org)
+        res = self.client.post(f'/api/bookings/leads/{lead.id}/log-reply/')
+        self.assertEqual(res.status_code, 200)
+        msg = WhatsAppMessage.objects.get(lead=lead)
+        self.assertEqual(msg.direction, 'inbound')
+        # the lead spoke last → excluded from generation
+        from bookings.services import followup_scheduler
+        s = OrgSettings.for_org(self.org)
+        self.assertNotIn(lead.id, [
+            l.id for l in followup_scheduler.find_stale_leads(self.org, s)])
+
+    def test_quote_share_flips_status_and_logs_on_both(self):
+        from bookings.tests import make_account, make_contact, make_quote
+        lead = _stale_lead(self.org)
+        account = make_account(org=self.org)
+        contact = make_contact(account=account, org=self.org)
+        quote = make_quote(org=self.org, account=account, primary_contact=contact,
+                           lead=lead, status='draft')
+        res = self.client.post(
+            f'/api/bookings/quotes/{quote.id}/mark-shared-whatsapp/',
+            {'body': 'Hello, sharing your quotation.'}, format='json')
+        self.assertEqual(res.status_code, 200, res.content)
+        quote.refresh_from_db()
+        self.assertEqual(quote.status, 'sent')
+        self.assertTrue(WhatsAppMessage.objects.filter(lead=lead, direction='outbound').exists())
+        # the AI's quote facts become true
+        from bookings.services.followup_drafter import _build_context
+        self.assertIn('A quotation WAS SENT', _build_context(lead))

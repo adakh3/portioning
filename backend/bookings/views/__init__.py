@@ -12,6 +12,7 @@ from .quotes import (
     QuoteListCreateView, QuoteDetailView, QuoteTransitionView,
     QuoteLineItemListCreateView, QuoteLineItemDetailView,
     QuotePDFView,
+    QuoteMarkSharedWhatsAppView,
 )
 from .finance import (
     InvoiceListCreateView, InvoiceDetailView,
@@ -40,5 +41,6 @@ from .followups import (
     FollowUpDraftApproveView, FollowUpDraftDismissView,
     FollowUpDraftBulkApproveView, FollowUpDraftCountView,
     FollowUpPreviewView, FollowUpGenerateView,
+    FollowUpDraftMarkSentView, LeadLogReplyView,
 )
 from .locked_dates import LockedDateListCreateView, LockedDateDeleteView

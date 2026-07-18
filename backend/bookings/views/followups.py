@@ -4,7 +4,7 @@ from rest_framework import generics, status
 from rest_framework.response import Response
 
 from bookings.activity import log_activity
-from bookings.models import FollowUpDraft, Lead, OrgSettings
+from bookings.models import FollowUpDraft, Lead, OrgSettings, WhatsAppMessage
 from bookings.permissions import is_salesperson
 from bookings.serializers.followups import FollowUpDraftSerializer
 from bookings.services.followup_scheduler import find_stale_leads, lead_last_touch
@@ -149,6 +149,72 @@ class FollowUpDraftCountView(generics.GenericAPIView):
         if not request.user.is_authenticated:
             return Response({'pending': 0})
         return Response({'pending': _scoped_drafts(request).filter(status='pending').count()})
+
+
+class FollowUpDraftMarkSentView(generics.GenericAPIView):
+    """POST /api/bookings/followup-drafts/<pk>/mark-sent/ — the rep sent the
+    message themselves via a WhatsApp shortcut (their own device). Records the
+    send so the scheduler's ledger (sent count, spacing, days-quiet) stays
+    truthful without Twilio."""
+
+    def post(self, request, pk):
+        draft = _scoped_drafts(request).filter(pk=pk).first()
+        if draft is None:
+            return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+        if draft.status != 'pending':
+            return Response({'detail': 'Draft is not pending.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # The rep may have edited the text before opening WhatsApp.
+        edited_body = request.data.get('body')
+        if edited_body is not None:
+            draft.body = edited_body
+
+        user = request.user if request.user.is_authenticated else None
+        WhatsAppMessage.objects.create(
+            organisation=draft.organisation,
+            lead=draft.lead,
+            to_phone=f'whatsapp:{draft.lead.contact_phone}',
+            from_phone='manual',                # sent from the rep's own device
+            body=draft.body,
+            direction='outbound',
+            status='sent',
+            sent_by=user,
+        )
+        draft.status = 'sent'
+        draft.reviewed_by = user
+        draft.reviewed_at = timezone.now()
+        draft.save(update_fields=['body', 'status', 'reviewed_by', 'reviewed_at', 'updated_at'])
+        log_activity(
+            draft.lead, 'updated', user=user,
+            field_name='followup_draft',
+            description='Sent an AI follow-up via WhatsApp (from own device)',
+        )
+        return Response(FollowUpDraftSerializer(draft).data)
+
+
+class LeadLogReplyView(generics.GenericAPIView):
+    """POST /api/bookings/leads/<pk>/log-reply/ — record that the customer
+    replied on WhatsApp (shortcut mode: the reply lives on the rep's phone).
+    The inbound marker keeps the reply-pause rule and days-quiet honest."""
+
+    def post(self, request, pk):
+        lead = get_org_object_or_404(Lead, request, pk=pk)
+        user = request.user if request.user.is_authenticated else None
+        WhatsAppMessage.objects.create(
+            organisation=lead.organisation,
+            lead=lead,
+            to_phone='manual',
+            from_phone=f'whatsapp:{lead.contact_phone}',
+            body='(reply logged manually — content is on the salesperson\'s phone)',
+            direction='inbound',
+            status='received',
+        )
+        log_activity(
+            lead, 'updated', user=user,
+            field_name='whatsapp',
+            description='Customer replied on WhatsApp (logged manually)',
+        )
+        return Response({'logged': True})
 
 
 def _eligible_stale_leads(request, org, settings):

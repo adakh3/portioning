@@ -90,8 +90,8 @@ class Command(BaseCommand):
         ]):
             ServiceStyleOption.objects.get_or_create(organisation=org, value=val, defaults={"label": label, "sort_order": i})
         Account.objects.get_or_create(organisation=org, name="Acme Corp", defaults={"account_type": "company"})
-        for name, email in [("Aisha Khan", "aisha@example.com"), ("Bilal Ahmed", "bilal@example.com")]:
-            Contact.objects.get_or_create(organisation=org, name=name, defaults={"email": email, "phone": "0300-0000000"})
+        for i, (name, email) in enumerate([("Aisha Khan", "aisha@example.com"), ("Bilal Ahmed", "bilal@example.com")]):
+            Contact.objects.get_or_create(organisation=org, name=name, defaults={"email": email, "phone": f"+1415555200{i}"})
         # Product lines so the booking form's Product picker has options (the first
         # is the org default, pre-selected on new bookings).
         for i, (pname, colour) in enumerate([("Weddings", "#EC4899"), ("Corporate", "#3B82F6"), ("Private Dining", "#10B981")]):
@@ -207,13 +207,15 @@ class Command(BaseCommand):
             .order_by("sort_order").values_list("value", flat=True)
         )
         if statuses:
-            for email in rep_emails:
+            for ri, email in enumerate(rep_emails):
                 rep = users[email]
                 for j, st in enumerate(statuses[:5]):
                     Lead.objects.create(
                         organisation=org, assigned_to=rep, status=st,
                         contact_name=f"{rep.first_name} Lead {j + 1}",
-                        contact_email=f"lead{j + 1}.{rep.email}", contact_phone="000",
+                        contact_email=f"lead{j + 1}.{rep.email}",
+                        # Valid E.164 (US 555 test range) so the WhatsApp buttons work in dev.
+                        contact_phone=f"+1415555{ri}{j:03d}",
                         budget=Decimal("250000"), notes=f"{DEMO_TAG} pipeline sample",
                     )
             self.stdout.write(self.style.SUCCESS(f"Seeded sample leads across {len(statuses[:5])} statuses"))

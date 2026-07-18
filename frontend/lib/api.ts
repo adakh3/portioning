@@ -651,6 +651,7 @@ export interface SiteSettingsData {
   fiscal_year_start_month_choices?: { value: number; label: string }[];
   // WhatsApp
   whatsapp_enabled?: boolean;
+  whatsapp_shortcuts_enabled?: boolean;
   twilio_configured?: boolean;
   twilio_whatsapp_number?: string;
   // AI follow-ups
@@ -869,6 +870,7 @@ export interface Reminder {
   id: number;
   lead: number;
   lead_name: string;
+  lead_phone?: string;
   user: number;
   user_name: string;
   due_at: string;
@@ -910,6 +912,7 @@ export interface FollowUpDraft {
   id: number;
   lead: number;
   lead_name: string | null;
+  lead_phone?: string;
   lead_event_type?: string;
   lead_event_date?: string | null;
   lead_guest_estimate?: number | null;
@@ -1626,6 +1629,18 @@ export const api = {
     }),
   dismissFollowUpDraft: (id: number) =>
     fetchApi<FollowUpDraft>(`/bookings/followup-drafts/${id}/dismiss/`, { method: "POST" }),
+  markFollowUpSent: (id: number, body?: string) =>
+    fetchApi<FollowUpDraft>(`/bookings/followup-drafts/${id}/mark-sent/`, {
+      method: "POST",
+      body: JSON.stringify(body != null ? { body } : {}),
+    }),
+  logLeadReply: (leadId: number) =>
+    fetchApi<{ logged: boolean }>(`/bookings/leads/${leadId}/log-reply/`, { method: "POST" }),
+  markQuoteSharedWhatsApp: (id: number, body?: string) =>
+    fetchApi<Quote>(`/bookings/quotes/${id}/mark-shared-whatsapp/`, {
+      method: "POST",
+      body: JSON.stringify(body != null ? { body } : {}),
+    }),
   getFollowUpPreview: () =>
     fetchApi<FollowUpPreview>(`/bookings/followup-drafts/preview/`),
   generateFollowUpDraft: (leadId: number) =>

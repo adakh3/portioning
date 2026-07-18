@@ -441,11 +441,29 @@ function WhatsAppSettings({ settings, onSave }: { settings: SiteSettingsData | u
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
+  const [shortcutsEnabled, setShortcutsEnabled] = useState(true);
+  const [shortcutsSaving, setShortcutsSaving] = useState(false);
+
   useEffect(() => {
     if (settings) {
       setEnabled(settings.whatsapp_enabled || false);
+      setShortcutsEnabled(settings.whatsapp_shortcuts_enabled !== false);
     }
   }, [settings]);
+
+  async function handleShortcutsToggle(val: boolean) {
+    setShortcutsSaving(true);
+    setError("");
+    try {
+      await api.updateSiteSettings({ whatsapp_shortcuts_enabled: val });
+      setShortcutsEnabled(val);
+      onSave();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save");
+    } finally {
+      setShortcutsSaving(false);
+    }
+  }
 
   async function handleToggle(val: boolean) {
     setSaving(true);
@@ -504,6 +522,24 @@ function WhatsAppSettings({ settings, onSave }: { settings: SiteSettingsData | u
             WhatsApp has not been set up for your organisation yet. Please contact support to connect your WhatsApp Business number.
           </p>
         )}
+        <div className="flex items-center justify-between mt-4 pt-4 border-t border-border">
+          <div>
+            <p className="text-sm font-medium text-foreground">WhatsApp shortcuts</p>
+            <p className="text-xs text-muted-foreground">
+              When in-app sending isn&apos;t active, show buttons that open WhatsApp on the
+              salesperson&apos;s own device with the message prefilled. Turn off to disallow
+              personal-number outreach.
+            </p>
+          </div>
+          <Button
+            variant={shortcutsEnabled ? "default" : "outline"}
+            size="sm"
+            onClick={() => handleShortcutsToggle(!shortcutsEnabled)}
+            disabled={shortcutsSaving}
+          >
+            {shortcutsSaving ? "Saving..." : shortcutsEnabled ? "Enabled" : "Disabled"}
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );
