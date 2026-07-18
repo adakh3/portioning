@@ -14,6 +14,7 @@ import { ValidatedInput } from "@/components/ui/validated-input";
 import { Textarea } from "@/components/ui/textarea";
 import ActivityTimeline from "@/components/ActivityTimeline";
 import { canWhatsApp, waLink } from "@/lib/whatsapp";
+import { MessageCircle } from "lucide-react";
 import { TITLE_OPTIONS } from "@/lib/titles";
 
 
@@ -711,6 +712,13 @@ export default function LeadDetailPage() {
         </CardContent>
       </Card>
 
+      {/* WhatsApp Messages — only show when Twilio is configured */}
+      {rawSettings?.twilio_configured && rawSettings?.whatsapp_enabled ? (
+        <LeadWhatsApp leadId={l.id} contactPhone={l.contact_phone} contactName={l.contact_name} eventType={l.event_type} eventDate={l.event_date} />
+      ) : rawSettings?.whatsapp_shortcuts_enabled !== false && rawSettings ? (
+        <LeadWhatsAppShortcuts leadId={l.id} contactPhone={l.contact_phone} />
+      ) : null}
+
       {/* Timeline */}
       <Card>
         <CardContent className="p-6">
@@ -776,13 +784,6 @@ export default function LeadDetailPage() {
 
       {/* AI-suggested follow-up drafts (only renders when one is pending) */}
       <LeadFollowUpDrafts leadId={l.id} />
-
-      {/* WhatsApp Messages — only show when Twilio is configured */}
-      {rawSettings?.twilio_configured && rawSettings?.whatsapp_enabled ? (
-        <LeadWhatsApp leadId={l.id} contactPhone={l.contact_phone} contactName={l.contact_name} eventType={l.event_type} eventDate={l.event_date} />
-      ) : rawSettings?.whatsapp_shortcuts_enabled !== false && rawSettings ? (
-        <LeadWhatsAppShortcuts leadId={l.id} contactPhone={l.contact_phone} />
-      ) : null}
 
       {/* Activity Log */}
       <Card>
@@ -1160,6 +1161,7 @@ function LeadWhatsAppShortcuts({ leadId, contactPhone }: { leadId: number; conta
               rel="noreferrer"
               className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm font-medium text-emerald-700 hover:bg-muted"
             >
+              <MessageCircle className="w-4 h-4" aria-hidden />
               Open chat on WhatsApp
             </a>
           ) : (

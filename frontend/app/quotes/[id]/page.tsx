@@ -6,6 +6,7 @@ import Link from "next/link";
 import { api, Contact, EventMealData } from "@/lib/api";
 import { useQuote, useAccounts, useContacts, useSiteSettings, useDateFormat, useEventTypes, useServiceStyles, useMealTypes, useAllLeads, useProductLines, useUsers, revalidate } from "@/lib/hooks";
 import { canWhatsApp, waLink } from "@/lib/whatsapp";
+import { MessageCircle } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { formatDate, todayISO } from "@/lib/dateFormat";
 import { formatCurrency } from "@/lib/utils";
@@ -721,13 +722,13 @@ export default function QuoteDetailPage() {
                 </span>
               ) : (
                 <Button
-                  variant="outline"
                   onClick={() => {
                     const greeting = `Hello ${q.contact_name?.split(" ")[0] || ""}, sharing your quotation for your ${q.event_type || "event"}.`.replace("  ", " ");
                     window.open(waLink(q.contact_phone!, greeting), "_blank");
                     setWaAwaitingConfirm(true);
                   }}
                 >
+                  <MessageCircle className="w-4 h-4 mr-1.5" aria-hidden />
                   Share via WhatsApp
                 </Button>
               )
