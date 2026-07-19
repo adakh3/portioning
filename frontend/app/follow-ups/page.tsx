@@ -395,8 +395,14 @@ function DraftReviewCard({ draft, onDone }: { draft: FollowUpDraft; onDone: () =
               {busy === "approve" ? "Sending..." : "Approve & Send"}
             </Button>
           )}
-          <Button size="sm" variant="ghost" onClick={handleDismiss} disabled={!!busy}>
-            {busy === "dismiss" ? "Dismissing..." : "Dismiss"}
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={handleDismiss}
+            disabled={!!busy}
+            title="Skips this follow-up for good — it won't be drafted again. To ignore it for now, just leave it here."
+          >
+            {busy === "dismiss" ? "Deleting..." : "Delete"}
           </Button>
         </div>
       </div>
