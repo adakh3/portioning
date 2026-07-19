@@ -10,6 +10,7 @@ from bookings.serializers.followups import FollowUpDraftSerializer
 from bookings.services.followup_scheduler import find_stale_leads, lead_last_touch
 from bookings.services.followup_drafter import draft_followup
 from bookings.services.whatsapp import WhatsAppService
+from bookings.views.dashboard import parse_period_window
 from users.mixins import (
     get_request_org, is_superuser_without_org, get_org_object_or_404,
 )
@@ -149,6 +150,68 @@ class FollowUpDraftCountView(generics.GenericAPIView):
         if not request.user.is_authenticated:
             return Response({'pending': 0})
         return Response({'pending': _scoped_drafts(request).filter(status='pending').count()})
+
+
+class FollowUpStatsView(generics.GenericAPIView):
+    """GET /api/bookings/followup-drafts/stats/?period=...&date_from=&date_to=
+
+    Dashboard numbers: 'to_review' (pending drafts, live) and 'due' (leads the
+    cadence logic would draft for now, live) ignore the window; 'sent' counts
+    drafts sent within it. Salespeople get their own numbers; everyone else
+    gets team totals plus a per-rep breakdown (to_review/due attributed to the
+    lead's assignee, sent to whoever actually pressed send).
+    """
+
+    def get(self, request):
+        org = get_request_org(request)
+        if org is None:
+            return Response({'detail': 'No organisation.'}, status=status.HTTP_400_BAD_REQUEST)
+        settings = OrgSettings.for_org(org)
+        since, until = parse_period_window(request)
+
+        sent = _scoped_drafts(request).filter(status='sent')
+        if since:
+            sent = sent.filter(reviewed_at__gte=since)
+        if until:
+            sent = sent.filter(reviewed_at__lt=until)
+
+        pending = _scoped_drafts(request).filter(status='pending')
+        due = _eligible_stale_leads(request, org, settings)
+
+        payload = {
+            'to_review': pending.count(),
+            'due': due.count(),
+            'sent': sent.count(),
+        }
+
+        if not is_salesperson(request.user):
+            per_user = {}
+
+            def row(user):
+                key = user.pk if user else None
+                if key not in per_user:
+                    name = (
+                        f"{user.first_name} {user.last_name}".strip() or user.email
+                    ) if user else 'Unassigned'
+                    per_user[key] = {
+                        'user_id': key, 'name': name,
+                        'to_review': 0, 'due': 0, 'sent': 0,
+                    }
+                return per_user[key]
+
+            for draft in pending.select_related('lead__assigned_to'):
+                row(draft.lead.assigned_to)['to_review'] += 1
+            for lead in due:
+                row(lead.assigned_to)['due'] += 1
+            for draft in sent.select_related('reviewed_by'):
+                row(draft.reviewed_by)['sent'] += 1
+
+            payload['breakdown'] = sorted(
+                per_user.values(),
+                key=lambda r: (r['user_id'] is None, r['name'].lower()),
+            )
+
+        return Response(payload)
 
 
 class FollowUpDraftMarkSentView(generics.GenericAPIView):

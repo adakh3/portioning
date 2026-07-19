@@ -801,3 +801,73 @@ class WhatsAppShortcutEndpointTests(TestCase):
         # the AI's quote facts become true
         from bookings.services.followup_drafter import _build_context
         self.assertIn('A quotation WAS SENT', _build_context(lead))
+
+
+class FollowUpStatsTests(TestCase):
+    """Dashboard stats: to_review/due are live, sent obeys the window, and the
+    per-rep breakdown only appears above salesperson level."""
+
+    def setUp(self):
+        self.user = get_test_user()          # owner-equivalent
+        self.org = self.user.organisation
+        _configure_ai(self.org)
+        self.rep = User.objects.create(
+            email='rep@stats.test', first_name='Rita', last_name='Rep',
+            role='salesperson', organisation=self.org)
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
+
+    def _sent_draft(self, lead, by, days_ago):
+        d = FollowUpDraft.objects.create(
+            organisation=self.org, lead=lead, body='x', status='sent',
+            reviewed_by=by, reviewed_at=timezone.now() - timedelta(days=days_ago))
+        return d
+
+    def test_counts_and_breakdown_for_manager(self):
+        mine = _stale_lead(self.org, assigned_to=self.rep)
+        FollowUpDraft.objects.create(organisation=self.org, lead=mine, body='p')
+        due_lead = _stale_lead(self.org, contact_name='Due', assigned_to=self.rep)
+        self._sent_draft(_stale_lead(self.org, contact_name='Old'), self.user, days_ago=20)
+        self._sent_draft(_stale_lead(self.org, contact_name='New'), self.rep, days_ago=2)
+
+        res = self.client.get('/api/bookings/followup-drafts/stats/?period=week')
+        self.assertEqual(res.status_code, 200, res.content)
+        data = res.json()
+        self.assertEqual(data['to_review'], 1)
+        # 'due' excludes leads with a pending draft; the two freshly-created
+        # sent-draft leads are also stale and eligible again (cap not reached).
+        self.assertEqual(data['sent'], 1)              # only the 2-day-old send
+        rita = next(r for r in data['breakdown'] if r['user_id'] == self.rep.id)
+        self.assertEqual(rita['to_review'], 1)
+        self.assertEqual(rita['sent'], 1)              # attributed to who sent it
+        # 'Due' (stale, no pending draft, assigned to Rita) counts toward her due.
+        self.assertGreaterEqual(rita['due'], 1)
+        self.assertEqual(due_lead.assigned_to, self.rep)
+
+    def test_all_time_window_counts_every_send(self):
+        self._sent_draft(_stale_lead(self.org), self.user, days_ago=200)
+        res = self.client.get('/api/bookings/followup-drafts/stats/?period=all')
+        self.assertEqual(res.json()['sent'], 1)
+
+    def test_salesperson_sees_own_numbers_and_no_breakdown(self):
+        mine = _stale_lead(self.org, assigned_to=self.rep)
+        FollowUpDraft.objects.create(organisation=self.org, lead=mine, body='p')
+        others = _stale_lead(self.org, contact_name='NotMine')
+        FollowUpDraft.objects.create(organisation=self.org, lead=others, body='p2')
+        self._sent_draft(_stale_lead(self.org, assigned_to=self.rep, contact_name='Sent'),
+                         self.rep, days_ago=1)
+
+        client = APIClient()
+        client.force_authenticate(user=self.rep)
+        res = client.get('/api/bookings/followup-drafts/stats/?period=week')
+        data = res.json()
+        self.assertEqual(data['to_review'], 1)         # not the colleague's draft
+        self.assertEqual(data['sent'], 1)
+        self.assertNotIn('breakdown', data)
+
+    def test_org_isolation(self):
+        other_org = Organisation.objects.create(name='Elsewhere', slug='elsewhere-stats')
+        foreign = _stale_lead(other_org)
+        FollowUpDraft.objects.create(organisation=other_org, lead=foreign, body='p')
+        res = self.client.get('/api/bookings/followup-drafts/stats/?period=all')
+        self.assertEqual(res.json()['to_review'], 0)

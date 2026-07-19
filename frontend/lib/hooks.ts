@@ -2,6 +2,7 @@ import useSWR, { mutate } from "swr";
 import { useCallback, useRef, useState } from "react";
 import {
   api,
+  FollowUpStats,
   Account,
   Contact,
   AddOnProduct,
@@ -507,6 +508,13 @@ export function useLeadFollowUpDrafts(leadId: number | null) {
     () => api.getLeadFollowUpDrafts(leadId!),
     { dedupingInterval: 15000 }
   );
+}
+
+export function useFollowUpStats(period: string, dateFrom?: string, dateTo?: string) {
+  const key = `followup-stats-${period}${dateFrom ? `-f${dateFrom}` : ""}${dateTo ? `-t${dateTo}` : ""}`;
+  return useSWR<FollowUpStats>(key, () => api.getFollowUpStats(period, dateFrom, dateTo), {
+    dedupingInterval: 30000,
+  });
 }
 
 export function useFollowUpDraftCount() {
