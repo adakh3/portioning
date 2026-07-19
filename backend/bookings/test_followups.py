@@ -931,6 +931,7 @@ class ScheduledRunTests(TestCase):
         self.org = get_test_user().organisation
         s = _configure_ai(self.org)
         s.timezone = 'UTC'
+        s.followup_auto_generate = True   # scheduled runs are opt-in
         s.save()
 
     def _at(self, hour):
@@ -963,6 +964,16 @@ class ScheduledRunTests(TestCase):
         mock_draft.assert_not_called()
 
     @patch('bookings.services.followup_scheduler.draft_followup', return_value=DRAFT_OK)
+    def test_fresh_org_is_opted_out_by_default(self, mock_draft):
+        fresh = Organisation.objects.create(name='Fresh Co', slug='fresh-optout')
+        s = OrgSettings.for_org(fresh)
+        s.ai_followups_enabled = True
+        s.save()
+        _stale_lead(fresh)
+        ran_orgs = [r['org'] for r in followup_scheduler.run_scheduled(now=self._at(9))]
+        self.assertNotIn(fresh.pk, ran_orgs)
+
+    @patch('bookings.services.followup_scheduler.draft_followup', return_value=DRAFT_OK)
     def test_next_day_runs_again(self, mock_draft):
         _stale_lead(self.org)
         followup_scheduler.run_scheduled(now=self._at(8))
@@ -982,6 +993,7 @@ class CronEndpointTests(TestCase):
         self.org = get_test_user().organisation
         s = _configure_ai(self.org)
         s.timezone = 'UTC'
+        s.followup_auto_generate = True   # scheduled runs are opt-in
         s.save()
         self.client = APIClient()
 

@@ -155,7 +155,7 @@ class OrgSettings(models.Model):
         help_text='Stop after this many follow-up drafts have been reviewed for one lead (sent or dismissed - a dismissal skips that stage).',
     )
     followup_auto_generate = models.BooleanField(
-        default=True,
+        default=False,
         help_text='Draft follow-ups automatically every morning (only when AI follow-ups are enabled). Off = button-only.',
     )
     followup_last_auto_run_at = models.DateTimeField(

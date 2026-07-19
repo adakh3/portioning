@@ -552,7 +552,7 @@ function AIFollowUpSettings({ settings, onSave }: { settings: SiteSettingsData |
   const [gapSecond, setGapSecond] = useState("7");
   const [gapFinal, setGapFinal] = useState("14");
   const [maxDrafts, setMaxDrafts] = useState("3");
-  const [autoGenerate, setAutoGenerate] = useState(true);
+  const [autoGenerate, setAutoGenerate] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -564,7 +564,7 @@ function AIFollowUpSettings({ settings, onSave }: { settings: SiteSettingsData |
       setGapSecond(String(settings.followup_gap_second_days ?? 7));
       setGapFinal(String(settings.followup_gap_final_days ?? 14));
       setMaxDrafts(String(settings.followup_max_drafts_per_lead ?? 3));
-      setAutoGenerate(settings.followup_auto_generate !== false);
+      setAutoGenerate(settings.followup_auto_generate === true);
     }
   }, [settings]);
 

@@ -12,7 +12,8 @@ every morning without anyone pressing a button,
   the backend, and 403s on a wrong secret.
 - **The backend decides everything**: `run_scheduled()` runs an org when (a) AI
   follow-ups are enabled AND configured, (b) the org's **"Auto-generate every
-  morning"** toggle is on (new `followup_auto_generate`, default ON, in
+  morning"** toggle is on (new `followup_auto_generate`, default OFF while the
+  drafter is being tuned — opt in per org via
   Settings → Integrations → AI Follow-ups), (c) it's past **7am org-local
   time**, and (d) it hasn't already run that org-local day
   (`followup_last_auto_run_at` guard). Hourly calls are therefore cheap no-ops
