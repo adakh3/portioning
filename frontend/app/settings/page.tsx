@@ -552,6 +552,7 @@ function AIFollowUpSettings({ settings, onSave }: { settings: SiteSettingsData |
   const [gapSecond, setGapSecond] = useState("7");
   const [gapFinal, setGapFinal] = useState("14");
   const [maxDrafts, setMaxDrafts] = useState("3");
+  const [autoGenerate, setAutoGenerate] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -563,6 +564,7 @@ function AIFollowUpSettings({ settings, onSave }: { settings: SiteSettingsData |
       setGapSecond(String(settings.followup_gap_second_days ?? 7));
       setGapFinal(String(settings.followup_gap_final_days ?? 14));
       setMaxDrafts(String(settings.followup_max_drafts_per_lead ?? 3));
+      setAutoGenerate(settings.followup_auto_generate === true);
     }
   }, [settings]);
 
@@ -577,6 +579,7 @@ function AIFollowUpSettings({ settings, onSave }: { settings: SiteSettingsData |
         followup_gap_second_days: Number(gapSecond),
         followup_gap_final_days: Number(gapFinal),
         followup_max_drafts_per_lead: Number(maxDrafts),
+        followup_auto_generate: autoGenerate,
       });
       onSave();
       setSuccess("AI follow-up settings saved.");
@@ -620,6 +623,24 @@ function AIFollowUpSettings({ settings, onSave }: { settings: SiteSettingsData |
               onClick={() => setEnabled(!enabled)}
             >
               {enabled ? "Enabled" : "Disabled"}
+            </Button>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-foreground">Auto-generate every morning</p>
+              <p className="text-xs text-muted-foreground">
+                Draft follow-ups for due leads automatically each morning. Off = drafts are only
+                created when someone presses &quot;Generate follow-ups&quot;.
+              </p>
+            </div>
+            <Button
+              variant={autoGenerate ? "default" : "outline"}
+              size="sm"
+              onClick={() => setAutoGenerate(!autoGenerate)}
+              aria-label="Toggle auto-generate follow-ups"
+            >
+              {autoGenerate ? "Enabled" : "Disabled"}
             </Button>
           </div>
 

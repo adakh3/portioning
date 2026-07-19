@@ -1100,7 +1100,7 @@ function LeadFollowUpDraftCard({ draft, leadId, onDone }: {
           {busy === "approve" ? "Sending..." : "Approve & Send"}
         </Button>
         <Button size="sm" variant="ghost" onClick={handleDismiss} disabled={!!busy}>
-          {busy === "dismiss" ? "Dismissing..." : "Dismiss"}
+          {busy === "dismiss" ? "Deleting..." : "Delete"}
         </Button>
       </div>
     </div>

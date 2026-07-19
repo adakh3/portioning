@@ -29,6 +29,8 @@ here. Keep it test-focused — numbered cases with concrete steps and expected r
 | On-demand follow-up generation (preview → select → generate) | [followup-generate-on-demand.md](followup-generate-on-demand.md) | Built — awaiting manual sign-off |
 | Contact names split into first + last (leads & customers) | [contact-name-parts.md](contact-name-parts.md) | Built — awaiting manual sign-off |
 | WhatsApp shortcuts (stage one, no Twilio) | [whatsapp-shortcuts.md](whatsapp-shortcuts.md) | Built — awaiting manual verification |
+| Follow-up workload on the dashboard | [followup-dashboard-stats.md](followup-dashboard-stats.md) | Built — awaiting manual verification |
+| Scheduled follow-up generation (daily cron) | [followups-cron.md](followups-cron.md) | Built — awaiting manual verification |
 
 ## Template
 

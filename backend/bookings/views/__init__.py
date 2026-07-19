@@ -40,6 +40,8 @@ from .followups import (
     FollowUpDraftListView, LeadFollowUpDraftListView,
     FollowUpDraftApproveView, FollowUpDraftDismissView,
     FollowUpDraftBulkApproveView, FollowUpDraftCountView,
+    FollowUpStatsView,
+    CronRunFollowupsView,
     FollowUpPreviewView, FollowUpGenerateView,
     FollowUpDraftMarkSentView, LeadLogReplyView,
 )

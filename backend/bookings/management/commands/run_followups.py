@@ -1,7 +1,7 @@
 from django.core.management.base import BaseCommand
 
 from bookings.models import OrgSettings
-from bookings.services.followup_scheduler import run_all, run_for_org
+from bookings.services.followup_scheduler import run_all, run_for_org, run_scheduled
 from users.models import Organisation
 
 
@@ -16,6 +16,10 @@ class Command(BaseCommand):
             "--org", help="Limit to one organisation by id or name.",
         )
         parser.add_argument(
+            "--scheduled", action="store_true",
+            help="Respect the per-org auto-generate toggle and once-per-local-day guard (what the cron calls).",
+        )
+        parser.add_argument(
             "--dry-run", action="store_true",
             help="Report which leads would get a draft without calling the AI or writing anything.",
         )
@@ -23,7 +27,9 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         dry_run = options["dry_run"]
 
-        if options["org"]:
+        if options["scheduled"]:
+            summaries = run_scheduled()
+        elif options["org"]:
             org = self._resolve_org(options["org"])
             summaries = [run_for_org(org, dry_run=dry_run)]
         else:
