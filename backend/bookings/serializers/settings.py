@@ -43,6 +43,7 @@ class OrgSettingsSerializer(serializers.ModelSerializer):
             # AI follow-ups
             'ai_followups_enabled', 'followup_gap_first_days', 'followup_gap_second_days',
             'followup_gap_final_days', 'followup_max_drafts_per_lead',
+            'followup_auto_generate',
             'ai_followups_configured',
         ]
 

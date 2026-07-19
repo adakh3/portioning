@@ -112,15 +112,36 @@ class FollowupSchedulerTests(TestCase):
         self.assertEqual(FollowUpDraft.objects.filter(lead=lead, status='pending').count(), 0)
 
     @patch('bookings.services.followup_scheduler.draft_followup', return_value=DRAFT_OK)
-    def test_dismissed_drafts_do_not_burn_the_budget(self, mock_draft):
+    def test_dismissed_drafts_burn_the_budget(self, mock_draft):
+        # Dismissal = "I don't want this one": it skips the stage and counts
+        # toward the cap, so a cron can never recreate a thrown-away draft.
         s = OrgSettings.for_org(self.org)
         s.followup_max_drafts_per_lead = 2
         s.save()
         lead = _stale_lead(self.org)
-        FollowUpDraft.objects.create(organisation=self.org, lead=lead, body='1', status='dismissed')
-        FollowUpDraft.objects.create(organisation=self.org, lead=lead, body='2', status='dismissed')
+        long_ago = timezone.now() - timedelta(days=30)
+        for body in ('1', '2'):
+            FollowUpDraft.objects.create(
+                organisation=self.org, lead=lead, body=body,
+                status='dismissed', reviewed_at=long_ago)
         followup_scheduler.run_for_org(self.org)
-        # dismissed drafts don't count toward the sent cap → a fresh draft is made
+        mock_draft.assert_not_called()
+        self.assertEqual(FollowUpDraft.objects.filter(lead=lead, status='pending').count(), 0)
+
+    @patch('bookings.services.followup_scheduler.draft_followup', return_value=DRAFT_OK)
+    def test_fresh_dismissal_pauses_then_next_stage_arrives(self, mock_draft):
+        # A dismissal minutes ago quiets the lead (no instant re-draft), but
+        # once the SECOND-stage gap passes the next follow-up is drafted.
+        lead = _stale_lead(self.org)
+        d = FollowUpDraft.objects.create(
+            organisation=self.org, lead=lead, body='x',
+            status='dismissed', reviewed_at=timezone.now())
+        followup_scheduler.run_for_org(self.org)
+        mock_draft.assert_not_called()
+
+        FollowUpDraft.objects.filter(pk=d.pk).update(
+            reviewed_at=timezone.now() - timedelta(days=8))  # > second gap (7d)
+        followup_scheduler.run_for_org(self.org)
         self.assertEqual(FollowUpDraft.objects.filter(lead=lead, status='pending').count(), 1)
 
     @patch('bookings.services.followup_scheduler.draft_followup', return_value=DRAFT_OK)
@@ -899,3 +920,110 @@ class FollowUpStatsTests(TestCase):
         FollowUpDraft.objects.create(organisation=other_org, lead=foreign, body='p')
         res = self.client.get('/api/bookings/followup-drafts/stats/?period=all')
         self.assertEqual(res.json()['to_review'], 0)
+
+
+@platform_creds
+class ScheduledRunTests(TestCase):
+    """run_scheduled: once per org-local day, after the morning hour, only for
+    orgs that opted in — and safe to call every hour."""
+
+    def setUp(self):
+        self.org = get_test_user().organisation
+        s = _configure_ai(self.org)
+        s.timezone = 'UTC'
+        s.save()
+
+    def _at(self, hour):
+        return timezone.now().replace(hour=hour, minute=0, second=0, microsecond=0)
+
+    @patch('bookings.services.followup_scheduler.draft_followup', return_value=DRAFT_OK)
+    def test_runs_once_after_morning_hour_then_noops(self, mock_draft):
+        _stale_lead(self.org)
+        self.assertEqual(followup_scheduler.run_scheduled(now=self._at(6)), [])
+        self.assertEqual(len(followup_scheduler.run_scheduled(now=self._at(8))), 1)
+        self.assertEqual(FollowUpDraft.objects.filter(status='pending').count(), 1)
+        # same day, later hour: the once-a-day guard holds even though the
+        # first draft is still pending (and that lead is excluded anyway)
+        self.assertEqual(followup_scheduler.run_scheduled(now=self._at(15)), [])
+        self.assertEqual(FollowUpDraft.objects.filter(status='pending').count(), 1)
+
+    @patch('bookings.services.followup_scheduler.draft_followup', return_value=DRAFT_OK)
+    def test_late_first_call_self_heals(self, mock_draft):
+        # If the cron was down all morning, a 3pm call still runs today's batch.
+        _stale_lead(self.org)
+        self.assertEqual(len(followup_scheduler.run_scheduled(now=self._at(15))), 1)
+
+    @patch('bookings.services.followup_scheduler.draft_followup', return_value=DRAFT_OK)
+    def test_respects_the_auto_generate_toggle(self, mock_draft):
+        s = OrgSettings.for_org(self.org)
+        s.followup_auto_generate = False
+        s.save()
+        _stale_lead(self.org)
+        self.assertEqual(followup_scheduler.run_scheduled(now=self._at(9)), [])
+        mock_draft.assert_not_called()
+
+    @patch('bookings.services.followup_scheduler.draft_followup', return_value=DRAFT_OK)
+    def test_next_day_runs_again(self, mock_draft):
+        _stale_lead(self.org)
+        followup_scheduler.run_scheduled(now=self._at(8))
+        s = OrgSettings.for_org(self.org)
+        s.followup_last_auto_run_at = timezone.now() - timedelta(days=1)
+        s.save()
+        # the pending draft blocks that lead, but the org itself runs again
+        self.assertEqual(len(followup_scheduler.run_scheduled(now=self._at(8))), 1)
+
+
+@platform_creds
+@override_settings(CRON_SECRET='s3cret')
+class CronEndpointTests(TestCase):
+    URL = '/api/bookings/cron/run-followups/'
+
+    def setUp(self):
+        self.org = get_test_user().organisation
+        s = _configure_ai(self.org)
+        s.timezone = 'UTC'
+        s.save()
+        self.client = APIClient()
+
+    def test_rejects_missing_or_wrong_secret(self):
+        self.assertEqual(self.client.post(self.URL).status_code, 403)
+        self.assertEqual(
+            self.client.post(self.URL, HTTP_X_CRON_SECRET='nope').status_code, 403)
+
+    @override_settings(CRON_SECRET='')
+    def test_unconfigured_endpoint_is_disabled(self):
+        self.assertEqual(
+            self.client.post(self.URL, HTTP_X_CRON_SECRET='').status_code, 503)
+
+    @patch('bookings.services.followup_scheduler.draft_followup', return_value=DRAFT_OK)
+    def test_valid_secret_runs_the_schedule(self, mock_draft):
+        _stale_lead(self.org)
+        res = self.client.post(self.URL, HTTP_X_CRON_SECRET='s3cret')
+        self.assertEqual(res.status_code, 200, res.content)
+        body = res.json()
+        # UTC org: whether this run fires depends on the wall clock being past
+        # the morning hour — assert shape, and content when it ran.
+        self.assertIn('orgs_run', body)
+        if timezone.now().hour >= followup_scheduler.RUN_HOUR:
+            self.assertEqual(body['orgs_run'], 1)
+            self.assertEqual(body['created'], 1)
+
+
+@platform_creds
+class CustomTerminalStatusTests(TestCase):
+    """Org-customized won/lost statuses must exclude leads from follow-ups
+    just like the built-in 'won'/'lost' values."""
+
+    @patch('bookings.services.followup_scheduler.draft_followup', return_value=DRAFT_OK)
+    def test_custom_won_status_is_never_chased(self, mock_draft):
+        org = get_test_user().organisation
+        _configure_ai(org)
+        from bookings.models.choices import LeadStatusOption
+        LeadStatusOption.objects.update_or_create(
+            organisation=org, value='closed_deal',
+            defaults={'label': 'Closed Deal', 'is_won': True, 'sort_order': 99})
+        _stale_lead(org, status='closed_deal')
+        chased = _stale_lead(org, contact_name='Still open')
+        followup_scheduler.run_for_org(org)
+        drafted = set(FollowUpDraft.objects.values_list('lead_id', flat=True))
+        self.assertEqual(drafted, {chased.id})

@@ -1,0 +1,21 @@
+# Hourly trigger for scheduled AI follow-up drafting. The backend decides
+# whether anything actually runs: per-org "auto-generate" toggle, org-local
+# morning window, and a once-per-local-day guard — so hourly calls are cheap
+# no-ops most of the time. Requires the CRON_SECRET repo secret to match the
+# CRON_SECRET env var on the DigitalOcean app.
+name: followups-cron
+
+on:
+  schedule:
+    - cron: "0 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger scheduled follow-up generation
+        run: |
+          curl -fsS -X POST \
+            -H "X-Cron-Secret: ${{ secrets.CRON_SECRET }}" \
+            https://catering.relogue.com/api/bookings/cron/run-followups/

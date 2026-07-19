@@ -661,6 +661,7 @@ export interface SiteSettingsData {
   followup_gap_second_days?: number;
   followup_gap_final_days?: number;
   followup_max_drafts_per_lead?: number;
+  followup_auto_generate?: boolean;
 }
 
 export interface CommissionPlanConfig {

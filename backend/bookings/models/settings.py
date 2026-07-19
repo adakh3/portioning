@@ -152,7 +152,15 @@ class OrgSettings(models.Model):
     followup_max_drafts_per_lead = models.PositiveIntegerField(
         default=3,
         validators=[MaxValueValidator(50)],
-        help_text='Stop after this many follow-ups have been SENT to one lead (dismissed drafts don\'t count).',
+        help_text='Stop after this many follow-up drafts have been reviewed for one lead (sent or dismissed - a dismissal skips that stage).',
+    )
+    followup_auto_generate = models.BooleanField(
+        default=True,
+        help_text='Draft follow-ups automatically every morning (only when AI follow-ups are enabled). Off = button-only.',
+    )
+    followup_last_auto_run_at = models.DateTimeField(
+        null=True, blank=True,
+        help_text='When the scheduled run last generated for this org (guards against double runs).',
     )
 
     class Meta:

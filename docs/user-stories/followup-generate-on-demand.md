@@ -14,7 +14,8 @@ draft — and untick any I want left alone — before the drafts are generated,
 - **Eligibility** (same rules as the agent — single source of truth in
   `followup_scheduler.find_stale_leads`): active lead (not won/lost), has a phone,
   event date not passed, no pending draft, fewer than
-  `followup_max_drafts_per_lead` follow-ups **sent** (dismissed don't count),
+  `followup_max_drafts_per_lead` follow-ups **reviewed** (sent or dismissed —
+  a dismissal skips that stage and burns the cap),
   and the escalating cadence gates (first/second/final gap days, counting
   record edits, our sends, any other outbound WhatsApp such as a quote
   share, and the lead's replies alike).
@@ -29,8 +30,8 @@ draft — and untick any I want left alone — before the drafts are generated,
 - The server **re-validates eligibility per lead at generation time** — a lead touched
   (or drafted by a colleague) between preview and confirm is skipped safely, never
   double-drafted.
-- **No cron is scheduled.** The button is the only trigger for now;
-  `manage.py run_followups` stays for testing and as a future option.
+- A daily cron also generates drafts for opted-in orgs (see
+  `followups-cron.md`); the button remains for on-demand runs.
 - Empty state: "No stale leads right now" mentioning the org's stale threshold.
 
 ### Out of scope (v1)

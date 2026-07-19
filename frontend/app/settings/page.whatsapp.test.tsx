@@ -41,6 +41,26 @@ const BASE = {
   ai_followups_enabled: false,
 };
 
+describe("Settings → Integrations → AI follow-ups auto-generate", () => {
+  beforeEach(() => updateSiteSettings.mockClear());
+
+  it("includes followup_auto_generate in the AI settings save payload", async () => {
+    mockSettings = {
+      ...BASE,
+      twilio_configured: false,
+      ai_followups_enabled: true,
+      followup_auto_generate: true,
+    };
+    render(<SettingsPage />);
+    fireEvent.click(screen.getByRole("button", { name: "Toggle auto-generate follow-ups" }));
+    fireEvent.click(screen.getByRole("button", { name: /Save AI follow-up settings|Save/i }));
+    await waitFor(() => expect(updateSiteSettings).toHaveBeenCalled());
+    const payload = updateSiteSettings.mock.calls.at(-1)![0] as Record<string, unknown>;
+    expect(payload.followup_auto_generate).toBe(false);
+    expect(payload.ai_followups_enabled).toBe(true);
+  });
+});
+
 describe("Settings → Integrations → WhatsApp shortcuts toggle", () => {
   beforeEach(() => updateSiteSettings.mockClear());
 

@@ -1,4 +1,5 @@
 from django.db.models import Q
+from django.conf import settings as django_settings
 from django.utils import timezone
 from rest_framework import generics, status
 from rest_framework.response import Response
@@ -7,7 +8,7 @@ from bookings.activity import log_activity
 from bookings.models import FollowUpDraft, Lead, OrgSettings, WhatsAppMessage
 from bookings.permissions import is_salesperson
 from bookings.serializers.followups import FollowUpDraftSerializer
-from bookings.services.followup_scheduler import find_stale_leads, lead_last_touch
+from bookings.services.followup_scheduler import find_stale_leads, lead_last_touch, run_scheduled
 from bookings.services.followup_drafter import draft_followup
 from bookings.services.whatsapp import WhatsAppService
 from bookings.views.dashboard import parse_period_window
@@ -150,6 +151,29 @@ class FollowUpDraftCountView(generics.GenericAPIView):
         if not request.user.is_authenticated:
             return Response({'pending': 0})
         return Response({'pending': _scoped_drafts(request).filter(status='pending').count()})
+
+
+class CronRunFollowupsView(generics.GenericAPIView):
+    """POST /api/bookings/cron/run-followups/ — the scheduled-generation
+    trigger, hit hourly by a GitHub Actions cron. No user auth: a shared
+    secret header gates it, and run_scheduled() itself enforces the once-per-
+    org-local-day guard, so extra calls are harmless no-ops."""
+
+    authentication_classes = []
+    permission_classes = []
+
+    def post(self, request):
+        secret = django_settings.CRON_SECRET
+        if not secret:
+            return Response({'detail': 'Cron endpoint not configured.'},
+                            status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        if request.headers.get('X-Cron-Secret') != secret:
+            return Response({'detail': 'Forbidden.'}, status=status.HTTP_403_FORBIDDEN)
+        summaries = run_scheduled()
+        return Response({
+            'orgs_run': len(summaries),
+            'created': sum(s.get('created', 0) for s in summaries),
+        })
 
 
 class FollowUpStatsView(generics.GenericAPIView):

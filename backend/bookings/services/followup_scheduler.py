@@ -38,9 +38,11 @@ def find_stale_leads(org, settings):
     lead forever.
 
     Also: active lead, has a phone, event date not already in the past,
-    no pending draft, and fewer than
-    `followup_max_drafts_per_lead` follow-ups actually SENT (dismissed drafts
-    don't burn the budget).
+    no pending draft, and fewer than `followup_max_drafts_per_lead` follow-ups
+    REVIEWED (sent or dismissed). A dismissal is treated exactly like a send
+    for the cadence — that stage is skipped, the next gap starts from the
+    dismissal, and it burns the cap — so a cron can never recreate a
+    follow-up someone already threw away.
     """
     now = timezone.now()
     cutoffs = [
@@ -61,45 +63,58 @@ def find_stale_leads(org, settings):
     def quiet_since(cutoff):
         return (
             Q(updated_at__lt=cutoff)
-            & (Q(last_followup_sent_at__isnull=True) | Q(last_followup_sent_at__lt=cutoff))
+            & (Q(last_reviewed_at__isnull=True) | Q(last_reviewed_at__lt=cutoff))
             & (Q(last_outbound_at__isnull=True) | Q(last_outbound_at__lt=cutoff))
             & (Q(last_inbound_at__isnull=True) | Q(last_inbound_at__lt=cutoff))
         )
 
     stage_gate = (
-        (Q(sent_followups=0) & quiet_since(cutoffs[0]))
-        | (Q(sent_followups=1) & quiet_since(cutoffs[1]))
-        | (Q(sent_followups__gte=2) & quiet_since(cutoffs[2]))
+        (Q(reviewed_followups=0) & quiet_since(cutoffs[0]))
+        | (Q(reviewed_followups=1) & quiet_since(cutoffs[1]))
+        | (Q(reviewed_followups__gte=2) & quiet_since(cutoffs[2]))
+    )
+
+    # Terminal statuses are org-customizable: exclude the built-in values AND
+    # any custom status the org flagged as won/lost.
+    from bookings.models.choices import LeadStatusOption
+    from bookings.models.leads import TERMINAL_STATUSES
+    terminal = set(TERMINAL_STATUSES) | set(
+        LeadStatusOption.objects.filter(
+            organisation=org,
+        ).filter(Q(is_won=True) | Q(is_lost=True)).values_list('value', flat=True)
     )
 
     return (
         Lead.objects.for_org(org)
-        .active()
+        .exclude(status__in=terminal)
         .exclude(contact_phone='')          # can't WhatsApp without a number
         .exclude(event_date__lt=now.date())  # the event already happened — nothing to chase
         .exclude(followup_drafts__status='pending')  # don't pile up unreviewed drafts
         .annotate(
-            sent_followups=Count(
-                'followup_drafts', filter=Q(followup_drafts__status='sent'), distinct=True,
+            reviewed_followups=Count(
+                'followup_drafts',
+                filter=Q(followup_drafts__status__in=('sent', 'dismissed')), distinct=True,
             ),
-            last_followup_sent_at=Max(
-                'followup_drafts__reviewed_at', filter=Q(followup_drafts__status='sent'),
+            last_reviewed_at=Max(
+                'followup_drafts__reviewed_at',
+                filter=Q(followup_drafts__status__in=('sent', 'dismissed')),
             ),
             last_inbound_at=Subquery(latest_inbound_at),
             last_outbound_at=Subquery(latest_outbound_at),
         )
-        .filter(sent_followups__lt=settings.followup_max_drafts_per_lead)
+        .filter(reviewed_followups__lt=settings.followup_max_drafts_per_lead)
         .filter(stage_gate)
     )
 
 
 def lead_last_touch(lead):
     """The freshest of the four quiet-clocks the cadence runs on: record
-    edits, our last sent follow-up, any other outbound WhatsApp from us (e.g.
-    a quote share), the lead's last reply. Display code uses this so 'days
+    edits, our last reviewed follow-up (sent OR dismissed — a dismissal skips
+    that stage, it doesn't re-arm it), any outbound WhatsApp from us (e.g. a
+    quote share), the lead's last reply. Display code uses this so 'days
     quiet' always matches what the scheduler actually measures."""
     stamps = [lead.updated_at]
-    last_sent = lead.followup_drafts.filter(status='sent').aggregate(
+    last_sent = lead.followup_drafts.filter(status__in=('sent', 'dismissed')).aggregate(
         m=Max('reviewed_at'))['m']
     if last_sent:
         stamps.append(last_sent)
@@ -144,6 +159,39 @@ def run_for_org(org, dry_run=False):
         logger.info("Created follow-up draft %s for lead %s", draft.pk, lead.pk)
 
     return {'org': org.pk, 'created': created, 'skipped': skipped}
+
+
+RUN_HOUR = 7  # org-local hour after which the daily scheduled run may fire
+
+
+def run_scheduled(now=None):
+    """The cron entrypoint — safe to call every hour. For each org with AI
+    follow-ups configured AND auto-generation on, runs once per org-local day,
+    the first time it's called after RUN_HOUR local. Late calls self-heal (a
+    3pm first call still runs); repeat calls the same day are no-ops.
+    """
+    from zoneinfo import ZoneInfo
+    now = now or timezone.now()
+    summaries = []
+    org_settings = OrgSettings.objects.filter(
+        ai_followups_enabled=True, followup_auto_generate=True,
+    ).select_related('organisation')
+    for settings in org_settings:
+        try:
+            tz = ZoneInfo(settings.timezone or 'UTC')
+        except (KeyError, ValueError):
+            tz = ZoneInfo('UTC')
+        local_now = now.astimezone(tz)
+        if local_now.hour < RUN_HOUR:
+            continue
+        last = settings.followup_last_auto_run_at
+        if last and last.astimezone(tz).date() == local_now.date():
+            continue  # already ran today (org-local)
+        summary = run_for_org(settings.organisation)
+        settings.followup_last_auto_run_at = now
+        settings.save(update_fields=['followup_last_auto_run_at'])
+        summaries.append(summary)
+    return summaries
 
 
 def run_all(dry_run=False):
