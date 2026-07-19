@@ -29,11 +29,13 @@ def find_stale_leads(org, settings):
     Escalating per-org cadence: the FIRST follow-up after
     `followup_gap_first_days` of quiet, the SECOND `followup_gap_second_days`
     after that, the THIRD (and any later) `followup_gap_final_days` apart.
-    "Quiet" at every stage means all three clocks have passed the stage's gap:
-    the lead record untouched, nothing sent by us, and — crucially — no reply
-    from the lead. A fresh reply therefore PAUSES the agent (a human should
-    answer), but an unanswered reply older than the gap re-enters the cadence
-    instead of shelving the lead forever.
+    "Quiet" at every stage means all four clocks have passed the stage's gap:
+    the lead record untouched, no follow-up sent by us, no OTHER outbound
+    WhatsApp from us (a quote share counts as contact — don't chase minutes
+    after it), and — crucially — no reply from the lead. A fresh reply
+    therefore PAUSES the agent (a human should answer), but an unanswered
+    reply older than the gap re-enters the cadence instead of shelving the
+    lead forever.
 
     Also: active lead, has a phone, event date not already in the past,
     no pending draft, and fewer than
@@ -51,11 +53,16 @@ def find_stale_leads(org, settings):
         WhatsAppMessage.objects.filter(lead=OuterRef('pk'), direction='inbound')
         .order_by('-created_at').values('created_at')[:1]
     )
+    latest_outbound_at = (
+        WhatsAppMessage.objects.filter(lead=OuterRef('pk'), direction='outbound')
+        .order_by('-created_at').values('created_at')[:1]
+    )
 
     def quiet_since(cutoff):
         return (
             Q(updated_at__lt=cutoff)
             & (Q(last_followup_sent_at__isnull=True) | Q(last_followup_sent_at__lt=cutoff))
+            & (Q(last_outbound_at__isnull=True) | Q(last_outbound_at__lt=cutoff))
             & (Q(last_inbound_at__isnull=True) | Q(last_inbound_at__lt=cutoff))
         )
 
@@ -79,6 +86,7 @@ def find_stale_leads(org, settings):
                 'followup_drafts__reviewed_at', filter=Q(followup_drafts__status='sent'),
             ),
             last_inbound_at=Subquery(latest_inbound_at),
+            last_outbound_at=Subquery(latest_outbound_at),
         )
         .filter(sent_followups__lt=settings.followup_max_drafts_per_lead)
         .filter(stage_gate)
@@ -86,19 +94,19 @@ def find_stale_leads(org, settings):
 
 
 def lead_last_touch(lead):
-    """The freshest of the three quiet-clocks the cadence runs on: record
-    edits, our last sent follow-up, the lead's last reply. Display code uses
-    this so 'days quiet' always matches what the scheduler actually measures."""
-    from django.db.models import Max
+    """The freshest of the four quiet-clocks the cadence runs on: record
+    edits, our last sent follow-up, any other outbound WhatsApp from us (e.g.
+    a quote share), the lead's last reply. Display code uses this so 'days
+    quiet' always matches what the scheduler actually measures."""
     stamps = [lead.updated_at]
     last_sent = lead.followup_drafts.filter(status='sent').aggregate(
         m=Max('reviewed_at'))['m']
     if last_sent:
         stamps.append(last_sent)
-    last_reply = WhatsAppMessage.objects.filter(
-        lead=lead, direction='inbound').aggregate(m=Max('created_at'))['m']
-    if last_reply:
-        stamps.append(last_reply)
+    last_message = WhatsAppMessage.objects.filter(lead=lead).aggregate(
+        m=Max('created_at'))['m']
+    if last_message:
+        stamps.append(last_message)
     return max(stamps)
 
 

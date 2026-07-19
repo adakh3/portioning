@@ -16,7 +16,8 @@ draft — and untick any I want left alone — before the drafts are generated,
   event date not passed, no pending draft, fewer than
   `followup_max_drafts_per_lead` follow-ups **sent** (dismissed don't count),
   and the escalating cadence gates (first/second/final gap days, counting
-  record edits, our sends, and the lead's replies alike).
+  record edits, our sends, any other outbound WhatsApp such as a quote
+  share, and the lead's replies alike).
 - **Role scoping:** salespeople see and generate for their own leads only
   (assigned to them or created by them); managers/admins/owners see the whole org.
 - Confirming generates drafts **one lead at a time with live progress**

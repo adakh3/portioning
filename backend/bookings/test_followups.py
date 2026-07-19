@@ -189,6 +189,34 @@ class FollowupSchedulerTests(TestCase):
         mock_draft.assert_not_called()
 
     @patch('bookings.services.followup_scheduler.draft_followup', return_value=DRAFT_OK)
+    def test_fresh_outbound_message_pauses_the_cadence(self, mock_draft):
+        # A quote shared over WhatsApp minutes ago IS contact — the agent
+        # must not chase the lead right behind it (fourth quiet-clock).
+        lead = _stale_lead(self.org)
+        WhatsAppMessage.objects.create(
+            organisation=self.org, lead=lead, direction='outbound',
+            body='Sharing your quotation', from_phone='manual',
+        )
+        followup_scheduler.run_for_org(self.org)
+        mock_draft.assert_not_called()
+        # ...and the displayed quiet-clock agrees with the scheduler.
+        touch = followup_scheduler.lead_last_touch(lead)
+        self.assertEqual((timezone.now() - touch).days, 0)
+
+    @patch('bookings.services.followup_scheduler.draft_followup', return_value=DRAFT_OK)
+    def test_old_outbound_message_reenters_the_cadence(self, mock_draft):
+        # The same quote share, older than the first gap: eligible again.
+        lead = _stale_lead(self.org)
+        msg = WhatsAppMessage.objects.create(
+            organisation=self.org, lead=lead, direction='outbound',
+            body='Sharing your quotation', from_phone='manual',
+        )
+        WhatsAppMessage.objects.filter(pk=msg.pk).update(
+            created_at=timezone.now() - timedelta(days=4))
+        followup_scheduler.run_for_org(self.org)
+        self.assertEqual(FollowUpDraft.objects.filter(lead=lead, status='pending').count(), 1)
+
+    @patch('bookings.services.followup_scheduler.draft_followup', return_value=DRAFT_OK)
     def test_skips_lead_with_existing_pending_draft(self, mock_draft):
         lead = _stale_lead(self.org)
         FollowUpDraft.objects.create(organisation=self.org, lead=lead, body='waiting', status='pending')
