@@ -31,6 +31,7 @@ here. Keep it test-focused — numbered cases with concrete steps and expected r
 | WhatsApp shortcuts (stage one, no Twilio) | [whatsapp-shortcuts.md](whatsapp-shortcuts.md) | Built — awaiting manual verification |
 | Follow-up workload on the dashboard | [followup-dashboard-stats.md](followup-dashboard-stats.md) | Built — awaiting manual verification |
 | Scheduled follow-up generation (daily cron) | [followups-cron.md](followups-cron.md) | Built — awaiting manual verification |
+| Starter dropdown defaults for a new org | [new-org-choice-defaults.md](new-org-choice-defaults.md) | Built — awaiting manual verification |
 
 ## Template
 

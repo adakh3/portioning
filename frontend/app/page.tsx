@@ -247,6 +247,9 @@ export default function Dashboard() {
         <StatCard label="Active" value={summary?.total_active ?? "-"} />
       </div>
 
+      {/* AI follow-up workload — kept next to the lead summary it works off */}
+      <FollowUpStatsPanel stats={followupStats} periodLabel={PERIODS.find((p) => p.value === period)?.label || ""} />
+
       {/* KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         <StatCard label="Conversion Rate" value={kpis ? `${kpis.conversion_rate}%` : "-"} />
@@ -257,9 +260,6 @@ export default function Dashboard() {
           sub={kpis ? `${kpis.pipeline_count} leads` : undefined}
         />
       </div>
-
-      {/* AI follow-up workload — team totals + who's carrying what */}
-      <FollowUpStatsPanel stats={followupStats} periodLabel={PERIODS.find((p) => p.value === period)?.label || ""} />
 
       {/* Lead Status Distribution */}
       {statusDist.length > 0 && (() => {

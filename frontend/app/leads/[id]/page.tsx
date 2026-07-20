@@ -407,6 +407,7 @@ export default function LeadDetailPage() {
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Event Type</label>
                   <select value={formData.event_type} onChange={setField("event_type")} className={selectClass}>
+                    <option value="">-- Select --</option>
                     {eventTypes.map((et) => <option key={et.id} value={et.value}>{et.label}</option>)}
                   </select>
                 </div>
@@ -636,7 +637,7 @@ export default function LeadDetailPage() {
                 label="Event Type"
                 type="select"
                 value={l.event_type}
-                options={eventTypes.map((et) => ({ value: et.value, label: et.label }))}
+                options={[{ value: "", label: "-- Select --" }, ...eventTypes.map((et) => ({ value: et.value, label: et.label }))]}
               />
               <AutoSaveField {...fieldProps("event_date")} label="Event Date" type="date" value={l.event_date || ""} transform={nullableString} />
               <AutoSaveField {...fieldProps("guest_estimate")} label="Guest Estimate" type="number" value={l.guest_estimate ?? ""} transform={fkTransform} />

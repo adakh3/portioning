@@ -31,8 +31,10 @@ class WhatsAppMessage(models.Model):
         on_delete=models.SET_NULL, related_name='whatsapp_messages',
     )
 
-    to_phone = models.CharField(max_length=20)
-    from_phone = models.CharField(max_length=20)
+    # Wide enough for a Twilio-style address: 'whatsapp:' (9) + E.164 (max 16).
+    # Postgres enforces this; the previous 20 overflowed on real numbers.
+    to_phone = models.CharField(max_length=32)
+    from_phone = models.CharField(max_length=32)
     body = models.TextField()
 
     direction = models.CharField(max_length=10, choices=DIRECTION_CHOICES, default='outbound')
