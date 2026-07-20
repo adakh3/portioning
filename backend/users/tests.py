@@ -206,3 +206,41 @@ class OrgScopedM2MTests(TestCase):
     def test_add_role_from_own_org_succeeds(self):
         self.staff.roles.add(self.role_a)
         self.assertEqual(self.staff.roles.count(), 1)
+
+
+class NewOrgChoiceDefaultsTests(TestCase):
+    """A brand-new org gets usable starter dropdowns (event types, sources,
+    service styles, meal types) from the post_save signal, plus the workflow
+    options, so its lead/booking forms aren't empty on day one."""
+
+    def test_signal_seeds_non_workflow_choice_options(self):
+        from bookings.models.choices import (
+            EventTypeOption, SourceOption, ServiceStyleOption, MealTypeOption,
+            LeadStatusOption,
+        )
+        org = make_org("fresh-choices")
+        self.assertTrue(EventTypeOption.objects.filter(organisation=org, value='wedding').exists())
+        self.assertTrue(SourceOption.objects.filter(organisation=org, value='referral').exists())
+        self.assertTrue(ServiceStyleOption.objects.filter(organisation=org, value='buffet').exists())
+        self.assertTrue(MealTypeOption.objects.filter(organisation=org, value='brunch').exists())
+        # workflow options still seeded
+        self.assertTrue(LeadStatusOption.objects.filter(organisation=org, is_default=True).exists())
+
+    def test_backfill_command_is_idempotent_and_preserves_edits(self):
+        from django.core.management import call_command
+        from bookings.models.choices import EventTypeOption
+        org = make_org("backfill-choices")
+        # org renamed one option and deleted another; a re-run must not undo that
+        opt = EventTypeOption.objects.get(organisation=org, value='wedding')
+        opt.label = 'Weddings & Receptions'
+        opt.save()
+        EventTypeOption.objects.filter(organisation=org, value='memorial').delete()
+        before = EventTypeOption.objects.filter(organisation=org).count()
+
+        call_command('seed_org_choices', '--org', str(org.pk))
+
+        opt.refresh_from_db()
+        self.assertEqual(opt.label, 'Weddings & Receptions')          # edit preserved
+        self.assertFalse(                                             # deletion preserved
+            EventTypeOption.objects.filter(organisation=org, value='memorial').exists())
+        self.assertEqual(EventTypeOption.objects.filter(organisation=org).count(), before)

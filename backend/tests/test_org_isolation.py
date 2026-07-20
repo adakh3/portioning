@@ -44,12 +44,12 @@ class OrgIsolationTestBase(TestCase):
             first_name="Bob", last_name="B", role="owner", organisation=cls.org_b,
         )
 
-        # Seed choice options for Org A (lead statuses/lost reasons auto-created by signal)
-        EventTypeOption.objects.create(organisation=cls.org_a, value="wedding", label="Wedding")
+        # Choice options: event types (incl. "wedding") + workflow options are
+        # auto-created for each org by the post_save signal; get_or_create keeps
+        # this idempotent alongside that.
+        EventTypeOption.objects.get_or_create(organisation=cls.org_a, value="wedding", defaults={"label": "Wedding"})
         LostReasonOption.objects.get_or_create(organisation=cls.org_a, value="budget", defaults={"label": "Budget"})
-
-        # Seed choice options for Org B too (lead statuses auto-created by signal)
-        EventTypeOption.objects.create(organisation=cls.org_b, value="wedding", label="Wedding")
+        EventTypeOption.objects.get_or_create(organisation=cls.org_b, value="wedding", defaults={"label": "Wedding"})
 
         # Org A data
         cls.account_a = Account.objects.create(
