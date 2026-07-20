@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
 import os
+import sys
 from datetime import timedelta
 from pathlib import Path
 
@@ -37,6 +38,15 @@ if not SECRET_KEY:
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG', 'False').lower() in ('true', '1', 'yes')
+
+# Auto-seed a starter catalog (dishes/menus/add-ons/rules/choice options) into
+# every new organisation on creation, so a fresh tenant's forms aren't empty.
+# On for dev/prod; OFF under the test runner so the ~700 org-creating tests stay
+# fast and in control of their own data. Override via env if needed.
+SEED_STARTER_CATALOG_ON_ORG_CREATE = os.environ.get(
+    'SEED_STARTER_CATALOG_ON_ORG_CREATE',
+    'False' if 'test' in sys.argv else 'True',
+).lower() in ('true', '1', 'yes')
 
 ALLOWED_HOSTS = [
     h.strip() for h in os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')

@@ -22,13 +22,41 @@ class DishInput:
 
 
 @dataclass
+class Segment:
+    """One named guest bucket entering the engine as plain data (no ORM).
+
+    ``portion_multiplier`` scales food vs the base (1.0). ``counts_toward_total``
+    distinguishes in-count segments (Adults, Kids) from additional covers
+    (Vendor meals) — portions are computed over ALL covers regardless; the flag
+    only matters for count validation/display upstream.
+    """
+    name: str
+    count: int = 0
+    portion_multiplier: float = 1.0
+    counts_toward_total: bool = True
+
+
+@dataclass
 class GuestMix:
+    """Legacy two-segment (gents/ladies) guest mix.
+
+    Retained as a thin adapter so existing callers can keep passing
+    ``{'gents': N, 'ladies': M}``; ``to_segments`` expands it to the general
+    N-segment form the engine now works in. Gents is the base (multiplier 1.0);
+    ladies scales by the org's ladies multiplier.
+    """
     gents: int = 0
     ladies: int = 0
 
     @property
     def total(self):
         return self.gents + self.ladies
+
+    def to_segments(self, ladies_multiplier=1.0):
+        return [
+            Segment('gents', self.gents, 1.0, True),
+            Segment('ladies', self.ladies, ladies_multiplier, True),
+        ]
 
 
 @dataclass

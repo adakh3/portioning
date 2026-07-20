@@ -12,6 +12,74 @@ from users.model_mixins import OrgScopedModel
 # consistent app-wide. Safe import: bookings.models.finance imports no events.
 from bookings.models.finance import PaymentMethod
 
+
+def resolve_legacy_segments(organisation, guest_count, gents, ladies, has_split):
+    """Build the N-segment guest mix for a booking that has no per-segment
+    ``BookingGuestCount`` rows, from its legacy gents/ladies columns.
+
+    - A real gents/ladies split → two segments (counts from the columns).
+    - No split (count-first) → the whole ``guest_count`` under the org's default
+      segment (``GuestSegment.is_default``; falling back to the legacy
+      ``OrgSettings.default_guest_profile`` name if the org defines no segments).
+
+    Each segment's multiplier/flags come from the org's ``rules.GuestSegment``
+    definitions (1.0 / in-count when the org has no matching segment).
+    """
+    from rules.models import GuestSegment
+    from bookings.models import OrgSettings
+
+    by_name = {s.name.lower(): s for s in GuestSegment.objects.filter(organisation=organisation)}
+
+    def as_segment(name, count):
+        seg = by_name.get(name.lower())
+        return {
+            'name': seg.name if seg else name,
+            'count': count,
+            'portion_multiplier': seg.portion_multiplier if seg else 1.0,
+            'counts_toward_total': seg.counts_toward_total if seg else True,
+        }
+
+    if has_split:
+        return [as_segment(name, count)
+                for name, count in (('gents', gents), ('ladies', ladies)) if count]
+
+    default = next((s for s in by_name.values() if s.is_default), None)
+    if default is not None:
+        return [as_segment(default.name, guest_count)]
+    # Org defines no segments — honour the legacy default-guest-profile name.
+    name = OrgSettings.for_org(organisation).default_guest_profile
+    return [as_segment(name, guest_count)]
+
+
+def sync_legacy_guest_counts(booking, organisation, gents, ladies, guest_count):
+    """Dual-write: mirror a booking's legacy gents/ladies columns into
+    ``BookingGuestCount`` rows during the transition (columns stay the frontend's
+    write target; rows become the read source).
+
+    Only the org's Gents/Ladies segments are touched — any other segments (US
+    meal-type buckets) are left untouched. A real split writes/updates the two
+    rows; no split (count-first) clears them so the read path uses the default
+    segment. No-ops when the org hasn't defined those segments (the read path
+    then falls back to the columns directly).
+    """
+    from rules.models import GuestSegment
+
+    has_split = bool((gents or ladies) and gents + ladies == guest_count)
+    parent = {'event': booking} if isinstance(booking, Event) else {'quote': booking}
+    for name, count in (('gents', gents), ('ladies', ladies)):
+        seg = GuestSegment.objects.filter(
+            organisation=organisation, name__iexact=name,
+        ).first()
+        if seg is None:
+            continue
+        if has_split and count:
+            BookingGuestCount.objects.update_or_create(
+                segment=seg, defaults={'count': count}, **parent,
+            )
+        else:
+            BookingGuestCount.objects.filter(segment=seg, **parent).delete()
+
+
 class EventStatus(models.TextChoices):
     TENTATIVE = 'tentative', 'Tentative'
     CONFIRMED = 'confirmed', 'Confirmed'
@@ -149,16 +217,25 @@ class Event(OrgScopedModel, models.Model):
                     and self.gents + self.ladies == self.guest_count)
 
     def portioning_guests(self):
-        """Guest mix for the portion calculator: the entered split when there
-        is one, otherwise everyone under the org's default guest profile."""
-        if self.has_guest_split:
-            return {'gents': self.gents, 'ladies': self.ladies}
-        from bookings.models import OrgSettings
-        default = OrgSettings.for_org(self.organisation).default_guest_profile
-        return {
-            'gents': self.guest_count if default != 'ladies' else 0,
-            'ladies': self.guest_count if default == 'ladies' else 0,
-        }
+        """N-segment guest mix for the portion calculator.
+
+        Count-first resolution: per-segment ``BookingGuestCount`` rows when
+        present; otherwise the legacy gents/ladies split; otherwise the whole
+        ``guest_count`` under the org's default segment. Each segment carries its
+        own portion multiplier, so the engine no longer hardcodes gents/ladies.
+        """
+        rows = [r for r in self.guest_counts.select_related('segment').all() if r.count]
+        if rows:
+            return {'segments': [
+                {'name': r.segment.name, 'count': r.count,
+                 'portion_multiplier': r.segment.portion_multiplier,
+                 'counts_toward_total': r.segment.counts_toward_total}
+                for r in rows
+            ]}
+        return {'segments': resolve_legacy_segments(
+            self.organisation, self.guest_count, self.gents, self.ladies,
+            has_split=self.has_guest_split,
+        )}
 
     @property
     def food_total(self):

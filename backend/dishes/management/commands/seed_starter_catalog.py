@@ -24,7 +24,7 @@ from rules.models import GlobalConfig, GlobalConstraint, BudgetProfile, GuestSeg
 
 
 class Command(BaseCommand):
-    help = 'Seed a neutral US-based starter catalog into an organisation.'
+    help = 'Seed a neutral starter catalog into an organisation.'
 
     def add_arguments(self, parser):
         parser.add_argument('--org', required=True, help='Organisation name to seed into.')
@@ -34,6 +34,18 @@ class Command(BaseCommand):
             org = Organisation.objects.get(name=options['org'])
         except Organisation.DoesNotExist:
             raise CommandError(f"No organisation named {options['org']!r}.")
+        self.seed(org)
+        self.stdout.write(self.style.SUCCESS(
+            f"Seeded starter catalog into {org.name!r}: "
+            f"{Dish.objects.filter(organisation=org).count()} dishes, "
+            f"{MenuTemplate.objects.filter(organisation=org).count()} menus, "
+            f"{AddOnProduct.objects.filter(organisation=org).count()} add-ons."
+        ))
+
+    def seed(self, org):
+        """Idempotently seed the starter catalog into `org`. Reusable from the
+        org-creation signal (auto-onboarding) as well as this command — pass the
+        org object directly, no name lookup."""
         self.org = org
         self._choice_options()
         cats = self._categories()
@@ -43,12 +55,6 @@ class Command(BaseCommand):
         self._labor_roles()
         self._equipment()
         self._rules(cats)
-        self.stdout.write(self.style.SUCCESS(
-            f"Seeded US starter catalog into {org.name!r}: "
-            f"{Dish.objects.filter(organisation=org).count()} dishes, "
-            f"{MenuTemplate.objects.filter(organisation=org).count()} menus, "
-            f"{AddOnProduct.objects.filter(organisation=org).count()} add-ons."
-        ))
 
     # ── Choice options (so quotes/events are usable) ──
     def _choice_options(self):
@@ -228,16 +234,19 @@ class Command(BaseCommand):
             'max_total_food_per_person_grams': 1000, 'min_portion_per_dish_grams': 30,
         })
         # US orgs use meal-type segments (not a gender split): Adults full price,
-        # Kids/Vendors eat & pay less. (portion_multiplier, price_multiplier)
-        for i, (name, portion, price, default) in enumerate([
-            ('Adults', 1.0, '1.0000', True),
-            ('Kids', 0.6, '0.5000', False),
-            ('Vendors', 1.0, '0.5000', False),
+        # Kids/Vendors eat & pay less. Vendors are additional covers (crew meals),
+        # not part of the headline guest count.
+        # (portion_multiplier, price_multiplier, is_default, counts_toward_total)
+        for i, (name, portion, price, default, counts) in enumerate([
+            ('Adults', 1.0, '1.0000', True, True),
+            ('Kids', 0.6, '0.5000', False, True),
+            ('Vendors', 1.0, '0.5000', False, False),
         ]):
             GuestSegment.objects.get_or_create(
                 organisation=self.org, name=name,
                 defaults={'portion_multiplier': portion, 'price_multiplier': Decimal(price),
-                          'sort_order': i, 'is_default': default},
+                          'sort_order': i, 'is_default': default,
+                          'counts_toward_total': counts},
             )
         std, created = BudgetProfile.objects.get_or_create(
             organisation=self.org, name='Standard',

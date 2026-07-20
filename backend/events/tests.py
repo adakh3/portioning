@@ -266,23 +266,31 @@ class TestEventGuestCount(TestCase):
         self.assertEqual(res.status_code, 201, res.content)
         self.assertEqual(res.json()["guest_count"], 100)
 
+    def _seg_counts(self, event):
+        """(name, count) pairs from portioning_guests, ignoring multipliers."""
+        return [(s["name"], s["count"]) for s in event.portioning_guests()["segments"]]
+
     def test_portioning_uses_the_split_when_present(self):
+        # With no per-segment rows, the legacy gents/ladies split becomes two
+        # segments (org defines none here, so multipliers default to 1.0).
         from events.models import Event
         event = Event.objects.create(
             organisation=self.org, name="E", event_date="2026-05-01",
             guest_count=100, gents=60, ladies=40)
-        self.assertEqual(event.portioning_guests(), {"gents": 60, "ladies": 40})
+        self.assertEqual(self._seg_counts(event), [("gents", 60), ("ladies", 40)])
 
     def test_portioning_without_split_uses_the_org_default_profile(self):
+        # Count-first: the whole count sits under the default segment. With no
+        # GuestSegment rows, that falls back to the OrgSettings default profile.
         from bookings.models import OrgSettings
         from events.models import Event
         event = Event.objects.create(
             organisation=self.org, name="E", event_date="2026-05-01", guest_count=100)
-        self.assertEqual(event.portioning_guests(), {"gents": 100, "ladies": 0})
+        self.assertEqual(self._seg_counts(event), [("gents", 100)])
         settings = OrgSettings.for_org(self.org)
         settings.default_guest_profile = "ladies"
         settings.save(update_fields=["default_guest_profile"])
-        self.assertEqual(event.portioning_guests(), {"gents": 0, "ladies": 100})
+        self.assertEqual(self._seg_counts(event), [("ladies", 100)])
 
     def test_stale_split_is_ignored_for_portioning(self):
         # A split that doesn't add up (legacy data) is treated as no split.
@@ -290,4 +298,4 @@ class TestEventGuestCount(TestCase):
         event = Event.objects.create(
             organisation=self.org, name="E", event_date="2026-05-01",
             guest_count=100, gents=10, ladies=5)
-        self.assertEqual(event.portioning_guests(), {"gents": 100, "ladies": 0})
+        self.assertEqual(self._seg_counts(event), [("gents", 100)])

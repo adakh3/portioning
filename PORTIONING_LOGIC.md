@@ -315,26 +315,48 @@ These caps should rarely trigger in normal operation — the pool ceilings handl
 
 ---
 
-## Guest Mix
+## Guest Mix (guest segments)
 
-All portions above are calculated for an **adult male (gent)**. The system then adjusts:
+All portions above are calculated for a **base guest** (multiplier 1.0). The
+system then expands them across the booking's **guest segments**. A segment is a
+named guest bucket, configured per org (`rules.GuestSegment`), carrying a
+**portion multiplier** — how much food that segment eats vs the base:
 
-- **Ladies:** Receive 100% of the gent portion by default (configurable via admin — GuestProfile multiplier)
-- **Big eaters flag:** If enabled, all portions increase by a percentage (default +20%)
+- **Adults / gents:** the base — multiplier 1.0.
+- **Kids:** eat less — e.g. multiplier 0.6.
+- **Ladies:** a segment like any other; orgs that split by gender give it its own
+  multiplier (1.0 by default).
+- **Big eaters flag:** if enabled, all portions increase by a percentage (default +20%).
 
-**Example — 100 guests, 50 gents / 50 ladies, curry at 271g per gent:**
-- Per gent: 271g
-- Per lady: 271 × 1.0 = 271g
-- Total curry needed: (271 × 50) + (271 × 50) = 13,550 + 13,550 = 27,100g = **27.1 kg**
+A dish's grams for a segment = `round(base_grams × segment_multiplier, 1)`, and a
+dish's total = the sum of `segment_grams × segment_count` over **every** segment.
 
-### Events without a gents/ladies split
+**Example — curry at 271g base; 100 Adults + 40 Kids (0.6):**
+- Per adult: 271g; per kid: 271 × 0.6 = 162.6g
+- Total curry: (271 × 100) + (162.6 × 40) = 27,100 + 6,504 = 33,604g = **33.6 kg**
+
+### In-count segments vs additional covers
+
+Each segment is flagged `counts_toward_total`. **In-count** segments (Adults,
+Kids) are part of the headline **guest count**. **Additional covers** (e.g. Vendor
+/ crew meals) are *not* part of the guest count — they're billed as separate
+reduced-rate covers — but **portions are still computed over them**. So 150 guests
++ 8 vendor covers cooks for 158, while the guest count stays 150.
+
+### Count-first: bookings with no segment breakdown
 
 An event's **guest count** is the primary number (it drives all pricing); the
-gents/ladies split is optional detail entered only when known. When an event has
-no split, **all guests are portioned under one guest profile** — which one is an
-org setting (**Settings → General → Default Portion Rule**, default: Standard/gents).
-A split that doesn't add up to the guest count (legacy data) is ignored and
-treated as "no split".
+per-segment breakdown is optional detail entered only when known. Resolution is:
+
+1. Per-segment counts (`BookingGuestCount`) when present;
+2. else the legacy gents/ladies split;
+3. else the whole guest count under the org's **default segment**
+   (`GuestSegment.is_default`; falling back to **Settings → General → Default
+   Portion Rule** when the org defines no segments).
+
+A gents/ladies split that doesn't add up to the guest count (legacy data) is
+ignored and treated as "no split". The legacy `gents`/`ladies` columns are kept in
+sync with the segment rows during the transition (dual-write).
 
 ---
 
@@ -570,7 +592,7 @@ Violation messages use the appropriate unit label ("g" for weight, "pcs" for qty
 | Absent redistribution fraction | GlobalConfig (admin) | 0.70 | Fraction of absent-category budget that redistributes to present categories (protein pool only, 0-1) |
 | Popularity strength | GlobalConfig (admin) | 0.3 | How much popularity affects within-category split |
 | Popularity per dish | Dish (admin) | 1.0 | Relative weight for popularity-based splitting |
-| Ladies multiplier | GuestProfile (admin) | 1.0 | Ladies get same portions as gents (configurable) |
+| Segment portion multiplier | GuestSegment (admin) | 1.0 | Food a segment eats vs the base (Kids 0.6, ladies 1.0, …) |
 | Max food per person | GlobalConstraint (admin) | 1000g | Last-resort global food cap |
 | Max protein per person | GlobalConstraint (admin) | 120g | Last-resort macronutrient protein cap |
 | Min portion per dish | GlobalConstraint (admin) | 30g | Absolute floor for any single dish |
