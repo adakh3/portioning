@@ -2,7 +2,7 @@ from django.core.management.base import BaseCommand
 from dishes.models import DishCategory, Dish
 from menus.models import MenuTemplate, MenuDishPortion
 from rules.models import (
-    GlobalConfig, BudgetProfile, GuestProfile,
+    GlobalConfig, BudgetProfile, GuestSegment,
     CombinationRule, GlobalConstraint, CategoryConstraint,
 )
 from users.models import Organisation
@@ -29,7 +29,7 @@ class Command(BaseCommand):
             CombinationRule.objects.all().delete()
             BudgetProfile.objects.all().delete()
             CategoryConstraint.objects.all().delete()
-            GuestProfile.objects.all().delete()
+            GuestSegment.objects.all().delete()
             GlobalConfig.objects.all().delete()
             GlobalConstraint.objects.all().delete()
 
@@ -250,9 +250,12 @@ class Command(BaseCommand):
             if created:
                 profile.categories.set([categories[cn] for cn in cat_names])
 
-        # ── Guest Profiles ──
-        for name, mult in [('gents', 1.0), ('ladies', 1.0)]:
-            GuestProfile.objects.get_or_create(name=name, organisation=self.org, defaults={'portion_multiplier': mult})
+        # ── Guest Segments ── (this desi seed splits by gender)
+        for i, (name, mult) in enumerate([('gents', 1.0), ('ladies', 1.0)]):
+            GuestSegment.objects.get_or_create(
+                name=name, organisation=self.org,
+                defaults={'portion_multiplier': mult, 'sort_order': i, 'is_default': i == 0},
+            )
 
         # ── Global Constraint ──
         GlobalConstraint.objects.get_or_create(organisation=self.org, defaults={

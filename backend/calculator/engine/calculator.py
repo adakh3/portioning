@@ -86,7 +86,7 @@ def _load_pool_baselines(pool, org=None):
 
 def _load_config_and_ceilings(dish_category_ids, org=None):
     """Load GlobalConfig, select profile, compute effective pool ceilings."""
-    from rules.models import GlobalConfig, GuestProfile, CombinationRule
+    from rules.models import GlobalConfig, GuestSegment, CombinationRule
 
     config = GlobalConfig.for_org(org) if org else GlobalConfig.objects.first() or GlobalConfig()
     profile = _select_budget_profile(dish_category_ids, org=org)
@@ -125,7 +125,7 @@ def _load_config_and_ceilings(dish_category_ids, org=None):
         if profile.dessert_pool_ceiling_grams is not None:
             dessert_ceiling = profile.dessert_pool_ceiling_grams
 
-    gp_qs = GuestProfile.objects.all()
+    gp_qs = GuestSegment.objects.all()
     if org:
         gp_qs = gp_qs.filter(organisation=org)
     guest_profiles = {gp.name: gp.portion_multiplier for gp in gp_qs}

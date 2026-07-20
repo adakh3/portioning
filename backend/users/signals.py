@@ -13,7 +13,13 @@ def create_org_defaults(sender, instance, created, **kwargs):
         return
 
     from bookings.models.settings import OrgSettings
-    OrgSettings.objects.get_or_create(organisation=instance)
+    from users.country_defaults import defaults_for_country
+    # Currency/tax/timezone default to the org's country (USD fallback), not the
+    # model's hardcoded UK defaults. Owner can change these in Settings later.
+    OrgSettings.objects.get_or_create(
+        organisation=instance,
+        defaults=defaults_for_country(instance.country),
+    )
 
     from bookings.models import CommissionPlan
     CommissionPlan.objects.get_or_create(

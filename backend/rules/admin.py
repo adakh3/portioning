@@ -2,7 +2,7 @@ from django.contrib import admin
 
 from users.admin_mixins import OrgVisibleAdminMixin
 from .models import (
-    GlobalConfig, BudgetProfile, GuestProfile,
+    GlobalConfig, BudgetProfile, GuestSegment,
     CombinationRule, GlobalConstraint, CategoryConstraint,
 )
 
@@ -21,10 +21,11 @@ class BudgetProfileAdmin(OrgVisibleAdminMixin, admin.ModelAdmin):
     filter_horizontal = ['categories']
 
 
-@admin.register(GuestProfile)
-class GuestProfileAdmin(OrgVisibleAdminMixin, admin.ModelAdmin):
-    list_display = ['name', 'organisation', 'portion_multiplier']
-    list_editable = ['portion_multiplier']
+@admin.register(GuestSegment)
+class GuestSegmentAdmin(OrgVisibleAdminMixin, admin.ModelAdmin):
+    list_display = ['name', 'organisation', 'portion_multiplier', 'price_multiplier',
+                    'sort_order', 'is_default', 'is_active']
+    list_editable = ['portion_multiplier', 'price_multiplier', 'sort_order', 'is_default', 'is_active']
 
 
 @admin.register(CombinationRule)

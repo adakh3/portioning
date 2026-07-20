@@ -24,7 +24,7 @@ class DishCategory(models.Model):
         'users.Organisation',
         on_delete=models.CASCADE, related_name='dish_categories',
     )
-    name = models.CharField(max_length=50, unique=True)
+    name = models.CharField(max_length=50)
     display_name = models.CharField(max_length=100)
     display_order = models.IntegerField(default=0)
     protein_is_additive = models.BooleanField(
@@ -72,6 +72,13 @@ class DishCategory(models.Model):
     class Meta:
         ordering = ['display_order', 'name']
         verbose_name_plural = 'dish categories'
+        # Category names are unique per-org (not globally) — two orgs may each
+        # have an "Entrées" / "Curry" category.
+        constraints = [
+            models.UniqueConstraint(
+                fields=['organisation', 'name'], name='uniq_category_org_name',
+            ),
+        ]
 
     def __str__(self):
         return self.display_name
@@ -79,11 +86,14 @@ class DishCategory(models.Model):
 
 class ProteinType(models.TextChoices):
     CHICKEN = "chicken", "Chicken"
-    MUTTON = "mutton", "Mutton"
-    LAMB = "lamb", "Lamb"
     BEEF = "beef", "Beef"
+    PORK = "pork", "Pork"
+    TURKEY = "turkey", "Turkey"
+    LAMB = "lamb", "Lamb"
+    MUTTON = "mutton", "Mutton"
     VEAL = "veal", "Veal"
     FISH = "fish", "Fish"
+    SEAFOOD = "seafood", "Seafood"
     NONE = "none", "None"
 
 

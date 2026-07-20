@@ -21,7 +21,7 @@ class MenuTemplatePreviewView(APIView):
     """Return a CalculationResult-shaped response from stored template portions."""
 
     def get(self, request, pk):
-        from rules.models import GuestProfile
+        from rules.models import GuestSegment
 
         qs = apply_org_filter(
             MenuTemplate.objects.filter(is_active=True), request,
@@ -31,12 +31,12 @@ class MenuTemplatePreviewView(APIView):
         if menu is None:
             return Response({'detail': 'Not found.'}, status=404)
 
-        # Get ladies multiplier from GuestProfile
+        # Get ladies multiplier from its guest segment (if the org uses one)
         ladies_multiplier = 1.0  # fallback default
         try:
-            ladies_profile = GuestProfile.objects.get(name='Ladies', organisation=menu.organisation)
+            ladies_profile = GuestSegment.objects.get(name='Ladies', organisation=menu.organisation)
             ladies_multiplier = ladies_profile.portion_multiplier
-        except GuestProfile.DoesNotExist:
+        except GuestSegment.DoesNotExist:
             pass
 
         gents = menu.default_gents
