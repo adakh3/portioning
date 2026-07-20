@@ -56,11 +56,12 @@ export default function ESignPanel({ kind, id, publicToken, signature, contactPh
 
   function sendWhatsApp() {
     if (!signUrl || !contactPhone) return;
-    const first = contactName?.split(" ")[0] || "";
-    const noun = subject || (kind === "quote" ? "quotation" : "booking");
-    const msg = `Hello ${first}, please review and sign your ${noun} here: ${signUrl}`
-      .replace(/\s+/g, " ")
-      .trim();
+    const first = contactName?.split(" ")[0]?.trim();
+    const eventLabel = (subject || "").replace(/_/g, " ").trim(); // "baby_shower" → "baby shower"
+    const doc = kind === "quote" ? "quote" : "booking";
+    const greeting = first ? `Hi ${first},` : "Hi,";
+    const forEvent = eventLabel ? ` for your ${eventLabel}` : "";
+    const msg = `${greeting} here's your ${doc}${forEvent} — please review and sign it here: ${signUrl}`;
     window.open(waLink(contactPhone, msg), "_blank");
   }
 

@@ -706,7 +706,7 @@ export default function QuoteDetailPage() {
                     size="sm"
                     onClick={async () => {
                       try {
-                        const greeting = `Hello ${q.contact_name?.split(" ")[0] || ""}, sharing your quotation for your ${q.event_type || "event"}.`.replace("  ", " ");
+                        const greeting = `Hi ${q.contact_name?.split(" ")[0] || ""}, here's your quotation for your ${(q.event_type || "event").replace(/_/g, " ")}.`.replace("  ", " ");
                         const updated = await api.markQuoteSharedWhatsApp(q.id, greeting);
                         mutateQuote(updated, false);
                         setWaAwaitingConfirm(false);
