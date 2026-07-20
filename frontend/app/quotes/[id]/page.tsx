@@ -773,7 +773,7 @@ export default function QuoteDetailPage() {
 
           {/* Client e-signature — send link (pre-acceptance) or signed status */}
           {!editing && (q.signature || q.status === "draft" || q.status === "sent") && (
-            <ESignPanel kind="quote" id={q.id} publicToken={q.public_token} signature={q.signature} />
+            <ESignPanel kind="quote" id={q.id} publicToken={q.public_token} signature={q.signature} contactPhone={q.contact_phone} contactName={q.contact_name} subject={q.event_type} />
           )}
 
           {/* Event link when accepted */}

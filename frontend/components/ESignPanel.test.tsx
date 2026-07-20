@@ -38,4 +38,22 @@ describe("ESignPanel (staff-side)", () => {
     expect(screen.getByText(/Signed by Aisha Khan/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /send for signature/i })).not.toBeInTheDocument();
   });
+
+  it("offers a WhatsApp send with the sign link when the contact is reachable", () => {
+    const open = vi.spyOn(window, "open").mockImplementation(() => null);
+    render(
+      <ESignPanel kind="quote" id={7} publicToken="tok-9" signature={null} contactPhone="+447700900123" contactName="Aisha Khan" subject="wedding" />
+    );
+    fireEvent.click(screen.getByRole("button", { name: /send via whatsapp/i }));
+    expect(open).toHaveBeenCalledTimes(1);
+    const url = open.mock.calls[0][0] as string;
+    expect(url).toContain("wa.me/447700900123"); // E.164 stripped of '+'
+    expect(decodeURIComponent(url)).toContain("/b/tok-9"); // sign link is in the message
+    open.mockRestore();
+  });
+
+  it("hides the WhatsApp send when the contact has no valid phone", () => {
+    render(<ESignPanel kind="quote" id={7} publicToken="tok-9" signature={null} contactPhone={null} contactName="Aisha" />);
+    expect(screen.queryByRole("button", { name: /send via whatsapp/i })).not.toBeInTheDocument();
+  });
 });

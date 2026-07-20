@@ -696,7 +696,7 @@ export default function EventDetailPage() {
           </div>
           {/* Client e-signature — for a booking created directly as an event */}
           {event && (event.signature || event.status === "tentative") && (
-            <ESignPanel kind="event" id={event.id} publicToken={event.public_token} signature={event.signature} />
+            <ESignPanel kind="event" id={event.id} publicToken={event.public_token} signature={event.signature} contactPhone={event.contact_phone} contactName={event.contact_name} subject={event.event_type} />
           )}
         </CardContent>
       </Card>

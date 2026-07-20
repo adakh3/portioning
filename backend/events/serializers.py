@@ -73,6 +73,9 @@ class EventSerializer(OrgScopedModelSerializer):
     assigned_to_name = serializers.SerializerMethodField()
     created_by_name = serializers.SerializerMethodField()
 
+    # Contact phone (enables the WhatsApp send shortcut on the detail page)
+    contact_phone = serializers.CharField(source='primary_contact.phone', read_only=True, default=None)
+
     # E-signature status (for the staff-side "send for signature" flow)
     public_token = serializers.CharField(read_only=True)
     signature = serializers.SerializerMethodField()
@@ -144,7 +147,7 @@ class EventSerializer(OrgScopedModelSerializer):
                   'kitchen_instructions', 'banquet_instructions', 'setup_instructions',
                   'constraint_override', 'dish_comments', 'line_items', 'created_at',
                   # Booking fields
-                  'primary_contact', 'contact_name',
+                  'primary_contact', 'contact_name', 'contact_phone',
                   'is_b2b', 'account', 'account_name',
                   'venue', 'venue_name', 'venue_address',
                   'product', 'product_name',
@@ -275,7 +278,7 @@ EVENT_LIST_EXCLUDE = {
     # payment detail + balance read event.payments per row — detail-view only
     'payments', 'amount_paid', 'balance_due', 'payment_status',
     # signature is a per-row query + a method the list serializer doesn't define
-    'signature', 'public_token',
+    'signature', 'public_token', 'contact_phone',
 }
 
 

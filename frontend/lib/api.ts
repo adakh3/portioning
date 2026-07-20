@@ -762,6 +762,7 @@ export interface EventData {
   final_count_due: string | null;
   // Nested
   source_quote_id: number | null;
+  contact_phone: string | null;
   public_token: string | null;
   signature: BookingSignatureInfo | null;
   line_items: QuoteLineItem[];

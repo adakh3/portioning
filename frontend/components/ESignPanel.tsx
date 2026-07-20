@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { MessageCircle } from "lucide-react";
 import { api, BookingSignatureInfo } from "@/lib/api";
+import { canWhatsApp, waLink } from "@/lib/whatsapp";
 import { Button } from "@/components/ui/button";
 
 interface Props {
@@ -9,11 +11,16 @@ interface Props {
   id: number;
   publicToken: string | null;
   signature: BookingSignatureInfo | null;
+  /** Client contact — enables the "Send via WhatsApp" shortcut (same wa.me
+   * deep-link the quote uses); the sign link is dropped into the message. */
+  contactPhone?: string | null;
+  contactName?: string | null;
+  subject?: string | null;
 }
 
 /** Staff-side control: mint the client sign link and show its signed status.
  * For v1 the staff copies the link to send it (WhatsApp/email send comes later). */
-export default function ESignPanel({ kind, id, publicToken, signature }: Props) {
+export default function ESignPanel({ kind, id, publicToken, signature, contactPhone, contactName, subject }: Props) {
   const [token, setToken] = useState<string | null>(publicToken);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -45,6 +52,16 @@ export default function ESignPanel({ kind, id, publicToken, signature }: Props) 
     } catch {
       /* clipboard blocked — the link is still visible to copy manually */
     }
+  }
+
+  function sendWhatsApp() {
+    if (!signUrl || !contactPhone) return;
+    const first = contactName?.split(" ")[0] || "";
+    const noun = subject || (kind === "quote" ? "quotation" : "booking");
+    const msg = `Hello ${first}, please review and sign your ${noun} here: ${signUrl}`
+      .replace(/\s+/g, " ")
+      .trim();
+    window.open(waLink(contactPhone, msg), "_blank");
   }
 
   if (signature) {
@@ -88,6 +105,12 @@ export default function ESignPanel({ kind, id, publicToken, signature }: Props) 
           <Button variant="outline" onClick={copy}>
             {copied ? "Copied!" : "Copy link"}
           </Button>
+          {canWhatsApp(contactPhone) && (
+            <Button variant="outline" onClick={sendWhatsApp}>
+              <MessageCircle className="w-4 h-4 mr-1.5" aria-hidden />
+              Send via WhatsApp
+            </Button>
+          )}
         </div>
       )}
 
