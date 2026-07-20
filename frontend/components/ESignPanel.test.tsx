@@ -42,13 +42,16 @@ describe("ESignPanel (staff-side)", () => {
   it("offers a WhatsApp send with the sign link when the contact is reachable", () => {
     const open = vi.spyOn(window, "open").mockImplementation(() => null);
     render(
-      <ESignPanel kind="quote" id={7} publicToken="tok-9" signature={null} contactPhone="+447700900123" contactName="Aisha Khan" subject="wedding" />
+      <ESignPanel kind="quote" id={7} publicToken="tok-9" signature={null} contactPhone="+447700900123" contactName="Aisha Khan" subject="baby_shower" />
     );
     fireEvent.click(screen.getByRole("button", { name: /send via whatsapp/i }));
     expect(open).toHaveBeenCalledTimes(1);
     const url = open.mock.calls[0][0] as string;
+    const msg = decodeURIComponent(url);
     expect(url).toContain("wa.me/447700900123"); // E.164 stripped of '+'
-    expect(decodeURIComponent(url)).toContain("/b/tok-9"); // sign link is in the message
+    expect(msg).toContain("/b/tok-9"); // sign link is in the message
+    expect(msg).toContain("baby shower"); // event type humanized…
+    expect(msg).not.toContain("baby_shower"); // …not the raw slug
     open.mockRestore();
   });
 
