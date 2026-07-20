@@ -676,13 +676,17 @@ export default function EventDetailPage() {
                       Archive
                     </Button>
                   )}
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => { setError(null); setShowDeleteConfirm(true); }}
-                  >
-                    Delete
-                  </Button>
+                  {/* A signed booking can't be hard-deleted (it would destroy the
+                      client's signature) — Archive/Cancel it instead. */}
+                  {!event!.signature && (
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => { setError(null); setShowDeleteConfirm(true); }}
+                    >
+                      Delete
+                    </Button>
+                  )}
                   {event!.source_quote_id && (
                     <Button variant="link" size="sm" asChild>
                       <Link href={`/quotes/${event!.source_quote_id}`}>

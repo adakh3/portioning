@@ -771,8 +771,10 @@ export default function QuoteDetailPage() {
             </Button>
           </div>
 
-          {/* Client e-signature — send link (pre-acceptance) or signed status */}
-          {!editing && (q.signature || q.status === "draft" || q.status === "sent") && (
+          {/* Client e-signature — available on any live quote (send link, or the
+              signed status). Shown for accepted quotes too so an accepted-but-
+              unsigned quote can still request a signature rather than dead-end. */}
+          {!editing && !["declined", "expired"].includes(q.status) && (
             <ESignPanel kind="quote" id={q.id} publicToken={q.public_token} signature={q.signature} contactPhone={q.contact_phone} contactName={q.contact_name} subject={q.event_type} />
           )}
 
