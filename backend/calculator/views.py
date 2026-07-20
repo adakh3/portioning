@@ -6,9 +6,11 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from .serializers import CalculateRequestSerializer, ExportPDFRequestSerializer, CheckPortionsRequestSerializer
-from .engine.calculator import calculate_portions, _load_dishes, _load_config_and_ceilings, _resolve_constraints
+from .engine.calculator import (
+    calculate_portions, normalize_segments, _load_dishes,
+    _load_config_and_ceilings, _resolve_constraints,
+)
 from .engine.checker import check_user_portions
-from .engine.models import GuestMix
 from .pdf import generate_portion_pdf
 from users.mixins import get_request_org
 
@@ -75,7 +77,7 @@ class CheckPortionsView(APIView):
         config, protein_ceiling, accompaniment_ceiling, dessert_ceiling, _, guest_profiles, _ = \
             _load_config_and_ceilings(dish_category_ids, org=org)
         constraints = _resolve_constraints(constraint_overrides, org=org)
-        guest_mix = GuestMix(**guests)
+        segments = normalize_segments(guests, guest_profiles)
 
         # Compute dynamic category budget caps
         # Protein categories: extended cap = grown + proportional absent share
@@ -140,16 +142,13 @@ class CheckPortionsView(APIView):
             for p in data['user_portions']
         }
 
-        ladies_mult = guest_profiles.get('ladies', 1.0)
-
         # Run checker
         check_result = check_user_portions(
             user_portions=user_portions_dict,
             dishes=dishes,
             constraints=constraints,
             pool_ceilings=pool_ceilings,
-            guest_mix=guest_mix,
-            ladies_multiplier=ladies_mult,
+            segments=segments,
             big_eaters=big_eaters,
             big_eaters_percentage=big_eaters_percentage,
         )

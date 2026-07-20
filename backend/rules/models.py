@@ -127,6 +127,12 @@ class GuestSegment(models.Model):
         default=False,
         help_text="The base segment new bookings start with (e.g. Adults).",
     )
+    counts_toward_total = models.BooleanField(
+        default=True,
+        help_text="True: part of the guest count (Adults, Kids). False: an "
+                  "additional cover billed separately (Vendor meals), not counted "
+                  "in the headline guest number.",
+    )
     is_active = models.BooleanField(default=True)
 
     class Meta:

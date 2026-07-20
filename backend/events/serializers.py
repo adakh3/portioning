@@ -1,5 +1,8 @@
 from rest_framework import serializers
-from .models import Event, EventConstraintOverride, EventDishComment, EventPayment
+from .models import (
+    Event, EventConstraintOverride, EventDishComment, EventPayment,
+    sync_legacy_guest_counts,
+)
 from dishes.models import Dish
 from dishes.ordering import dish_ids_in_added_order
 from staff.serializers import ShiftSerializer
@@ -72,6 +75,9 @@ class EventSerializer(OrgScopedModelSerializer):
     source_quote_id = serializers.SerializerMethodField()
     assigned_to_name = serializers.SerializerMethodField()
     created_by_name = serializers.SerializerMethodField()
+    # Per-segment guest breakdown (additive, read-only for now; the frontend
+    # still writes gents/ladies, which dual-write mirrors into these rows).
+    guest_counts = serializers.SerializerMethodField()
 
     # Contact phone (enables the WhatsApp send shortcut on the detail page)
     contact_phone = serializers.CharField(source='primary_contact.phone', read_only=True, default=None)
@@ -139,9 +145,17 @@ class EventSerializer(OrgScopedModelSerializer):
             return None
         return {'signer_name': sig.signer_name, 'signed_at': sig.signed_at.isoformat()}
 
+    def get_guest_counts(self, obj):
+        return [
+            {'segment': r.segment.name, 'count': r.count,
+             'counts_toward_total': r.segment.counts_toward_total}
+            for r in obj.guest_counts.select_related('segment').all()
+        ]
+
     class Meta:
         model = Event
         fields = ['id', 'name', 'date', 'guest_count', 'gents', 'ladies',
+                  'guest_counts',
                   'big_eaters', 'big_eaters_percentage',
                   'dishes', 'dish_ids', 'based_on_template', 'notes',
                   'kitchen_instructions', 'banquet_instructions', 'setup_instructions',
@@ -199,6 +213,9 @@ class EventSerializer(OrgScopedModelSerializer):
             from bookings.models import OrgSettings
             validated_data['tax_rate'] = OrgSettings.for_org(validated_data['organisation']).default_tax_rate
         event = Event.objects.create(**validated_data)
+        sync_legacy_guest_counts(
+            event, event.organisation, event.gents, event.ladies, event.guest_count,
+        )
         if dishes:
             event.dishes.set(dishes)
         if override_data:
@@ -221,6 +238,10 @@ class EventSerializer(OrgScopedModelSerializer):
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
+        sync_legacy_guest_counts(
+            instance, instance.organisation, instance.gents, instance.ladies,
+            instance.guest_count,
+        )
         if dishes is not None:
             instance.dishes.set(dishes)
         if override_data is not None:
@@ -279,6 +300,8 @@ EVENT_LIST_EXCLUDE = {
     'payments', 'amount_paid', 'balance_due', 'payment_status',
     # signature is a per-row query + a method the list serializer doesn't define
     'signature', 'public_token', 'contact_phone',
+    # per-segment guest breakdown is a per-row query — detail-view only
+    'guest_counts',
 }
 
 
