@@ -70,6 +70,20 @@ def create_org_defaults(sender, instance, created, **kwargs):
     from bookings.defaults import seed_choice_defaults
     seed_choice_defaults(instance)
 
+    # Auto-onboard the org with a starter catalog (dishes, menus, add-ons, labor
+    # roles, equipment, rules) so its forms aren't empty on day one. Guarded by a
+    # setting (off under the test runner). Best-effort: a seeding hiccup must never
+    # block org creation, so it's caught and logged.
+    from django.conf import settings as django_settings
+    if getattr(django_settings, 'SEED_STARTER_CATALOG_ON_ORG_CREATE', False):
+        try:
+            from dishes.management.commands.seed_starter_catalog import Command as SeedCatalog
+            SeedCatalog().seed(instance)
+        except Exception:
+            import logging
+            logging.getLogger(__name__).exception(
+                "Starter-catalog auto-seed failed for org %s", instance.pk)
+
 
 @receiver(m2m_changed)
 def block_cross_org_m2m(sender, instance, action, reverse, model, pk_set, **kwargs):

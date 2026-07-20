@@ -24,7 +24,7 @@ from rules.models import GlobalConfig, GlobalConstraint, BudgetProfile, GuestSeg
 
 
 class Command(BaseCommand):
-    help = 'Seed a neutral US-based starter catalog into an organisation.'
+    help = 'Seed a neutral starter catalog into an organisation.'
 
     def add_arguments(self, parser):
         parser.add_argument('--org', required=True, help='Organisation name to seed into.')
@@ -34,6 +34,18 @@ class Command(BaseCommand):
             org = Organisation.objects.get(name=options['org'])
         except Organisation.DoesNotExist:
             raise CommandError(f"No organisation named {options['org']!r}.")
+        self.seed(org)
+        self.stdout.write(self.style.SUCCESS(
+            f"Seeded starter catalog into {org.name!r}: "
+            f"{Dish.objects.filter(organisation=org).count()} dishes, "
+            f"{MenuTemplate.objects.filter(organisation=org).count()} menus, "
+            f"{AddOnProduct.objects.filter(organisation=org).count()} add-ons."
+        ))
+
+    def seed(self, org):
+        """Idempotently seed the starter catalog into `org`. Reusable from the
+        org-creation signal (auto-onboarding) as well as this command — pass the
+        org object directly, no name lookup."""
         self.org = org
         self._choice_options()
         cats = self._categories()
@@ -43,12 +55,6 @@ class Command(BaseCommand):
         self._labor_roles()
         self._equipment()
         self._rules(cats)
-        self.stdout.write(self.style.SUCCESS(
-            f"Seeded US starter catalog into {org.name!r}: "
-            f"{Dish.objects.filter(organisation=org).count()} dishes, "
-            f"{MenuTemplate.objects.filter(organisation=org).count()} menus, "
-            f"{AddOnProduct.objects.filter(organisation=org).count()} add-ons."
-        ))
 
     # ── Choice options (so quotes/events are usable) ──
     def _choice_options(self):
