@@ -17,14 +17,16 @@ import {
 } from "@dnd-kit/core";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { api, Lead, LeadFilters, AuthUser, ProductLine, ChoiceOption } from "@/lib/api";
+import { TITLE_OPTIONS } from "@/lib/titles";
 import { useAuth } from "@/lib/auth";
-import { useKanbanData, useLeadsPaginated, useUsers, useProductLines, useEventTypes, useLeadStatuses, useLostReasons, useDateFormat, useSources, revalidate } from "@/lib/hooks";
+import { useKanbanData, useLeadsPaginated, useUsers, useProductLines, useEventTypes, useLeadStatuses, useLostReasons, useDateFormat, useSources, revalidate, revalidatePrefix } from "@/lib/hooks";
 import { formatDate } from "@/lib/dateFormat";
 import { statusColor } from "@/lib/statusColors";
 import { Button } from "@/components/ui/button";
 import { ValidatedInput } from "@/components/ui/validated-input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Avatar } from "@/components/ui/avatar";
 import {
   Select,
   SelectContent,
@@ -117,9 +119,7 @@ function LeadCard({ lead, isDragging }: { lead: Lead; isDragging?: boolean }) {
           <span className="text-[10px] font-medium bg-primary/10 text-primary px-1.5 py-0.5 rounded">{lead.product_name}</span>
         )}
         {lead.assigned_to_name && (
-          <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">
-            {lead.assigned_to_name}
-          </Badge>
+          <Avatar name={lead.assigned_to_name} size="sm" />
         )}
       </div>
     </div>
@@ -490,13 +490,8 @@ function LeadsContent() {
     revalidateKanban();
     setExtraLeads({});
     pageRefs.current = {};
-    revalidate("leads-paginated");
-    const qs = Object.entries(baseFilters)
-      .filter(([, v]) => v != null && v !== "")
-      .map(([k, v]) => `${k}=${v}`)
-      .sort()
-      .join("&");
-    if (qs) revalidate(`leads-paginated?${qs}`);
+    // The table's key includes page/page_size/filters — hit the whole family.
+    revalidatePrefix("leads-paginated");
   }
 
   const hasFilters = search || filterAssigned || filterStatus || filterProduct || filterEventType || filterDateFrom || filterDateTo || filterLeadDateFrom || filterLeadDateTo;
@@ -1227,8 +1222,8 @@ function LeadsTable({
   }
 
   async function saveQuickAdd() {
-    if (!quickAdd.contact_name?.trim()) {
-      onToast("Name is required");
+    if (!quickAdd.contact_first_name?.trim()) {
+      onToast("First name is required");
       return;
     }
     if (!quickAdd.contact_phone?.trim()) {
@@ -1526,18 +1521,46 @@ function LeadsTable({
               </TableCell>
               {/* Name */}
               <TableCell>
-                <ValidatedInput
-                  placeholder="Name *"
-                  value={quickAdd.contact_name || ""}
-                  onChange={(e) => setQuickAdd((p) => ({ ...p, contact_name: e.target.value }))}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") saveQuickAdd();
-                    if (e.key === "Escape") cancelQuickAdd();
-                  }}
-                  autoFocus
-                  disabled={quickAddSaving}
-                  className="h-7 text-sm"
-                />
+                <div className="flex gap-1">
+                  <Select
+                    value={quickAdd.contact_title || ""}
+                    onValueChange={(v) => setQuickAdd((p) => ({ ...p, contact_title: v === "none" ? "" : v }))}
+                  >
+                    <SelectTrigger className="h-7 text-sm w-20 shrink-0" aria-label="Title" autoFocus>
+                      <SelectValue placeholder="Title" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">—</SelectItem>
+                      {TITLE_OPTIONS.map((t) => (
+                        <SelectItem key={t} value={t}>{t}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <ValidatedInput
+                    placeholder="First *"
+                    aria-label="First name"
+                    value={quickAdd.contact_first_name || ""}
+                    onChange={(e) => setQuickAdd((p) => ({ ...p, contact_first_name: e.target.value }))}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") saveQuickAdd();
+                      if (e.key === "Escape") cancelQuickAdd();
+                    }}
+                    disabled={quickAddSaving}
+                    className="h-7 text-sm min-w-[90px]"
+                  />
+                  <ValidatedInput
+                    placeholder="Last"
+                    aria-label="Last name"
+                    value={quickAdd.contact_last_name || ""}
+                    onChange={(e) => setQuickAdd((p) => ({ ...p, contact_last_name: e.target.value }))}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") saveQuickAdd();
+                      if (e.key === "Escape") cancelQuickAdd();
+                    }}
+                    disabled={quickAddSaving}
+                    className="h-7 text-sm min-w-[90px]"
+                  />
+                </div>
               </TableCell>
               {/* Phone / WhatsApp */}
               <TableCell className="hidden lg:table-cell">
@@ -1551,7 +1574,7 @@ function LeadsTable({
                     if (e.key === "Escape") cancelQuickAdd();
                   }}
                   disabled={quickAddSaving}
-                  className="h-7 text-sm"
+                  className="h-7 text-sm min-w-[130px]"
                 />
               </TableCell>
               {/* Event Type */}
@@ -1560,7 +1583,7 @@ function LeadsTable({
                   value={quickAdd.event_type || ""}
                   onValueChange={(v) => setQuickAdd((p) => ({ ...p, event_type: v }))}
                 >
-                  <SelectTrigger className="h-7 text-sm">
+                  <SelectTrigger className="h-7 text-sm min-w-[90px]">
                     <SelectValue placeholder="Type" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1581,7 +1604,7 @@ function LeadsTable({
                     if (e.key === "Escape") cancelQuickAdd();
                   }}
                   disabled={quickAddSaving}
-                  className="h-7 text-sm"
+                  className="h-7 text-sm min-w-[120px]"
                 />
               </TableCell>
               {/* Lead Date */}
@@ -1600,7 +1623,7 @@ function LeadsTable({
                     if (e.key === "Escape") cancelQuickAdd();
                   }}
                   disabled={quickAddSaving}
-                  className="h-7 text-sm"
+                  className="h-7 text-sm min-w-[70px]"
                 />
               </TableCell>
               {/* Product */}
@@ -1609,7 +1632,7 @@ function LeadsTable({
                   value={quickAdd.product?.toString() || ""}
                   onValueChange={(v) => setQuickAdd((p) => ({ ...p, product: parseInt(v, 10) }))}
                 >
-                  <SelectTrigger className="h-7 text-sm">
+                  <SelectTrigger className="h-7 text-sm min-w-[90px]">
                     <SelectValue placeholder="Product" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1625,7 +1648,7 @@ function LeadsTable({
                   value={quickAdd.assigned_to?.toString() || ""}
                   onValueChange={(v) => setQuickAdd((p) => ({ ...p, assigned_to: parseInt(v, 10) }))}
                 >
-                  <SelectTrigger className="h-7 text-sm">
+                  <SelectTrigger className="h-7 text-sm min-w-[90px]">
                     <SelectValue placeholder="Assign" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1658,7 +1681,7 @@ function LeadsTable({
                   value={quickAdd.source || ""}
                   onValueChange={(v) => setQuickAdd((p) => ({ ...p, source: v }))}
                 >
-                  <SelectTrigger className="h-7 text-sm">
+                  <SelectTrigger className="h-7 text-sm min-w-[90px]">
                     <SelectValue placeholder="Source" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1674,7 +1697,7 @@ function LeadsTable({
                   value={quickAdd.status || "new"}
                   onValueChange={(v) => setQuickAdd((p) => ({ ...p, status: v }))}
                 >
-                  <SelectTrigger className="h-7 text-sm">
+                  <SelectTrigger className="h-7 text-sm min-w-[90px]">
                     <SelectValue placeholder="Status" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1785,7 +1808,7 @@ function LeadsTable({
                 <EditableSelectCell
                   lead={lead}
                   field="assigned_to"
-                  display={lead.assigned_to_name || "-"}
+                  display={<span className="inline-flex items-center gap-1.5"><Avatar name={lead.assigned_to_name} size="sm" />{lead.assigned_to_name || "-"}</span>}
                   className="hidden lg:table-cell"
                   options={users.map((u) => ({
                     value: u.id.toString(),

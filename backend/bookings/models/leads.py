@@ -1,7 +1,34 @@
 from django.db import models
 from django.utils import timezone
-from users.managers import TenantManager
+from users.managers import TenantManager, TenantQuerySet
 from users.model_mixins import OrgScopedModel
+
+
+# Statuses treated as terminal for "active pipeline" queries. Matches the
+# default seeded workflow's is_won/is_lost values.
+TERMINAL_STATUSES = ['won', 'lost']
+
+
+class LeadQuerySet(TenantQuerySet):
+    """Lead-specific queryset. Houses the single shared definition of a
+    "stale" lead so the dashboard and the follow-up agent never drift apart."""
+
+    def active(self):
+        """Leads still in the working pipeline (not won/lost)."""
+        return self.exclude(status__in=TERMINAL_STATUSES)
+
+    def stale(self, cutoff):
+        """Active leads untouched since `cutoff` (a timezone-aware datetime).
+
+        Staleness is keyed off `updated_at`. Callers pick the cutoff: the
+        dashboard uses 7 days; the follow-up agent uses OrgSettings.followup_stale_hours.
+        """
+        return self.active().filter(updated_at__lt=cutoff)
+
+
+class LeadManager(TenantManager):
+    def get_queryset(self):
+        return LeadQuerySet(self.model, using=self._db)
 
 
 class ProductLine(models.Model):
@@ -32,9 +59,18 @@ class ProductLine(models.Model):
                 organisation_id=self.organisation_id, is_default=True,
             ).exclude(pk=self.pk).update(is_default=False)
 
+    @classmethod
+    def default_for(cls, org):
+        """The product line to pre-fill on a new booking: the org's marked default,
+        else its first active line (by name), else None."""
+        if org is None:
+            return None
+        active = cls.objects.filter(organisation=org, is_active=True)
+        return active.filter(is_default=True).first() or active.order_by('name').first()
+
 
 class Lead(OrgScopedModel, models.Model):
-    objects = TenantManager()
+    objects = LeadManager()
 
     organisation = models.ForeignKey(
         'users.Organisation',
@@ -44,7 +80,17 @@ class Lead(OrgScopedModel, models.Model):
         'bookings.Account', null=True, blank=True,
         on_delete=models.SET_NULL, related_name='leads',
     )
+    TITLE_CHOICES = [
+        ('Mr', 'Mr'), ('Mrs', 'Mrs'), ('Ms', 'Ms'), ('Miss', 'Miss'),
+        ('Dr', 'Dr'), ('Prof', 'Prof'),
+    ]
+    contact_title = models.CharField(
+        max_length=10, blank=True, default='', choices=TITLE_CHOICES,
+        help_text='How to address the contact in messages (e.g. Ms Rizvi)',
+    )
     contact_name = models.CharField(max_length=200)
+    contact_first_name = models.CharField(max_length=100, blank=True, default='')
+    contact_last_name = models.CharField(max_length=100, blank=True, default='')
     contact_email = models.EmailField(blank=True)
     contact_phone = models.CharField(max_length=50, blank=True)
     source = models.CharField(max_length=50, blank=True, default='')
@@ -95,6 +141,20 @@ class Lead(OrgScopedModel, models.Model):
 
     class Meta:
         ordering = ['-created_at']
+
+    def save(self, *args, **kwargs):
+        # contact_name stays the display/search/sort column; first/last are the
+        # structured parts. Parts win when set; a bare two-word name is split.
+        from bookings.names import compose_full_name, split_full_name
+        from bookings.phones import normalize_phone
+        composed = compose_full_name(self.contact_first_name, self.contact_last_name)
+        if composed:
+            self.contact_name = composed
+        elif self.contact_name:
+            self.contact_first_name, self.contact_last_name = split_full_name(self.contact_name)
+        if self.contact_phone and self.organisation_id:
+            self.contact_phone = normalize_phone(self.contact_phone, self.organisation.country)
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.contact_name} — {self.event_type} ({self.status})"

@@ -88,7 +88,7 @@ export default function KitchenEventsPage() {
                   <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground">
                     <span>{formatDate(event.date, dateFormat)}</span>
                     <span>
-                      {event.gents + event.ladies} guests ({event.gents}G / {event.ladies}L)
+                      {event.guest_count} guests{(event.gents > 0 || event.ladies > 0) ? ` (${event.gents}G / ${event.ladies}L)` : ""}
                     </span>
                     {event.service_style && (
                       <span>{serviceStyleLabels[event.service_style] || event.service_style}</span>

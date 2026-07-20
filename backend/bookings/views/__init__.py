@@ -12,6 +12,11 @@ from .quotes import (
     QuoteListCreateView, QuoteDetailView, QuoteTransitionView,
     QuoteLineItemListCreateView, QuoteLineItemDetailView,
     QuotePDFView,
+    QuoteMarkSharedWhatsAppView,
+)
+from .public_sign import (
+    PublicBookingView, PublicBookingSignView, PublicBookingPDFView,
+    QuoteSendForSignatureView, EventSendForSignatureView,
 )
 from .finance import (
     InvoiceListCreateView, InvoiceDetailView,
@@ -35,4 +40,13 @@ from .reminders import (
     LeadReminderListCreateView, ReminderCountsView,
 )
 from .whatsapp import WhatsAppMessageListView, WhatsAppSendView, WhatsAppMarkReadView, TwilioWebhookView
+from .followups import (
+    FollowUpDraftListView, LeadFollowUpDraftListView,
+    FollowUpDraftApproveView, FollowUpDraftDismissView,
+    FollowUpDraftBulkApproveView, FollowUpDraftCountView,
+    FollowUpStatsView,
+    CronRunFollowupsView,
+    FollowUpPreviewView, FollowUpGenerateView,
+    FollowUpDraftMarkSentView, LeadLogReplyView,
+)
 from .locked_dates import LockedDateListCreateView, LockedDateDeleteView

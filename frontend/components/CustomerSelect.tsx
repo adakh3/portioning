@@ -25,25 +25,26 @@ export default function CustomerSelect({
     return m;
   }, {});
   const [creating, setCreating] = useState(false);
-  const [form, setForm] = useState({ name: "", phone: "", address: "" });
+  const [form, setForm] = useState({ first_name: "", last_name: "", phone: "", address: "" });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
   async function create() {
-    if (!form.name.trim()) {
-      setError("Name is required");
+    if (!form.first_name.trim()) {
+      setError("First name is required");
       return;
     }
     setSaving(true);
     setError("");
     try {
       const c = await api.createCustomer({
-        name: form.name.trim(), phone: form.phone.trim(), address: form.address.trim(),
+        first_name: form.first_name.trim(), last_name: form.last_name.trim(),
+        phone: form.phone.trim(), address: form.address.trim(),
       });
       await mutate();
       onChange(String(c.id));
       setCreating(false);
-      setForm({ name: "", phone: "", address: "" });
+      setForm({ first_name: "", last_name: "", phone: "", address: "" });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to create customer");
     } finally {
@@ -54,9 +55,14 @@ export default function CustomerSelect({
   if (creating) {
     return (
       <div className="space-y-2 rounded-md border border-border bg-muted/40 p-3">
-        <input autoFocus type="text" placeholder="Name *" value={form.name}
-          onChange={(e) => setForm({ ...form, name: e.target.value })}
-          className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm" />
+        <div className="flex gap-2">
+          <input autoFocus type="text" placeholder="First name *" aria-label="First name" value={form.first_name}
+            onChange={(e) => setForm({ ...form, first_name: e.target.value })}
+            className="flex h-9 w-full min-w-[90px] rounded-md border border-input bg-background px-3 py-1 text-sm" />
+          <input type="text" placeholder="Last name" aria-label="Last name" value={form.last_name}
+            onChange={(e) => setForm({ ...form, last_name: e.target.value })}
+            className="flex h-9 w-full min-w-[90px] rounded-md border border-input bg-background px-3 py-1 text-sm" />
+        </div>
         <input type="tel" placeholder="Phone / WhatsApp" value={form.phone}
           onChange={(e) => setForm({ ...form, phone: e.target.value })}
           className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm" />
@@ -78,7 +84,7 @@ export default function CustomerSelect({
 
   return (
     <div>
-      <select required={required} value={value} onChange={(e) => onChange(e.target.value)} className={selectClass}>
+      <select aria-label="Customer" required={required} value={value} onChange={(e) => onChange(e.target.value)} className={selectClass}>
         <option value="">-- Select customer --</option>
         {contacts.map((c) => (
           <option key={c.id} value={c.id}>

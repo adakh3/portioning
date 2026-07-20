@@ -35,7 +35,9 @@ import AdditionalMealsEditor from "@/components/AdditionalMealsEditor";
 import GuestCountField, { GuestCountValue } from "@/components/GuestCountField";
 import BookingTimelineField from "@/components/BookingTimelineField";
 import BookingDetailsForm, { BookingDetailsValue } from "@/components/BookingDetailsForm";
+import AssigneePicker from "@/components/AssigneePicker";
 import { Button } from "@/components/ui/button";
+import ESignPanel from "@/components/ESignPanel";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { ValidatedInput } from "@/components/ui/validated-input";
@@ -87,6 +89,7 @@ export default function EventDetailPage() {
   const { data: rawSettings } = useSiteSettings();
   const settings = rawSettings || { currency_symbol: "\u00A3", currency_code: "GBP", date_format: "DD/MM/YYYY", default_price_per_head: "0.00", target_food_cost_percentage: "30.00", price_rounding_step: "50", tax_label: "VAT", default_tax_rate: "0.2000" };
   const dateFormat = useDateFormat();
+  const timeFormat: "12h" | "24h" = ((rawSettings as { time_format?: string } | undefined)?.time_format === "12h") ? "12h" : "24h";
   const { data: eventTypesData = [] } = useEventTypes();
   const { data: serviceStylesData = [] } = useServiceStyles();
   const { data: mealTypesData = [] } = useMealTypes();
@@ -166,6 +169,7 @@ export default function EventDetailPage() {
   const [formSetupInstructions, setFormSetupInstructions] = useState("");
 
   // Guest form fields
+  const [formGuestCount, setFormGuestCount] = useState(0);
   const [formCustomSplit, setFormCustomSplit] = useState(false);
   const [formGents, setFormGents] = useState(0);
   const [formLadies, setFormLadies] = useState(0);
@@ -174,9 +178,10 @@ export default function EventDetailPage() {
   const [formFinalCountDue, setFormFinalCountDue] = useState("");
   const [formBigEaters, setFormBigEaters] = useState(false);
   const [formBigEatersPercent, setFormBigEatersPercent] = useState(0);
-  const totalGuests = formGents + formLadies;
-  // Adapter for the shared GuestCountField (canonical value = gents/ladies).
+  const totalGuests = formGuestCount;
+  // Adapter for the shared GuestCountField (canonical value = guest_count).
   const applyGuestPatch = (patch: Partial<GuestCountValue>) => {
+    if (patch.guest_count !== undefined) setFormGuestCount(patch.guest_count);
     if (patch.gents !== undefined) setFormGents(patch.gents);
     if (patch.ladies !== undefined) setFormLadies(patch.ladies);
     if (patch.custom_split !== undefined) setFormCustomSplit(patch.custom_split);
@@ -220,11 +225,11 @@ export default function EventDetailPage() {
     setFormKitchenInstructions(data.kitchen_instructions || "");
     setFormBanquetInstructions(data.banquet_instructions || "");
     setFormSetupInstructions(data.setup_instructions || "");
-    const total = data.gents + data.ladies;
+    setFormGuestCount(data.guest_count);
     setFormGents(data.gents);
     setFormLadies(data.ladies);
-    const is5050 = total === 0 || (data.gents === Math.ceil(total / 2) && data.ladies === Math.floor(total / 2));
-    setFormCustomSplit(!is5050);
+    // The split section opens only when a real split exists (it adds up).
+    setFormCustomSplit((data.gents > 0 || data.ladies > 0) && data.gents + data.ladies === data.guest_count);
     setFormGuaranteed(data.guaranteed_count);
     setFormFinalCount(data.final_count);
     setFormFinalCountDue(data.final_count_due || "");
@@ -277,6 +282,10 @@ export default function EventDetailPage() {
       setError("A business is required for a B2B event");
       return;
     }
+    if (formCustomSplit && formGents + formLadies !== formGuestCount) {
+      setError(`Gents + ladies must add up to the guest count (${formGuestCount})`);
+      return;
+    }
     setSaving(true);
     const customerName = orgContacts.find((c) => c.id === formContact)?.name
       || accounts.find((a) => a.id === formAccount)?.name || "Event";
@@ -298,8 +307,9 @@ export default function EventDetailPage() {
       kitchen_instructions: formKitchenInstructions,
       banquet_instructions: formBanquetInstructions,
       setup_instructions: formSetupInstructions,
-      gents: formGents,
-      ladies: formLadies,
+      guest_count: formGuestCount,
+      gents: formCustomSplit ? formGents : 0,
+      ladies: formCustomSplit ? formLadies : 0,
       guaranteed_count: formGuaranteed,
       final_count: formFinalCount,
       final_count_due: formFinalCountDue,
@@ -348,6 +358,21 @@ export default function EventDetailPage() {
       await mutateEvent();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Reassign failed");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleProductChange = async (value: string) => {
+    const pid = value ? Number(value) : null;
+    setFormProduct(pid);
+    if (!event) return; // new event: saved on create
+    setSaving(true);
+    try {
+      await api.updateEvent(event.id, { product: pid } as Partial<EventData>);
+      await mutateEvent();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed to set product");
     } finally {
       setSaving(false);
     }
@@ -483,7 +508,7 @@ export default function EventDetailPage() {
 
   const formatDateTime = (dt: string | null) => {
     if (!dt) return "\u2014";
-    return sharedFormatDateTime(dt, dateFormat);
+    return sharedFormatDateTime(dt, dateFormat, timeFormat);
   };
 
   return (
@@ -510,73 +535,64 @@ export default function EventDetailPage() {
       <Card>
         <CardContent className="p-6">
           <div className="flex items-start justify-between gap-4">
-            <div className="flex items-center gap-3 flex-1 min-w-0">
-              <h1 className="text-2xl font-bold text-foreground truncate">
+            <div className="flex items-end gap-3 flex-1 min-w-0">
+              <h1 className="text-2xl font-bold text-foreground truncate self-center">
                 {isNew
                   ? (formAccount ? `${accounts.find((a) => a.id === formAccount)?.name || "New Event"}` : "New Event")
                   : event!.name}
               </h1>
-              {editing ? (
-                <ValidatedInput
-                  type="date"
-                  value={formDate}
-                  onChange={(e) => setFormDate(e.target.value)}
-                  className="w-auto"
-                />
-              ) : (
-                <span className="text-muted-foreground text-sm whitespace-nowrap">{event!.date}</span>
-              )}
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-medium text-muted-foreground">Status</label>
+                {isNew ? (
+                  <select
+                    value={formStatus}
+                    onChange={(e) => setFormStatus(e.target.value)}
+                    className="flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  >
+                    <option value="tentative">Tentative</option>
+                    <option value="confirmed">Confirmed</option>
+                  </select>
+                ) : (
+                  <span className="h-9 flex items-center">
+                    <Badge variant={statusBadgeVariant[event!.status] || "secondary"} className="whitespace-nowrap">
+                      {event!.status_display || event!.status}
+                    </Badge>
+                  </span>
+                )}
+              </div>
               {isNew ? (
-                <select
-                  value={formStatus}
-                  onChange={(e) => setFormStatus(e.target.value)}
-                  className="flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                >
-                  <option value="tentative">Tentative</option>
-                  <option value="confirmed">Confirmed</option>
-                </select>
+                <AssigneePicker value={formAssigned} options={assigneeOptions} onChange={setFormAssigned} />
               ) : (
-                <Badge variant={statusBadgeVariant[event!.status] || "secondary"} className="whitespace-nowrap">
-                  {event!.status_display || event!.status}
-                </Badge>
-              )}
-              {isNew && (
-                <select
-                  value={formAssigned ?? ""}
-                  onChange={(e) => setFormAssigned(e.target.value ? Number(e.target.value) : null)}
-                  title="Salesperson credited for this event (drives commission)"
-                  className="flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  aria-label="Assigned salesperson"
-                >
-                  <option value="">Unassigned</option>
-                  {assigneeOptions.map((u) => (
-                    <option key={u.id} value={u.id}>{u.first_name} {u.last_name}</option>
-                  ))}
-                </select>
-              )}
-              {!isNew && (
-                <select
-                  value={event!.assigned_to ?? ""}
+                <AssigneePicker
+                  value={event!.assigned_to}
+                  currentName={event!.assigned_to_name}
                   disabled={saving}
-                  onChange={(e) => handleAssign(e.target.value)}
-                  title="Salesperson credited for this event (drives commission)"
-                  className="flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  aria-label="Assigned salesperson"
-                >
-                  <option value="">Unassigned</option>
-                  {(() => {
-                    // Always show the current assignee, even if they're not a
-                    // salesperson (e.g. an admin who created the event), so it's
-                    // clear who it's credited to.
+                  onChange={(pid) => handleAssign(pid ? String(pid) : "")}
+                  options={(() => {
+                    // Always include the current assignee, even if not a salesperson
+                    // (e.g. an admin who created the event), so it's clear who owns it.
                     const opts = [...salespeople];
                     if (event!.assigned_to && !opts.some((u) => u.id === event!.assigned_to)) {
                       opts.unshift({ id: event!.assigned_to, first_name: event!.assigned_to_name || "Assigned", last_name: "", role: "" } as (typeof salespeople)[number]);
                     }
-                    return opts.map((u) => (
-                      <option key={u.id} value={u.id}>{u.first_name} {u.last_name}</option>
-                    ));
+                    return opts;
                   })()}
-                </select>
+                />
+              )}
+              {activeProducts.length > 0 && (
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-medium text-muted-foreground">Product</label>
+                  <select
+                    value={formProduct != null ? String(formProduct) : ""}
+                    onChange={(e) => handleProductChange(e.target.value)}
+                    disabled={saving}
+                    title="Product line for this event"
+                    aria-label="Product line"
+                    className="flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  >
+                    {activeProducts.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                </div>
               )}
             </div>
             <div className="flex gap-2 flex-shrink-0">
@@ -678,6 +694,10 @@ export default function EventDetailPage() {
               )}
             </div>
           </div>
+          {/* Client e-signature — for a booking created directly as an event */}
+          {event && (event.signature || event.status === "tentative") && (
+            <ESignPanel kind="event" id={event.id} publicToken={event.public_token} signature={event.signature} contactPhone={event.contact_phone} contactName={event.contact_name} subject={event.event_type} />
+          )}
         </CardContent>
       </Card>
 
@@ -710,7 +730,7 @@ export default function EventDetailPage() {
       {/* Customer & Venue Section */}
       <Card>
         <CardContent className="p-6">
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Customer &amp; Venue</h2>
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Event Details</h2>
             {editing ? (
               <BookingDetailsForm
                 value={bookingValue}
@@ -719,11 +739,19 @@ export default function EventDetailPage() {
                 mealTypes={mealTypesData}
                 serviceStyles={serviceStylesData}
                 productLines={activeProducts}
+                showProduct={false}
                 customerAddress={orgContacts.find((c) => c.id === formContact)?.address}
                 showNotes
+                eventDateSlot={
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1">Date *</label>
+                    <ValidatedInput type="date" value={formDate} onChange={(e) => setFormDate(e.target.value)} required />
+                  </div>
+                }
               />
             ) : (
               <dl className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <InfoRow label="Date" value={event!.date} />
                 <InfoRow label="Customer" value={event!.contact_name} />
                 {event!.is_b2b && <InfoRow label="Business" value={event!.account_name} />}
                 <InfoRow label="Venue" value={event!.venue_name || event!.venue_address || null} />
@@ -744,6 +772,7 @@ export default function EventDetailPage() {
             {editing ? (
               <BookingTimelineField
                 eventDate={formDate}
+                timeFormat={timeFormat}
                 value={{ setup_time: formSetupTime, guest_arrival_time: formArrivalTime, meal_time: formMealTime, end_time: formEndTime }}
                 onChange={(patch) => {
                   if (patch.setup_time !== undefined) setFormSetupTime(patch.setup_time);
@@ -770,7 +799,7 @@ export default function EventDetailPage() {
             {editing ? (
               <div className="space-y-4">
                 <GuestCountField
-                  value={{ gents: formGents, ladies: formLadies, custom_split: formCustomSplit, big_eaters: formBigEaters, big_eaters_percentage: formBigEatersPercent }}
+                  value={{ guest_count: formGuestCount, gents: formGents, ladies: formLadies, custom_split: formCustomSplit, big_eaters: formBigEaters, big_eaters_percentage: formBigEatersPercent }}
                   onChange={applyGuestPatch}
                 />
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
@@ -831,9 +860,9 @@ export default function EventDetailPage() {
             ) : (
               <div className="space-y-4">
                 <dl className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  <InfoRow label="Total Guests" value={event!.gents + event!.ladies} />
-                  <InfoRow label="Gents" value={event!.gents} />
-                  <InfoRow label="Ladies" value={event!.ladies} />
+                  <InfoRow label="Guest Count" value={event!.guest_count} />
+                  {(event!.gents > 0 || event!.ladies > 0) && <InfoRow label="Gents" value={event!.gents} />}
+                  {(event!.gents > 0 || event!.ladies > 0) && <InfoRow label="Ladies" value={event!.ladies} />}
                   {event!.big_eaters && <InfoRow label="Big Eaters" value={`+${event!.big_eaters_percentage}%`} />}
                   {event!.guaranteed_count != null && <InfoRow label="Guaranteed Count" value={event!.guaranteed_count} />}
                   {event!.final_count != null && <InfoRow label="Final Count" value={event!.final_count} />}
@@ -849,7 +878,7 @@ export default function EventDetailPage() {
                       onSave={handleMenuSave}
                       pricePerHead={formPricePerHead}
                       onPricePerHeadChange={undefined}
-                      guestCount={event!.gents + event!.ladies}
+                      guestCount={event!.guest_count}
                       currencySymbol={settings.currency_symbol}
                       disabled={true}
                     />
@@ -869,6 +898,7 @@ export default function EventDetailPage() {
         dateFormat={dateFormat}
         defaultGuestCount={totalGuests}
         eventDate={formDate}
+        timeFormat={timeFormat}
       />
 
       {/* Add-on items (arrangements, beverages, rentals, custom) */}
@@ -904,7 +934,7 @@ export default function EventDetailPage() {
       {/* Pricing Section — shared BookingTotalsCard + engine (same as quotes) */}
       {(() => {
         const pph = editing ? parseFloat(formPricePerHead) || 0 : parseFloat(event?.price_per_head || "0");
-        const guests = editing ? totalGuests : ((event?.gents || 0) + (event?.ladies || 0));
+        const guests = editing ? totalGuests : (event?.guest_count || 0);
         const foodTotal = pph * guests;
         const meals = editing ? formAdditionalMeals : (event?.additional_meals || []);
         const mealsTotal = meals.reduce((sum, m) => sum + m.guest_count * (parseFloat(m.price_per_head || "0") || 0), 0);

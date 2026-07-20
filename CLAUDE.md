@@ -2,6 +2,8 @@
 
 Catering food portioning calculator — Django + DRF backend, Next.js + Tailwind frontend.
 
+**AI agents are the wedge — the app needs to be an AI-first rethink of traditional SaaS.**
+
 ## Project Structure
 
 - `backend/` — Django project with apps: `dishes`, `menus`, `rules`, `events`, `calculator`, `bookings`, `staff`, `equipment`, `users`
@@ -49,9 +51,9 @@ hook's `node_modules` symlink; free ports 8000/3000). See **`docs/WORKTREE_SETUP
 - **Booking totals are computed on the backend (source of truth) AND mirrored on the frontend for live preview.** Any change to the totals math must update **all three together** — `backend/bookings/services/totals.py`, `frontend/lib/quoteTotals.ts`, and the shared spec `docs/calculation-golden-cases.json` (both engines' tests assert against it). See **`docs/CALCULATION_PARITY.md`**.
 - **Any change to PORTIONING_LOGIC.md** must also update **`frontend/app/help/page.tsx`** — the help page is static content distilled from the logic doc.
 - **Any change to seed data** (new dishes, menus, categories, rules, cost data, surcharges, etc.) **must regenerate `backend/seed.json`** by running: `cd backend && python manage.py dumpdata users.Organisation dishes menus rules bookings.OrgSettings bookings.ProductLine staff.LaborRole staff.AllocationRule equipment.EquipmentItem --indent 2 -o seed.json`
-- **Seeding strategy**: All choice options (including workflow states like LeadStatusOption and LostReasonOption) are seeded **only when a new org is created**, via the `post_save` signal in `users/signals.py`. No data migrations should bulk-seed choice options. Non-workflow choice options (event types, sources, service styles, meal types, arrangements, beverages) are org-specific and configured via admin UI only.
+- **Seeding strategy**: All choice options are seeded **only when a new org is created**, via the `post_save` signal in `users/signals.py`. No data migrations should bulk-seed choice options. Workflow options (lead statuses + lost reasons) are seeded inline in the signal; non-workflow options (event types, sources, service styles, meal types) get US-mainstream starter defaults from `backend/bookings/defaults.py` (`seed_choice_defaults`) — all fully editable/removable in Settings. **Existing orgs** that predate this seeding are backfilled on demand with `python manage.py seed_org_choices` (idempotent; only fills a choice type that is entirely empty, so it never re-adds an option an org deleted).
 - **`seed.json`** contains dev reference/config data (dishes, menus, rules, settings, labor roles, equipment) and is **not deployed to prod**. Demo transactional data (org, logins, commission targets, events, leads) is generated for local dev by the idempotent **`seed_demo`** management command (`backend/users/management/commands/seed_demo.py`) — never deployed to prod.
-- **New org setup**: A `post_save` signal on `Organisation` (`users/signals.py`) auto-creates `OrgSettings` with defaults and seeds workflow options (lead statuses + lost reasons). No manual setup needed for new orgs.
+- **New org setup**: A `post_save` signal on `Organisation` (`users/signals.py`) auto-creates `OrgSettings` with defaults, a default commission plan, workflow options (lead statuses + lost reasons), and the non-workflow choice-dropdown starters (event types, sources, service styles, meal types). No manual setup needed for new orgs.
 - **Any new npm package** must be committed with both `frontend/package.json` and `frontend/package-lock.json` so deployments can install it.
 - **Any new feature or bug fix** must include backend and/or frontend tests. Tests are run automatically by the pre-commit hook — never skip them.
 - **Any new feature** must also get a user story + manual test cases in **`docs/user-stories/<feature>.md`** (see `docs/user-stories/README.md`), so the change can be verified by hand. Keep the stories there — not in this file.
@@ -83,6 +85,10 @@ npm test                                 # watch mode
 - Wrap hook tests in `SWRConfig` with `{ provider: () => new Map() }` to isolate cache
 - **Any change to a create/edit form or its save payload needs a page-level integration test** that renders the real page, drives the fields through the UI, and asserts the object sent to `api.create*`/`update*` — unit-testing the payload builder is not enough (the field→state→payload wiring is where bugs hide). See the **`frontend-integration-tests`** skill for the general recipe; examples in `frontend/app/quotes/[id]/page*.test.tsx` and `frontend/app/events/[id]/page.create.test.tsx`.
 - **Any change to the quote or event PDF** needs a render-and-extract test (pypdf) asserting the rendered content/order, like `backend/bookings/test_quote_pdf.py` and `backend/events/test_event_pdf.py` — don't rely on eyeballing the PDF.
+
+### End-to-end smoke tests (pre-push, real browser — `frontend/e2e/`)
+- The vitest integration tests **mock the API and run in jsdom**, so they prove *our wiring* but are blind to real-browser/persistence behaviour. A green mocked test is **not** proof for **native form controls (date/time/file/select), browser-specific `onChange` quirks, or "does it survive a save + reload"** — that's exactly the class that let the timeline-not-saving bug (Safari didn't fire `onChange` for `<input type="time">`) pass with green tests.
+- For that class, verify against the **real running app** with Playwright: `cd frontend && npm run e2e` (needs the dev servers up + `seed_demo` data). Nothing is mocked — headless Chromium → `:3000` → `:8000` → sqlite. **Run before pushing** such changes; it is **not** in the pre-commit hook or CI. Recipe + when-to-add in `frontend/e2e/README.md`; example `frontend/e2e/booking-timeline.spec.ts`.
 
 ## Git
 - Remote: https://github.com/adakh3/portioning.git

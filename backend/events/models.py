@@ -1,8 +1,10 @@
+import uuid
 from decimal import Decimal
 
 from django.conf import settings
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
+from django.utils import timezone
 from users.managers import TenantManager
 from users.model_mixins import OrgScopedModel
 
@@ -36,6 +38,11 @@ class Event(OrgScopedModel, models.Model):
     )
     name = models.CharField(max_length=200)
     event_date = models.DateField()
+    # Guest count is THE number: it drives all money math and every display.
+    # gents/ladies is an optional split for kitchen portioning only — when set,
+    # it must add up to guest_count (serializer-enforced); 0/0 = not specified.
+    guest_count = models.IntegerField(
+        default=0, validators=[MinValueValidator(0), MaxValueValidator(50000)])
     gents = models.IntegerField(default=0, validators=[MinValueValidator(0), MaxValueValidator(50000)])
     ladies = models.IntegerField(default=0, validators=[MinValueValidator(0), MaxValueValidator(50000)])
     big_eaters = models.BooleanField(default=False)
@@ -113,20 +120,54 @@ class Event(OrgScopedModel, models.Model):
     final_count = models.IntegerField(null=True, blank=True)
     final_count_due = models.DateField(null=True, blank=True)
 
+    # Unguessable token for the client-facing (unauthenticated) sign link —
+    # used when a booking is created directly as an event (no quote). Only set
+    # once the event is sent for signature. See bookings/views/public_sign.py.
+    public_token = models.UUIDField(null=True, blank=True, unique=True, editable=False, db_index=True)
+
     class Meta:
         ordering = ['-event_date']
 
     def __str__(self):
         return f"{self.name} ({self.event_date})"
 
+    def ensure_public_token(self):
+        """Assign a client-link token if this event doesn't have one yet."""
+        if not self.public_token:
+            self.public_token = uuid.uuid4()
+            self.save(update_fields=['public_token'])
+        return self.public_token
+
+    @property
+    def latest_signature(self):
+        return self.signatures.order_by('-signed_at').first()
+
+    @property
+    def has_guest_split(self):
+        """True when a real gents/ladies split was entered (it adds up)."""
+        return bool((self.gents or self.ladies)
+                    and self.gents + self.ladies == self.guest_count)
+
+    def portioning_guests(self):
+        """Guest mix for the portion calculator: the entered split when there
+        is one, otherwise everyone under the org's default guest profile."""
+        if self.has_guest_split:
+            return {'gents': self.gents, 'ladies': self.ladies}
+        from bookings.models import OrgSettings
+        default = OrgSettings.for_org(self.organisation).default_guest_profile
+        return {
+            'gents': self.guest_count if default != 'ladies' else 0,
+            'ladies': self.guest_count if default == 'ladies' else 0,
+        }
+
     @property
     def food_total(self):
-        """Taxable food/menu cost: main menu (price_per_head × guests) + any
-        additional meals (their own price_per_head × guest_count)."""
+        """Taxable food/menu cost: main menu (price_per_head × guest_count) +
+        any additional meals (their own price_per_head × guest_count)."""
         total = Decimal('0.00')
         pph = self.price_per_head
         if pph and pph > 0:
-            total += pph * ((self.gents or 0) + (self.ladies or 0))
+            total += pph * (self.guest_count or 0)
         for meal in self.additional_meals.all():
             if meal.price_per_head and meal.guest_count:
                 total += meal.price_per_head * meal.guest_count
@@ -136,6 +177,12 @@ class Event(OrgScopedModel, models.Model):
         # Shared engine — identical math to quotes. See bookings/services/totals.py.
         from bookings.services.totals import compute_booking_totals
         rate = self.tax_rate if self.is_taxable else Decimal('0')
+        # Drop any prefetch cache first: a caller may have loaded this event via
+        # prefetch_related('line_items'), and that cache predates rows added in the
+        # same save — so line_items.all() would omit the just-added add-ons and the
+        # stored subtotal would silently drop them.
+        for rel in ('line_items', 'additional_meals'):
+            getattr(self, '_prefetched_objects_cache', {}).pop(rel, None)
         totals = compute_booking_totals(self.food_total, self.line_items.all(), rate)
         self.subtotal = totals.subtotal
         self.tax_amount = totals.tax_amount

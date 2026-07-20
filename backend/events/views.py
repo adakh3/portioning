@@ -69,25 +69,29 @@ class EventListCreateView(generics.ListCreateAPIView):
                     'date': f'This date is locked: {reason}',
                 })
         user = self.request.user if self.request.user.is_authenticated else None
+        from bookings.models import ProductLine
         serializer.save(
             created_by=user,
             organisation=org,
             assigned_to=serializer.validated_data.get('assigned_to') or user,
+            product=serializer.validated_data.get('product') or ProductLine.default_for(org),
         )
 
     def get_queryset(self):
         _auto_advance_event_statuses(org=get_request_org(self.request))
         qs = Event.objects.select_related(
             'account', 'primary_contact', 'venue', 'based_on_template', 'product', 'source_quote',
+            'assigned_to', 'created_by',  # list shows both names — keep it a single query
         ).prefetch_related(
             'dishes',
         )
         qs = apply_org_filter(qs, self.request)
 
-        # Salesperson sees only events they created
+        # Salesperson sees their own workload: events assigned to them OR that
+        # they created (matches Lead/Quote list scoping — see bookings views).
         user = self.request.user
         if is_salesperson(user):
-            qs = qs.filter(Q(created_by=user))
+            qs = qs.filter(Q(assigned_to=user) | Q(created_by=user))
 
         status = self.request.query_params.get('status')
         if status:
@@ -111,6 +115,7 @@ class EventDetailView(generics.RetrieveUpdateDestroyAPIView):
         _auto_advance_event_statuses(org=get_request_org(self.request))
         qs = Event.objects.select_related(
             'account', 'primary_contact', 'venue', 'based_on_template', 'product', 'source_quote',
+            'assigned_to', 'created_by',
         ).prefetch_related(
             'dishes', 'dish_comments', 'dish_comments__dish',
             'shifts', 'shifts__staff_member', 'shifts__role',
@@ -136,7 +141,7 @@ class EventCalculateView(APIView):
 
         result = calculate_portions(
             dish_ids=list(event.dishes.values_list('id', flat=True)),
-            guests={'gents': event.gents, 'ladies': event.ladies},
+            guests=event.portioning_guests(),
             constraint_overrides=constraint_overrides,
             big_eaters=event.big_eaters,
             big_eaters_percentage=event.big_eaters_percentage,
@@ -201,7 +206,7 @@ class EventCalendarView(APIView):
 
         for event in base_qs:
             d = str(event.event_date)
-            guests = (event.gents or 0) + (event.ladies or 0)
+            guests = event.guest_count or 0
 
             # Org-wide totals (always counted)
             days[d]['org_event_count'] += 1

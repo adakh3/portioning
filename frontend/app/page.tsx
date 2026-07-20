@@ -3,9 +3,10 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth";
-import { useEvents, useQuotes, useLeads, useDashboardStats, useMyDashboardStats, useSiteSettings, useReminderCounts, useDateFormat } from "@/lib/hooks";
+import { useEvents, useQuotes, useLeads, useDashboardStats, useMyDashboardStats, useSiteSettings, useReminderCounts,
+  useFollowUpStats, useDateFormat } from "@/lib/hooks";
 import { formatDate } from "@/lib/dateFormat";
-import { api, AutoAssignResult } from "@/lib/api";
+import { api, AutoAssignResult , FollowUpStats } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -41,6 +42,46 @@ function StatCard({ label, value, sub }: { label: string; value: string | number
   );
 }
 
+function FollowUpStatsPanel({ stats, periodLabel }: { stats: FollowUpStats | undefined; periodLabel: string }) {
+  const breakdown = (stats?.breakdown || []).filter(
+    (r) => r.to_review > 0 || r.due > 0 || r.sent > 0,
+  );
+  return (
+    <>
+      <div className="grid grid-cols-3 gap-4">
+        <StatCard label="Follow-ups to review" value={stats?.to_review ?? "-"} />
+        <StatCard label="Leads due a follow-up" value={stats?.due ?? "-"} />
+        <StatCard label="Follow-ups sent" value={stats?.sent ?? "-"} sub={periodLabel} />
+      </div>
+      {breakdown.length > 0 && (
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-foreground">Follow-ups by person</h3>
+              <Link href="/follow-ups" className="text-sm text-primary hover:underline">
+                Open follow-ups &rarr;
+              </Link>
+            </div>
+            <div className="space-y-1">
+              {breakdown.map((r) => (
+                <div
+                  key={r.user_id ?? "unassigned"}
+                  className="flex items-center justify-between text-sm py-1.5 border-b border-border last:border-0"
+                >
+                  <span className="font-medium text-foreground">{r.name}</span>
+                  <span className="text-muted-foreground">
+                    {r.to_review} to review &middot; {r.due} due &middot; {r.sent} sent
+                  </span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </>
+  );
+}
+
 export default function Dashboard() {
   const { user } = useAuth();
   const isManager = user?.role === "manager" || user?.role === "owner" || user?.role === "admin";
@@ -62,6 +103,14 @@ export default function Dashboard() {
   const dateFormat = useDateFormat();
 
   const { data: myStats } = useMyDashboardStats();
+
+  // Follow-up numbers: to_review/due are live; sent obeys the selected window
+  // (reps have no period picker, so their "sent" uses the last 30 days).
+  const { data: followupStats } = useFollowUpStats(
+    isManager ? period : "month",
+    isManager && period === "custom" ? customFrom || undefined : undefined,
+    isManager && period === "custom" ? customTo || undefined : undefined,
+  );
 
   const { data: reminderCounts } = useReminderCounts();
   const { data: allEvents } = useEvents({ date_from: new Date().toISOString().split("T")[0], page_size: 5 });
@@ -197,6 +246,9 @@ export default function Dashboard() {
         <StatCard label="Lost" value={summary?.lost ?? "-"} />
         <StatCard label="Active" value={summary?.total_active ?? "-"} />
       </div>
+
+      {/* AI follow-up workload — kept next to the lead summary it works off */}
+      <FollowUpStatsPanel stats={followupStats} periodLabel={PERIODS.find((p) => p.value === period)?.label || ""} />
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
@@ -465,6 +517,13 @@ export default function Dashboard() {
               )}
             </div>
 
+            {/* My follow-up workload */}
+            <div className="grid grid-cols-3 gap-4">
+              <StatCard label="Follow-ups to review" value={followupStats?.to_review ?? "-"} />
+              <StatCard label="Leads due a follow-up" value={followupStats?.due ?? "-"} />
+              <StatCard label="Follow-ups sent" value={followupStats?.sent ?? "-"} sub="last 30 days" />
+            </div>
+
             {/* My Leads by Status */}
             {totalLeads > 0 && (
               <Card>
@@ -539,7 +598,7 @@ export default function Dashboard() {
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                       <span>{formatDate(ev.date, dateFormat)}</span>
                       <span className="text-border">|</span>
-                      <span>{ev.gents + ev.ladies} guests</span>
+                      <span>{ev.guest_count} guests</span>
                       <Badge variant="secondary" className="text-[10px] px-1.5 py-0.5">{ev.status_display}</Badge>
                     </div>
                   </Link>

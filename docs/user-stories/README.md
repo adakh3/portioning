@@ -20,9 +20,18 @@ here. Keep it test-focused — numbered cases with concrete steps and expected r
 | Quotes list — table view | [quotes-table.md](quotes-table.md) | Built — awaiting manual sign-off |
 | Booking totals — shared engine (quotes + events) | [booking-totals.md](booking-totals.md) | Built — awaiting manual sign-off |
 | Commission & target tracking (from the CRM) | [commission.md](commission.md) | Built (backend + My Commission page) — awaiting manual sign-off |
+| AI follow-up drafts (agent + review queue) | [ai-followup-drafts.md](ai-followup-drafts.md) | Built — awaiting manual sign-off |
 | Subscription billing (Stripe) | [subscription-billing.md](subscription-billing.md) | Built (backend + frontend + access gating) — awaiting manual sign-off |
 | Event client payments (advances / part / full) | [event-payments.md](event-payments.md) | Built (backend + frontend) — awaiting manual sign-off |
+| Event guest count (primary number, optional split) | [event-guest-count.md](event-guest-count.md) | Built — awaiting manual sign-off |
 | Tiered + regional subscription pricing | [tiered-regional-pricing.md](tiered-regional-pricing.md) | Built (backend + frontend) — awaiting manual sign-off |
+| Follow-ups — team visibility & lead-owner assignment | [follow-ups-team-visibility.md](follow-ups-team-visibility.md) | Built — awaiting manual sign-off |
+| On-demand follow-up generation (preview → select → generate) | [followup-generate-on-demand.md](followup-generate-on-demand.md) | Built — awaiting manual sign-off |
+| Contact names split into first + last (leads & customers) | [contact-name-parts.md](contact-name-parts.md) | Built — awaiting manual sign-off |
+| WhatsApp shortcuts (stage one, no Twilio) | [whatsapp-shortcuts.md](whatsapp-shortcuts.md) | Built — awaiting manual verification |
+| Follow-up workload on the dashboard | [followup-dashboard-stats.md](followup-dashboard-stats.md) | Built — awaiting manual verification |
+| Scheduled follow-up generation (daily cron) | [followups-cron.md](followups-cron.md) | Built — awaiting manual verification |
+| Starter dropdown defaults for a new org | [new-org-choice-defaults.md](new-org-choice-defaults.md) | Built — awaiting manual verification |
 | New-org bootstrap (US starter catalog + country defaults) | [new-org-bootstrap.md](new-org-bootstrap.md) | Built (backend) — awaiting manual sign-off |
 
 ## Template

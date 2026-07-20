@@ -16,7 +16,12 @@ class UserSerializer(serializers.Serializer):
         # In all-orgs mode, return null for org
         if request and getattr(request, '_org_all_override', False):
             return None
-        org = getattr(request, 'organisation', None) if request else None
+        org = None
+        if request is not None:
+            # Resolves the superuser's session org-override too — JWT traffic
+            # never gets an org from OrgMiddleware (it runs before DRF auth).
+            from users.mixins import get_request_org
+            org = get_request_org(request)
         # Fall back to user's own org (e.g. during login before middleware runs)
         if org is None:
             org = obj.organisation

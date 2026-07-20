@@ -4,7 +4,10 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { api, Contact, EventMealData } from "@/lib/api";
-import { useQuote, useAccounts, useContacts, useSiteSettings, useDateFormat, useEventTypes, useServiceStyles, useMealTypes, useAllLeads, useProductLines, revalidate } from "@/lib/hooks";
+import { useQuote, useAccounts, useContacts, useSiteSettings, useDateFormat, useEventTypes, useServiceStyles, useMealTypes, useAllLeads, useProductLines, useUsers, revalidate } from "@/lib/hooks";
+import { canWhatsApp, waLink } from "@/lib/whatsapp";
+import { MessageCircle } from "lucide-react";
+import { useAuth } from "@/lib/auth";
 import { formatDate, todayISO } from "@/lib/dateFormat";
 import { formatCurrency } from "@/lib/utils";
 import MenuBuilder from "@/components/MenuBuilder";
@@ -12,9 +15,11 @@ import AdditionalMealsEditor from "@/components/AdditionalMealsEditor";
 import GuestCountField, { GuestCountValue } from "@/components/GuestCountField";
 import BookingTimelineField from "@/components/BookingTimelineField";
 import BookingDetailsForm, { BookingDetailsValue } from "@/components/BookingDetailsForm";
+import AssigneePicker from "@/components/AssigneePicker";
 import { computeQuoteTotals, buildQuoteSavePayload, bookingMealRows, LineItemInput } from "@/lib/quoteTotals";
 import AddOnItemsEditor from "@/components/AddOnItemsEditor";
 import BookingTotalsCard from "@/components/BookingTotalsCard";
+import ESignPanel from "@/components/ESignPanel";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -49,6 +54,15 @@ export default function QuoteDetailPage() {
   const { data: rawSettings } = useSiteSettings();
   const settings = rawSettings || { currency_symbol: "£", currency_code: "GBP", date_format: "DD/MM/YYYY", default_price_per_head: "0.00", target_food_cost_percentage: "30.00", price_rounding_step: "50", tax_label: "VAT", default_tax_rate: "0.2000" };
   const dateFormat = useDateFormat();
+  const timeFormat: "12h" | "24h" = ((rawSettings as { time_format?: string } | undefined)?.time_format === "12h") ? "12h" : "24h";
+  const { data: users = [] } = useUsers();
+  const { user: currentUser } = useAuth();
+  const salespeople = users.filter((u) => u.role === "salesperson");
+  // Assignee options: salespeople, plus the current user if they aren't one, so
+  // an admin creating a quote can still credit themselves.
+  const assigneeOptions = currentUser && !salespeople.some((u) => u.id === currentUser.id)
+    ? [{ id: currentUser.id, first_name: currentUser.first_name, last_name: currentUser.last_name }, ...salespeople]
+    : salespeople;
   const { data: productLines = [] } = useProductLines();
   const activeProducts = productLines.filter((p) => p.is_active);
   const { data: eventTypes = [] } = useEventTypes();
@@ -57,6 +71,7 @@ export default function QuoteDetailPage() {
   const { data: allLeads = [] } = useAllLeads();
   const leads = allLeads.filter((l) => !["won", "lost"].includes(l.status));
   const [saving, setSaving] = useState(false);
+  const [waAwaitingConfirm, setWaAwaitingConfirm] = useState(false);
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState("");
   const [editData, setEditData] = useState({
@@ -64,6 +79,7 @@ export default function QuoteDetailPage() {
     is_b2b: false,
     account: "",
     event_date: "",
+    guest_count: 0,
     gents: 0,
     ladies: 0,
     custom_split: false,
@@ -97,6 +113,7 @@ export default function QuoteDetailPage() {
     venue: "",
     venue_address: "",
     event_date: todayISO(),
+    guest_count: 0,
     gents: 0,
     ladies: 0,
     custom_split: false,
@@ -127,6 +144,11 @@ export default function QuoteDetailPage() {
   // Additional meals (parity with events) — committed in the same save.
   const [editMeals, setEditMeals] = useState<EventMealData[]>([]);
   const [createMeals, setCreateMeals] = useState<EventMealData[]>([]);
+  // New-quote owner (existing quotes reassign via the header's instant-save select).
+  const [formAssigned, setFormAssigned] = useState<number | null>(null);
+  useEffect(() => {
+    if (isNew && formAssigned === null && currentUser) setFormAssigned(currentUser.id);
+  }, [isNew, currentUser, formAssigned]);
 
   // Default the per-head price from settings ONLY once a menu is chosen — otherwise
   // a no-menu quote silently carries a phantom food charge (the Q-59 bug).
@@ -180,8 +202,10 @@ export default function QuoteDetailPage() {
       is_b2b: isBusiness || prev.is_b2b,
       account: isBusiness ? String(selectedLead.account) : prev.account,
       event_date: selectedLead.event_date || prev.event_date,
-      gents: selectedLead.guest_estimate ? Math.ceil(selectedLead.guest_estimate / 2) : prev.gents,
-      ladies: selectedLead.guest_estimate ? Math.floor(selectedLead.guest_estimate / 2) : prev.ladies,
+      guest_count: selectedLead.guest_estimate || prev.guest_count,
+      gents: selectedLead.guest_estimate ? 0 : prev.gents,
+      ladies: selectedLead.guest_estimate ? 0 : prev.ladies,
+      custom_split: selectedLead.guest_estimate ? false : prev.custom_split,
       event_type: selectedLead.event_type || prev.event_type,
       meal_type: selectedLead.meal_type || prev.meal_type,
       service_style: selectedLead.service_style || prev.service_style,
@@ -209,11 +233,12 @@ export default function QuoteDetailPage() {
         event_date: createData.event_date,
         gents: createData.gents,
         ladies: createData.ladies,
-        guest_count: createData.gents + createData.ladies,
+        guest_count: createData.guest_count,
         big_eaters: createData.big_eaters,
         big_eaters_percentage: createData.big_eaters_percentage,
         price_per_head: createData.price_per_head ? createData.price_per_head : null,
         product: createData.product ? Number(createData.product) : null,
+        assigned_to: formAssigned || null,
         event_type: createData.event_type,
         meal_type: createData.meal_type || undefined,
         booking_date: createData.booking_date || null,
@@ -239,6 +264,7 @@ export default function QuoteDetailPage() {
       router.push(`/quotes/${newQuote.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create quote");
+      window.scrollTo({ top: 0, behavior: "smooth" }); // bring the error banner into view
     } finally {
       setSaving(false);
     }
@@ -250,11 +276,12 @@ export default function QuoteDetailPage() {
       is_b2b: quote.is_b2b,
       account: quote.account ? String(quote.account) : "",
       event_date: quote.event_date,
+      guest_count: quote.guest_count,
       gents: quote.gents,
       ladies: quote.ladies,
-      custom_split: !(quote.gents + quote.ladies === 0
-        || (quote.gents === Math.ceil((quote.gents + quote.ladies) / 2)
-          && quote.ladies === Math.floor((quote.gents + quote.ladies) / 2))),
+      // The split section opens only when a real split exists (it adds up).
+      custom_split: (quote.gents > 0 || quote.ladies > 0)
+        && quote.gents + quote.ladies === quote.guest_count,
       big_eaters: quote.big_eaters,
       big_eaters_percentage: quote.big_eaters_percentage,
       price_per_head: quote.price_per_head || "",
@@ -284,6 +311,32 @@ export default function QuoteDetailPage() {
     setEditing(true);
   }
 
+  async function handleAssign(value: string) {
+    if (!quote) return;
+    setSaving(true);
+    try {
+      await api.updateQuote(quote.id, { assigned_to: value ? Number(value) : null });
+      await mutateQuote();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Reassign failed");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleProductChange(value: string) {
+    if (!quote) return;
+    setSaving(true);
+    try {
+      await api.updateQuote(quote.id, { product: value ? Number(value) : null });
+      await mutateQuote();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to set product");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function handleSaveQuote() {
     if (!quote) return;
     setSaving(true);
@@ -294,6 +347,7 @@ export default function QuoteDetailPage() {
       setEditing(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save");
+      window.scrollTo({ top: 0, behavior: "smooth" }); // bring the error banner into view
     } finally {
       setSaving(false);
     }
@@ -355,7 +409,7 @@ export default function QuoteDetailPage() {
   // Create mode
   if (isNew) {
     const createTotals = computeQuoteTotals(
-      createData.price_per_head, createData.gents + createData.ladies,
+      createData.price_per_head, createData.guest_count,
       parseFloat(createData.tax_rate || "0"), createLineItems, createMeals,
     );
     return (
@@ -364,20 +418,36 @@ export default function QuoteDetailPage() {
           <Link href="/quotes" className="text-primary hover:underline">&larr; Quotes</Link>
         </div>
 
-        {error && <p className="text-destructive">{error}</p>}
+        {error && (
+          <div role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm font-medium text-destructive">
+            {error}
+          </div>
+        )}
 
         <form onSubmit={handleCreateQuoteSubmit} noValidate className="space-y-6">
           {/* Header */}
           <Card>
             <CardContent className="p-6">
-              <h1 className="text-2xl font-bold text-foreground">New Quote</h1>
+              <div className="flex items-end gap-3 flex-wrap">
+                <h1 className="text-2xl font-bold text-foreground self-center">New Quote</h1>
+                <AssigneePicker value={formAssigned} options={assigneeOptions} onChange={setFormAssigned} />
+                {activeProducts.length > 0 && (
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-medium text-muted-foreground">Product</label>
+                    <select value={createData.product} onChange={setCreate("product")} aria-label="Product line"
+                      className="flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
+                      {activeProducts.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                  </div>
+                )}
+              </div>
             </CardContent>
           </Card>
 
           {/* Customer & Event (shared booking details) */}
           <Card>
             <CardContent className="p-6">
-              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Customer &amp; Event</h2>
+              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Event Details</h2>
               <div className="mb-4">
                 <label className="block text-sm font-medium text-foreground mb-1">Link to Lead</label>
                 <select value={createData.lead} onChange={handleLeadSelect} className={selectClass}>
@@ -396,6 +466,7 @@ export default function QuoteDetailPage() {
                 mealTypes={mealTypes}
                 serviceStyles={serviceStyles}
                 productLines={activeProducts}
+                showProduct={false}
                 customerAddress={orgContacts.find((c) => String(c.id) === createData.primary_contact)?.address}
                 eventDateSlot={
                   <div>
@@ -413,6 +484,7 @@ export default function QuoteDetailPage() {
               <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Timeline</h2>
               <BookingTimelineField
                 eventDate={createData.event_date}
+                timeFormat={timeFormat}
                 value={{ setup_time: createData.setup_time, guest_arrival_time: createData.guest_arrival_time, meal_time: createData.meal_time, end_time: createData.end_time }}
                 onChange={(patch) => setCreateData((prev) => ({ ...prev, ...patch }))}
               />
@@ -425,14 +497,14 @@ export default function QuoteDetailPage() {
               <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Menu &amp; Pricing</h2>
               <div className="mb-4">
                 <GuestCountField
-                  value={{ gents: createData.gents, ladies: createData.ladies, custom_split: createData.custom_split, big_eaters: createData.big_eaters, big_eaters_percentage: createData.big_eaters_percentage }}
+                  value={{ guest_count: createData.guest_count, gents: createData.gents, ladies: createData.ladies, custom_split: createData.custom_split, big_eaters: createData.big_eaters, big_eaters_percentage: createData.big_eaters_percentage }}
                   onChange={(patch) => setCreateData((prev) => ({ ...prev, ...patch }))}
                 />
               </div>
               <MenuBuilder
                 selectedDishIds={menuData.dish_ids}
                 basedOnTemplate={menuData.based_on_template}
-                guestCount={(createData.gents + createData.ladies) || undefined}
+                guestCount={createData.guest_count || undefined}
                 onChange={setMenuData}
                 pricePerHead={createData.price_per_head}
                 onPricePerHeadChange={(val) => setCreateData((prev) => ({ ...prev, price_per_head: val }))}
@@ -450,8 +522,9 @@ export default function QuoteDetailPage() {
             currencySymbol={cs}
             dateFormat={dateFormat}
             priceRoundingStep={Number(settings.price_rounding_step) || 50}
-            defaultGuestCount={createData.gents + createData.ladies}
+            defaultGuestCount={createData.guest_count}
             eventDate={createData.event_date}
+            timeFormat={timeFormat}
           />
 
           {/* Additional Items */}
@@ -461,7 +534,7 @@ export default function QuoteDetailPage() {
               <AddOnItemsEditor
                 items={createLineItems}
                 onChange={setCreateLineItems}
-                guestCount={createData.gents + createData.ladies}
+                guestCount={createData.guest_count}
                 currencySymbol={cs}
               />
             </CardContent>
@@ -471,8 +544,8 @@ export default function QuoteDetailPage() {
           <BookingTotalsCard
             title="Quote Total"
             currencySymbol={cs}
-            foodTotal={Math.round((parseFloat(createData.price_per_head) || 0) * (createData.gents + createData.ladies) * 100) / 100}
-            foodLabel={`Food / Menu (${formatCurrency(createData.price_per_head || 0, cs)}/head × ${createData.gents + createData.ladies} guests)`}
+            foodTotal={Math.round((parseFloat(createData.price_per_head) || 0) * createData.guest_count * 100) / 100}
+            foodLabel={`Food / Menu (${formatCurrency(createData.price_per_head || 0, cs)}/head × ${createData.guest_count} guests)`}
             meals={bookingMealRows(createMeals, cs)}
             addOnsTotal={Math.round((createTotals.subtotal - createTotals.food_total) * 100) / 100}
             subtotal={createTotals.subtotal}
@@ -532,9 +605,9 @@ export default function QuoteDetailPage() {
 
   // At this point, quote is guaranteed to be defined
   const q = quote!;
-  const editGuestCount = (editData.gents + editData.ladies) || q.guest_count;
+  const editGuestCount = editData.guest_count || q.guest_count;
   const liveTotals = computeQuoteTotals(
-    editData.price_per_head, editData.gents + editData.ladies,
+    editData.price_per_head, editData.guest_count,
     parseFloat(editData.tax_rate || "0") / 100, editLineItems,
     editing ? editMeals : (q.additional_meals || []),
   );
@@ -552,11 +625,41 @@ export default function QuoteDetailPage() {
         <CardContent className="p-6">
           <div className="flex items-start justify-between">
             <div>
-              <div className="flex items-center gap-3">
-                <h1 className="text-2xl font-bold text-foreground">Quote #{q.id} v{q.version}</h1>
-                <Badge variant={STATUS_BADGE_VARIANT[q.status] || "secondary"}>
-                  {q.status_display}
-                </Badge>
+              <div className="flex items-end gap-3 flex-wrap">
+                <div className="flex items-center gap-3">
+                  <h1 className="text-2xl font-bold text-foreground">Quote #{q.id} v{q.version}</h1>
+                  <Badge variant={STATUS_BADGE_VARIANT[q.status] || "secondary"}>
+                    {q.status_display}
+                  </Badge>
+                </div>
+                <AssigneePicker
+                  value={q.assigned_to}
+                  currentName={q.assigned_to_name}
+                  disabled={saving}
+                  onChange={(pid) => handleAssign(pid ? String(pid) : "")}
+                  options={(() => {
+                    const opts = [...salespeople];
+                    if (q.assigned_to && !opts.some((u) => u.id === q.assigned_to)) {
+                      opts.unshift({ id: q.assigned_to, first_name: q.assigned_to_name || "Assigned", last_name: "", role: "" } as (typeof salespeople)[number]);
+                    }
+                    return opts;
+                  })()}
+                />
+                {activeProducts.length > 0 && (
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-medium text-muted-foreground">Product</label>
+                    <select
+                      value={q.product ?? ""}
+                      onChange={(e) => handleProductChange(e.target.value)}
+                      disabled={saving}
+                      title="Product line for this quote"
+                      aria-label="Product line"
+                      className="flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    >
+                      {activeProducts.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                  </div>
+                )}
               </div>
               <p className="text-sm text-muted-foreground mt-1">
                 Created {formatDate(q.created_at, dateFormat)}
@@ -595,6 +698,42 @@ export default function QuoteDetailPage() {
             >
               Download PDF
             </Button>
+            {canWhatsApp(q.contact_phone) && (
+              waAwaitingConfirm ? (
+                <span className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">Did you send it?</span>
+                  <Button
+                    size="sm"
+                    onClick={async () => {
+                      try {
+                        const greeting = `Hello ${q.contact_name?.split(" ")[0] || ""}, sharing your quotation for your ${q.event_type || "event"}.`.replace("  ", " ");
+                        const updated = await api.markQuoteSharedWhatsApp(q.id, greeting);
+                        mutateQuote(updated, false);
+                        setWaAwaitingConfirm(false);
+                      } catch (err) {
+                        setError(err instanceof Error ? err.message : "Failed to record the share");
+                      }
+                    }}
+                  >
+                    Mark shared
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setWaAwaitingConfirm(false)}>
+                    Not sent
+                  </Button>
+                </span>
+              ) : (
+                <Button
+                  onClick={() => {
+                    const greeting = `Hello ${q.contact_name?.split(" ")[0] || ""}, sharing your quotation for your ${q.event_type || "event"}.`.replace("  ", " ");
+                    window.open(waLink(q.contact_phone!, greeting), "_blank");
+                    setWaAwaitingConfirm(true);
+                  }}
+                >
+                  <MessageCircle className="w-4 h-4 mr-1.5" aria-hidden />
+                  Share via WhatsApp
+                </Button>
+              )
+            )}
             {q.status === "draft" && (
               <>
                 <Button onClick={() => handleTransition("sent")} disabled={saving}>
@@ -632,6 +771,11 @@ export default function QuoteDetailPage() {
             </Button>
           </div>
 
+          {/* Client e-signature — send link (pre-acceptance) or signed status */}
+          {!editing && (q.signature || q.status === "draft" || q.status === "sent") && (
+            <ESignPanel kind="quote" id={q.id} publicToken={q.public_token} signature={q.signature} contactPhone={q.contact_phone} contactName={q.contact_name} subject={q.event_type} />
+          )}
+
           {/* Event link when accepted */}
           {q.status === "accepted" && q.event_id && (
             <div className="mt-4 p-3 bg-success/10 border border-success/20 rounded flex items-center justify-between">
@@ -648,7 +792,7 @@ export default function QuoteDetailPage() {
       {editing && (
         <Card>
           <CardContent className="p-6">
-            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Customer &amp; Event</h2>
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Event Details</h2>
             <BookingDetailsForm
               value={toBdValue(editData)}
               onChange={(patch) => setEditData((prev) => ({ ...prev, ...fromBdPatch(patch) }))}
@@ -656,6 +800,7 @@ export default function QuoteDetailPage() {
               mealTypes={mealTypes}
               serviceStyles={serviceStyles}
                 productLines={activeProducts}
+                showProduct={false}
               customerAddress={orgContacts.find((c) => String(c.id) === editData.primary_contact)?.address}
               eventDateSlot={
                 <div>
@@ -786,6 +931,7 @@ export default function QuoteDetailPage() {
             <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Timeline</h2>
             <BookingTimelineField
               eventDate={editData.event_date}
+              timeFormat={timeFormat}
               value={{ setup_time: editData.setup_time, guest_arrival_time: editData.guest_arrival_time, meal_time: editData.meal_time, end_time: editData.end_time }}
               onChange={(patch) => setEditData((prev) => ({ ...prev, ...patch }))}
             />
@@ -801,7 +947,7 @@ export default function QuoteDetailPage() {
             <>
               <div className="mb-4">
                 <GuestCountField
-                  value={{ gents: editData.gents, ladies: editData.ladies, custom_split: editData.custom_split, big_eaters: editData.big_eaters, big_eaters_percentage: editData.big_eaters_percentage }}
+                  value={{ guest_count: editData.guest_count, gents: editData.gents, ladies: editData.ladies, custom_split: editData.custom_split, big_eaters: editData.big_eaters, big_eaters_percentage: editData.big_eaters_percentage }}
                   onChange={(patch) => setEditData((prev) => ({ ...prev, ...patch }))}
                 />
               </div>
@@ -865,8 +1011,9 @@ export default function QuoteDetailPage() {
           currencySymbol={cs}
           dateFormat={dateFormat}
           priceRoundingStep={Number(settings.price_rounding_step) || 50}
-          defaultGuestCount={editData.gents + editData.ladies}
+          defaultGuestCount={editData.guest_count}
           eventDate={editData.event_date}
+          timeFormat={timeFormat}
         />
       )}
 

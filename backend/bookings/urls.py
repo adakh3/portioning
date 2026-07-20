@@ -13,7 +13,7 @@ from bookings.views import (
     SalesTargetGridView, RepPlanManageView,
     QuoteListCreateView, QuoteDetailView, QuoteTransitionView,
     QuoteLineItemListCreateView, QuoteLineItemDetailView,
-    QuotePDFView,
+    QuotePDFView, QuoteMarkSharedWhatsAppView,
     InvoiceListCreateView, InvoiceDetailView,
     PaymentListCreateView, PaymentDetailView,
     SiteSettingsView,
@@ -30,10 +30,22 @@ from bookings.views import (
     ReminderListCreateView, ReminderDetailView,
     LeadReminderListCreateView, ReminderCountsView,
     WhatsAppMessageListView, WhatsAppSendView, WhatsAppMarkReadView, TwilioWebhookView,
+    FollowUpDraftListView, LeadFollowUpDraftListView,
+    FollowUpDraftApproveView, FollowUpDraftDismissView,
+    FollowUpDraftBulkApproveView, FollowUpDraftCountView, FollowUpStatsView, CronRunFollowupsView,
+    FollowUpPreviewView, FollowUpGenerateView,
+    FollowUpDraftMarkSentView, LeadLogReplyView,
     LockedDateListCreateView, LockedDateDeleteView,
+    PublicBookingView, PublicBookingSignView, PublicBookingPDFView,
+    QuoteSendForSignatureView, EventSendForSignatureView,
 )
 
 urlpatterns = [
+    # Public (unauthenticated) client-facing e-signature — resolved by token
+    path('public/bookings/<uuid:token>/', PublicBookingView.as_view(), name='public-booking'),
+    path('public/bookings/<uuid:token>/sign/', PublicBookingSignView.as_view(), name='public-booking-sign'),
+    path('public/bookings/<uuid:token>/pdf/', PublicBookingPDFView.as_view(), name='public-booking-pdf'),
+
     # Accounts (businesses) & Contacts (people)
     path('bookings/accounts/', AccountListCreateView.as_view(), name='account-list'),
     path('bookings/accounts/<int:pk>/', AccountDetailView.as_view(), name='account-detail'),
@@ -67,6 +79,20 @@ urlpatterns = [
     path('bookings/leads/<int:pk>/create-event/', LeadCreateEventView.as_view(), name='lead-create-event'),
     path('bookings/leads/<int:pk>/activity/', LeadActivityView.as_view(), name='lead-activity'),
     path('bookings/leads/<int:pk>/reminders/', LeadReminderListCreateView.as_view(), name='lead-reminder-list'),
+    path('bookings/leads/<int:pk>/followup-drafts/', LeadFollowUpDraftListView.as_view(), name='lead-followup-draft-list'),
+
+    # AI follow-up drafts (review queue)
+    path('bookings/followup-drafts/', FollowUpDraftListView.as_view(), name='followup-draft-list'),
+    path('bookings/followup-drafts/preview/', FollowUpPreviewView.as_view(), name='followup-draft-preview'),
+    path('bookings/followup-drafts/generate/', FollowUpGenerateView.as_view(), name='followup-draft-generate'),
+    path('bookings/followup-drafts/count/', FollowUpDraftCountView.as_view(), name='followup-draft-count'),
+    path('bookings/followup-drafts/stats/', FollowUpStatsView.as_view(), name='followup-draft-stats'),
+    path('bookings/cron/run-followups/', CronRunFollowupsView.as_view(), name='cron-run-followups'),
+    path('bookings/followup-drafts/bulk-approve/', FollowUpDraftBulkApproveView.as_view(), name='followup-draft-bulk-approve'),
+    path('bookings/followup-drafts/<int:pk>/approve/', FollowUpDraftApproveView.as_view(), name='followup-draft-approve'),
+    path('bookings/followup-drafts/<int:pk>/dismiss/', FollowUpDraftDismissView.as_view(), name='followup-draft-dismiss'),
+    path('bookings/followup-drafts/<int:pk>/mark-sent/', FollowUpDraftMarkSentView.as_view(), name='followup-draft-mark-sent'),
+    path('bookings/leads/<int:pk>/log-reply/', LeadLogReplyView.as_view(), name='lead-log-reply'),
 
     # Reminders
     path('bookings/reminders/', ReminderListCreateView.as_view(), name='reminder-list'),
@@ -89,6 +115,8 @@ urlpatterns = [
     path('bookings/quotes/<int:pk>/', QuoteDetailView.as_view(), name='quote-detail'),
     path('bookings/quotes/<int:pk>/transition/', QuoteTransitionView.as_view(), name='quote-transition'),
     path('bookings/quotes/<int:pk>/pdf/', QuotePDFView.as_view(), name='quote-pdf'),
+    path('bookings/quotes/<int:pk>/mark-shared-whatsapp/', QuoteMarkSharedWhatsAppView.as_view(), name='quote-mark-shared-whatsapp'),
+    path('bookings/quotes/<int:pk>/send-for-signature/', QuoteSendForSignatureView.as_view(), name='quote-send-for-signature'),
     path('bookings/quotes/<int:quote_pk>/items/', QuoteLineItemListCreateView.as_view(), name='quote-item-list'),
     path('bookings/quotes/<int:quote_pk>/items/<int:pk>/', QuoteLineItemDetailView.as_view(), name='quote-item-detail'),
 

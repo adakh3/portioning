@@ -2,13 +2,19 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { api, Reminder } from "@/lib/api";
-import { useReminders, useDateFormat } from "@/lib/hooks";
+import { api, Reminder, FollowUpDraft, FollowUpPreview } from "@/lib/api";
+import { useReminders, useDateFormat, useFollowUpDrafts, useUsers, useSiteSettings } from "@/lib/hooks";
 import { revalidate } from "@/lib/hooks";
-import { formatDateTime as sharedFormatDateTime } from "@/lib/dateFormat";
+import { useAuth } from "@/lib/auth";
+import { formatDate, formatDateTime as sharedFormatDateTime } from "@/lib/dateFormat";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
+import { Avatar } from "@/components/ui/avatar";
+import { cn } from "@/lib/utils";
+import { Sparkles, MessageCircle } from "lucide-react";
+import { canWhatsApp, waLink } from "@/lib/whatsapp";
 
 function formatDue(dateStr: string, dateFormat: string) {
   const d = new Date(dateStr);
@@ -33,11 +39,14 @@ function formatDue(dateStr: string, dateFormat: string) {
 function ReminderCard({
   reminder,
   onAction,
+  showAssignee,
 }: {
   reminder: Reminder;
   onAction: () => void;
+  showAssignee?: boolean;
 }) {
   const dateFormat = useDateFormat();
+  const shortcutsMode = useShortcutsMode();
   const [acting, setActing] = useState(false);
   const [showSnooze, setShowSnooze] = useState(false);
 
@@ -79,6 +88,17 @@ function ReminderCard({
             </Link>
             {isOverdue && <Badge variant="destructive">Overdue</Badge>}
             {isToday && <Badge variant="warning">Today</Badge>}
+            {shortcutsMode && canWhatsApp(reminder.lead_phone) && (
+              <a
+                href={waLink(reminder.lead_phone!)}
+                target="_blank"
+                rel="noreferrer"
+                aria-label={`WhatsApp ${reminder.lead_name}`}
+                className="text-emerald-600 hover:text-emerald-700"
+              >
+                <MessageCircle className="w-4 h-4" aria-hidden />
+              </a>
+            )}
           </div>
           {reminder.note && (
             <p className="text-sm text-muted-foreground line-clamp-2">
@@ -89,6 +109,12 @@ function ReminderCard({
             Due: {formatDue(reminder.due_at, dateFormat)}
           </p>
         </div>
+        {showAssignee && reminder.user_name && (
+          <span className="flex items-center gap-1.5 shrink-0 text-xs text-muted-foreground">
+            <Avatar name={reminder.user_name} size="sm" />
+            {reminder.user_name}
+          </span>
+        )}
         <div className="flex items-center gap-1 shrink-0">
           <Button
             size="sm"
@@ -139,8 +165,20 @@ function ReminderCard({
   );
 }
 
-export default function FollowUpsPage() {
-  const { data: reminders = [], mutate } = useReminders({ status: "pending" });
+function RemindersTab() {
+  const { user: currentUser } = useAuth();
+  // Salespeople only ever see their own follow-ups; admins/owners can view the
+  // whole team and filter by person.
+  const canViewTeam = !!currentUser && currentUser.role !== "salesperson";
+  const [personFilter, setPersonFilter] = useState("");
+
+  const { data: users = [] } = useUsers();
+  const { data: reminders = [], mutate } = useReminders({
+    status: "pending",
+    user: canViewTeam ? personFilter || undefined : undefined,
+  });
+
+  const viewingTeam = canViewTeam && personFilter === "";
 
   const now = new Date();
   const todayEnd = new Date(now);
@@ -166,17 +204,29 @@ export default function FollowUpsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Follow-ups</h1>
-        <p className="text-muted-foreground mt-1">
-          Your pending follow-up reminders
-        </p>
-      </div>
+      {canViewTeam && (
+        <div className="flex justify-end">
+          <select
+            value={personFilter}
+            onChange={(e) => setPersonFilter(e.target.value)}
+            className="h-9 rounded-md border border-border bg-background px-3 text-sm"
+            aria-label="Filter follow-ups by person"
+          >
+            <option value="">All (team)</option>
+            <option value="me">Me</option>
+            {users.map((u) => (
+              <option key={u.id} value={String(u.id)}>
+                {`${u.first_name} ${u.last_name}`.trim() || u.email}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {reminders.length === 0 && (
         <Card>
           <CardContent className="p-8 text-center text-muted-foreground">
-            No pending follow-ups. You&apos;re all caught up!
+            No pending reminders. You&apos;re all caught up!
           </CardContent>
         </Card>
       )}
@@ -190,7 +240,7 @@ export default function FollowUpsPage() {
           <div className="space-y-2">
             {overdue.map((r) => (
               <div key={r.id} className="relative">
-                <ReminderCard reminder={r} onAction={handleRefresh} />
+                <ReminderCard reminder={r} onAction={handleRefresh} showAssignee={viewingTeam} />
               </div>
             ))}
           </div>
@@ -206,7 +256,7 @@ export default function FollowUpsPage() {
           <div className="space-y-2">
             {dueToday.map((r) => (
               <div key={r.id} className="relative">
-                <ReminderCard reminder={r} onAction={handleRefresh} />
+                <ReminderCard reminder={r} onAction={handleRefresh} showAssignee={viewingTeam} />
               </div>
             ))}
           </div>
@@ -222,7 +272,7 @@ export default function FollowUpsPage() {
           <div className="space-y-2">
             {upcoming.map((r) => (
               <div key={r.id} className="relative">
-                <ReminderCard reminder={r} onAction={handleRefresh} />
+                <ReminderCard reminder={r} onAction={handleRefresh} showAssignee={viewingTeam} />
               </div>
             ))}
           </div>
@@ -238,12 +288,476 @@ export default function FollowUpsPage() {
           <div className="space-y-2">
             {later.map((r) => (
               <div key={r.id} className="relative">
-                <ReminderCard reminder={r} onAction={handleRefresh} />
+                <ReminderCard reminder={r} onAction={handleRefresh} showAssignee={viewingTeam} />
               </div>
             ))}
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function DraftReviewCard({ draft, onDone }: { draft: FollowUpDraft; onDone: () => void }) {
+  const dateFormat = useDateFormat();
+  const shortcutsMode = useShortcutsMode();
+  const [awaitingConfirm, setAwaitingConfirm] = useState(false);
+  const [body, setBody] = useState(draft.body);
+  // Size the editor to the message so the whole draft is readable at once.
+  const rows = Math.min(
+    14,
+    Math.max(4, body.split("\n").reduce((n, line) => n + Math.max(1, Math.ceil(line.length / 70)), 1)),
+  );
+  const [busy, setBusy] = useState<"" | "approve" | "dismiss">("");
+  const [error, setError] = useState("");
+
+  const handleApprove = async () => {
+    setBusy("approve");
+    setError("");
+    try {
+      await api.approveFollowUpDraft(draft.id, body !== draft.body ? body : undefined);
+      revalidate("followup-draft-count");
+      onDone();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to send");
+      setBusy("");
+    }
+  };
+
+  const openWhatsApp = () => {
+    window.open(waLink(draft.lead_phone || "", body), "_blank");
+    setAwaitingConfirm(true);
+  };
+
+  const handleMarkSent = async () => {
+    setBusy("approve");
+    setError("");
+    try {
+      await api.markFollowUpSent(draft.id, body !== draft.body ? body : undefined);
+      revalidate("followup-draft-count");
+      onDone();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to mark as sent");
+      setBusy("");
+    }
+  };
+
+  const handleDismiss = async () => {
+    setBusy("dismiss");
+    setError("");
+    try {
+      await api.dismissFollowUpDraft(draft.id);
+      revalidate("followup-draft-count");
+      onDone();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to dismiss");
+      setBusy("");
+    }
+  };
+
+  return (
+    <div className="p-3 border border-border rounded-lg flex gap-3">
+      <div className="flex-1 min-w-0 space-y-2">
+        <div className="flex items-center gap-2">
+          <Link href={`/leads/${draft.lead}`} className="text-sm font-medium text-primary hover:underline truncate">
+            {draft.lead_name || `Lead #${draft.lead}`}
+          </Link>
+          <Badge variant="secondary">AI</Badge>
+        </div>
+        {draft.reasoning && <p className="text-xs text-muted-foreground italic">{draft.reasoning}</p>}
+        <Textarea value={body} onChange={(e) => setBody(e.target.value)} rows={rows} />
+        {error && <p className="text-sm text-destructive">{error}</p>}
+        <div className="flex items-center gap-2">
+          {shortcutsMode ? (
+            awaitingConfirm ? (
+              <>
+                <span className="text-sm text-muted-foreground">Did you send it?</span>
+                <Button size="sm" onClick={handleMarkSent} disabled={!!busy}>
+                  {busy === "approve" ? "Saving..." : "Mark sent"}
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setAwaitingConfirm(false)} disabled={!!busy}>
+                  Not sent
+                </Button>
+              </>
+            ) : (
+              <Button
+                size="sm"
+                onClick={openWhatsApp}
+                disabled={!!busy || !body.trim() || !canWhatsApp(draft.lead_phone)}
+                title={canWhatsApp(draft.lead_phone) ? undefined : "No valid WhatsApp number on this lead"}
+              >
+                <MessageCircle className="w-3.5 h-3.5 mr-1" aria-hidden />
+                Send via WhatsApp
+              </Button>
+            )
+          ) : (
+            <Button size="sm" onClick={handleApprove} disabled={!!busy || !body.trim()}>
+              {busy === "approve" ? "Sending..." : "Approve & Send"}
+            </Button>
+          )}
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={handleDismiss}
+            disabled={!!busy}
+            title="Skips this follow-up for good — it won't be drafted again. To ignore it for now, just leave it here."
+          >
+            {busy === "dismiss" ? "Deleting..." : "Delete"}
+          </Button>
+        </div>
+      </div>
+      <aside className="hidden sm:block w-40 shrink-0 border-l border-border pl-3 text-xs text-muted-foreground space-y-1.5">
+        {draft.lead_event_type && (
+          <p className="uppercase tracking-wide">{draft.lead_event_type}</p>
+        )}
+        {draft.lead_event_date && (
+          <p>{formatDate(draft.lead_event_date, dateFormat)}</p>
+        )}
+        {draft.lead_guest_estimate != null && <p>{draft.lead_guest_estimate} guests</p>}
+        {draft.lead_days_stale != null && (
+          <p className="text-amber-600 font-medium">{draft.lead_days_stale}d quiet</p>
+        )}
+        {draft.lead_assigned_to_name && (
+          <p className="flex items-center gap-1.5 pt-1">
+            <Avatar name={draft.lead_assigned_to_name} size="sm" />
+            <span className="truncate">{draft.lead_assigned_to_name}</span>
+          </p>
+        )}
+      </aside>
+    </div>
+  );
+}
+
+function useShortcutsMode(): boolean {
+  const { data: settings } = useSiteSettings();
+  if (!settings) return false;
+  const twilioActive = !!settings.twilio_configured && !!settings.whatsapp_enabled;
+  return !twilioActive && settings.whatsapp_shortcuts_enabled !== false;
+}
+
+type GenerateSummary = {
+  created: number;
+  skipped: { name: string; reasoning: string }[];
+  ineligible: number;
+  failed: number;
+};
+
+function GeneratePanel({ onDraftCreated }: { onDraftCreated: () => void }) {
+  const dateFormat = useDateFormat();
+  const [preview, setPreview] = useState<FollowUpPreview | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  const [summary, setSummary] = useState<GenerateSummary | null>(null);
+  const [error, setError] = useState("");
+
+  const openPreview = async () => {
+    setLoading(true);
+    setError("");
+    setSummary(null);
+    try {
+      const p = await api.getFollowUpPreview();
+      setPreview(p);
+      setSelected(new Set(p.leads.map((l) => l.id)));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not load the preview");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const toggle = (id: number) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAll = () => {
+    if (!preview) return;
+    setSelected((prev) =>
+      prev.size === preview.leads.length ? new Set() : new Set(preview.leads.map((l) => l.id)),
+    );
+  };
+
+  const generate = async () => {
+    if (!preview) return;
+    const targets = preview.leads.filter((l) => selected.has(l.id));
+    const result: GenerateSummary = { created: 0, skipped: [], ineligible: 0, failed: 0 };
+    setProgress({ done: 0, total: targets.length });
+    // A few drafts in flight at once — each lead is still its own isolated
+    // call (no cross-lead data), this only shortens the wall-clock wait.
+    const CONCURRENCY = 4;
+    let next = 0;
+    const worker = async () => {
+      while (next < targets.length) {
+        const lead = targets[next++];
+        try {
+          const res = await api.generateFollowUpDraft(lead.id);
+          if (res.status === "created") {
+            result.created += 1;
+            onDraftCreated(); // draft appears in the queue as it lands
+          } else if (res.status === "skipped") {
+            result.skipped.push({ name: lead.contact_name, reasoning: res.reasoning });
+          } else {
+            result.ineligible += 1;
+          }
+        } catch {
+          result.failed += 1;
+        }
+        setProgress((p) => (p ? { ...p, done: p.done + 1 } : p));
+      }
+    };
+    await Promise.all(
+      Array.from({ length: Math.min(CONCURRENCY, targets.length) }, () => worker()),
+    );
+    setProgress(null);
+    setPreview(null);
+    setSummary(result);
+    revalidate("followup-draft-count");
+  };
+
+  if (progress) {
+    return (
+      <Card>
+        <CardContent className="p-4 space-y-2">
+          <p className="text-sm font-medium text-foreground">
+            Drafting follow-ups… {progress.done} of {progress.total}
+          </p>
+          <div className="h-2 rounded-full bg-muted overflow-hidden">
+            <div
+              className="h-full bg-primary transition-all"
+              style={{ width: `${(progress.done / Math.max(progress.total, 1)) * 100}%` }}
+            />
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Drafts appear in the queue below as they're created. Leaving this page keeps
+            whatever has finished.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (preview) {
+    if (preview.leads.length === 0) {
+      return (
+        <Card>
+          <CardContent className="p-4 flex items-center justify-between gap-4">
+            <p className="text-sm text-muted-foreground">
+              No stale leads right now — nothing has gone quiet for more than{" "}
+              {preview.first_gap_days} days.
+            </p>
+            <Button size="sm" variant="ghost" onClick={() => setPreview(null)}>
+              Close
+            </Button>
+          </CardContent>
+        </Card>
+      );
+    }
+    return (
+      <Card>
+        <CardContent className="p-4 space-y-3">
+          <div className="flex items-center justify-between gap-4">
+            <p className="text-sm font-medium text-foreground">
+              {selected.size} of {preview.leads.length} stale lead
+              {preview.leads.length === 1 ? "" : "s"} selected for a follow-up draft
+            </p>
+            <button
+              onClick={toggleAll}
+              className="text-xs font-medium text-primary hover:underline"
+            >
+              {selected.size === preview.leads.length ? "Deselect all" : "Select all"}
+            </button>
+          </div>
+          {!preview.configured && (
+            <p className="text-sm text-destructive">
+              AI follow-ups aren&apos;t fully configured (model or API key missing) —
+              generation will fail until that's set up.
+            </p>
+          )}
+          <div className="space-y-1 max-h-96 overflow-y-auto">
+            {preview.leads.map((lead) => (
+              <label
+                key={lead.id}
+                className="flex items-center gap-3 p-2 border border-border rounded-lg cursor-pointer hover:bg-muted/50"
+              >
+                <input
+                  type="checkbox"
+                  checked={selected.has(lead.id)}
+                  onChange={() => toggle(lead.id)}
+                  aria-label={`Draft a follow-up for ${lead.contact_name}`}
+                />
+                <div className="flex-1 min-w-0 flex items-center gap-3">
+                  <Link
+                    href={`/leads/${lead.id}`}
+                    className="text-sm font-medium text-primary hover:underline truncate"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {lead.contact_name}
+                  </Link>
+                  <span className="text-xs text-amber-600 font-medium shrink-0">
+                    {lead.days_stale}d stale
+                  </span>
+                  <span className="text-xs text-muted-foreground uppercase tracking-wide shrink-0">
+                    {lead.status}
+                  </span>
+                </div>
+                <div className="flex items-center gap-3 shrink-0 text-xs text-muted-foreground">
+                  {lead.event_date && <span>{formatDate(lead.event_date, dateFormat)}</span>}
+                  {lead.budget && <span>{Number(lead.budget).toLocaleString()}</span>}
+                  <span className="flex items-center gap-1.5">
+                    <Avatar name={lead.assigned_to_name} size="sm" />
+                    {lead.assigned_to_name || "Unassigned"}
+                  </span>
+                </div>
+              </label>
+            ))}
+          </div>
+          <div className="flex items-center gap-2">
+            <Button size="sm" onClick={generate} disabled={selected.size === 0}>
+              Create {selected.size} draft{selected.size === 1 ? "" : "s"}
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setPreview(null)}>
+              Cancel
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-end gap-2">
+        {error && <p className="text-sm text-destructive">{error}</p>}
+        <Button size="sm" variant="secondary" onClick={openPreview} disabled={loading}>
+          {loading ? "Checking stale leads…" : "Generate follow-ups"}
+        </Button>
+      </div>
+      {summary && (
+        <Card className="max-w-3xl">
+          <CardContent className="p-4 space-y-2">
+            <p className="text-sm font-medium text-foreground">
+              {summary.created} draft{summary.created === 1 ? "" : "s"} created
+              {summary.skipped.length > 0 && `, ${summary.skipped.length} skipped by the AI`}
+              {summary.ineligible > 0 && `, ${summary.ineligible} no longer eligible`}
+              {summary.failed > 0 && `, ${summary.failed} failed`}
+            </p>
+            {summary.skipped.map((s, i) => (
+              <p key={i} className="text-xs text-muted-foreground">
+                <span className="font-medium">{s.name}:</span> {s.reasoning}
+              </p>
+            ))}
+            <button
+              onClick={() => setSummary(null)}
+              className="text-xs font-medium text-primary hover:underline"
+            >
+              Dismiss
+            </button>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+function DraftsTab() {
+  const shortcutsMode = useShortcutsMode();
+  const { data: drafts = [], mutate } = useFollowUpDrafts("pending");
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkError, setBulkError] = useState("");
+
+  const handleBulkApprove = async () => {
+    setBulkBusy(true);
+    setBulkError("");
+    try {
+      const res = await api.bulkApproveFollowUpDrafts();
+      revalidate("followup-draft-count");
+      await mutate();
+      if (res.failed.length > 0) {
+        setBulkError(`${res.sent.length} sent, ${res.failed.length} failed (check WhatsApp is configured).`);
+      }
+    } catch (err) {
+      setBulkError(err instanceof Error ? err.message : "Bulk approve failed");
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <GeneratePanel onDraftCreated={() => mutate()} />
+
+      {drafts.length === 0 ? (
+        <Card>
+          <CardContent className="p-8 text-center text-muted-foreground">
+            No AI drafts to review. Use &quot;Generate follow-ups&quot; to draft messages
+            for leads that have gone quiet.
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="max-w-3xl space-y-4">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-muted-foreground">
+              {drafts.length} draft{drafts.length === 1 ? "" : "s"} awaiting your review.
+            </p>
+            {!shortcutsMode && (
+              <Button size="sm" onClick={handleBulkApprove} disabled={bulkBusy}>
+                {bulkBusy ? "Sending..." : `Approve & send all (${drafts.length})`}
+              </Button>
+            )}
+          </div>
+          {bulkError && <p className="text-sm text-destructive">{bulkError}</p>}
+          <div className="space-y-2">
+            {drafts.map((d) => (
+              <DraftReviewCard key={d.id} draft={d} onDone={() => mutate()} />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function FollowUpsPage() {
+  const [tab, setTab] = useState<"reminders" | "drafts">("drafts");
+  const { data: drafts = [] } = useFollowUpDrafts("pending");
+
+  const tabs: { id: "reminders" | "drafts"; label: string; count?: number }[] = [
+    { id: "drafts", label: "AI Follow-ups", count: drafts.length },
+    { id: "reminders", label: "Reminders" },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-foreground">Follow-ups</h1>
+        <p className="text-muted-foreground mt-1">Reminders and AI-suggested follow-ups for quiet leads</p>
+      </div>
+
+      <div className="flex items-center gap-1 border-b border-border">
+        {tabs.map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            className={cn(
+              "px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors flex items-center gap-2",
+              tab === t.id
+                ? "border-primary text-foreground"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            )}
+          >
+            {t.id === "drafts" && <Sparkles className="w-3.5 h-3.5 text-primary" aria-hidden />}
+            {t.label}
+            {t.count ? <Badge variant="secondary">{t.count}</Badge> : null}
+          </button>
+        ))}
+      </div>
+
+      {tab === "reminders" ? <RemindersTab /> : <DraftsTab />}
     </div>
   );
 }

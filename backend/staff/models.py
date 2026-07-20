@@ -44,6 +44,8 @@ class StaffMember(models.Model):
         on_delete=models.CASCADE, related_name='staff_members',
     )
     name = models.CharField(max_length=200)
+    first_name = models.CharField(max_length=100, blank=True, default='')
+    last_name = models.CharField(max_length=100, blank=True, default='')
     email = models.EmailField(blank=True)
     phone = models.CharField(max_length=50, blank=True)
     roles = models.ManyToManyField(LaborRole, blank=True, related_name='staff_members')
@@ -67,6 +69,16 @@ class StaffMember(models.Model):
     def __str__(self):
         return self.name
 
+    def save(self, *args, **kwargs):
+        # Same rule as Lead/Contact: name is the display column, parts win when
+        # set, a bare name is split (last word = surname).
+        from bookings.names import compose_full_name, split_full_name
+        composed = compose_full_name(self.first_name, self.last_name)
+        if composed:
+            self.name = composed
+        elif self.name:
+            self.first_name, self.last_name = split_full_name(self.name)
+        super().save(*args, **kwargs)
 
 class ShiftStatus(models.TextChoices):
     SCHEDULED = 'scheduled', 'Scheduled'

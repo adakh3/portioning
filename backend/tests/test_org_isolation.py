@@ -44,12 +44,12 @@ class OrgIsolationTestBase(TestCase):
             first_name="Bob", last_name="B", role="owner", organisation=cls.org_b,
         )
 
-        # Seed choice options for Org A (lead statuses/lost reasons auto-created by signal)
-        EventTypeOption.objects.create(organisation=cls.org_a, value="wedding", label="Wedding")
+        # Choice options: event types (incl. "wedding") + workflow options are
+        # auto-created for each org by the post_save signal; get_or_create keeps
+        # this idempotent alongside that.
+        EventTypeOption.objects.get_or_create(organisation=cls.org_a, value="wedding", defaults={"label": "Wedding"})
         LostReasonOption.objects.get_or_create(organisation=cls.org_a, value="budget", defaults={"label": "Budget"})
-
-        # Seed choice options for Org B too (lead statuses auto-created by signal)
-        EventTypeOption.objects.create(organisation=cls.org_b, value="wedding", label="Wedding")
+        EventTypeOption.objects.get_or_create(organisation=cls.org_b, value="wedding", defaults={"label": "Wedding"})
 
         # Org A data
         cls.account_a = Account.objects.create(
@@ -331,3 +331,65 @@ class TestSuperuserOrgSwitch(OrgIsolationTestBase):
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.data["organisation"]["id"], self.org_a.id)
         self.assertFalse(resp.data.get("all_orgs", False))
+class TestSuperuserOrgSwitchRealFlow(OrgIsolationTestBase):
+    """The PROD flow: JWT-cookie login (no Django session auth) → switch org →
+    fetch data. OrgMiddleware runs BEFORE DRF authentication, so for app/API
+    traffic it sees an anonymous user and never applies the session override —
+    it must be resolved at the DRF layer (get_request_org). Regression for the
+    prod bug where a switched superuser kept seeing their own org's data."""
+
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        cls.superuser = User.objects.create_superuser(
+            email="root@super.com", password="testpass123",
+            first_name="Root", last_name="Super", organisation=cls.org_a,
+        )
+        cls.lead_b = Lead.objects.create(
+            organisation=cls.org_b, contact_name="Org B Lead",
+            contact_email="lead@orgb.com", event_type="wedding",
+            event_date=date.today() + timedelta(days=30), guest_estimate=50,
+        )
+
+    def _login(self):
+        client = APIClient()
+        resp = client.post("/api/auth/login/", {
+            "email": "root@super.com", "password": "testpass123",
+        }, format="json")
+        self.assertEqual(resp.status_code, 200, resp.content)
+        return client
+
+    def _lead_ids(self, client):
+        resp = client.get("/api/bookings/leads/?page_size=all")
+        self.assertEqual(resp.status_code, 200, resp.content)
+        return [l["id"] for l in resp.data]
+
+    def test_switched_org_scopes_data_over_jwt(self):
+        client = self._login()
+        # Before switching: own org's data only.
+        ids = self._lead_ids(client)
+        self.assertIn(self.lead_a.id, ids)
+        self.assertNotIn(self.lead_b.id, ids)
+        # Switch to Org B.
+        resp = client.post("/api/auth/switch-org/", {"org_id": self.org_b.id}, format="json")
+        self.assertEqual(resp.status_code, 200, resp.content)
+        self.assertEqual(resp.data["organisation"]["id"], self.org_b.id)
+        # Follow-up data requests must be scoped to Org B (the bug returned Org A).
+        ids = self._lead_ids(client)
+        self.assertIn(self.lead_b.id, ids)
+        self.assertNotIn(self.lead_a.id, ids)
+
+    def test_me_reports_the_switched_org_over_jwt(self):
+        client = self._login()
+        client.post("/api/auth/switch-org/", {"org_id": self.org_b.id}, format="json")
+        me = client.get("/api/auth/me/")
+        self.assertEqual(me.status_code, 200)
+        self.assertEqual(me.data["organisation"]["id"], self.org_b.id)
+
+    def test_clearing_the_switch_returns_to_own_org(self):
+        client = self._login()
+        client.post("/api/auth/switch-org/", {"org_id": self.org_b.id}, format="json")
+        client.post("/api/auth/switch-org/", {}, format="json")
+        ids = self._lead_ids(client)
+        self.assertIn(self.lead_a.id, ids)
+        self.assertNotIn(self.lead_b.id, ids)

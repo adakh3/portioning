@@ -4,6 +4,7 @@ from bookings.models import Quote, BookingLineItem
 from bookings.serializers.leads import _get_event_type_labels
 from bookings.serializers.meals import BookingMealSerializer, replace_meals
 from dishes.models import Dish
+from dishes.ordering import dish_ids_in_added_order, dish_names_in_added_order
 from users.mixins import get_request_org
 from users.serializer_mixins import OrgScopedModelSerializer
 
@@ -48,8 +49,13 @@ class QuoteSerializer(OrgScopedModelSerializer):
     lead_name = serializers.SerializerMethodField()
     event_id = serializers.SerializerMethodField()
     created_by_name = serializers.SerializerMethodField()
+    assigned_to_name = serializers.SerializerMethodField()
 
     food_total = serializers.SerializerMethodField()
+
+    # E-signature status (for the staff-side "send for signature" flow)
+    public_token = serializers.CharField(read_only=True)
+    signature = serializers.SerializerMethodField()
 
     # Menu fields
     dish_ids = serializers.PrimaryKeyRelatedField(
@@ -88,8 +94,10 @@ class QuoteSerializer(OrgScopedModelSerializer):
             'additional_meals',
             'notes', 'internal_notes',
             'sent_at', 'accepted_at',
+            'public_token', 'signature',
             'event', 'event_id',
             'created_by', 'created_by_name',
+            'assigned_to', 'assigned_to_name',
             'line_items', 'created_at', 'updated_at',
         ]
         read_only_fields = [
@@ -124,6 +132,13 @@ class QuoteSerializer(OrgScopedModelSerializer):
         except Exception:
             return None
 
+    def get_signature(self, obj):
+        # The signature is canonical on the event; a quote reads its event's.
+        sig = obj.event.latest_signature if obj.event_id else obj.latest_signature
+        if not sig:
+            return None
+        return {'signer_name': sig.signer_name, 'signed_at': sig.signed_at.isoformat()}
+
     def get_contact_name(self, obj):
         return obj.primary_contact.name if obj.primary_contact else None
 
@@ -145,6 +160,12 @@ class QuoteSerializer(OrgScopedModelSerializer):
             return None
         return (u.get_full_name() or "").strip() or u.email
 
+    def get_assigned_to_name(self, obj):
+        u = obj.assigned_to
+        if not u:
+            return None
+        return (u.get_full_name() or "").strip() or u.email
+
     def get_lead_name(self, obj):
         try:
             if obj.lead:
@@ -156,7 +177,14 @@ class QuoteSerializer(OrgScopedModelSerializer):
         return None
 
     def get_dish_names(self, obj):
-        return list(obj.dishes.values_list('name', flat=True))
+        return dish_names_in_added_order(obj)
+
+    def to_representation(self, instance):
+        # Present dishes in the order they were added, not Dish's alphabetical default.
+        data = super().to_representation(instance)
+        if 'dishes' in data:
+            data['dishes'] = dish_ids_in_added_order(instance)
+        return data
 
     @staticmethod
     def _save_line_items(quote, items_data):
@@ -208,7 +236,9 @@ class QuoteSerializer(OrgScopedModelSerializer):
         return quote
 
 
-QUOTE_LIST_EXCLUDE = {'line_items', 'dishes', 'dish_ids', 'dish_names', 'additional_meals'}
+# signature does a per-row query (latest_signature); it's a detail-view concern.
+QUOTE_LIST_EXCLUDE = {'line_items', 'dishes', 'dish_ids', 'dish_names', 'additional_meals',
+                      'signature', 'public_token'}
 
 
 class QuoteListSerializer(QuoteSerializer):

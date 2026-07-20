@@ -7,7 +7,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('staff', '0007_backfill_allocationrule_org'),
+        ('staff', '0009_backfill_allocationrule_org'),
         ('users', '0001_initial'),
     ]
 

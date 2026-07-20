@@ -10,7 +10,7 @@ import { Card, CardContent } from "@/components/ui/card";
 const selectClass =
   "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring";
 
-const EMPTY = { name: "", phone: "", email: "", address: "", account: "" };
+const EMPTY = { first_name: "", last_name: "", phone: "", email: "", address: "", account: "" };
 
 export default function CustomersPage() {
   const { data: customers = [], error: loadError, isLoading: loading, mutate } = useContacts();
@@ -39,7 +39,8 @@ export default function CustomersPage() {
   function openEdit(c: Contact) {
     setEditingId(c.id);
     setForm({
-      name: c.name, phone: c.phone, email: c.email, address: c.address,
+      first_name: c.first_name || "", last_name: c.last_name || "",
+      phone: c.phone, email: c.email, address: c.address,
       account: c.account != null ? String(c.account) : "",
     });
     setError("");
@@ -51,7 +52,8 @@ export default function CustomersPage() {
     setSaving(true);
     setError("");
     const payload = {
-      name: form.name,
+      first_name: form.first_name,
+      last_name: form.last_name,
       phone: form.phone,
       email: form.email,
       address: form.address,
@@ -94,9 +96,13 @@ export default function CustomersPage() {
             <form onSubmit={handleSubmit}>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Name *</label>
-                  <Input type="text" required maxLength={200} value={form.name}
-                    onChange={(e) => setForm({ ...form, name: e.target.value })} />
+                  <label className="block text-sm font-medium text-foreground mb-1">Name</label>
+                  <div className="flex gap-2">
+                    <Input type="text" required maxLength={100} placeholder="First *" aria-label="First name" className="min-w-[90px]" value={form.first_name}
+                      onChange={(e) => setForm({ ...form, first_name: e.target.value })} />
+                    <Input type="text" maxLength={100} placeholder="Last" aria-label="Last name" className="min-w-[90px]" value={form.last_name}
+                      onChange={(e) => setForm({ ...form, last_name: e.target.value })} />
+                  </div>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Phone / WhatsApp</label>

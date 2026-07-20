@@ -7,7 +7,8 @@ from decimal import Decimal
 
 from django.test import TestCase
 
-from bookings.models import BookingLineItem
+from bookings.models import BookingLineItem, Quote
+from bookings.serializers.quotes import QuoteSerializer
 from bookings.services.totals import compute_booking_totals
 from bookings.tests import make_quote, _make_org
 
@@ -131,7 +132,7 @@ class TestEventTotalsIntegration(TestCase):
     def test_event_food_plus_items_with_tax(self):
         from events.models import Event
         event = Event.objects.create(organisation=self.org, name="E", event_date="2026-09-01",
-                                     gents=20, ladies=30, price_per_head=Decimal("40.00"),
+                                     guest_count=50, gents=20, ladies=30, price_per_head=Decimal("40.00"),
                                      is_taxable=True, tax_rate=Decimal("0.15"))
         # food = 40 * (20+30) = 2000 (taxable)
         BookingLineItem.objects.create(event=event, category="rental", description="Chairs",
@@ -148,7 +149,7 @@ class TestEventTotalsIntegration(TestCase):
     def test_event_not_taxable_has_no_tax(self):
         from events.models import Event
         event = Event.objects.create(organisation=self.org, name="E2", event_date="2026-09-01",
-                                     gents=10, ladies=10, price_per_head=Decimal("50.00"),
+                                     guest_count=20, gents=10, ladies=10, price_per_head=Decimal("50.00"),
                                      is_taxable=False, tax_rate=Decimal("0.20"))
         BookingLineItem.objects.create(event=event, category="rental", description="X",
                                        quantity=Decimal("1"), unit="flat", unit_price=Decimal("100.00"))
@@ -161,7 +162,7 @@ class TestEventTotalsIntegration(TestCase):
     def test_event_total_includes_additional_meals(self):
         from events.models import Event, BookingMeal
         event = Event.objects.create(organisation=self.org, name="E3", event_date="2026-09-01",
-                                     gents=10, ladies=10, price_per_head=Decimal("50.00"), is_taxable=False)
+                                     guest_count=20, gents=10, ladies=10, price_per_head=Decimal("50.00"), is_taxable=False)
         BookingMeal.objects.create(event=event, label="Sehri", guest_count=20, price_per_head=Decimal("15.00"))
         event.recalculate_totals()
         event.refresh_from_db()
@@ -221,7 +222,7 @@ class TestTotalsReconciliation(TestCase):
     def test_event_not_taxable_reconciles_at_zero_rate(self):
         from events.models import Event
         event = Event.objects.create(organisation=self.org, name="E", event_date="2026-09-01",
-                                     gents=25, ladies=25, price_per_head=Decimal("40"),
+                                     guest_count=50, gents=25, ladies=25, price_per_head=Decimal("40"),
                                      is_taxable=False, tax_rate=Decimal("0.15"))
         BookingLineItem.objects.create(event=event, category="rental", description="X",
                                        quantity=Decimal("1"), unit="flat", unit_price=Decimal("300"))
@@ -239,12 +240,49 @@ class TestTotalsReconciliation(TestCase):
         self.assertEqual(quote.tax_amount, Decimal("160.00"))   # 20% of the NET 800, not 1000
         self._assert_reconciles(quote, Decimal("0.20"))
 
+
+class TestSavePathReconciliation(TestCase):
+    """Regression for the prefetch-cache totals bug. QuoteDetailView loads a quote
+    with prefetch_related('line_items'); editing it to ADD an add-on used to leave
+    the stored subtotal computed against the STALE prefetch cache — so the new item
+    saved fine but silently vanished from the subtotal (and the PDF). recalc must
+    read line items fresh. This drives the REAL serializer update path."""
+
+    def setUp(self):
+        self.org = _make_org()
+
+    def _ctx(self):
+        from rest_framework.test import APIRequestFactory
+        from django.contrib.auth import get_user_model
+        req = APIRequestFactory().patch("/")
+        req.user = get_user_model().objects.filter(organisation=self.org).first()
+        return {"request": req}
+
+    def test_adding_addon_via_prefetched_update_updates_stored_subtotal(self):
+        quote = make_quote(org=self.org, guest_count=30,
+                           price_per_head=Decimal("1000.00"), tax_rate=Decimal("0.05"))
+        quote.recalculate_totals()
+        # Reload EXACTLY as the detail/edit endpoint does — this poisons the cache.
+        prefetched = Quote.objects.prefetch_related("line_items").get(pk=quote.pk)
+        list(prefetched.line_items.all())  # evaluate the (empty) prefetch cache
+        ser = QuoteSerializer(prefetched, partial=True, context=self._ctx(), data={
+            "line_items": [{"category": "fee", "description": "Decor", "quantity": "1",
+                            "unit": "each", "unit_price": "5000", "is_taxable": True}],
+        })
+        ser.is_valid(raise_exception=True)
+        ser.save()
+        quote.refresh_from_db()
+        # food 30000 + add-on 5000 = 35000 (the stale-cache bug left it at 30000).
+        self.assertEqual(quote.subtotal, Decimal("35000.00"))
+        self.assertEqual(quote.tax_amount, Decimal("1750.00"))   # 5% of 35000
+        self.assertEqual(quote.line_items.count(), 1)
+
     def test_big_eaters_does_not_change_food_total(self):
         # big_eaters is a portioning modifier (grams), not a price multiplier.
         from events.models import Event
         plain = Event.objects.create(organisation=self.org, name="A", event_date="2026-09-01",
-                                     gents=10, ladies=10, price_per_head=Decimal("50"))
+                                     guest_count=20, gents=10, ladies=10, price_per_head=Decimal("50"))
         big = Event.objects.create(organisation=self.org, name="B", event_date="2026-09-01",
-                                   gents=10, ladies=10, price_per_head=Decimal("50"),
+                                   guest_count=20, gents=10, ladies=10, price_per_head=Decimal("50"),
                                    big_eaters=True, big_eaters_percentage=30.0)
         self.assertEqual(plain.food_total, big.food_total)

@@ -41,7 +41,7 @@ class EventPDFTests(TestCase):
     def _event(self, org=None):
         e = Event.objects.create(
             organisation=org or self.org, name="Khan Wedding",
-            event_date=datetime.date(2026, 8, 1), gents=60, ladies=40,
+            event_date=datetime.date(2026, 8, 1), guest_count=100, gents=60, ladies=40,
             big_eaters=True, big_eaters_percentage=20, event_type="wedding",
             price_per_head=Decimal("50"), guaranteed_count=100, final_count=95,
             status="confirmed", setup_time=_dt(16), meal_time=_dt(20),
@@ -84,6 +84,24 @@ class EventPDFTests(TestCase):
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res["Content-Type"], "application/pdf")
         self.assertTrue(res.content.startswith(b"%PDF"))
+
+    def test_menu_items_render_in_add_order_not_alphabetical(self):
+        if not HAVE_PYPDF:
+            self.skipTest("pypdf not installed")
+        from dishes.tests import make_category, make_dish
+        # Two dishes → the menu table puts one in each column on the same row, so
+        # extracted text order is unambiguous (unlike a 3+ item 2-column split).
+        cat = make_category(org=self.org)
+        z = make_dish(org=self.org, category=cat, name="Zebra Kebab")
+        a = make_dish(org=self.org, category=cat, name="Apple Tart")
+        e = Event.objects.create(
+            organisation=self.org, name="Order Test",
+            event_date=datetime.date(2026, 8, 1), guest_count=20, gents=10, ladies=10,
+        )
+        e.dishes.set([z, a])  # added Zebra first — reverse-alphabetical
+        text = self._text(e)
+        # Add-order (Zebra before Apple), NOT alphabetical (Apple before Zebra).
+        self.assertLess(text.find("Zebra Kebab"), text.find("Apple Tart"))
 
     def test_never_mentions_big_eaters(self):
         if not HAVE_PYPDF:

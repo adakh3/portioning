@@ -44,6 +44,8 @@ def _get_lead_status_labels(org_id):
 
 
 class LeadSerializer(OrgScopedModelSerializer):
+    # The display name is composed from first/last on save; forms send parts.
+    contact_name = serializers.CharField(required=False, allow_blank=True, max_length=200)
     account_name = serializers.CharField(source='account.name', read_only=True, default=None)
     status_display = serializers.SerializerMethodField()
     event_type_display = serializers.SerializerMethodField()
@@ -62,7 +64,8 @@ class LeadSerializer(OrgScopedModelSerializer):
         model = Lead
         fields = [
             'id', 'account', 'account_name',
-            'contact_name', 'contact_email', 'contact_phone',
+            'contact_title', 'contact_name', 'contact_first_name', 'contact_last_name',
+            'contact_email', 'contact_phone',
             'source', 'event_date', 'lead_date', 'guest_estimate',
             'budget',
             'event_type', 'event_type_display',
@@ -96,6 +99,13 @@ class LeadSerializer(OrgScopedModelSerializer):
         if obj.created_by:
             return f"{obj.created_by.first_name} {obj.created_by.last_name}".strip() or obj.created_by.email
         return None
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs) if hasattr(super(), 'validate') else attrs
+        creating = self.instance is None
+        if creating and not (attrs.get('contact_name') or attrs.get('contact_first_name')):
+            raise serializers.ValidationError({'contact_first_name': 'First name is required.'})
+        return attrs
 
     def get_status_display(self, obj):
         return _get_lead_status_labels(obj.organisation_id).get(obj.status, obj.status)

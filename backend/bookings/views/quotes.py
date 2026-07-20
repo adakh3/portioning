@@ -10,6 +10,7 @@ from bookings.serializers import QuoteSerializer, QuoteLineItemSerializer
 from bookings.serializers.quotes import QuoteListSerializer
 from bookings.pdf import generate_quote_pdf
 from bookings.permissions import is_salesperson
+from bookings.services.quote_acceptance import accept_quote
 from users.mixins import get_request_org, apply_org_filter, get_org_object_or_404
 
 
@@ -24,6 +25,22 @@ def _copy_line_items_to_event(quote, event):
         )
 
 
+def _copy_additional_meals_to_event(quote, event):
+    """Copy a quote's additional meals (menus, prices, portions) onto its event."""
+    from events.models import BookingMeal, BookingMealDishComment
+    for meal in quote.additional_meals.all():
+        copy = BookingMeal.objects.create(
+            event=event, label=meal.label, guest_count=meal.guest_count,
+            price_per_head=meal.price_per_head, based_on_template=meal.based_on_template,
+            meal_time=meal.meal_time, notes=meal.notes,
+        )
+        copy.dishes.set(meal.dishes.all())
+        for dc in meal.dish_comments.all():
+            BookingMealDishComment.objects.create(
+                meal=copy, dish=dc.dish, comment=dc.comment, portion_grams=dc.portion_grams,
+            )
+
+
 class QuoteListCreateView(generics.ListCreateAPIView):
     serializer_class = QuoteSerializer
 
@@ -34,7 +51,16 @@ class QuoteListCreateView(generics.ListCreateAPIView):
 
     def perform_create(self, serializer):
         user = self.request.user if self.request.user.is_authenticated else None
-        serializer.save(created_by=user, organisation=get_request_org(self.request))
+        org = get_request_org(self.request)
+        from bookings.models import ProductLine
+        product = serializer.validated_data.get('product') or ProductLine.default_for(org)
+        # Owner defaults to the linked lead's salesperson, else whoever created it —
+        # so a quote always has an owner for commission attribution (see conversion).
+        assigned = serializer.validated_data.get('assigned_to')
+        if assigned is None:
+            lead = serializer.validated_data.get('lead')
+            assigned = (lead.assigned_to if lead else None) or user
+        serializer.save(created_by=user, organisation=org, product=product, assigned_to=assigned)
 
     def get_queryset(self):
         # select_related covers every FK the (list & detail) serializer reads:
@@ -42,7 +68,7 @@ class QuoteListCreateView(generics.ListCreateAPIView):
         # Without product/created_by the list view did 2×N extra queries.
         qs = Quote.objects.select_related(
             'account', 'venue', 'lead', 'event', 'based_on_template',
-            'primary_contact', 'product', 'created_by',
+            'primary_contact', 'product', 'created_by', 'assigned_to',
         # food_total sums additional_meals, so the list serializer needs them
         # prefetched (one query, not per-row) to avoid an N+1.
         ).prefetch_related('additional_meals')
@@ -54,7 +80,7 @@ class QuoteListCreateView(generics.ListCreateAPIView):
         # Salesperson sees only quotes they created or linked to their leads
         user = self.request.user
         if is_salesperson(user):
-            qs = qs.filter(Q(lead__assigned_to=user) | Q(created_by=user))
+            qs = qs.filter(Q(assigned_to=user) | Q(lead__assigned_to=user) | Q(created_by=user))
 
         quote_status = self.request.query_params.get('status')
         if quote_status:
@@ -68,7 +94,7 @@ class QuoteDetailView(generics.RetrieveUpdateDestroyAPIView):
     def get_queryset(self):
         qs = Quote.objects.select_related(
             'account', 'venue', 'lead', 'event', 'based_on_template',
-            'primary_contact', 'product', 'created_by',
+            'primary_contact', 'product', 'created_by', 'assigned_to',
         ).prefetch_related('line_items', 'dishes')
         return apply_org_filter(qs, self.request)
 
@@ -87,87 +113,17 @@ class QuoteTransitionView(APIView):
         new_status = request.data.get('status')
         if not new_status:
             return Response({'error': 'status is required'}, status=status.HTTP_400_BAD_REQUEST)
+        user = request.user if request.user.is_authenticated else None
         try:
-            quote.transition_to(new_status)
+            # Accepting a quote also creates the confirmed event + wins the lead;
+            # that shared logic lives in accept_quote (used by the client-facing
+            # e-sign flow too). Other transitions are a plain status change.
+            if new_status == QuoteStatus.ACCEPTED:
+                accept_quote(quote, user=user)
+            else:
+                quote.transition_to(new_status)
         except ValueError as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Auto-create Event when quote is accepted
-        if new_status == QuoteStatus.ACCEPTED and not quote.event:
-            from events.models import Event
-            user = request.user if request.user.is_authenticated else None
-            who = quote.account.name if quote.account_id else (
-                quote.primary_contact.name if quote.primary_contact_id else 'Event')
-            event_name = f"{who} — {quote.event_type}"
-            event = Event.objects.create(
-                name=event_name,
-                event_date=quote.event_date,
-                gents=quote.gents,
-                ladies=quote.ladies,
-                big_eaters=quote.big_eaters,
-                big_eaters_percentage=quote.big_eaters_percentage,
-                account=quote.account,
-                is_b2b=quote.is_b2b,
-                primary_contact=quote.primary_contact,
-                venue=quote.venue,
-                venue_address=quote.venue_address,
-                event_type=quote.event_type,
-                meal_type=quote.meal_type,
-                service_style=quote.service_style,
-                booking_date=quote.accepted_at.date() if quote.accepted_at else None,
-                price_per_head=quote.price_per_head,
-                tax_rate=quote.tax_rate or 0,
-                is_taxable=bool(quote.tax_rate and quote.tax_rate > 0),
-                status='confirmed',
-                product=quote.product,
-                based_on_template=quote.based_on_template,
-                created_by=user,
-                # Credit the deal owner (the quote/lead's salesperson) for sales
-                # targets; fall back to whoever accepted the quote.
-                assigned_to=(quote.lead.assigned_to if quote.lead_id else None) or user,
-                organisation=quote.organisation,
-            )
-            # Copy menu (dishes) from quote to event
-            if quote.dishes.exists():
-                event.dishes.set(quote.dishes.all())
-
-                # Auto-calculate portions for kitchen
-                from calculator.engine.calculator import calculate_portions
-                from events.models import EventDishComment
-                result = calculate_portions(
-                    dish_ids=list(event.dishes.values_list('id', flat=True)),
-                    guests={'gents': event.gents, 'ladies': event.ladies},
-                    org=quote.organisation,
-                )
-                for p in result['portions']:
-                    EventDishComment.objects.create(
-                        event=event,
-                        dish_id=p['dish_id'],
-                        portion_grams=p['grams_per_person'],
-                    )
-
-            # Carry the add-on line items across to the event (previously dropped).
-            _copy_line_items_to_event(quote, event)
-
-            # Recompute via the shared engine so the event total matches the
-            # quote even when there are no add-on items (food-only quotes).
-            event.recalculate_totals()
-
-            quote.event = event
-            quote.save(update_fields=['event', 'updated_at'])
-
-            # Auto-win the lead if it exists and isn't already won
-            if quote.lead and quote.lead.status != 'won':
-                from bookings.activity import log_activity
-                old_status = quote.lead.status
-                quote.lead.won_event = event
-                quote.lead.won_quote = quote
-                quote.lead.transition_to('won')
-                log_activity(
-                    quote.lead, 'status_change',
-                    field_name='status', old_value=old_status, new_value='won',
-                    description=f"Auto-marked as Won via quote acceptance (Quote #{quote.id})",
-                )
 
         # Re-fetch with all relations for serializer
         quote = get_org_object_or_404(
@@ -232,3 +188,46 @@ class QuotePDFView(APIView):
         response = HttpResponse(pdf_bytes, content_type='application/pdf')
         response['Content-Disposition'] = f'attachment; filename="Quote-{quote.pk}-v{quote.version}.pdf"'
         return response
+
+class QuoteMarkSharedWhatsAppView(APIView):
+    """POST /api/bookings/quotes/<pk>/mark-shared-whatsapp/ — the rep shared
+    this quotation via a WhatsApp shortcut (own device, PDF attached by hand).
+    Confirming makes the record match reality: a draft quote flips to sent,
+    the share is logged on the quote AND its lead (the AI reads the lead's
+    activity), and the greeting lands in the lead's message thread."""
+
+    def post(self, request, pk):
+        from django.utils import timezone as tz
+        from bookings.activity import log_activity
+        from bookings.models import WhatsAppMessage
+
+        quote = get_org_object_or_404(Quote, request, pk=pk)
+        user = request.user if request.user.is_authenticated else None
+
+        if quote.status == QuoteStatus.DRAFT:
+            quote.status = QuoteStatus.SENT
+            quote.save(update_fields=['status', 'updated_at'])
+
+        log_activity(
+            quote, 'updated', user=user,
+            field_name='whatsapp',
+            description='Quotation shared via WhatsApp (from own device)',
+        )
+        if quote.lead_id:
+            log_activity(
+                quote.lead, 'updated', user=user,
+                field_name='whatsapp',
+                description=f'Quotation #{quote.pk} shared via WhatsApp (from own device)',
+            )
+            body = request.data.get('body') or f'Quotation #{quote.pk} shared.'
+            WhatsAppMessage.objects.create(
+                organisation=quote.organisation,
+                lead=quote.lead,
+                to_phone=f'whatsapp:{quote.lead.contact_phone}',
+                from_phone='manual',
+                body=body,
+                direction='outbound',
+                status='sent',
+                sent_by=user,
+            )
+        return Response(QuoteSerializer(quote).data)

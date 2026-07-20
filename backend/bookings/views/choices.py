@@ -16,7 +16,9 @@ from bookings.serializers.choices import (
 
 
 class EventTypeOptionListView(OrgQuerySetMixin, generics.ListAPIView):
-    queryset = EventTypeOption.objects.filter(is_active=True)
+    # Always A-Z: unlike lead statuses (pipeline order), event types have no
+    # meaningful custom order and an unsorted list is hard to scan.
+    queryset = EventTypeOption.objects.filter(is_active=True).order_by('label')
     serializer_class = EventTypeOptionSerializer
 
 

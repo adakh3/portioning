@@ -4,6 +4,7 @@ nest meals without an events→bookings→events import cycle."""
 from rest_framework import serializers
 
 from dishes.models import Dish
+from dishes.ordering import dish_ids_in_added_order
 from events.models import BookingMeal, BookingMealDishComment
 
 
@@ -31,6 +32,13 @@ class BookingMealSerializer(serializers.ModelSerializer):
             'notes': {'max_length': 5000},
             'label': {'required': False, 'allow_blank': True},
         }
+
+    def to_representation(self, instance):
+        # Dishes in add-order, not Dish's alphabetical default.
+        data = super().to_representation(instance)
+        if 'dishes' in data:
+            data['dishes'] = dish_ids_in_added_order(instance)
+        return data
 
 
 def replace_meals(parent_field, parent_obj, meals_data):

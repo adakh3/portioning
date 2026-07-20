@@ -226,6 +226,13 @@ export default function HelpPage() {
           The total amount to prepare is calculated by multiplying per-person portions by the
           number of gents and ladies respectively.
         </p>
+        <p>
+          The <strong>guest count</strong> is the primary number on an event — it drives all
+          pricing. The gents/ladies split is optional and only entered when known; when
+          given, it must add up to the guest count. If an event has <strong>no split</strong>,
+          all guests are portioned under one rule, chosen in{" "}
+          <strong>Settings → General → Default Portion Rule</strong> (default: Standard/gents).
+        </p>
       </Section>
 
       <Section title="Service Items">

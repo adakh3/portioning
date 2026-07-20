@@ -64,6 +64,12 @@ def create_org_defaults(sender, instance, created, **kwargs):
             defaults={'label': label, 'sort_order': sort_order},
         )
 
+    # Non-workflow dropdowns (event types, sources, service styles, meal
+    # types) get sensible US-mainstream starters so the org's forms aren't
+    # empty on day one. All editable/removable in Settings.
+    from bookings.defaults import seed_choice_defaults
+    seed_choice_defaults(instance)
+
 
 @receiver(m2m_changed)
 def block_cross_org_m2m(sender, instance, action, reverse, model, pk_set, **kwargs):

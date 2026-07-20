@@ -14,7 +14,7 @@ def backfill(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('staff', '0006_allocationrule_organisation_alter_laborrole_name_and_more'),
+        ('staff', '0008_allocationrule_organisation_alter_laborrole_name_and_more'),
     ]
 
     operations = [

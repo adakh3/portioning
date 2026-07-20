@@ -290,6 +290,8 @@ export interface AddOnProduct {
 
 export interface Contact {
   id: number;
+  first_name?: string;
+  last_name?: string;
   account: number | null;
   name: string;
   email: string;
@@ -342,7 +344,10 @@ export interface Lead {
   id: number;
   account: number | null;
   account_name: string | null;
+  contact_title: string;
   contact_name: string;
+  contact_first_name: string;
+  contact_last_name: string;
   contact_email: string;
   contact_phone: string;
   source: string;
@@ -446,10 +451,14 @@ export interface Quote {
   internal_notes: string;
   sent_at: string | null;
   accepted_at: string | null;
+  public_token: string | null;
+  signature: BookingSignatureInfo | null;
   event: number | null;
   event_id: number | null;
   created_by: number | null;
   created_by_name: string | null;
+  assigned_to: number | null;
+  assigned_to_name: string | null;
   line_items: QuoteLineItem[];
   additional_meals: EventMealData[];
   created_at: string;
@@ -491,6 +500,8 @@ export interface StaffReportEntry {
 export interface StaffMember {
   id: number;
   name: string;
+  first_name?: string;
+  last_name?: string;
   email: string;
   phone: string;
   roles: number[];
@@ -622,8 +633,11 @@ export interface SiteSettingsData {
   currency_code: string;
   date_format: string;
   date_format_choices?: { value: string; label: string }[];
+  time_format?: string;
+  time_format_choices?: { value: string; label: string }[];
   timezone: string;
   default_price_per_head: string;
+  default_guest_profile?: string;
   target_food_cost_percentage: string;
   price_rounding_step: string;
   quotation_terms: string;
@@ -639,8 +653,17 @@ export interface SiteSettingsData {
   fiscal_year_start_month_choices?: { value: number; label: string }[];
   // WhatsApp
   whatsapp_enabled?: boolean;
+  whatsapp_shortcuts_enabled?: boolean;
   twilio_configured?: boolean;
   twilio_whatsapp_number?: string;
+  // AI follow-ups
+  ai_followups_enabled?: boolean;
+  ai_followups_configured?: boolean;
+  followup_gap_first_days?: number;
+  followup_gap_second_days?: number;
+  followup_gap_final_days?: number;
+  followup_max_drafts_per_lead?: number;
+  followup_auto_generate?: boolean;
 }
 
 export interface CommissionPlanConfig {
@@ -683,6 +706,7 @@ export interface EventData {
   id: number;
   name: string;
   date: string;
+  guest_count: number;
   gents: number;
   ladies: number;
   big_eaters: boolean;
@@ -707,6 +731,8 @@ export interface EventData {
   product_name: string | null;
   assigned_to: number | null;
   assigned_to_name: string | null;
+  created_by: number | null;
+  created_by_name: string | null;
   primary_contact: number | null;
   contact_name: string | null;
   venue: number | null;
@@ -736,6 +762,9 @@ export interface EventData {
   final_count_due: string | null;
   // Nested
   source_quote_id: number | null;
+  contact_phone: string | null;
+  public_token: string | null;
+  signature: BookingSignatureInfo | null;
   line_items: QuoteLineItem[];
   additional_meals: EventMealData[];
   shifts: Shift[];
@@ -847,6 +876,7 @@ export interface Reminder {
   id: number;
   lead: number;
   lead_name: string;
+  lead_phone?: string;
   user: number;
   user_name: string;
   due_at: string;
@@ -882,6 +912,67 @@ export interface WhatsAppMessage {
   created_at: string;
   updated_at: string;
 }
+
+// AI follow-up drafts
+export interface FollowUpStatsRow {
+  user_id: number | null;
+  name: string;
+  to_review: number;
+  due: number;
+  sent: number;
+}
+
+export interface FollowUpStats {
+  to_review: number;
+  due: number;
+  sent: number;
+  breakdown?: FollowUpStatsRow[];
+}
+
+export interface FollowUpDraft {
+  id: number;
+  lead: number;
+  lead_name: string | null;
+  lead_phone?: string;
+  lead_event_type?: string;
+  lead_event_date?: string | null;
+  lead_guest_estimate?: number | null;
+  lead_assigned_to_name?: string | null;
+  lead_days_stale?: number | null;
+  channel: string;
+  body: string;
+  reasoning: string;
+  status: "pending" | "sent" | "dismissed";
+  model_used: string;
+  whatsapp_message: number | null;
+  reviewed_by: number | null;
+  reviewed_by_name: string | null;
+  reviewed_at: string | null;
+  created_at: string;
+}
+
+// On-demand generation: the preview of stale leads the generator would draft for
+export interface FollowUpPreviewLead {
+  id: number;
+  contact_name: string;
+  days_stale: number;
+  status: string;
+  event_date: string | null;
+  budget: string | null;
+  assigned_to: number | null;
+  assigned_to_name: string | null;
+}
+
+export interface FollowUpPreview {
+  configured: boolean;
+  first_gap_days: number;
+  leads: FollowUpPreviewLead[];
+}
+
+export type FollowUpGenerateResult =
+  | { status: "created"; draft: FollowUpDraft }
+  | { status: "skipped"; reasoning: string }
+  | { status: "ineligible"; detail: string };
 
 // Calendar types
 export interface CalendarEvent {
@@ -1083,6 +1174,50 @@ export interface Plan {
   display_amount: string;
   currency: string;
   currency_symbol: string;
+}
+
+// ── E-signature ──
+export interface BookingSignatureInfo {
+  signer_name: string;
+  signed_at: string;
+}
+
+/** Customer-safe view of a booking behind a public sign token. */
+export interface PublicBooking {
+  kind: "quote" | "event";
+  reference: string;
+  business_name: string;
+  currency_symbol: string;
+  currency_code: string;
+  tax_label: string;
+  terms: string;
+  customer_name: string | null;
+  event_date: string | null;
+  venue_name: string | null;
+  venue_address: string;
+  guest_count: number;
+  event_type: string;
+  meal_type: string;
+  service_style: string;
+  menu: { category: string; items: string[] }[];
+  line_items: { description: string; category: string; quantity: string; unit: string; line_total: string }[];
+  price_per_head: string | null;
+  subtotal: string;
+  tax_amount: string;
+  total: string;
+  notes: string;
+  status: string;
+  is_signed: boolean;
+  signable: boolean;
+  signer_name: string | null;
+  signed_at: string | null;
+}
+
+export interface SignBookingPayload {
+  signer_name: string;
+  consent: boolean;
+  signer_email?: string;
+  signature_image?: string;
 }
 
 // API functions
@@ -1369,6 +1504,32 @@ export const api = {
     fetchApi<void>(`/bookings/quotes/${id}/`, { method: "DELETE" }),
   transitionQuote: (id: number, status: string) =>
     fetchApi<Quote>(`/bookings/quotes/${id}/transition/`, { method: "POST", body: JSON.stringify({ status }) }),
+
+  // ── E-signature ──
+  // Staff: mint the client sign link (and mark the quote SENT).
+  sendQuoteForSignature: (id: number) =>
+    fetchApi<{ public_token: string; status: string }>(
+      `/bookings/quotes/${id}/send-for-signature/`, { method: "POST" }),
+  sendEventForSignature: (id: number) =>
+    fetchApi<{ public_token: string; status: string }>(
+      `/events/${id}/send-for-signature/`, { method: "POST" }),
+  // Public (unauthenticated): a plain fetch, deliberately outside fetchApi so a
+  // client with no session never hits the 401-refresh/redirect path.
+  getPublicBooking: async (token: string): Promise<PublicBooking> => {
+    const res = await fetch(`${API_BASE}/public/bookings/${token}/`, { headers: { "Content-Type": "application/json" } });
+    if (!res.ok) throw new Error(sanitizeError(res.status, await res.text()));
+    return res.json();
+  },
+  signPublicBooking: async (token: string, payload: SignBookingPayload): Promise<PublicBooking> => {
+    const res = await fetch(`${API_BASE}/public/bookings/${token}/sign/`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error(sanitizeError(res.status, await res.text()));
+    return res.json();
+  },
+  publicBookingPdfUrl: (token: string) => `${API_BASE}/public/bookings/${token}/pdf/`,
   downloadQuotePDF: async (id: number): Promise<Blob> => {
     const res = await fetch(`${API_BASE}/bookings/quotes/${id}/pdf/`, {
       credentials: "include",
@@ -1518,12 +1679,13 @@ export const api = {
     fetchApi<SiteSettingsData>("/bookings/settings/", { method: "PATCH", body: JSON.stringify(data) }),
 
   // Reminders
-  getReminders: (params?: { status?: string; due_before?: string; due_after?: string; lead?: number }) => {
+  getReminders: (params?: { status?: string; due_before?: string; due_after?: string; lead?: number; user?: string }) => {
     const searchParams = new URLSearchParams({ page_size: "all" });
     if (params?.status) searchParams.set("status", params.status);
     if (params?.due_before) searchParams.set("due_before", params.due_before);
     if (params?.due_after) searchParams.set("due_after", params.due_after);
     if (params?.lead) searchParams.set("lead", params.lead.toString());
+    if (params?.user) searchParams.set("user", params.user);
     return fetchList<Reminder>(`/bookings/reminders/?${searchParams.toString()}`);
   },
   getReminderCounts: () => fetchApi<ReminderCounts>("/bookings/reminders/counts/"),
@@ -1543,6 +1705,51 @@ export const api = {
     fetchApi<WhatsAppMessage>(`/bookings/leads/${leadId}/whatsapp/send/`, { method: "POST", body: JSON.stringify(data) }),
   markWhatsAppRead: (leadId: number) =>
     fetchApi<{ marked_read: number }>(`/bookings/leads/${leadId}/whatsapp/mark-read/`, { method: "POST" }),
+
+  // AI follow-up drafts
+  getFollowUpDrafts: (status: string = "pending") =>
+    fetchList<FollowUpDraft>(`/bookings/followup-drafts/?page_size=all&status=${status}`),
+  getLeadFollowUpDrafts: (leadId: number) =>
+    fetchList<FollowUpDraft>(`/bookings/leads/${leadId}/followup-drafts/?page_size=all`),
+  getFollowUpDraftCount: () =>
+    fetchApi<{ pending: number }>(`/bookings/followup-drafts/count/`),
+  getFollowUpStats: (period: string = "all", dateFrom?: string, dateTo?: string) => {
+    const params = new URLSearchParams({ period });
+    if (dateFrom) params.set("date_from", dateFrom);
+    if (dateTo) params.set("date_to", dateTo);
+    return fetchApi<FollowUpStats>(`/bookings/followup-drafts/stats/?${params.toString()}`);
+  },
+  approveFollowUpDraft: (id: number, body?: string) =>
+    fetchApi<FollowUpDraft>(`/bookings/followup-drafts/${id}/approve/`, {
+      method: "POST",
+      body: JSON.stringify(body !== undefined ? { body } : {}),
+    }),
+  dismissFollowUpDraft: (id: number) =>
+    fetchApi<FollowUpDraft>(`/bookings/followup-drafts/${id}/dismiss/`, { method: "POST" }),
+  markFollowUpSent: (id: number, body?: string) =>
+    fetchApi<FollowUpDraft>(`/bookings/followup-drafts/${id}/mark-sent/`, {
+      method: "POST",
+      body: JSON.stringify(body != null ? { body } : {}),
+    }),
+  logLeadReply: (leadId: number) =>
+    fetchApi<{ logged: boolean }>(`/bookings/leads/${leadId}/log-reply/`, { method: "POST" }),
+  markQuoteSharedWhatsApp: (id: number, body?: string) =>
+    fetchApi<Quote>(`/bookings/quotes/${id}/mark-shared-whatsapp/`, {
+      method: "POST",
+      body: JSON.stringify(body != null ? { body } : {}),
+    }),
+  getFollowUpPreview: () =>
+    fetchApi<FollowUpPreview>(`/bookings/followup-drafts/preview/`),
+  generateFollowUpDraft: (leadId: number) =>
+    fetchApi<FollowUpGenerateResult>(`/bookings/followup-drafts/generate/`, {
+      method: "POST",
+      body: JSON.stringify({ lead: leadId }),
+    }),
+  bulkApproveFollowUpDrafts: (ids?: number[]) =>
+    fetchApi<{ sent: number[]; failed: { id: number; error: string }[] }>(
+      `/bookings/followup-drafts/bulk-approve/`,
+      { method: "POST", body: JSON.stringify(ids ? { ids } : {}) },
+    ),
 
   // Calendar
   getEventCalendar: (month: string, status?: string, product?: string) => {

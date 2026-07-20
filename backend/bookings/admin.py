@@ -1,7 +1,6 @@
 import json
 from dataclasses import asdict
 
-from django import forms
 from django.contrib import admin
 from django.shortcuts import render, redirect
 from django.urls import path, reverse
@@ -90,8 +89,9 @@ class VenueAdmin(OrgScopedAdmin):
 
 @admin.register(ProductLine)
 class ProductLineAdmin(OrgScopedAdmin):
-    list_display = ['name', 'organisation', 'is_active', 'created_at']
-    list_filter = ['is_active']
+    list_display = ['name', 'organisation', 'is_active', 'is_default', 'created_at']
+    list_editable = ['is_active', 'is_default']
+    list_filter = ['is_active', 'is_default']
     search_fields = ['name']
 
 
@@ -426,33 +426,10 @@ class ReminderAdmin(OrgScopedAdmin):
 
 # --- Settings ---
 
-class OrgSettingsForm(forms.ModelForm):
-    twilio_auth_token_plain = forms.CharField(
-        label='Twilio Auth Token',
-        required=False,
-        widget=forms.PasswordInput(render_value=False),
-        help_text='Enter a new token to update. Leave blank to keep current.',
-    )
-
-    class Meta:
-        model = OrgSettings
-        exclude = ['twilio_auth_token_encrypted']
-
-    def save(self, commit=True):
-        instance = super().save(commit=False)
-        token = self.cleaned_data.get('twilio_auth_token_plain')
-        if token:
-            instance.twilio_auth_token = token  # uses the encrypting setter
-        if commit:
-            instance.save()
-        return instance
-
-
 @admin.register(OrgSettings)
 class OrgSettingsAdmin(admin.ModelAdmin):
-    form = OrgSettingsForm
     list_display = ['organisation', 'whatsapp_enabled', 'twilio_whatsapp_number', 'twilio_configured']
-    readonly_fields = ['twilio_configured']
+    readonly_fields = ['twilio_configured', 'ai_followups_configured']
     fieldsets = (
         (None, {
             'fields': ('organisation', 'currency_symbol', 'currency_code', 'date_format', 'timezone'),
@@ -461,14 +438,29 @@ class OrgSettingsAdmin(admin.ModelAdmin):
             'fields': ('tax_label', 'default_tax_rate', 'default_price_per_head', 'target_food_cost_percentage', 'price_rounding_step'),
         }),
         ('WhatsApp / Twilio', {
-            'fields': ('whatsapp_enabled', 'twilio_account_sid', 'twilio_auth_token_plain', 'twilio_whatsapp_number', 'twilio_configured'),
-            'description': 'Configure Twilio credentials to enable WhatsApp for this organisation.',
+            'fields': ('whatsapp_enabled', 'twilio_whatsapp_number', 'twilio_configured'),
+            'description': (
+                'The Twilio account is platform-level (TWILIO_ACCOUNT_SID / '
+                'TWILIO_AUTH_TOKEN env vars). Set this org’s WhatsApp sender number here.'
+            ),
+        }),
+        ('AI follow-ups', {
+            'fields': ('ai_followups_enabled', 'followup_gap_first_days', 'followup_gap_second_days', 'followup_gap_final_days', 'followup_max_drafts_per_lead', 'ai_followups_configured'),
+            'description': (
+                'Model set platform-wide by the LLM_FOLLOWUP_DRAFTER env var '
+                '(provider:model) plus that provider\'s API key. '
+                'Requires WhatsApp configured above to deliver approved drafts.'
+            ),
         }),
     )
 
     def twilio_configured(self, obj):
         return obj.twilio_configured
     twilio_configured.boolean = True
+
+    def ai_followups_configured(self, obj):
+        return obj.ai_followups_configured
+    ai_followups_configured.boolean = True
 
 
 # --- WhatsApp Messages ---

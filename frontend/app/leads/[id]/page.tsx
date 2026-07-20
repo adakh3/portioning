@@ -3,8 +3,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { api, Lead, Account, AuthUser, ProductLine, Reminder, WhatsAppMessage } from "@/lib/api";
-import { useLead, useSiteSettings, useDateFormat, useProductLines, useUsers, useSources, useEventTypes, useServiceStyles, useMealTypes, useLeadStatuses, useLostReasons, useLeadReminders, useLeadWhatsAppMessages, revalidate } from "@/lib/hooks";
+import { api, Lead, Account, AuthUser, ProductLine, Reminder, WhatsAppMessage, FollowUpDraft } from "@/lib/api";
+import { useLead, useSiteSettings, useDateFormat, useProductLines, useUsers, useSources, useEventTypes, useServiceStyles, useMealTypes, useLeadStatuses, useLostReasons, useLeadReminders, useLeadWhatsAppMessages, useLeadFollowUpDrafts, revalidate } from "@/lib/hooks";
 import { formatDate, formatDateTime } from "@/lib/dateFormat";
 import { formatCurrency } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ValidatedInput } from "@/components/ui/validated-input";
 import { Textarea } from "@/components/ui/textarea";
 import ActivityTimeline from "@/components/ActivityTimeline";
+import { canWhatsApp, waLink } from "@/lib/whatsapp";
+import { MessageCircle } from "lucide-react";
+import { TITLE_OPTIONS } from "@/lib/titles";
 
 
 const STATUS_BADGE_VARIANT: Record<string, "info" | "warning" | "default" | "success" | "secondary"> = {
@@ -207,7 +210,9 @@ export default function LeadDetailPage() {
   // Create mode form state
   const [formData, setFormData] = useState({
     account: "" as string | number,
-    contact_name: "",
+    contact_title: "",
+    contact_first_name: "",
+    contact_last_name: "",
     contact_email: "",
     contact_phone: "",
     source: "",
@@ -367,11 +372,31 @@ export default function LeadDetailPage() {
             <form onSubmit={handleCreate}>
               <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Contact</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Contact Name *</label>
-                  <ValidatedInput type="text" required maxLength={60} value={formData.contact_name} onChange={setField("contact_name")} />
+                <div className="flex gap-2">
+                  <div className="w-24 shrink-0">
+                    <label className="block text-sm font-medium text-foreground mb-1">Title</label>
+                    <select
+                      aria-label="Title"
+                      value={formData.contact_title}
+                      onChange={setField("contact_title")}
+                      className="w-full h-9 rounded-md border border-border bg-background px-2 text-sm"
+                    >
+                      <option value="">—</option>
+                      {TITLE_OPTIONS.map((t) => (
+                        <option key={t} value={t}>{t}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex-1">
+                    <label className="block text-sm font-medium text-foreground mb-1">First Name *</label>
+                    <ValidatedInput type="text" required maxLength={60} value={formData.contact_first_name} onChange={setField("contact_first_name")} aria-label="First name" />
+                  </div>
+                  <div className="flex-1">
+                    <label className="block text-sm font-medium text-foreground mb-1">Last Name</label>
+                    <ValidatedInput type="text" maxLength={60} value={formData.contact_last_name} onChange={setField("contact_last_name")} aria-label="Last name" />
+                  </div>
                 </div>
-                <div>
+                <div className="md:col-start-1">
                   <label className="block text-sm font-medium text-foreground mb-1">Phone / WhatsApp *</label>
                   <ValidatedInput type="tel" required maxLength={20} value={formData.contact_phone} onChange={setField("contact_phone")} />
                 </div>
@@ -382,6 +407,7 @@ export default function LeadDetailPage() {
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Event Type</label>
                   <select value={formData.event_type} onChange={setField("event_type")} className={selectClass}>
+                    <option value="">-- Select --</option>
                     {eventTypes.map((et) => <option key={et.id} value={et.value}>{et.label}</option>)}
                   </select>
                 </div>
@@ -490,7 +516,7 @@ export default function LeadDetailPage() {
           <div className="flex items-start justify-between gap-4">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-3">
-                <h1 className="text-2xl font-bold text-foreground">{l.contact_name}</h1>
+                <h1 className="text-2xl font-bold text-foreground">{[l.contact_title, l.contact_name].filter(Boolean).join(" ")}</h1>
                 <Badge variant={STATUS_BADGE_VARIANT[l.status] || "secondary"}>
                   {l.status_display}
                 </Badge>
@@ -572,7 +598,21 @@ export default function LeadDetailPage() {
         <CardContent className="p-6">
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Contact</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <AutoSaveField {...fieldProps("contact_name")} label="Name" type="text" value={l.contact_name} required />
+            <div className="flex gap-2">
+              <div className="w-24 shrink-0">
+                <AutoSaveField
+                  {...fieldProps("contact_title")}
+                  label="Title"
+                  type="select"
+                  value={l.contact_title || ""}
+                  options={[{ value: "", label: "—" }, ...TITLE_OPTIONS.map((t) => ({ value: t, label: t }))]}
+                />
+              </div>
+              <div className="flex-1 min-w-[90px]">
+                <AutoSaveField {...fieldProps("contact_first_name")} label="First name" type="text" value={l.contact_first_name} required />
+              </div>
+            </div>
+            <AutoSaveField {...fieldProps("contact_last_name")} label="Last name" type="text" value={l.contact_last_name} />
             <AutoSaveField {...fieldProps("contact_phone")} label="Phone / WhatsApp" type="tel" value={l.contact_phone} required />
             <AutoSaveField {...fieldProps("contact_email")} label="Email" type="email" value={l.contact_email} />
             <AutoSaveField
@@ -597,7 +637,7 @@ export default function LeadDetailPage() {
                 label="Event Type"
                 type="select"
                 value={l.event_type}
-                options={eventTypes.map((et) => ({ value: et.value, label: et.label }))}
+                options={[{ value: "", label: "-- Select --" }, ...eventTypes.map((et) => ({ value: et.value, label: et.label }))]}
               />
               <AutoSaveField {...fieldProps("event_date")} label="Event Date" type="date" value={l.event_date || ""} transform={nullableString} />
               <AutoSaveField {...fieldProps("guest_estimate")} label="Guest Estimate" type="number" value={l.guest_estimate ?? ""} transform={fkTransform} />
@@ -673,6 +713,13 @@ export default function LeadDetailPage() {
         </CardContent>
       </Card>
 
+      {/* WhatsApp Messages — only show when Twilio is configured */}
+      {rawSettings?.twilio_configured && rawSettings?.whatsapp_enabled ? (
+        <LeadWhatsApp leadId={l.id} contactPhone={l.contact_phone} contactName={l.contact_name} eventType={l.event_type} eventDate={l.event_date} />
+      ) : rawSettings?.whatsapp_shortcuts_enabled !== false && rawSettings ? (
+        <LeadWhatsAppShortcuts leadId={l.id} contactPhone={l.contact_phone} />
+      ) : null}
+
       {/* Timeline */}
       <Card>
         <CardContent className="p-6">
@@ -736,10 +783,8 @@ export default function LeadDetailPage() {
       {/* Reminders */}
       <LeadReminders leadId={l.id} />
 
-      {/* WhatsApp Messages — only show when Twilio is configured */}
-      {rawSettings?.twilio_configured && (
-        <LeadWhatsApp leadId={l.id} contactPhone={l.contact_phone} contactName={l.contact_name} eventType={l.event_type} eventDate={l.event_date} />
-      )}
+      {/* AI-suggested follow-up drafts (only renders when one is pending) */}
+      <LeadFollowUpDrafts leadId={l.id} />
 
       {/* Activity Log */}
       <Card>
@@ -1004,10 +1049,136 @@ function LeadReminders({ leadId }: { leadId: number }) {
   );
 }
 
+function LeadFollowUpDraftCard({ draft, leadId, onDone }: {
+  draft: FollowUpDraft;
+  leadId: number;
+  onDone: () => void;
+}) {
+  const [body, setBody] = useState(draft.body);
+  const [busy, setBusy] = useState<"" | "approve" | "dismiss">("");
+  const [error, setError] = useState("");
+
+  const refresh = () => {
+    onDone();
+    revalidate("followup-draft-count", `lead-whatsapp-${leadId}`, `lead-activity-${leadId}`);
+  };
+
+  const handleApprove = async () => {
+    setBusy("approve");
+    setError("");
+    try {
+      await api.approveFollowUpDraft(draft.id, body !== draft.body ? body : undefined);
+      refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to send");
+    } finally {
+      setBusy("");
+    }
+  };
+
+  const handleDismiss = async () => {
+    setBusy("dismiss");
+    setError("");
+    try {
+      await api.dismissFollowUpDraft(draft.id);
+      refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to dismiss");
+    } finally {
+      setBusy("");
+    }
+  };
+
+  return (
+    <div className="p-3 border rounded-lg bg-muted/30 space-y-2">
+      {draft.reasoning && (
+        <p className="text-xs text-muted-foreground italic">{draft.reasoning}</p>
+      )}
+      <Textarea value={body} onChange={(e) => setBody(e.target.value)} rows={3} />
+      {error && <p className="text-sm text-destructive">{error}</p>}
+      <div className="flex items-center gap-2">
+        <Button size="sm" onClick={handleApprove} disabled={!!busy || !body.trim()}>
+          {busy === "approve" ? "Sending..." : "Approve & Send"}
+        </Button>
+        <Button size="sm" variant="ghost" onClick={handleDismiss} disabled={!!busy}>
+          {busy === "dismiss" ? "Deleting..." : "Delete"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function LeadFollowUpDrafts({ leadId }: { leadId: number }) {
+  const { data: drafts = [], mutate } = useLeadFollowUpDrafts(leadId);
+  const pending = drafts.filter((d) => d.status === "pending");
+  if (pending.length === 0) return null;
+
+  return (
+    <Card>
+      <CardContent className="p-6">
+        <div className="flex items-center gap-2 mb-3">
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Suggested Follow-up</h2>
+          <Badge variant="secondary">AI</Badge>
+        </div>
+        <div className="space-y-3">
+          {pending.map((d) => (
+            <LeadFollowUpDraftCard key={d.id} draft={d} leadId={leadId} onDone={() => mutate()} />
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 const WHATSAPP_TEMPLATES = [
   { value: "reminder", label: "Event Reminder" },
   { value: "follow_up", label: "Follow Up" },
 ];
+
+function LeadWhatsAppShortcuts({ leadId, contactPhone }: { leadId: number; contactPhone: string }) {
+  const [logging, setLogging] = useState(false);
+  const [logged, setLogged] = useState(false);
+
+  async function logReply() {
+    setLogging(true);
+    try {
+      await api.logLeadReply(leadId);
+      setLogged(true);
+      revalidate(`lead-activity-${leadId}`, `lead-whatsapp-${leadId}`);
+    } finally {
+      setLogging(false);
+    }
+  }
+
+  return (
+    <Card>
+      <CardContent className="p-6">
+        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">WhatsApp</h2>
+        <div className="flex flex-wrap items-center gap-3">
+          {canWhatsApp(contactPhone) ? (
+            <a
+              href={waLink(contactPhone)}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm font-medium text-emerald-700 hover:bg-muted"
+            >
+              <MessageCircle className="w-4 h-4" aria-hidden />
+              Open chat on WhatsApp
+            </a>
+          ) : (
+            <span className="text-sm text-muted-foreground">No valid WhatsApp number on this lead.</span>
+          )}
+          <Button size="sm" variant="secondary" onClick={logReply} disabled={logging || logged || !canWhatsApp(contactPhone)}>
+            {logged ? "Reply logged" : logging ? "Logging..." : "Customer replied"}
+          </Button>
+          <p className="w-full text-xs text-muted-foreground">
+            Conversations happen on your own WhatsApp. Log a reply here so follow-ups pause while the ball is in your court.
+          </p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 function LeadWhatsApp({ leadId, contactPhone, contactName, eventType, eventDate }: {
   leadId: number;

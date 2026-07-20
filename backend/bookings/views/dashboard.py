@@ -94,34 +94,42 @@ class MyDashboardStatsView(APIView):
         })
 
 
+def parse_period_window(request):
+    """(since, until) datetimes for ?period=all|today|week|month|custom
+    (+date_from/date_to for custom) — the dashboard's shared time filter."""
+    period = request.query_params.get('period', 'all')
+    now = timezone.now()
+    until = None
+
+    if period == 'custom':
+        date_from = request.query_params.get('date_from')
+        date_to = request.query_params.get('date_to')
+        since = (
+            timezone.make_aware(datetime.strptime(date_from, '%Y-%m-%d'))
+            if date_from else None
+        )
+        until = (
+            timezone.make_aware(datetime.strptime(date_to, '%Y-%m-%d')) + timedelta(days=1)
+            if date_to else None
+        )
+    elif period == 'week':
+        since = now - timedelta(days=7)
+    elif period == 'month':
+        since = now - timedelta(days=30)
+    elif period == 'today':
+        since = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    else:  # all
+        since = None
+    return since, until
+
+
 class DashboardStatsView(APIView):
     """GET /api/bookings/dashboard/stats/?period=all|today|week|month|custom"""
     permission_classes = [IsManagerOrOwner]
 
     def get(self, request):
-        period = request.query_params.get('period', 'all')
+        since, until = parse_period_window(request)
         now = timezone.now()
-        until = None
-
-        if period == 'custom':
-            date_from = request.query_params.get('date_from')
-            date_to = request.query_params.get('date_to')
-            since = (
-                timezone.make_aware(datetime.strptime(date_from, '%Y-%m-%d'))
-                if date_from else None
-            )
-            until = (
-                timezone.make_aware(datetime.strptime(date_to, '%Y-%m-%d')) + timedelta(days=1)
-                if date_to else None
-            )
-        elif period == 'week':
-            since = now - timedelta(days=7)
-        elif period == 'month':
-            since = now - timedelta(days=30)
-        elif period == 'today':
-            since = now.replace(hour=0, minute=0, second=0, microsecond=0)
-        else:  # all
-            since = None
 
         org = get_request_org(request)
         base_leads = apply_org_filter(Lead.objects.all(), request)
@@ -245,13 +253,10 @@ class DashboardStatsView(APIView):
         unassigned_overdue = overdue_all.pop(None, 0)
         overdue_by_user = overdue_all
 
-        # Stale leads per user (assigned + unassigned in one query)
-        stale_cutoff = now - timedelta(days=7)
+        # Stale leads per user (assigned + unassigned in one query).
+        # Shared definition lives on Lead.objects.stale() — see models/leads.py.
         stale_all = dict(
-            base_leads.filter(
-                updated_at__lt=stale_cutoff,
-            )
-            .exclude(status__in=['won', 'lost'])
+            base_leads.stale(now - timedelta(days=7))
             .values_list('assigned_to')
             .annotate(c=Count('id'))
             .values_list('assigned_to', 'c')

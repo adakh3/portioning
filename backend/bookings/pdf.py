@@ -15,6 +15,7 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 
 from bookings.models.settings import OrgSettings
 from bookings.models.choices import EventTypeOption, ServiceStyleOption, MealTypeOption
+from dishes.ordering import dish_names_in_added_order
 
 
 # ── Colour palette ──
@@ -55,6 +56,11 @@ def _fmt(value, cs='£'):
     return f'{cs}{value:,.2f}'
 
 
+def _dt_fmt(time_format='24h'):
+    """strftime pattern for a date+time honouring the org's 12h/24h preference."""
+    return '%d %b %Y, %I:%M %p' if time_format == '12h' else '%d %b %Y, %H:%M'
+
+
 def food_summary_text(price_per_head, guest_count, food_total, cs='£'):
     """The 'X per head × N guests = total' food line, or None when there's no
     food cost. Pure + unit-tested (the PDF has no text-extraction test path)."""
@@ -63,7 +69,7 @@ def food_summary_text(price_per_head, guest_count, food_total, cs='£'):
     return f'{_fmt(price_per_head or 0, cs)} per head × {guest_count} guests = {_fmt(food_total, cs)}'
 
 
-def meal_line_text(meal, cs='£'):
+def meal_line_text(meal, cs='£', time_format='24h'):
     """One-line summary for an additional meal, or None when it has no price."""
     pph = meal.price_per_head
     if not pph or pph <= 0:
@@ -72,7 +78,7 @@ def meal_line_text(meal, cs='£'):
     when = ''
     mt = getattr(meal, 'meal_time', None)
     if mt:
-        when = f' @ {mt.strftime("%d %b %Y, %H:%M")}'
+        when = f' @ {mt.strftime(_dt_fmt(time_format))}'
     return f'{meal.label or "Additional Meal"}{when} — {_fmt(pph, cs)}/head × {meal.guest_count} = {_fmt(total, cs)}'
 
 
@@ -247,14 +253,14 @@ def _dish_table(dish_names, s):
     return t
 
 
-def _meal_flowables(booking, cs, s):
+def _meal_flowables(booking, cs, s, time_format='24h'):
     """Additional-meals section: a summary line per priced meal, plus that meal's
     own dish menu as a table when it has dishes. Shared by both PDFs."""
     meals = list(booking.additional_meals.all())
     out = []
     for m in meals:
-        line = meal_line_text(m, cs)
-        dishes = list(m.dishes.values_list('name', flat=True))
+        line = meal_line_text(m, cs, time_format)
+        dishes = dish_names_in_added_order(m)
         if not line and not dishes:
             continue
         if line:
@@ -466,7 +472,7 @@ def generate_quote_pdf(quote):
     ]
     timeline_rows = [
         [Paragraph(f'{label} Time:', s['info_label']),
-         Paragraph(dt.strftime('%d %b %Y, %H:%M'), s['info_value'])]
+         Paragraph(dt.strftime(_dt_fmt(settings.time_format)), s['info_value'])]
         for label, dt in timeline_items if dt
     ]
     if timeline_rows:
@@ -482,7 +488,7 @@ def generate_quote_pdf(quote):
         elements.append(Spacer(1, 6 * mm))
 
     # ── 3. Menu Items Table (2-column layout with summary row) ──
-    dish_names = list(quote.dishes.values_list('name', flat=True))
+    dish_names = dish_names_in_added_order(quote)
     has_food_total = quote.food_total and quote.food_total > 0
 
     ADDON_COL_WIDTHS = [CONTENT_W * 0.18, CONTENT_W * 0.42, CONTENT_W * 0.20, CONTENT_W * 0.20]
@@ -506,7 +512,7 @@ def generate_quote_pdf(quote):
         elements.append(Spacer(1, 6 * mm))
 
     # Additional meals — a summary line + that meal's own menu as a table.
-    elements.extend(_meal_flowables(quote, cs, s))
+    elements.extend(_meal_flowables(quote, cs, s, settings.time_format))
 
     # ── 4. Add-ons / Line Items ──
     line_items = list(quote.line_items.all())
@@ -706,7 +712,9 @@ def generate_event_pdf(event):
         ('RIGHTPADDING', (0, 0), (-1, -1), 2),
     ]))
 
-    guests_text = f'{event.gents + event.ladies} ({event.gents} gents / {event.ladies} ladies)'
+    guests_text = str(event.guest_count)
+    if event.has_guest_split:
+        guests_text += f' ({event.gents} gents / {event.ladies} ladies)'
     right_rows = [
         ['Event Date:', event.event_date.strftime('%d %B %Y')],
         ['Event Day:', event.event_date.strftime('%A')],
@@ -763,7 +771,7 @@ def generate_event_pdf(event):
     ]
     timeline_rows = [
         [Paragraph(f'{label} Time:', s['info_label']),
-         Paragraph(dt.strftime('%d %b %Y, %H:%M'), s['info_value'])]
+         Paragraph(dt.strftime(_dt_fmt(settings.time_format)), s['info_value'])]
         for label, dt in timeline_items if dt
     ]
     if timeline_rows:
@@ -779,14 +787,14 @@ def generate_event_pdf(event):
         elements.append(Spacer(1, 6 * mm))
 
     # ── Menu items + main food line ──
-    dish_names = list(event.dishes.values_list('name', flat=True))
+    dish_names = dish_names_in_added_order(event)
     if dish_names:
         elements.append(_section_header([Paragraph('MENU ITEMS', s['section_title'])], [CONTENT_W]))
         elements.append(_dish_table(dish_names, s))
         elements.append(Spacer(1, 3 * mm))
 
-    main_food = (event.price_per_head or 0) * (event.gents + event.ladies)
-    food_line = food_summary_text(event.price_per_head, event.gents + event.ladies, main_food, cs)
+    main_food = (event.price_per_head or 0) * event.guest_count
+    food_line = food_summary_text(event.price_per_head, event.guest_count, main_food, cs)
     if food_line:
         if not dish_names:
             elements.append(_section_header([Paragraph('FOOD / MENU', s['section_title'])], [CONTENT_W]))
@@ -794,7 +802,7 @@ def generate_event_pdf(event):
         elements.append(Spacer(1, 6 * mm))
 
     # ── Additional meals — a summary line + that meal's own menu as a table. ──
-    elements.extend(_meal_flowables(event, cs, s))
+    elements.extend(_meal_flowables(event, cs, s, settings.time_format))
 
     # ── Add-ons / additional items ──
     line_items = list(event.line_items.all())

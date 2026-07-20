@@ -127,12 +127,21 @@ def _apply_lead_filters(qs, request):
 
     search = params.get('search')
     if search:
-        qs = qs.filter(
+        # Phones are stored E.164 (+923001269792); users search with dashes,
+        # spaces or a leading 0 — match on the cleaned digits too.
+        import re
+        phone_query = re.sub(r'[\s\-().]', '', search)
+        condition = (
             Q(contact_name__icontains=search) |
             Q(contact_email__icontains=search) |
             Q(contact_phone__icontains=search) |
             Q(account__name__icontains=search)
         )
+        if phone_query and phone_query != search:
+            condition |= Q(contact_phone__icontains=phone_query)
+        if phone_query.startswith('0') and len(phone_query) > 1:
+            condition |= Q(contact_phone__icontains=phone_query.lstrip('0'))
+        qs = qs.filter(condition)
 
     ordering = params.get('ordering')
     if ordering and ordering in LEAD_ORDERING_FIELDS:
@@ -432,6 +441,8 @@ class LeadCreateQuoteView(APIView):
 
         user = request.user if request.user.is_authenticated else None
 
+        # guest_count is the number; gents/ladies stays 0/0 (no split given) —
+        # never fabricate one from an estimate.
         quote = Quote.objects.create(
             lead=lead,
             primary_contact=contact,
@@ -541,11 +552,17 @@ class LeadWonView(APIView):
                 account=account,
             )
 
+        # Carry the quote's gents/ladies split only when it's real (adds up);
+        # otherwise the event stays unsplit — no fabricated 50/50.
+        gents = ladies = 0
+        if quote and quote.gents + quote.ladies == quote.guest_count:
+            gents, ladies = quote.gents, quote.ladies
         event = Event.objects.create(
             name=event_name,
             event_date=lead.event_date or lead.created_at.date(),
-            gents=guest_count // 2,
-            ladies=guest_count - (guest_count // 2),
+            guest_count=guest_count,
+            gents=gents,
+            ladies=ladies,
             account=account,
             is_b2b=bool(account),
             primary_contact=primary_contact,
@@ -571,7 +588,7 @@ class LeadWonView(APIView):
             from events.models import EventDishComment
             result = calculate_portions(
                 dish_ids=list(event.dishes.values_list('id', flat=True)),
-                guests={'gents': event.gents, 'ladies': event.ladies},
+                guests=event.portioning_guests(),
                 org=lead.organisation,
             )
             for p in result['portions']:

@@ -43,7 +43,12 @@ vi.mock("@/lib/hooks", () => ({
   useMealTypes: () => ({ data: [] }),
   useAllLeads: () => ({ data: [] }),
   useProductLines: () => ({ data: [] }),
+  useUsers: () => ({ data: [] }),
   revalidate: vi.fn(),
+}));
+
+vi.mock("@/lib/auth", () => ({
+  useAuth: () => ({ user: { id: 4, first_name: "Olivia", last_name: "Owner", role: "owner" } }),
 }));
 
 vi.mock("@/lib/api", () => ({
@@ -75,21 +80,21 @@ describe("Quote detail — one quote, one save", () => {
     );
   });
 
-  it("saves an edited guest split and an anchored timeline time", async () => {
+  it("saves an edited guest count (split cleared) and an anchored timeline time", async () => {
     render(<QuoteDetailPage />);
     fireEvent.click(screen.getByText("Edit Quote"));
 
-    // Change total guests 100 → 60 (auto 30/30) and set a setup time.
-    fireEvent.change(await screen.findByLabelText("Total Guests"), { target: { value: "60" } });
+    // Change the guest count 100 → 60: the old 50/50 split is cleared, not scaled.
+    fireEvent.change(await screen.findByLabelText("Guest Count"), { target: { value: "60" } });
     fireEvent.change(screen.getByLabelText("Setup Time"), { target: { value: "09:30" } });
 
     fireEvent.click(screen.getByText("Save Quote"));
 
     await waitFor(() => expect(h.updateQuote).toHaveBeenCalledTimes(1));
     const payload = h.updateQuote.mock.calls[0][1] as Record<string, unknown>;
-    expect(payload.gents).toBe(30);
-    expect(payload.ladies).toBe(30);
     expect(payload.guest_count).toBe(60);
+    expect(payload.gents).toBe(0);
+    expect(payload.ladies).toBe(0);
     // Anchored to the quote's existing event date, not today.
     expect(payload.setup_time).toBe("2026-09-01T09:30");
   });

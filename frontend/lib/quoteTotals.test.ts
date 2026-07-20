@@ -111,7 +111,7 @@ describe("computeBookingTotals (shared engine — quotes & events)", () => {
 describe("buildQuoteSavePayload", () => {
   const editData = {
     primary_contact: "3", is_b2b: false, account: "", event_date: "2026-09-01",
-    gents: 50, ladies: 50, big_eaters: false, big_eaters_percentage: 0,
+    guest_count: 100, gents: 50, ladies: 50, big_eaters: false, big_eaters_percentage: 0,
     price_per_head: "50.00", venue: "", venue_address: "", event_type: "wedding",
     meal_type: "", booking_date: "", service_style: "", product: "",
     setup_time: "", guest_arrival_time: "", meal_time: "", end_time: "",
@@ -152,7 +152,7 @@ describe("buildEventSavePayload", () => {
     venue: null, venue_address: "", event_type: "corporate", meal_type: "lunch",
     booking_date: "", service_style: "buffet", product: null, price_per_head: "50.00", notes: "n",
     kitchen_instructions: "k", banquet_instructions: "b", setup_instructions: "s",
-    gents: 25, ladies: 15, guaranteed_count: 40, final_count: null, final_count_due: "",
+    guest_count: 40, gents: 25, ladies: 15, guaranteed_count: 40, final_count: null, final_count_due: "",
     big_eaters: true, big_eaters_percentage: 30,
     setup_time: "2026-09-01T09:00", guest_arrival_time: "", meal_time: "", end_time: "",
     is_taxable: true,

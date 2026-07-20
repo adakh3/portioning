@@ -46,6 +46,24 @@ if not DEBUG and ALLOWED_HOSTS == ['localhost', '127.0.0.1']:
         "ALLOWED_HOSTS must be explicitly set in production (DEBUG=False)."
     )
 
+# ── Platform integrations (shared across all orgs) ──
+# Twilio is the platform's single account; each org configures only its own
+# WhatsApp sender number (OrgSettings.twilio_whatsapp_number). LLM keys are
+# likewise platform-level — orgs only toggle AI features on/off.
+TWILIO_ACCOUNT_SID = os.environ.get('TWILIO_ACCOUNT_SID', '')
+TWILIO_AUTH_TOKEN = os.environ.get('TWILIO_AUTH_TOKEN', '')
+
+# One API key per LLM provider; only providers actually in use need a key.
+ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY', '')
+OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', '')
+
+# Shared secret for the scheduled-jobs endpoint (GitHub Actions cron). Unset = endpoint disabled.
+CRON_SECRET = os.environ.get('CRON_SECRET', '')
+
+# Which model each AI task runs on, as 'provider:model' — see portioning/llm.py.
+# Switching supplier or model per task is a one-env-var change, nothing else.
+LLM_FOLLOWUP_DRAFTER = os.environ.get('LLM_FOLLOWUP_DRAFTER', 'openai:gpt-5.4-nano')
+
 
 # Application definition
 
@@ -235,6 +253,17 @@ LOGGING = {
         },
     },
     'loggers': {
+        # LLM call timings (portioning.llm) + agent activity (bookings.*)
+        'portioning': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'bookings': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
         'tenant.security': {
             'handlers': ['console'],
             'level': 'WARNING',

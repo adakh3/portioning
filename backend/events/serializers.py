@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from .models import Event, EventConstraintOverride, EventDishComment, EventPayment
 from dishes.models import Dish
+from dishes.ordering import dish_ids_in_added_order
 from staff.serializers import ShiftSerializer
 from equipment.serializers import EquipmentReservationSerializer
 from bookings.serializers.finance import InvoiceSerializer
@@ -70,6 +71,14 @@ class EventSerializer(OrgScopedModelSerializer):
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     source_quote_id = serializers.SerializerMethodField()
     assigned_to_name = serializers.SerializerMethodField()
+    created_by_name = serializers.SerializerMethodField()
+
+    # Contact phone (enables the WhatsApp send shortcut on the detail page)
+    contact_phone = serializers.CharField(source='primary_contact.phone', read_only=True, default=None)
+
+    # E-signature status (for the staff-side "send for signature" flow)
+    public_token = serializers.CharField(read_only=True)
+    signature = serializers.SerializerMethodField()
 
     # Nested read-only relations
     shifts = ShiftSerializer(many=True, read_only=True)
@@ -101,25 +110,49 @@ class EventSerializer(OrgScopedModelSerializer):
             raise serializers.ValidationError(
                 {'account': 'A business is required for a B2B event.'}
             )
+        # guest_count is the number; the gents/ladies split is optional but,
+        # when given, must add up to it. Older API clients that send only a
+        # split get guest_count derived from it (create only).
+        gents = attrs.get('gents', getattr(self.instance, 'gents', 0)) or 0
+        ladies = attrs.get('ladies', getattr(self.instance, 'ladies', 0)) or 0
+        if self.instance is None and 'guest_count' not in attrs:
+            attrs['guest_count'] = gents + ladies
+        guest_count = attrs.get('guest_count', getattr(self.instance, 'guest_count', 0))
+        if (gents or ladies) and gents + ladies != guest_count:
+            raise serializers.ValidationError(
+                {'gents': 'Gents + ladies must add up to the guest count '
+                          '(or leave the split empty).'}
+            )
         return attrs
 
     def get_assigned_to_name(self, obj):
         u = obj.assigned_to
         return f"{u.first_name} {u.last_name}".strip() if u else None
 
+    def get_created_by_name(self, obj):
+        u = obj.created_by
+        return f"{u.first_name} {u.last_name}".strip() if u else None
+
+    def get_signature(self, obj):
+        sig = obj.latest_signature
+        if not sig:
+            return None
+        return {'signer_name': sig.signer_name, 'signed_at': sig.signed_at.isoformat()}
+
     class Meta:
         model = Event
-        fields = ['id', 'name', 'date', 'gents', 'ladies',
+        fields = ['id', 'name', 'date', 'guest_count', 'gents', 'ladies',
                   'big_eaters', 'big_eaters_percentage',
                   'dishes', 'dish_ids', 'based_on_template', 'notes',
                   'kitchen_instructions', 'banquet_instructions', 'setup_instructions',
                   'constraint_override', 'dish_comments', 'line_items', 'created_at',
                   # Booking fields
-                  'primary_contact', 'contact_name',
+                  'primary_contact', 'contact_name', 'contact_phone',
                   'is_b2b', 'account', 'account_name',
                   'venue', 'venue_name', 'venue_address',
                   'product', 'product_name',
                   'assigned_to', 'assigned_to_name',
+                  'created_by', 'created_by_name',
                   'event_type', 'meal_type', 'service_style', 'booking_date', 'price_per_head',
                   'status', 'status_display', 'is_taxable', 'tax_rate',
                   'subtotal', 'tax_amount', 'total',
@@ -129,10 +162,12 @@ class EventSerializer(OrgScopedModelSerializer):
                   'guaranteed_count', 'final_count', 'final_count_due',
                   # Nested
                   'additional_meals',
+                  'public_token', 'signature',
                   'source_quote_id', 'shifts', 'equipment_reservations', 'invoices',
                   # Client payments
                   'payments', 'amount_paid', 'balance_due', 'payment_status']
-        read_only_fields = ['created_at', 'subtotal', 'tax_amount', 'total']
+        # created_by is stamped server-side on create; never client-writable.
+        read_only_fields = ['created_at', 'subtotal', 'tax_amount', 'total', 'created_by']
         extra_kwargs = {
             'notes': {'max_length': 5000},
             'kitchen_instructions': {'max_length': 5000},
@@ -144,6 +179,13 @@ class EventSerializer(OrgScopedModelSerializer):
     def get_source_quote_id(self, obj):
         quote = getattr(obj, 'source_quote', None)
         return quote.id if quote else None
+
+    def to_representation(self, instance):
+        # Present dishes in the order they were added, not Dish's alphabetical default.
+        data = super().to_representation(instance)
+        if 'dishes' in data:
+            data['dishes'] = dish_ids_in_added_order(instance)
+        return data
 
     def create(self, validated_data):
         override_data = validated_data.pop('constraint_override', None)
@@ -206,7 +248,7 @@ class EventSerializer(OrgScopedModelSerializer):
             from calculator.engine.calculator import calculate_portions
             result = calculate_portions(
                 dish_ids=list(instance.dishes.values_list('id', flat=True)),
-                guests={'gents': instance.gents, 'ladies': instance.ladies},
+                guests=instance.portioning_guests(),
                 org=instance.organisation,
             )
             for p in result['portions']:
@@ -233,10 +275,10 @@ EVENT_LIST_EXCLUDE = {
     'shifts', 'equipment_reservations', 'invoices',
     'dish_comments', 'constraint_override',
     'dish_ids', 'line_items', 'additional_meals',
-    # computed name needs a per-row fetch; the list keeps the cheap assigned_to pk
-    'assigned_to_name',
     # payment detail + balance read event.payments per row — detail-view only
     'payments', 'amount_paid', 'balance_due', 'payment_status',
+    # signature is a per-row query + a method the list serializer doesn't define
+    'signature', 'public_token', 'contact_phone',
 }
 
 
@@ -249,11 +291,23 @@ class EventListSerializer(serializers.ModelSerializer):
     product_name = serializers.CharField(source='product.name', read_only=True, default=None)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     source_quote_id = serializers.SerializerMethodField()
+    # Method fields aren't inherited from EventSerializer — redeclare for the list.
+    # Backed by select_related on the view, so these stay one query.
+    assigned_to_name = serializers.SerializerMethodField()
+    created_by_name = serializers.SerializerMethodField()
 
     class Meta:
         model = Event
         fields = [f for f in EventSerializer.Meta.fields if f not in EVENT_LIST_EXCLUDE]
         read_only_fields = ['created_at']
+
+    def get_assigned_to_name(self, obj):
+        u = obj.assigned_to
+        return f"{u.first_name} {u.last_name}".strip() if u else None
+
+    def get_created_by_name(self, obj):
+        u = obj.created_by
+        return f"{u.first_name} {u.last_name}".strip() if u else None
 
     def get_source_quote_id(self, obj):
         quote = getattr(obj, 'source_quote', None)

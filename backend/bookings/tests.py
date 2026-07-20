@@ -239,7 +239,7 @@ class TestBookingLineItemCalculation(TestCase):
     def test_exactly_one_parent_constraint(self):
         from django.db.utils import IntegrityError
         from events.models import Event
-        event = Event.objects.create(organisation=self.org, name="E", event_date="2026-09-01", gents=25, ladies=25)
+        event = Event.objects.create(organisation=self.org, name="E", event_date="2026-09-01", guest_count=50, gents=25, ladies=25)
         with self.assertRaises(IntegrityError):
             BookingLineItem.objects.create(
                 quote=self.quote, event=event, category="fee", description="bad",
@@ -248,12 +248,12 @@ class TestBookingLineItemCalculation(TestCase):
 
     def test_event_line_item_uses_event_guest_count(self):
         from events.models import Event
-        event = Event.objects.create(organisation=self.org, name="E", event_date="2026-09-01", gents=20, ladies=30)
+        event = Event.objects.create(organisation=self.org, name="E", event_date="2026-09-01", guest_count=50, gents=20, ladies=30)
         item = BookingLineItem.objects.create(
             event=event, category="beverage", description="Soft drinks",
             quantity=Decimal("1"), unit="per_guest", unit_price=Decimal("2.00"),
         )
-        self.assertEqual(item.line_total, Decimal("100.00"))  # 2 * (20+30)
+        self.assertEqual(item.line_total, Decimal("100.00"))  # 2 * guest_count
 
     def test_quote_totals_recalculated(self):
         BookingLineItem.objects.create(
@@ -516,6 +516,17 @@ class TestLeadAPI(TestCase):
             "status": "new",  # same status is invalid
         }, format="json")
         self.assertEqual(res.status_code, 400)
+
+    def test_create_quote_from_lead_leaves_split_unspecified(self):
+        # guest_count is the number; the gents/ladies split is optional detail.
+        # A lead's estimate must not be fabricated into a 50/50 split.
+        lead = make_lead(org=self.org, guest_estimate=101)
+        res = self.client.post(f"/api/bookings/leads/{lead.id}/convert/", {}, format="json")
+        self.assertEqual(res.status_code, 201, res.content)
+        body = res.json()
+        self.assertEqual(body["guest_count"], 101)
+        self.assertEqual(body["gents"], 0)
+        self.assertEqual(body["ladies"], 0)
 
     def test_create_quote_from_lead(self):
         """Creating a quote does NOT change lead status."""
@@ -818,6 +829,16 @@ class TestQuoteAPI(TestCase):
         self.assertEqual(res.status_code, 201, res.content)
         self.assertEqual(res.json()["line_items"][0]["description"], "")
 
+    def test_create_assigns_the_default_product_when_none_given(self):
+        from bookings.models import ProductLine
+        ProductLine.objects.create(organisation=self.org, name="Aardvark")  # first active
+        default = ProductLine.objects.create(organisation=self.org, name="Zeta", is_default=True)
+        res = self.client.post("/api/bookings/quotes/", {
+            "primary_contact": self.contact.id, "event_date": "2026-09-01", "guest_count": 20,
+        }, format="json")
+        self.assertEqual(res.status_code, 201, res.content)
+        self.assertEqual(res.json()["product"], default.id)  # the marked default, not the first
+
     def test_additional_meal_label_is_optional(self):
         res = self.client.post("/api/bookings/quotes/", {
             "primary_contact": self.contact.id,
@@ -849,6 +870,28 @@ class TestQuoteAPI(TestCase):
         self.assertEqual(res.status_code, 200, res.content)
         quote.refresh_from_db()
         self.assertEqual(quote.event.product_id, product.id)
+
+    def test_create_defaults_the_assignee_to_the_creator(self):
+        # A quote must always have an owner for commission attribution.
+        res = self.client.post("/api/bookings/quotes/", {
+            "primary_contact": self.contact.id, "event_date": "2026-09-01", "guest_count": 20,
+        }, format="json")
+        self.assertEqual(res.status_code, 201, res.content)
+        self.assertEqual(res.json()["assigned_to"], get_test_user().id)
+
+    def test_accept_carries_the_quote_assignee_to_the_event(self):
+        # A quote's explicit owner takes precedence over the lead/creator fallback
+        # and carries straight to the event, so commission lands on the right rep.
+        from django.contrib.auth import get_user_model
+        rep = get_user_model().objects.create(email="rep@ex.com", role="salesperson", organisation=self.org)
+        quote = make_quote(org=self.org, account=self.account, primary_contact=self.contact)
+        quote.assigned_to = rep
+        quote.save(update_fields=["assigned_to"])
+        res = self.client.post(f"/api/bookings/quotes/{quote.id}/transition/",
+                               {"status": "accepted"}, format="json")
+        self.assertEqual(res.status_code, 200, res.content)
+        quote.refresh_from_db()
+        self.assertEqual(quote.event.assigned_to_id, rep.id)
 
     def test_accept_carries_line_items_to_event(self):
         # Headline bug: accepting a quote used to drop its add-on items.
@@ -903,6 +946,144 @@ class TestQuoteAPI(TestCase):
         quote.refresh_from_db()
         self.assertEqual(quote.event.total, quote.total)
         self.assertEqual(quote.event.total, Decimal("6000.00"))
+
+    def test_accept_carries_additional_meals_to_event(self):
+        # Accepting a quote used to drop its additional meals, so the event's
+        # food total (and money totals) silently lost those meals.
+        from dishes.models import Dish, DishCategory
+        from events.models import BookingMeal, BookingMealDishComment
+        cat = DishCategory.objects.create(
+            name="mains", display_name="Mains", organisation=self.org)
+        dish = Dish.objects.create(
+            organisation=self.org, name="Biryani", category=cat, default_portion_grams=250)
+        quote = make_quote(org=self.org, account=self.account, primary_contact=self.contact,
+                           guest_count=100, price_per_head=Decimal("30.00"), tax_rate=Decimal("0.20"))
+        meal = BookingMeal.objects.create(
+            quote=quote, label="Welcome drinks", guest_count=100,
+            price_per_head=Decimal("5.00"), notes="Serve on arrival",
+        )
+        meal.dishes.add(dish)
+        BookingMealDishComment.objects.create(
+            meal=meal, dish=dish, comment="extra ice", portion_grams=150)
+        quote.recalculate_totals()
+        quote.refresh_from_db()
+        # food 3000 + meal 500 = 3500, tax 700 → 4200
+        self.assertEqual(quote.total, Decimal("4200.00"))
+
+        res = self.client.post(f"/api/bookings/quotes/{quote.id}/transition/",
+                               {"status": "accepted"}, format="json")
+        self.assertEqual(res.status_code, 200, res.content)
+        quote.refresh_from_db()
+        event = quote.event
+        meals = list(event.additional_meals.all())
+        self.assertEqual(len(meals), 1)
+        copy = meals[0]
+        self.assertEqual(copy.label, "Welcome drinks")
+        self.assertEqual(copy.guest_count, 100)
+        self.assertEqual(copy.price_per_head, Decimal("5.00"))
+        self.assertEqual(copy.notes, "Serve on arrival")
+        self.assertEqual(list(copy.dishes.all()), [dish])
+        dc = copy.dish_comments.get()
+        self.assertEqual((dc.dish_id, dc.comment, dc.portion_grams), (dish.id, "extra ice", 150))
+        # The quote keeps its own copy, and the event total matches the quote.
+        self.assertEqual(quote.additional_meals.count(), 1)
+        self.assertEqual(event.total, quote.total)
+
+    def test_accept_carries_timeline_and_notes_to_event(self):
+        from datetime import datetime, timezone as dt_tz
+        times = {
+            "setup_time": datetime(2026, 6, 15, 14, 0, tzinfo=dt_tz.utc),
+            "guest_arrival_time": datetime(2026, 6, 15, 18, 0, tzinfo=dt_tz.utc),
+            "meal_time": datetime(2026, 6, 15, 19, 30, tzinfo=dt_tz.utc),
+            "end_time": datetime(2026, 6, 15, 23, 0, tzinfo=dt_tz.utc),
+        }
+        quote = make_quote(org=self.org, account=self.account, primary_contact=self.contact,
+                           notes="No nuts please", internal_notes="Repeat client — priority",
+                           **times)
+        res = self.client.post(f"/api/bookings/quotes/{quote.id}/transition/",
+                               {"status": "accepted"}, format="json")
+        self.assertEqual(res.status_code, 200, res.content)
+        quote.refresh_from_db()
+        event = quote.event
+        for field, value in times.items():
+            self.assertEqual(getattr(event, field), value, field)
+        self.assertIn("No nuts please", event.notes)
+        self.assertIn("Repeat client — priority", event.notes)
+
+    def test_accept_preserves_non_taxable_quote(self):
+        # A quote flagged non-taxable (its tax_rate field still holding the org
+        # default) used to convert into a *taxable* event, inflating the total.
+        quote = make_quote(org=self.org, account=self.account, primary_contact=self.contact,
+                           guest_count=100, price_per_head=Decimal("30.00"),
+                           tax_rate=Decimal("0.20"), is_taxable=False)
+        quote.recalculate_totals()
+        quote.refresh_from_db()
+        self.assertEqual(quote.total, Decimal("3000.00"))  # no tax
+        res = self.client.post(f"/api/bookings/quotes/{quote.id}/transition/",
+                               {"status": "accepted"}, format="json")
+        self.assertEqual(res.status_code, 200, res.content)
+        quote.refresh_from_db()
+        self.assertFalse(quote.event.is_taxable)
+        self.assertEqual(quote.event.total, Decimal("3000.00"))
+
+    def test_accept_unsplit_quote_stays_unsplit_with_right_total(self):
+        # A quote with no gents/ladies split converts to an event priced off
+        # guest_count, with the split left unspecified (no fabricated 50/50).
+        quote = make_quote(org=self.org, account=self.account, primary_contact=self.contact,
+                           guest_count=101, gents=0, ladies=0,
+                           price_per_head=Decimal("30.00"), tax_rate=Decimal("0"))
+        quote.recalculate_totals()
+        quote.refresh_from_db()
+        self.assertEqual(quote.total, Decimal("3030.00"))
+        res = self.client.post(f"/api/bookings/quotes/{quote.id}/transition/",
+                               {"status": "accepted"}, format="json")
+        self.assertEqual(res.status_code, 200, res.content)
+        quote.refresh_from_db()
+        event = quote.event
+        self.assertEqual(event.guest_count, 101)
+        self.assertEqual((event.gents, event.ladies), (0, 0))
+        self.assertEqual(event.total, quote.total)
+
+    def test_accept_carries_a_real_split_to_the_event(self):
+        # A split that adds up to guest_count is real customer data — keep it.
+        quote = make_quote(org=self.org, account=self.account, primary_contact=self.contact,
+                           guest_count=100, gents=60, ladies=40,
+                           price_per_head=Decimal("30.00"), tax_rate=Decimal("0"))
+        res = self.client.post(f"/api/bookings/quotes/{quote.id}/transition/",
+                               {"status": "accepted"}, format="json")
+        self.assertEqual(res.status_code, 200, res.content)
+        quote.refresh_from_db()
+        self.assertEqual(quote.event.guest_count, 100)
+        self.assertEqual((quote.event.gents, quote.event.ladies), (60, 40))
+
+    def test_accept_drops_a_split_that_does_not_add_up(self):
+        # A stale/partial split (possible via the raw API) must not carry to
+        # the event; the event stays unsplit and priced off guest_count.
+        quote = make_quote(org=self.org, account=self.account, primary_contact=self.contact,
+                           guest_count=100, gents=10, ladies=5,
+                           price_per_head=Decimal("30.00"), tax_rate=Decimal("0"))
+        quote.recalculate_totals()
+        quote.refresh_from_db()
+        self.assertEqual(quote.total, Decimal("3000.00"))
+        res = self.client.post(f"/api/bookings/quotes/{quote.id}/transition/",
+                               {"status": "accepted"}, format="json")
+        self.assertEqual(res.status_code, 200, res.content)
+        quote.refresh_from_db()
+        self.assertEqual(quote.event.guest_count, 100)
+        self.assertEqual((quote.event.gents, quote.event.ladies), (0, 0))
+        self.assertEqual(quote.event.total, quote.total)
+
+    def test_accept_prefers_the_quotes_booking_date(self):
+        # A booking date typed on the quote used to be overwritten by the
+        # acceptance date on conversion.
+        from datetime import date
+        quote = make_quote(org=self.org, account=self.account, primary_contact=self.contact,
+                           booking_date=date(2026, 5, 1))
+        res = self.client.post(f"/api/bookings/quotes/{quote.id}/transition/",
+                               {"status": "accepted"}, format="json")
+        self.assertEqual(res.status_code, 200, res.content)
+        quote.refresh_from_db()
+        self.assertEqual(quote.event.booking_date, date(2026, 5, 1))
 
     def test_quote_list_avoids_n_plus_one(self):
         # The list serializes product_name + created_by_name per row; without

@@ -38,10 +38,12 @@ export default function SettingsPage() {
     currency_symbol: "",
     currency_code: "",
     date_format: "DD/MM/YYYY",
+    time_format: "24h",
     timezone: "",
     tax_label: "",
     default_tax_rate: "",
     default_price_per_head: "",
+    default_guest_profile: "gents",
     target_food_cost_percentage: "",
     price_rounding_step: "50",
     quotation_terms: "",
@@ -62,10 +64,12 @@ export default function SettingsPage() {
         currency_symbol: settings.currency_symbol,
         currency_code: settings.currency_code,
         date_format: settings.date_format || "DD/MM/YYYY",
+        time_format: settings.time_format || "24h",
         timezone: settings.timezone || "",
         tax_label: settings.tax_label || "",
         default_tax_rate: settings.default_tax_rate || "",
         default_price_per_head: settings.default_price_per_head,
+        default_guest_profile: settings.default_guest_profile || "gents",
         target_food_cost_percentage: settings.target_food_cost_percentage,
         price_rounding_step: settings.price_rounding_step || "50",
         quotation_terms: settings.quotation_terms || "",
@@ -194,6 +198,21 @@ export default function SettingsPage() {
                   </p>
                 </div>
                 <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Time Format</label>
+                  <select
+                    value={formData.time_format}
+                    onChange={(e) => setFormData({ ...formData, time_format: e.target.value })}
+                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  >
+                    {(settings?.time_format_choices || [{ value: "24h", label: "24-hour (e.g. 19:00)" }, { value: "12h", label: "12-hour AM/PM (e.g. 7:00 PM)" }]).map((c: { value: string; label: string }) => (
+                      <option key={c.value} value={c.value}>{c.label}</option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Controls AM/PM vs 24-hour time entry and display.
+                  </p>
+                </div>
+                <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Timezone</label>
                   <Input
                     type="text"
@@ -288,6 +307,20 @@ export default function SettingsPage() {
                   <p className="text-xs text-muted-foreground mt-1">
                     Round calculated prices to the nearest N. For example, 50 rounds {formData.currency_symbol}2,017 to {formData.currency_symbol}2,000.
                     Set to 1 to disable rounding.
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Default Portion Rule (no guest split)</label>
+                  <select
+                    value={formData.default_guest_profile}
+                    onChange={(e) => setFormData({ ...formData, default_guest_profile: e.target.value })}
+                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  >
+                    <option value="gents">Standard (gents)</option>
+                    <option value="ladies">Ladies</option>
+                  </select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Which portion rule applies to all guests when an event has no gents/ladies split.
                   </p>
                 </div>
               </div>
@@ -388,6 +421,7 @@ export default function SettingsPage() {
       {tab === "integrations" && (
       <div className="space-y-6 max-w-2xl">
         <WhatsAppSettings settings={settings} onSave={() => mutateSettings()} />
+        <AIFollowUpSettings settings={settings} onSave={() => mutateSettings()} />
       </div>
       )}
 
@@ -407,11 +441,29 @@ function WhatsAppSettings({ settings, onSave }: { settings: SiteSettingsData | u
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
+  const [shortcutsEnabled, setShortcutsEnabled] = useState(true);
+  const [shortcutsSaving, setShortcutsSaving] = useState(false);
+
   useEffect(() => {
     if (settings) {
       setEnabled(settings.whatsapp_enabled || false);
+      setShortcutsEnabled(settings.whatsapp_shortcuts_enabled !== false);
     }
   }, [settings]);
+
+  async function handleShortcutsToggle(val: boolean) {
+    setShortcutsSaving(true);
+    setError("");
+    try {
+      await api.updateSiteSettings({ whatsapp_shortcuts_enabled: val });
+      setShortcutsEnabled(val);
+      onSave();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save");
+    } finally {
+      setShortcutsSaving(false);
+    }
+  }
 
   async function handleToggle(val: boolean) {
     setSaving(true);
@@ -470,6 +522,181 @@ function WhatsAppSettings({ settings, onSave }: { settings: SiteSettingsData | u
             WhatsApp has not been set up for your organisation yet. Please contact support to connect your WhatsApp Business number.
           </p>
         )}
+        <div className="flex items-center justify-between mt-4 pt-4 border-t border-border">
+          <div>
+            <p className="text-sm font-medium text-foreground">WhatsApp shortcuts</p>
+            <p className="text-xs text-muted-foreground">
+              When in-app sending isn&apos;t active, show buttons that open WhatsApp on the
+              salesperson&apos;s own device with the message prefilled. Turn off to disallow
+              personal-number outreach.
+            </p>
+          </div>
+          <Button
+            variant={shortcutsEnabled ? "default" : "outline"}
+            size="sm"
+            onClick={() => handleShortcutsToggle(!shortcutsEnabled)}
+            disabled={shortcutsSaving}
+          >
+            {shortcutsSaving ? "Saving..." : shortcutsEnabled ? "Enabled" : "Disabled"}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+
+function AIFollowUpSettings({ settings, onSave }: { settings: SiteSettingsData | undefined; onSave: () => void }) {
+  const [enabled, setEnabled] = useState(false);
+  const [gapFirst, setGapFirst] = useState("3");
+  const [gapSecond, setGapSecond] = useState("7");
+  const [gapFinal, setGapFinal] = useState("14");
+  const [maxDrafts, setMaxDrafts] = useState("3");
+  const [autoGenerate, setAutoGenerate] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  useEffect(() => {
+    if (settings) {
+      setEnabled(settings.ai_followups_enabled || false);
+      setGapFirst(String(settings.followup_gap_first_days ?? 3));
+      setGapSecond(String(settings.followup_gap_second_days ?? 7));
+      setGapFinal(String(settings.followup_gap_final_days ?? 14));
+      setMaxDrafts(String(settings.followup_max_drafts_per_lead ?? 3));
+      setAutoGenerate(settings.followup_auto_generate === true);
+    }
+  }, [settings]);
+
+  async function handleSave() {
+    setSaving(true);
+    setError("");
+    setSuccess("");
+    try {
+      await api.updateSiteSettings({
+        ai_followups_enabled: enabled,
+        followup_gap_first_days: Number(gapFirst),
+        followup_gap_second_days: Number(gapSecond),
+        followup_gap_final_days: Number(gapFinal),
+        followup_max_drafts_per_lead: Number(maxDrafts),
+        followup_auto_generate: autoGenerate,
+      });
+      onSave();
+      setSuccess("AI follow-up settings saved.");
+      setTimeout(() => setSuccess(""), 3000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  // configured requires both the org opt-in AND the platform Anthropic key.
+  const badge = !enabled
+    ? { variant: "secondary" as const, label: "Disabled" }
+    : settings?.ai_followups_configured
+      ? { variant: "success" as const, label: "Active" }
+      : { variant: "warning" as const, label: "No API key" };
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <CardTitle>AI Follow-ups</CardTitle>
+          <Badge variant={badge.variant}>{badge.label}</Badge>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {error && <p className="text-destructive mb-3 text-sm">{error}</p>}
+        {success && <p className="text-success mb-3 text-sm">{success}</p>}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-foreground">Draft follow-ups for quiet leads</p>
+              <p className="text-xs text-muted-foreground">
+                The agent drafts WhatsApp follow-ups for stale leads. Every draft is reviewed before it&apos;s sent.
+              </p>
+            </div>
+            <Button
+              variant={enabled ? "default" : "outline"}
+              size="sm"
+              onClick={() => setEnabled(!enabled)}
+            >
+              {enabled ? "Enabled" : "Disabled"}
+            </Button>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-foreground">Auto-generate every morning</p>
+              <p className="text-xs text-muted-foreground">
+                Draft follow-ups for due leads automatically each morning. Off = drafts are only
+                created when someone presses &quot;Generate follow-ups&quot;.
+              </p>
+            </div>
+            <Button
+              variant={autoGenerate ? "default" : "outline"}
+              size="sm"
+              onClick={() => setAutoGenerate(!autoGenerate)}
+              aria-label="Toggle auto-generate follow-ups"
+            >
+              {autoGenerate ? "Enabled" : "Disabled"}
+            </Button>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">First follow-up after (days)</label>
+              <Input
+                type="number"
+                min={1}
+                value={gapFirst}
+                onChange={(e) => setGapFirst(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground mt-1">Quiet days before the first nudge.</p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Second follow-up after (days)</label>
+              <Input
+                type="number"
+                min={1}
+                value={gapSecond}
+                onChange={(e) => setGapSecond(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground mt-1">Days after the first follow-up.</p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Final follow-up gap (days)</label>
+              <Input
+                type="number"
+                min={1}
+                value={gapFinal}
+                onChange={(e) => setGapFinal(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground mt-1">Days after the second (and later) follow-ups.</p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Max drafts per lead</label>
+              <Input
+                type="number"
+                min={1}
+                value={maxDrafts}
+                onChange={(e) => setMaxDrafts(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground mt-1">Never nudge one lead more than this.</p>
+            </div>
+          </div>
+
+          {enabled && !settings?.ai_followups_configured && (
+            <p className="text-xs text-warning">
+              Enabled, but the platform Anthropic API key isn&apos;t set — drafts won&apos;t generate until it is.
+            </p>
+          )}
+
+          <Button size="sm" onClick={handleSave} disabled={saving}>
+            {saving ? "Saving..." : "Save"}
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );

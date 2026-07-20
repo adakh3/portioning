@@ -9,7 +9,7 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ('bookings', '0053_productline_is_default'),
-        ('events', '0023_eventpayment'),
+        ('events', '0025_event_public_token'),
         ('rules', '0006_guestsegment'),
     ]
 

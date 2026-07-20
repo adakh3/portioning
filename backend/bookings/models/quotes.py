@@ -1,3 +1,4 @@
+import uuid
 from decimal import Decimal
 
 from django.conf import settings
@@ -102,8 +103,18 @@ class Quote(OrgScopedModel, models.Model):
         settings.AUTH_USER_MODEL, null=True, blank=True,
         on_delete=models.SET_NULL, related_name='created_quotes',
     )
+    assigned_to = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='assigned_quotes',
+        help_text='Salesperson who owns this quote; drives commission attribution '
+                  'and carries to the event on conversion.',
+    )
     sent_at = models.DateTimeField(null=True, blank=True)
     accepted_at = models.DateTimeField(null=True, blank=True)
+    # Unguessable token for the client-facing (unauthenticated) sign link. Only
+    # set once the quote is sent for signature; the token itself authorises
+    # read + sign of this one quote (see bookings/views/public_sign.py).
+    public_token = models.UUIDField(null=True, blank=True, unique=True, editable=False, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -113,6 +124,17 @@ class Quote(OrgScopedModel, models.Model):
     def __str__(self):
         who = self.account.name if self.account_id else (self.primary_contact.name if self.primary_contact_id else '—')
         return f"Quote #{self.pk} v{self.version} — {who} ({self.get_status_display()})"
+
+    def ensure_public_token(self):
+        """Assign a client-link token if this quote doesn't have one yet."""
+        if not self.public_token:
+            self.public_token = uuid.uuid4()
+            self.save(update_fields=['public_token', 'updated_at'])
+        return self.public_token
+
+    @property
+    def latest_signature(self):
+        return self.signatures.order_by('-signed_at').first()
 
     def can_transition_to(self, new_status):
         return new_status in QUOTE_TRANSITIONS.get(self.status, [])
@@ -145,6 +167,12 @@ class Quote(OrgScopedModel, models.Model):
         # Shared engine — identical math to events. See bookings/services/totals.py.
         from bookings.services.totals import compute_booking_totals
         rate = self.tax_rate if self.is_taxable else Decimal('0')
+        # Drop any prefetch cache first: the caller may have loaded this quote via
+        # prefetch_related('line_items') (e.g. QuoteDetailView), and that cache
+        # predates rows added in the same save — so line_items.all() would omit the
+        # just-added add-ons and the stored subtotal would silently drop them.
+        for rel in ('line_items', 'additional_meals'):
+            getattr(self, '_prefetched_objects_cache', {}).pop(rel, None)
         totals = compute_booking_totals(self.food_total, self.line_items.all(), rate)
         self.subtotal = totals.subtotal
         self.tax_amount = totals.tax_amount

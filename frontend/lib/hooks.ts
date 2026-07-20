@@ -2,6 +2,7 @@ import useSWR, { mutate } from "swr";
 import { useCallback, useRef, useState } from "react";
 import {
   api,
+  FollowUpStats,
   Account,
   Contact,
   AddOnProduct,
@@ -35,6 +36,7 @@ import {
   Reminder,
   ReminderCounts,
   WhatsAppMessage,
+  FollowUpDraft,
   CalendarDay,
   LockedDate,
   Subscription,
@@ -45,6 +47,12 @@ import {
 
 export function revalidate(...keys: string[]) {
   keys.forEach((k) => mutate(k));
+}
+
+/** Revalidate every cached key starting with `prefix` — for paginated/
+ * filtered families like `leads-paginated?...` where the exact key varies. */
+export function revalidatePrefix(prefix: string) {
+  mutate((key) => typeof key === "string" && key.startsWith(prefix));
 }
 
 // ── Date format ──
@@ -457,8 +465,8 @@ export function useStaffReport(params?: { date_from?: string; date_to?: string }
   });
 }
 
-export function useReminders(params?: { status?: string; due_before?: string; due_after?: string }) {
-  const key = `reminders-${params?.status || "all"}-${params?.due_before || ""}-${params?.due_after || ""}`;
+export function useReminders(params?: { status?: string; due_before?: string; due_after?: string; user?: string }) {
+  const key = `reminders-${params?.status || "all"}-${params?.due_before || ""}-${params?.due_after || ""}-${params?.user || ""}`;
   return useSWR<Reminder[]>(key, () => api.getReminders(params), {
     dedupingInterval: 15000,
   });
@@ -483,6 +491,37 @@ export function useLeadWhatsAppMessages(leadId: number | null) {
     leadId ? `lead-whatsapp-${leadId}` : null,
     () => api.getLeadWhatsAppMessages(leadId!),
     { dedupingInterval: 15000 }
+  );
+}
+
+export function useFollowUpDrafts(status: string = "pending") {
+  return useSWR<FollowUpDraft[]>(
+    `followup-drafts-${status}`,
+    () => api.getFollowUpDrafts(status),
+    { dedupingInterval: 15000 }
+  );
+}
+
+export function useLeadFollowUpDrafts(leadId: number | null) {
+  return useSWR<FollowUpDraft[]>(
+    leadId ? `lead-followup-drafts-${leadId}` : null,
+    () => api.getLeadFollowUpDrafts(leadId!),
+    { dedupingInterval: 15000 }
+  );
+}
+
+export function useFollowUpStats(period: string, dateFrom?: string, dateTo?: string) {
+  const key = `followup-stats-${period}${dateFrom ? `-f${dateFrom}` : ""}${dateTo ? `-t${dateTo}` : ""}`;
+  return useSWR<FollowUpStats>(key, () => api.getFollowUpStats(period, dateFrom, dateTo), {
+    dedupingInterval: 30000,
+  });
+}
+
+export function useFollowUpDraftCount() {
+  return useSWR<{ pending: number }>(
+    "followup-draft-count",
+    () => api.getFollowUpDraftCount(),
+    { dedupingInterval: 30000 }
   );
 }
 

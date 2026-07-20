@@ -327,6 +327,15 @@ All portions above are calculated for an **adult male (gent)**. The system then 
 - Per lady: 271 × 1.0 = 271g
 - Total curry needed: (271 × 50) + (271 × 50) = 13,550 + 13,550 = 27,100g = **27.1 kg**
 
+### Events without a gents/ladies split
+
+An event's **guest count** is the primary number (it drives all pricing); the
+gents/ladies split is optional detail entered only when known. When an event has
+no split, **all guests are portioned under one guest profile** — which one is an
+org setting (**Settings → General → Default Portion Rule**, default: Standard/gents).
+A split that doesn't add up to the guest count (legacy data) is ignored and
+treated as "no split".
+
 ---
 
 ## Budget Profiles (Automatic Ceiling Adjustment)

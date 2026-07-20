@@ -1,9 +1,12 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 
-import GuestCountField, { GuestCountValue } from "./GuestCountField";
+import GuestCountField, { GuestCountValue, splitAddsUp } from "./GuestCountField";
 
-const base: GuestCountValue = { gents: 0, ladies: 0, custom_split: false, big_eaters: false, big_eaters_percentage: 0 };
+const base: GuestCountValue = {
+  guest_count: 0, gents: 0, ladies: 0, custom_split: false,
+  big_eaters: false, big_eaters_percentage: 0,
+};
 
 function setup(over: Partial<GuestCountValue> = {}) {
   const onChange = vi.fn();
@@ -12,37 +15,64 @@ function setup(over: Partial<GuestCountValue> = {}) {
 }
 
 describe("GuestCountField", () => {
-  it("auto-splits the total 50/50 (ceil gents, floor ladies)", () => {
+  it("editing the count keeps the split unspecified (no fabricated 50/50)", () => {
     const onChange = setup();
-    // Not custom, no big eaters → the only input is Total Guests.
     fireEvent.change(screen.getByRole("textbox"), { target: { value: "41" } });
-    expect(onChange).toHaveBeenCalledWith({ gents: 21, ladies: 20 });
+    expect(onChange).toHaveBeenCalledWith({ guest_count: 41, gents: 0, ladies: 0, custom_split: false });
   });
 
-  it("derives the total and shows the split hint", () => {
-    setup({ gents: 30, ladies: 20 }); // total 50
+  it("shows the count and 'not specified' when there is no split", () => {
+    setup({ guest_count: 50 });
     expect(screen.getByRole("textbox")).toHaveValue("50");
-    expect(screen.getByText(/Split: 25 gents \/ 25 ladies/)).toBeInTheDocument();
+    expect(screen.getByText(/Split: not specified/)).toBeInTheDocument();
   });
 
-  it("reveals gents/ladies when Customise split is on and keeps the total", () => {
-    const onChange = setup({ gents: 30, ladies: 20, custom_split: true });
-    // [total, gents, ladies]
+  it("opening the split seeds an even suggestion to adjust", () => {
+    const onChange = setup({ guest_count: 41 });
+    fireEvent.click(screen.getByRole("checkbox", { name: /gents \/ ladies split/i }));
+    expect(onChange).toHaveBeenCalledWith({ custom_split: true, gents: 21, ladies: 20 });
+  });
+
+  it("editing gents auto-compensates ladies so the split keeps adding up", () => {
+    const onChange = setup({ guest_count: 50, gents: 30, ladies: 20, custom_split: true });
+    // [count, gents, ladies]
     const [, gents] = screen.getAllByRole("textbox");
     expect(gents).toHaveValue("30");
     fireEvent.change(gents, { target: { value: "35" } });
-    expect(onChange).toHaveBeenCalledWith({ gents: 35, ladies: 15 }); // total stays 50
+    expect(onChange).toHaveBeenCalledWith({ gents: 35, ladies: 15 }); // count stays 50
   });
 
-  it("toggling custom split off resets to 50/50", () => {
-    const onChange = setup({ gents: 35, ladies: 15, custom_split: true }); // total 50
-    fireEvent.click(screen.getByRole("checkbox", { name: /customise gender split/i }));
-    expect(onChange).toHaveBeenCalledWith({ custom_split: false, gents: 25, ladies: 25 });
+  it("shows the adds-up confirmation when the split matches the count", () => {
+    setup({ guest_count: 50, gents: 30, ladies: 20, custom_split: true });
+    expect(screen.getByText(/adds up to 50/)).toBeInTheDocument();
+  });
+
+  it("changing the count clears an entered split (ask again, never scale)", () => {
+    const onChange = setup({ guest_count: 50, gents: 30, ladies: 20, custom_split: true });
+    const [count] = screen.getAllByRole("textbox");
+    fireEvent.change(count, { target: { value: "60" } });
+    expect(onChange).toHaveBeenCalledWith({ guest_count: 60, gents: 0, ladies: 0, custom_split: false });
+  });
+
+  it("closing the split clears it back to unspecified", () => {
+    const onChange = setup({ guest_count: 50, gents: 35, ladies: 15, custom_split: true });
+    fireEvent.click(screen.getByRole("checkbox", { name: /gents \/ ladies split/i }));
+    expect(onChange).toHaveBeenCalledWith({ custom_split: false, gents: 0, ladies: 0 });
   });
 
   it("enables the big-eaters modifier", () => {
     const onChange = setup();
     fireEvent.click(screen.getByRole("checkbox", { name: /big eaters/i }));
     expect(onChange).toHaveBeenCalledWith({ big_eaters: true });
+  });
+});
+
+describe("splitAddsUp", () => {
+  it("passes when no split is open", () => {
+    expect(splitAddsUp({ guest_count: 50, gents: 0, ladies: 0, custom_split: false })).toBe(true);
+  });
+  it("passes when the split matches and fails when it does not", () => {
+    expect(splitAddsUp({ guest_count: 50, gents: 30, ladies: 20, custom_split: true })).toBe(true);
+    expect(splitAddsUp({ guest_count: 50, gents: 30, ladies: 10, custom_split: true })).toBe(false);
   });
 });
