@@ -19,6 +19,7 @@ import AssigneePicker from "@/components/AssigneePicker";
 import { computeQuoteTotals, buildQuoteSavePayload, bookingMealRows, LineItemInput } from "@/lib/quoteTotals";
 import AddOnItemsEditor from "@/components/AddOnItemsEditor";
 import BookingTotalsCard from "@/components/BookingTotalsCard";
+import ESignPanel from "@/components/ESignPanel";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -769,6 +770,11 @@ export default function QuoteDetailPage() {
               Delete Quote
             </Button>
           </div>
+
+          {/* Client e-signature — send link (pre-acceptance) or signed status */}
+          {!editing && (q.signature || q.status === "draft" || q.status === "sent") && (
+            <ESignPanel kind="quote" id={q.id} publicToken={q.public_token} signature={q.signature} contactPhone={q.contact_phone} contactName={q.contact_name} subject={q.event_type} />
+          )}
 
           {/* Event link when accepted */}
           {q.status === "accepted" && q.event_id && (

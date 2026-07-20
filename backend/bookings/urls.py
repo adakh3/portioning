@@ -36,9 +36,16 @@ from bookings.views import (
     FollowUpPreviewView, FollowUpGenerateView,
     FollowUpDraftMarkSentView, LeadLogReplyView,
     LockedDateListCreateView, LockedDateDeleteView,
+    PublicBookingView, PublicBookingSignView, PublicBookingPDFView,
+    QuoteSendForSignatureView, EventSendForSignatureView,
 )
 
 urlpatterns = [
+    # Public (unauthenticated) client-facing e-signature — resolved by token
+    path('public/bookings/<uuid:token>/', PublicBookingView.as_view(), name='public-booking'),
+    path('public/bookings/<uuid:token>/sign/', PublicBookingSignView.as_view(), name='public-booking-sign'),
+    path('public/bookings/<uuid:token>/pdf/', PublicBookingPDFView.as_view(), name='public-booking-pdf'),
+
     # Accounts (businesses) & Contacts (people)
     path('bookings/accounts/', AccountListCreateView.as_view(), name='account-list'),
     path('bookings/accounts/<int:pk>/', AccountDetailView.as_view(), name='account-detail'),
@@ -109,6 +116,7 @@ urlpatterns = [
     path('bookings/quotes/<int:pk>/transition/', QuoteTransitionView.as_view(), name='quote-transition'),
     path('bookings/quotes/<int:pk>/pdf/', QuotePDFView.as_view(), name='quote-pdf'),
     path('bookings/quotes/<int:pk>/mark-shared-whatsapp/', QuoteMarkSharedWhatsAppView.as_view(), name='quote-mark-shared-whatsapp'),
+    path('bookings/quotes/<int:pk>/send-for-signature/', QuoteSendForSignatureView.as_view(), name='quote-send-for-signature'),
     path('bookings/quotes/<int:quote_pk>/items/', QuoteLineItemListCreateView.as_view(), name='quote-item-list'),
     path('bookings/quotes/<int:quote_pk>/items/<int:pk>/', QuoteLineItemDetailView.as_view(), name='quote-item-detail'),
 

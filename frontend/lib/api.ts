@@ -451,6 +451,8 @@ export interface Quote {
   internal_notes: string;
   sent_at: string | null;
   accepted_at: string | null;
+  public_token: string | null;
+  signature: BookingSignatureInfo | null;
   event: number | null;
   event_id: number | null;
   created_by: number | null;
@@ -760,6 +762,9 @@ export interface EventData {
   final_count_due: string | null;
   // Nested
   source_quote_id: number | null;
+  contact_phone: string | null;
+  public_token: string | null;
+  signature: BookingSignatureInfo | null;
   line_items: QuoteLineItem[];
   additional_meals: EventMealData[];
   shifts: Shift[];
@@ -1171,6 +1176,50 @@ export interface Plan {
   currency_symbol: string;
 }
 
+// ── E-signature ──
+export interface BookingSignatureInfo {
+  signer_name: string;
+  signed_at: string;
+}
+
+/** Customer-safe view of a booking behind a public sign token. */
+export interface PublicBooking {
+  kind: "quote" | "event";
+  reference: string;
+  business_name: string;
+  currency_symbol: string;
+  currency_code: string;
+  tax_label: string;
+  terms: string;
+  customer_name: string | null;
+  event_date: string | null;
+  venue_name: string | null;
+  venue_address: string;
+  guest_count: number;
+  event_type: string;
+  meal_type: string;
+  service_style: string;
+  menu: { category: string; items: string[] }[];
+  line_items: { description: string; category: string; quantity: string; unit: string; line_total: string }[];
+  price_per_head: string | null;
+  subtotal: string;
+  tax_amount: string;
+  total: string;
+  notes: string;
+  status: string;
+  is_signed: boolean;
+  signable: boolean;
+  signer_name: string | null;
+  signed_at: string | null;
+}
+
+export interface SignBookingPayload {
+  signer_name: string;
+  consent: boolean;
+  signer_email?: string;
+  signature_image?: string;
+}
+
 // API functions
 export const api = {
   // Auth
@@ -1455,6 +1504,32 @@ export const api = {
     fetchApi<void>(`/bookings/quotes/${id}/`, { method: "DELETE" }),
   transitionQuote: (id: number, status: string) =>
     fetchApi<Quote>(`/bookings/quotes/${id}/transition/`, { method: "POST", body: JSON.stringify({ status }) }),
+
+  // ── E-signature ──
+  // Staff: mint the client sign link (and mark the quote SENT).
+  sendQuoteForSignature: (id: number) =>
+    fetchApi<{ public_token: string; status: string }>(
+      `/bookings/quotes/${id}/send-for-signature/`, { method: "POST" }),
+  sendEventForSignature: (id: number) =>
+    fetchApi<{ public_token: string; status: string }>(
+      `/events/${id}/send-for-signature/`, { method: "POST" }),
+  // Public (unauthenticated): a plain fetch, deliberately outside fetchApi so a
+  // client with no session never hits the 401-refresh/redirect path.
+  getPublicBooking: async (token: string): Promise<PublicBooking> => {
+    const res = await fetch(`${API_BASE}/public/bookings/${token}/`, { headers: { "Content-Type": "application/json" } });
+    if (!res.ok) throw new Error(sanitizeError(res.status, await res.text()));
+    return res.json();
+  },
+  signPublicBooking: async (token: string, payload: SignBookingPayload): Promise<PublicBooking> => {
+    const res = await fetch(`${API_BASE}/public/bookings/${token}/sign/`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error(sanitizeError(res.status, await res.text()));
+    return res.json();
+  },
+  publicBookingPdfUrl: (token: string) => `${API_BASE}/public/bookings/${token}/pdf/`,
   downloadQuotePDF: async (id: number): Promise<Blob> => {
     const res = await fetch(`${API_BASE}/bookings/quotes/${id}/pdf/`, {
       credentials: "include",

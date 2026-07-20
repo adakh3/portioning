@@ -1,3 +1,4 @@
+import uuid
 from decimal import Decimal
 
 from django.conf import settings
@@ -110,6 +111,10 @@ class Quote(OrgScopedModel, models.Model):
     )
     sent_at = models.DateTimeField(null=True, blank=True)
     accepted_at = models.DateTimeField(null=True, blank=True)
+    # Unguessable token for the client-facing (unauthenticated) sign link. Only
+    # set once the quote is sent for signature; the token itself authorises
+    # read + sign of this one quote (see bookings/views/public_sign.py).
+    public_token = models.UUIDField(null=True, blank=True, unique=True, editable=False, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -119,6 +124,17 @@ class Quote(OrgScopedModel, models.Model):
     def __str__(self):
         who = self.account.name if self.account_id else (self.primary_contact.name if self.primary_contact_id else '—')
         return f"Quote #{self.pk} v{self.version} — {who} ({self.get_status_display()})"
+
+    def ensure_public_token(self):
+        """Assign a client-link token if this quote doesn't have one yet."""
+        if not self.public_token:
+            self.public_token = uuid.uuid4()
+            self.save(update_fields=['public_token', 'updated_at'])
+        return self.public_token
+
+    @property
+    def latest_signature(self):
+        return self.signatures.order_by('-signed_at').first()
 
     def can_transition_to(self, new_status):
         return new_status in QUOTE_TRANSITIONS.get(self.status, [])

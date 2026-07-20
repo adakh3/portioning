@@ -14,6 +14,10 @@ from .quotes import (
     QuotePDFView,
     QuoteMarkSharedWhatsAppView,
 )
+from .public_sign import (
+    PublicBookingView, PublicBookingSignView, PublicBookingPDFView,
+    QuoteSendForSignatureView, EventSendForSignatureView,
+)
 from .finance import (
     InvoiceListCreateView, InvoiceDetailView,
     PaymentListCreateView, PaymentDetailView,

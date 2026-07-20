@@ -40,7 +40,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (loading) return;
     const isLoginPage = pathname === "/login";
-    if (!user && !isLoginPage) {
+    // Public, unauthenticated client-facing pages (e.g. the /b/<token> sign link)
+    // must never bounce a logged-out customer to the staff login.
+    const isPublicPage = isLoginPage || pathname.startsWith("/b/");
+    if (!user && !isPublicPage) {
       router.replace(`/login?returnTo=${encodeURIComponent(pathname)}`);
     } else if (user && isLoginPage) {
       const returnTo = searchParams.get("returnTo") || "/";
