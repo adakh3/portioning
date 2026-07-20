@@ -9063,21 +9063,29 @@
   }
 },
 {
-  "model": "rules.guestprofile",
+  "model": "rules.guestsegment",
   "pk": 21,
   "fields": {
     "organisation": 1,
     "name": "gents",
-    "portion_multiplier": 1.0
+    "portion_multiplier": 1.0,
+    "price_multiplier": "1.0000",
+    "sort_order": 0,
+    "is_default": false,
+    "is_active": true
   }
 },
 {
-  "model": "rules.guestprofile",
+  "model": "rules.guestsegment",
   "pk": 22,
   "fields": {
     "organisation": 1,
     "name": "ladies",
-    "portion_multiplier": 1.0
+    "portion_multiplier": 1.0,
+    "price_multiplier": "1.0000",
+    "sort_order": 0,
+    "is_default": false,
+    "is_active": true
   }
 },
 {
@@ -9117,6 +9125,7 @@
     "price_rounding_step": 50,
     "quotation_terms": "",
     "whatsapp_enabled": false,
+    "whatsapp_shortcuts_enabled": true,
     "twilio_whatsapp_number": "",
     "commission_model": "flat",
     "commission_flat_rate": "0.00",
@@ -9127,7 +9136,9 @@
     "followup_gap_first_days": 3,
     "followup_gap_second_days": 7,
     "followup_gap_final_days": 14,
-    "followup_max_drafts_per_lead": 3
+    "followup_max_drafts_per_lead": 3,
+    "followup_auto_generate": false,
+    "followup_last_auto_run_at": null
   }
 },
 {
@@ -9148,6 +9159,7 @@
     "price_rounding_step": 50,
     "quotation_terms": "",
     "whatsapp_enabled": false,
+    "whatsapp_shortcuts_enabled": true,
     "twilio_whatsapp_number": "",
     "commission_model": "flat",
     "commission_flat_rate": "0.00",
@@ -9158,7 +9170,9 @@
     "followup_gap_first_days": 3,
     "followup_gap_second_days": 7,
     "followup_gap_final_days": 14,
-    "followup_max_drafts_per_lead": 3
+    "followup_max_drafts_per_lead": 3,
+    "followup_auto_generate": false,
+    "followup_last_auto_run_at": null
   }
 },
 {

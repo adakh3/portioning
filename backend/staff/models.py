@@ -3,6 +3,7 @@ from decimal import Decimal
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
 from users.managers import TenantManager
+from users.model_mixins import OrgScopedModel
 
 
 class LaborRole(models.Model):
@@ -12,7 +13,7 @@ class LaborRole(models.Model):
         'users.Organisation',
         on_delete=models.CASCADE, related_name='labor_roles',
     )
-    name = models.CharField(max_length=100, unique=True)
+    name = models.CharField(max_length=100)
     default_hourly_rate = models.DecimalField(max_digits=8, decimal_places=2, validators=[MinValueValidator(Decimal('0')), MaxValueValidator(Decimal('9999.99'))])
     description = models.TextField(blank=True)
     color = models.CharField(max_length=7, blank=True)
@@ -23,6 +24,12 @@ class LaborRole(models.Model):
     class Meta:
         db_table = 'bookings_laborrole'
         ordering = ['sort_order', 'name']
+        # Role names are unique per-org (not globally) \u2014 every org may have a "Server".
+        constraints = [
+            models.UniqueConstraint(
+                fields=['organisation', 'name'], name='uniq_laborrole_org_name',
+            ),
+        ]
 
     def __str__(self):
         pound = "\u00A3"
@@ -122,7 +129,13 @@ class Shift(models.Model):
         super().save(*args, **kwargs)
 
 
-class AllocationRule(models.Model):
+class AllocationRule(OrgScopedModel, models.Model):
+    objects = TenantManager()
+
+    organisation = models.ForeignKey(
+        'users.Organisation',
+        on_delete=models.CASCADE, related_name='allocation_rules',
+    )
     role = models.ForeignKey(LaborRole, on_delete=models.CASCADE, related_name='allocation_rules')
     event_type = models.CharField(max_length=50, blank=True, help_text='Blank = applies to all event types')
     guests_per_staff = models.IntegerField(validators=[MinValueValidator(1), MaxValueValidator(1000)], help_text='e.g. 30 means 1 staff per 30 guests')
