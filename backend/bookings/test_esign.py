@@ -228,3 +228,7 @@ class ESignBackendTests(TestCase):
 
         text = "\n".join(p.extract_text() for p in PdfReader(io.BytesIO(resp.content)).pages)
         self.assertNotIn("SECRET MARGIN 40%", text)  # internal notes never leak
+        # The signed copy carries the acceptance block (who signed).
+        self.assertIn("ACCEPTANCE", text)
+        self.assertIn("Aisha Khan", text)
+        self.assertIn("signed electronically", text)

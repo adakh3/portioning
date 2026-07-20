@@ -182,8 +182,10 @@ def sign_booking(booking, *, signer_name, signer_email, signature_image, ip, use
     sig.save()
 
     # Freeze exactly the document the client signed (the quote PDF if they signed
-    # via a quote link, else the event PDF) so later edits can't rewrite it.
-    pdf = generate_quote_pdf(booking) if kind == 'quote' else generate_event_pdf(event)
+    # via a quote link, else the event PDF), stamped with the ACCEPTANCE block, so
+    # later edits can't rewrite it and the signature is on the copy.
+    pdf = (generate_quote_pdf(booking, signature=sig) if kind == 'quote'
+           else generate_event_pdf(event, signature=sig))
     sig.signed_pdf = pdf
     sig.save(update_fields=['signed_pdf'])
     return sig
@@ -255,9 +257,9 @@ class PublicBookingPDFView(APIView):
         if sig and sig.signed_pdf:
             pdf = bytes(sig.signed_pdf)
         elif _booking_kind(booking) == 'quote':
-            pdf = generate_quote_pdf(booking)
+            pdf = generate_quote_pdf(booking, signature=sig)
         else:
-            pdf = generate_event_pdf(booking)
+            pdf = generate_event_pdf(booking, signature=sig)
         response = HttpResponse(pdf, content_type='application/pdf')
         response['Content-Disposition'] = f'inline; filename="booking-{booking.pk}.pdf"'
         return response

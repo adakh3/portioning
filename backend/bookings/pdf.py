@@ -1,4 +1,5 @@
 """Generate professional quotation PDFs matching industry-standard catering format."""
+import base64
 import io
 import math
 from decimal import Decimal
@@ -9,7 +10,7 @@ from reportlab.lib import colors
 from reportlab.lib.enums import TA_RIGHT, TA_CENTER, TA_LEFT
 from reportlab.platypus import (
     SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, KeepTogether,
-    PageBreak,
+    PageBreak, Image,
 )
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 
@@ -217,6 +218,44 @@ def _section_header(cells, col_widths):
     return t
 
 
+def _signature_image_flowable(data_url):
+    """Turn a PNG data-URL (the client's drawn signature) into a scaled ReportLab
+    Image, or None if there isn't a usable one."""
+    if not data_url or not data_url.startswith('data:image'):
+        return None
+    try:
+        raw = base64.b64decode(data_url.split(',', 1)[1])
+        img = Image(io.BytesIO(raw))
+        max_w = 55 * mm
+        if img.imageWidth and img.imageWidth > max_w:
+            img.drawHeight = img.imageHeight * (max_w / img.imageWidth)
+            img.drawWidth = max_w
+        return img
+    except Exception:
+        return None
+
+
+def _acceptance_block(signature, s):
+    """Flowables for the 'ACCEPTANCE' block stamped onto a signed PDF — the drawn
+    signature (if any) plus who signed, when, and from where. Empty if unsigned."""
+    if signature is None:
+        return []
+    out = [Spacer(1, 8 * mm),
+           _section_header([Paragraph('ACCEPTANCE', s['section_title'])], [CONTENT_W]),
+           Spacer(1, 3 * mm)]
+    img = _signature_image_flowable(signature.signature_image)
+    if img is not None:
+        out += [img, Spacer(1, 2 * mm)]
+    when = signature.signed_at.strftime('%d %b %Y, %H:%M') if signature.signed_at else ''
+    line = f"Accepted &amp; signed electronically by <b>{signature.signer_name}</b>"
+    if when:
+        line += f" on {when}"
+    if signature.ip_address:
+        line += f" (IP {signature.ip_address})"
+    out.append(Paragraph(line, s['note']))
+    return out
+
+
 def _grand_total_bar(cells, col_widths):
     """Create the grand total row with dark background (only dark bar in PDF)."""
     t = Table([cells], colWidths=col_widths)
@@ -274,9 +313,12 @@ def _meal_flowables(booking, cs, s, time_format='24h'):
     return [_section_header([Paragraph('ADDITIONAL MEALS', s['section_title'])], [CONTENT_W])] + out + [Spacer(1, 3 * mm)]
 
 
-def generate_quote_pdf(quote):
+def generate_quote_pdf(quote, signature=None):
     """
     Generate a professional quotation PDF from a Quote model instance.
+
+    If ``signature`` (a BookingSignature) is given, an ACCEPTANCE block is stamped
+    at the end — the drawn signature plus who signed, when and from where.
 
     Returns:
         bytes — PDF file content
@@ -634,6 +676,7 @@ def generate_quote_pdf(quote):
             else:
                 elements.append(Spacer(1, 2 * mm))
 
+    elements += _acceptance_block(signature, s)
 
     doc.build(elements)
     return buf.getvalue()
@@ -646,11 +689,12 @@ def _choice_label(model, value, org):
             .values_list('label', flat=True).first() or value)
 
 
-def generate_event_pdf(event):
+def generate_event_pdf(event, signature=None):
     """Generate an EVENT FUNCTION SHEET PDF for the ops/kitchen team from an Event
     instance. Shares the quote PDF's styles + food/meal/add-on helpers, but leads
     with the operational detail (timeline, guest counts, menu, kitchen/banquet/
-    setup instructions) rather than sales/pricing. Returns bytes.
+    setup instructions) rather than sales/pricing. If ``signature`` is given, an
+    ACCEPTANCE block is stamped at the end. Returns bytes.
     """
     settings = OrgSettings.for_org(event.organisation)
     cs = settings.currency_symbol
@@ -849,6 +893,8 @@ def generate_event_pdf(event):
                 if para.strip():
                     elements.append(Paragraph(para.strip(), s['note']))
             elements.append(Spacer(1, 6 * mm))
+
+    elements += _acceptance_block(signature, s)
 
     doc.build(elements)
     return buf.getvalue()
