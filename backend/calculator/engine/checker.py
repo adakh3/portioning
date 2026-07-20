@@ -1,6 +1,6 @@
 """Pure validation logic for user-supplied portions against system constraints."""
 
-from .models import DishInput, GuestMix, ResolvedConstraints
+from .models import DishInput, GuestMix, Segment, ResolvedConstraints
 
 
 def check_user_portions(
@@ -8,8 +8,9 @@ def check_user_portions(
     dishes,
     constraints,
     pool_ceilings,
-    guest_mix,
+    guest_mix=None,
     ladies_multiplier=1.0,
+    segments=None,
     big_eaters=False,
     big_eaters_percentage=20.0,
 ):
@@ -22,14 +23,18 @@ def check_user_portions(
         dishes: list[DishInput]
         constraints: ResolvedConstraints
         pool_ceilings: dict[str, float] — e.g. {'protein': 590, 'accompaniment': 150}
-        guest_mix: GuestMix
-        ladies_multiplier: float — portion multiplier for ladies
+        segments: list[Segment] — the N-segment guest mix. If omitted, built from
+            the legacy ``guest_mix`` + ``ladies_multiplier`` (two-segment adapter).
+        guest_mix: GuestMix — legacy two-segment input (gents/ladies)
+        ladies_multiplier: float — portion multiplier for ladies (legacy path)
         big_eaters: bool
         big_eaters_percentage: float
 
     Returns:
         dict with keys: violations, user_portions_expanded, totals
     """
+    if segments is None:
+        segments = guest_mix.to_segments(ladies_multiplier) if guest_mix else []
     violations = []
     dish_map = {d.id: d for d in dishes}
 
@@ -155,9 +160,17 @@ def check_user_portions(
             'cap': max_food,
         })
 
-    # ── EXPAND THROUGH GUEST MIX ──
+    # ── EXPAND THROUGH GUEST MIX (over N segments) ──
+    # Mirrors calculate_portions: base grams (multiplier 1.0) scaled per segment,
+    # totals summed over ALL covers. Legacy gent/lady keys kept for consumers.
     big_eaters_mult = 1.0 + (big_eaters_percentage / 100.0) if big_eaters else 1.0
-    total_people = guest_mix.total
+    total_covers = sum(s.count for s in segments)
+
+    def _lady_grams(seg_grams, base_grams):
+        for name, grams in seg_grams.items():
+            if name.lower() == 'ladies':
+                return grams
+        return base_grams
 
     expanded = []
     total_food_weight = 0.0
@@ -165,11 +178,13 @@ def check_user_portions(
     total_food_per_lady = 0.0
 
     for dish in dishes:
-        base_grams = user_portions.get(dish.id, 0.0)
-        grams_gent = round(base_grams * big_eaters_mult, 1)
-        grams_lady = round(grams_gent * ladies_multiplier, 1)
-        dish_total = grams_gent * guest_mix.gents + grams_lady * guest_mix.ladies
-        grams_per_person = round(dish_total / total_people, 1) if total_people else 0
+        base_grams = round(user_portions.get(dish.id, 0.0) * big_eaters_mult, 1)
+        seg_grams = {
+            s.name: round(base_grams * s.portion_multiplier, 1) for s in segments
+        }
+        dish_total = sum(seg_grams[s.name] * s.count for s in segments)
+        grams_per_person = round(dish_total / total_covers, 1) if total_covers else 0
+        grams_lady = _lady_grams(seg_grams, base_grams)
 
         expanded.append({
             'dish_id': dish.id,
@@ -178,16 +193,17 @@ def check_user_portions(
             'pool': dish.pool,
             'unit': dish.unit,
             'grams_per_person': grams_per_person,
-            'grams_per_gent': grams_gent,
+            'grams_per_gent': base_grams,
             'grams_per_lady': grams_lady,
+            'grams_by_segment': seg_grams,
             'total_grams': round(dish_total, 1),
         })
 
-        total_food_per_gent += grams_gent
+        total_food_per_gent += base_grams
         total_food_per_lady += grams_lady
         total_food_weight += dish_total
 
-    food_per_person = round(total_food_weight / total_people, 1) if total_people else 0
+    food_per_person = round(total_food_weight / total_covers, 1) if total_covers else 0
 
     totals = {
         'food_per_gent_grams': round(total_food_per_gent, 1),

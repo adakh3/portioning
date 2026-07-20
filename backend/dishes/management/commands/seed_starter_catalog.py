@@ -228,16 +228,19 @@ class Command(BaseCommand):
             'max_total_food_per_person_grams': 1000, 'min_portion_per_dish_grams': 30,
         })
         # US orgs use meal-type segments (not a gender split): Adults full price,
-        # Kids/Vendors eat & pay less. (portion_multiplier, price_multiplier)
-        for i, (name, portion, price, default) in enumerate([
-            ('Adults', 1.0, '1.0000', True),
-            ('Kids', 0.6, '0.5000', False),
-            ('Vendors', 1.0, '0.5000', False),
+        # Kids/Vendors eat & pay less. Vendors are additional covers (crew meals),
+        # not part of the headline guest count.
+        # (portion_multiplier, price_multiplier, is_default, counts_toward_total)
+        for i, (name, portion, price, default, counts) in enumerate([
+            ('Adults', 1.0, '1.0000', True, True),
+            ('Kids', 0.6, '0.5000', False, True),
+            ('Vendors', 1.0, '0.5000', False, False),
         ]):
             GuestSegment.objects.get_or_create(
                 organisation=self.org, name=name,
                 defaults={'portion_multiplier': portion, 'price_multiplier': Decimal(price),
-                          'sort_order': i, 'is_default': default},
+                          'sort_order': i, 'is_default': default,
+                          'counts_toward_total': counts},
             )
         std, created = BudgetProfile.objects.get_or_create(
             organisation=self.org, name='Standard',

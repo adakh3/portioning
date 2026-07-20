@@ -1,9 +1,44 @@
 """Pipeline orchestrator: pool-based calculation with baselines, ceilings, and popularity split."""
 from decimal import Decimal
 
-from .models import DishInput, GuestMix, ResolvedConstraints
+from .models import DishInput, GuestMix, Segment, ResolvedConstraints
 from .baseline import establish_category_budgets, apply_protein_redistribution, apply_category_budget_caps, apply_pool_ceiling, split_by_popularity
 from .constraints import enforce_category_constraints, enforce_global_constraints
+
+
+def normalize_segments(guests, guest_profiles):
+    """Coerce the various guest inputs into an ordered list of ``Segment``.
+
+    Accepts, for backward compatibility:
+    - the legacy ``{'gents': N, 'ladies': M}`` dict (or a ``GuestMix``) — expanded
+      to two segments, ladies scaled by the org's ``ladies`` portion multiplier
+      (identical to the pre-segment engine), OR
+    - the N-segment form: a list of ``Segment`` or of
+      ``{'name', 'count', 'portion_multiplier', 'counts_toward_total'}`` dicts,
+      where each segment already carries its own multiplier (resolved upstream
+      from ``rules.GuestSegment``).
+    """
+    if isinstance(guests, GuestMix):
+        return guests.to_segments(guest_profiles.get('ladies', 1.0))
+    if isinstance(guests, dict):
+        if 'segments' in guests:
+            raw = guests['segments']
+        else:
+            return GuestMix(**guests).to_segments(guest_profiles.get('ladies', 1.0))
+    else:
+        raw = guests
+    segments = []
+    for s in raw:
+        if isinstance(s, Segment):
+            segments.append(s)
+        else:
+            segments.append(Segment(
+                name=s['name'],
+                count=s.get('count', 0),
+                portion_multiplier=s.get('portion_multiplier', 1.0),
+                counts_toward_total=s.get('counts_toward_total', True),
+            ))
+    return segments
 
 
 def _load_dishes(dish_ids, org=None):
@@ -201,7 +236,7 @@ def calculate_portions(dish_ids, guests, constraint_overrides=None,
     config, protein_ceiling, accompaniment_ceiling, dessert_ceiling, profile_adjustments, guest_profiles, combo_rules = \
         _load_config_and_ceilings(dish_category_ids, org=org)
     constraints = _resolve_constraints(constraint_overrides, org=org)
-    guest_mix = GuestMix(**guests)
+    segments = normalize_segments(guests, guest_profiles)
 
     all_adjustments = list(profile_adjustments)
 
@@ -326,14 +361,26 @@ def calculate_portions(dish_ids, guests, constraint_overrides=None,
 
     warnings = menu_warnings + warnings
 
-    # ── GUEST MIX EXPANSION ──
-    ladies_mult = guest_profiles.get('ladies', 1.0)
+    # ── GUEST MIX EXPANSION (over N segments) ──
+    # Portions scale from a single base (multiplier 1.0) per dish; every segment
+    # is that base × its own multiplier, and dish totals sum over ALL covers
+    # (in-count + additional). The legacy gent/lady keys are kept populated for
+    # the PDF/serializers that still read them: gent == the base grams, lady ==
+    # the 'ladies' segment when present (the two-segment desi path), else base.
     big_eaters_mult = 1.0 + (big_eaters_percentage / 100.0) if big_eaters else 1.0
 
     if big_eaters:
         all_adjustments.append(
             f"Big eaters: all portions increased by {big_eaters_percentage:.0f}%"
         )
+
+    total_covers = sum(s.count for s in segments)
+
+    def _lady_grams(seg_grams, base_grams):
+        for name, grams in seg_grams.items():
+            if name.lower() == 'ladies':
+                return grams
+        return base_grams
 
     results = []
     total_food_weight = 0.0
@@ -343,17 +390,15 @@ def calculate_portions(dish_ids, guests, constraint_overrides=None,
     total_protein_per_person = 0.0
 
     for dish in dishes:
-        grams_gent = round(portions[dish.id] * big_eaters_mult, 1)
-        grams_lady = round(grams_gent * ladies_mult, 1)
-
-        dish_total = (
-            grams_gent * guest_mix.gents
-            + grams_lady * guest_mix.ladies
-        )
-        total_people = guest_mix.gents + guest_mix.ladies
-        grams_per_person = round(dish_total / total_people, 1) if total_people else 0
-        cost_gent = round(grams_gent * dish.cost_per_gram, 2)
+        base_grams = round(portions[dish.id] * big_eaters_mult, 1)
+        seg_grams = {
+            s.name: round(base_grams * s.portion_multiplier, 1) for s in segments
+        }
+        dish_total = sum(seg_grams[s.name] * s.count for s in segments)
+        grams_per_person = round(dish_total / total_covers, 1) if total_covers else 0
+        cost_base = round(base_grams * dish.cost_per_gram, 2)
         dish_total_cost = round(dish_total * dish.cost_per_gram, 2)
+        grams_lady = _lady_grams(seg_grams, base_grams)
 
         results.append({
             'dish_id': dish.id,
@@ -363,23 +408,23 @@ def calculate_portions(dish_ids, guests, constraint_overrides=None,
             'pool': dish.pool,
             'unit': dish.unit,
             'grams_per_person': grams_per_person,
-            'grams_per_gent': grams_gent,
+            'grams_per_gent': base_grams,
             'grams_per_lady': grams_lady,
+            'grams_by_segment': seg_grams,
             'total_grams': round(dish_total, 1),
-            'cost_per_gent': cost_gent,
+            'cost_per_gent': cost_base,
             'total_cost': dish_total_cost,
         })
 
-        total_food_per_gent += grams_gent
+        total_food_per_gent += base_grams
         total_food_per_lady += grams_lady
         total_food_weight += dish_total
         total_cost += Decimal(str(dish_total_cost))
         if dish.pool == 'protein':
             total_protein_per_person += dish_total
 
-    total_people = guest_mix.gents + guest_mix.ladies
-    food_per_person = round(total_food_weight / total_people, 1) if total_people else 0
-    protein_per_person = round(total_protein_per_person / total_people, 1) if total_people else 0
+    food_per_person = round(total_food_weight / total_covers, 1) if total_covers else 0
+    protein_per_person = round(total_protein_per_person / total_covers, 1) if total_covers else 0
 
     return {
         'portions': results,

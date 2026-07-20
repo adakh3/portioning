@@ -9072,6 +9072,7 @@
     "price_multiplier": "1.0000",
     "sort_order": 0,
     "is_default": false,
+    "counts_toward_total": true,
     "is_active": true
   }
 },
@@ -9085,6 +9086,7 @@
     "price_multiplier": "1.0000",
     "sort_order": 0,
     "is_default": false,
+    "counts_toward_total": true,
     "is_active": true
   }
 },

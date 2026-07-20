@@ -17,11 +17,29 @@ class MenuTemplateDetailView(OrgQuerySetMixin, generics.RetrieveAPIView):
     serializer_class = MenuTemplateDetailSerializer
 
 
+def _template_segments(menu):
+    """Two-segment (gents/ladies) mix for a template preview, from the template's
+    default counts and the org's 'Ladies' segment multiplier (1.0 if none)."""
+    from calculator.engine.models import Segment
+    from rules.models import GuestSegment
+
+    ladies_multiplier = 1.0
+    ladies = GuestSegment.objects.filter(
+        name='Ladies', organisation=menu.organisation,
+    ).first()
+    if ladies is not None:
+        ladies_multiplier = ladies.portion_multiplier
+    return [
+        Segment('gents', menu.default_gents, 1.0, True),
+        Segment('ladies', menu.default_ladies, ladies_multiplier, True),
+    ]
+
+
 class MenuTemplatePreviewView(APIView):
     """Return a CalculationResult-shaped response from stored template portions."""
 
     def get(self, request, pk):
-        from rules.models import GuestSegment
+        from calculator.engine.models import Segment
 
         qs = apply_org_filter(
             MenuTemplate.objects.filter(is_active=True), request,
@@ -31,17 +49,17 @@ class MenuTemplatePreviewView(APIView):
         if menu is None:
             return Response({'detail': 'Not found.'}, status=404)
 
-        # Get ladies multiplier from its guest segment (if the org uses one)
-        ladies_multiplier = 1.0  # fallback default
-        try:
-            ladies_profile = GuestSegment.objects.get(name='Ladies', organisation=menu.organisation)
-            ladies_multiplier = ladies_profile.portion_multiplier
-        except GuestSegment.DoesNotExist:
-            pass
+        # A menu template carries only its default gents/ladies buckets, so the
+        # preview is a two-segment mix: gents is the base (1.0), ladies scaled by
+        # the org's 'ladies' segment multiplier (1.0 if the org has none).
+        segments = _template_segments(menu)
+        total_people = sum(s.count for s in segments)
 
-        gents = menu.default_gents
-        ladies = menu.default_ladies
-        total_people = gents + ladies
+        def _lady_grams(seg_grams, base_grams):
+            for name, grams in seg_grams.items():
+                if name.lower() == 'ladies':
+                    return grams
+            return base_grams
 
         portions = []
         total_food_gent = 0
@@ -52,12 +70,17 @@ class MenuTemplatePreviewView(APIView):
 
         for mp in menu.portions.select_related('dish__category').all():
             dish = mp.dish
-            grams_per_gent = round(mp.portion_grams, 1)
-            grams_per_lady = round(mp.portion_grams * ladies_multiplier, 1)
-            dish_total_grams = round(grams_per_gent * gents + grams_per_lady * ladies, 1)
+            base_grams = round(mp.portion_grams, 1)
+            seg_grams = {
+                s.name: round(base_grams * s.portion_multiplier, 1) for s in segments
+            }
+            dish_total_grams = round(
+                sum(seg_grams[s.name] * s.count for s in segments), 1
+            )
             grams_per_person = round(dish_total_grams / total_people, 1) if total_people else 0
-            cost_per_gent = round(float(dish.cost_per_gram) * grams_per_gent, 2)
+            cost_per_gent = round(float(dish.cost_per_gram) * base_grams, 2)
             dish_total_cost = round(float(dish.cost_per_gram) * dish_total_grams, 2)
+            grams_per_lady = _lady_grams(seg_grams, base_grams)
 
             portions.append({
                 'dish_id': dish.id,
@@ -67,14 +90,15 @@ class MenuTemplatePreviewView(APIView):
                 'pool': dish.category.pool,
                 'unit': dish.category.unit,
                 'grams_per_person': grams_per_person,
-                'grams_per_gent': grams_per_gent,
+                'grams_per_gent': base_grams,
                 'grams_per_lady': grams_per_lady,
+                'grams_by_segment': seg_grams,
                 'total_grams': dish_total_grams,
                 'cost_per_gent': cost_per_gent,
                 'total_cost': dish_total_cost,
             })
 
-            total_food_gent += grams_per_gent
+            total_food_gent += base_grams
             total_food_lady += grams_per_lady
             total_food_weight += dish_total_grams
             total_cost += dish_total_cost

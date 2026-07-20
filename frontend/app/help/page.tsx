@@ -210,27 +210,34 @@ export default function HelpPage() {
 
       <Section title="Guest Mix & Big Eaters">
         <p>
-          All portions are calculated for an <strong>adult male (gent)</strong> as the
-          baseline. The system then adjusts for the guest mix:
+          All portions are calculated for a <strong>base guest</strong> (multiplier 1.0),
+          then expanded across the booking&apos;s <strong>guest segments</strong> — named
+          guest buckets you configure per business, each with a portion multiplier:
         </p>
         <ul className="list-disc pl-5 space-y-1">
           <li>
-            <strong>Ladies</strong> receive 100% of the gent portion by default (configurable
-            in admin)
+            <strong>Adults / gents</strong> are the base (multiplier 1.0);{" "}
+            <strong>Kids</strong> eat less (e.g. 0.6); <strong>ladies</strong> are just a
+            segment with their own multiplier (1.0 by default)
+          </li>
+          <li>
+            <strong>Additional covers</strong> (e.g. vendor / crew meals) are portioned for
+            but sit <em>outside</em> the guest count — so 150 guests + 8 vendor covers cooks
+            for 158, while the guest count stays 150
           </li>
           <li>
             <strong>Big eaters</strong> — if enabled, all portions increase by 20%
           </li>
         </ul>
         <p>
-          The total amount to prepare is calculated by multiplying per-person portions by the
-          number of gents and ladies respectively.
+          The total to prepare is the sum, over every segment, of that segment&apos;s
+          per-person portion × its number of guests.
         </p>
         <p>
           The <strong>guest count</strong> is the primary number on an event — it drives all
-          pricing. The gents/ladies split is optional and only entered when known; when
-          given, it must add up to the guest count. If an event has <strong>no split</strong>,
-          all guests are portioned under one rule, chosen in{" "}
+          pricing. The per-segment breakdown is optional and only entered when known. If a
+          booking has <strong>no breakdown</strong>, the whole count is portioned under the
+          org&apos;s default segment, set in{" "}
           <strong>Settings → General → Default Portion Rule</strong> (default: Standard/gents).
         </p>
       </Section>
