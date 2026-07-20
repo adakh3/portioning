@@ -100,7 +100,7 @@ class ESignBackendTests(TestCase):
         self.assertIsNotNone(q.event)
         self.assertEqual(q.event.status, EventStatus.CONFIRMED)
 
-        sig = BookingSignature.objects.get(quote=q)
+        sig = BookingSignature.objects.get(event=q.event)  # canonical on the event
         self.assertEqual(sig.signer_name, "Aisha Khan")
         self.assertEqual(sig.agreed_total, agreed_total)   # immutable snapshot
         self.assertIsNotNone(sig.ip_address)               # attribution captured
@@ -117,10 +117,11 @@ class ESignBackendTests(TestCase):
         no_consent = self.public.post(f"/api/public/bookings/{token}/sign/",
                                       {"signer_name": "Aisha"}, format="json")
         self.assertEqual(no_consent.status_code, 400)
-        # Nothing was signed or confirmed.
+        # Nothing was signed or confirmed — no signature, no event.
         q.refresh_from_db()
         self.assertEqual(q.status, QuoteStatus.SENT)
-        self.assertFalse(BookingSignature.objects.filter(quote=q).exists())
+        self.assertIsNone(q.event)
+        self.assertFalse(BookingSignature.objects.exists())
 
     def test_sign_is_idempotent(self):
         q = self._quote(status=QuoteStatus.SENT)
@@ -132,7 +133,8 @@ class ESignBackendTests(TestCase):
         second = self.public.post(f"/api/public/bookings/{token}/sign/", payload, format="json")
         self.assertEqual(second.status_code, 200)  # returns state, doesn't re-sign
 
-        self.assertEqual(BookingSignature.objects.filter(quote=q).count(), 1)
+        q.refresh_from_db()
+        self.assertEqual(BookingSignature.objects.filter(event=q.event).count(), 1)
 
     def test_declined_quote_cannot_be_signed(self):
         q = self._quote()
@@ -144,14 +146,34 @@ class ESignBackendTests(TestCase):
                                 {"signer_name": "Aisha", "consent": True}, format="json")
         self.assertEqual(resp.status_code, 409)
 
-    def test_expired_quote_cannot_be_signed(self):
+    def test_past_validity_quote_can_still_be_signed(self):
+        # No date-based link expiry: a quote past its valid_until still signs.
         q = self._quote(status=QuoteStatus.SENT,
                         valid_until=datetime.date(2020, 1, 1))
         token = q.ensure_public_token()
 
         resp = self.public.post(f"/api/public/bookings/{token}/sign/",
                                 {"signer_name": "Aisha", "consent": True}, format="json")
-        self.assertEqual(resp.status_code, 409)
+        self.assertEqual(resp.status_code, 201)
+        self.assertTrue(resp.data["is_signed"])
+
+    def test_sign_when_event_already_created_by_staff(self):
+        # Staff accepted the quote first (event already exists); the client's
+        # later signature must still be captured — on that same event, no dup.
+        from bookings.services.quote_acceptance import accept_quote
+        q = self._quote(status=QuoteStatus.SENT)
+        token = q.ensure_public_token()
+        event = accept_quote(q)
+        q.refresh_from_db()
+        self.assertEqual(q.status, QuoteStatus.ACCEPTED)
+        events_before = Event.objects.count()
+
+        resp = self.public.post(f"/api/public/bookings/{token}/sign/",
+                                {"signer_name": "Aisha Khan", "consent": True}, format="json")
+        self.assertEqual(resp.status_code, 201)
+        self.assertTrue(resp.data["is_signed"])
+        self.assertEqual(Event.objects.count(), events_before)   # no duplicate event
+        self.assertEqual(BookingSignature.objects.filter(event=event).count(), 1)
 
     # ── public: signing an event directly (no quote) ─────────────────────────
 

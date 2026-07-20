@@ -133,7 +133,8 @@ class QuoteSerializer(OrgScopedModelSerializer):
             return None
 
     def get_signature(self, obj):
-        sig = obj.latest_signature
+        # The signature is canonical on the event; a quote reads its event's.
+        sig = obj.event.latest_signature if obj.event_id else obj.latest_signature
         if not sig:
             return None
         return {'signer_name': sig.signer_name, 'signed_at': sig.signed_at.isoformat()}

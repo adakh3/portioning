@@ -49,17 +49,27 @@ def _resolve_booking(token):
             .prefetch_related(*prefetch).filter(public_token=token).first())
 
 
+def _effective_signature(booking):
+    """The signature is canonical on the EVENT (the enduring booking record). A
+    quote's signed-state is therefore read from its event; a quote never keeps
+    its own signature under the current flow."""
+    if _booking_kind(booking) == 'quote':
+        return booking.event.latest_signature if booking.event_id else booking.latest_signature
+    return booking.latest_signature
+
+
 def _is_signable(booking):
+    """A live booking with no signature yet is always signable — including a
+    quote already accepted by staff (the signature still lands on its event) and
+    a quote past its validity date (there is no date-based link expiry). Only an
+    explicitly killed booking is refused. The already-signed case is handled by
+    the caller (idempotent)."""
     kind = _booking_kind(booking)
     if kind == 'quote':
         from bookings.models.quotes import QuoteStatus
-        if booking.status in (QuoteStatus.ACCEPTED, QuoteStatus.DECLINED, QuoteStatus.EXPIRED):
-            return False
-        if booking.valid_until and booking.valid_until < timezone.now().date():
-            return False
-        return True
+        return booking.status not in (QuoteStatus.DECLINED, QuoteStatus.EXPIRED)
     from events.models import EventStatus
-    return booking.status == EventStatus.TENTATIVE
+    return booking.status != EventStatus.CANCELLED
 
 
 def _guest_count(booking):
@@ -97,7 +107,7 @@ def serialize_public_booking(booking):
         for li in booking.line_items.all()
     ]
 
-    sig = booking.latest_signature
+    sig = _effective_signature(booking)
     # Address the person who receives and signs; a B2B account is shown alongside.
     customer = booking.primary_contact.name if booking.primary_contact_id else (
         booking.account.name if booking.account_id else None)
@@ -141,14 +151,29 @@ def sign_booking(booking, *, signer_name, signer_email, signature_image, ip, use
     kind = _booking_kind(booking)
     org_settings = OrgSettings.for_org(booking.organisation)
 
-    parent = {'quote': booking} if kind == 'quote' else {'event': booking}
+    # The signature always lands on the EVENT. Signing a quote ensures its
+    # confirmed event exists (creating it, or reusing one staff already made);
+    # signing an event confirms it. So a client signature is never lost, whatever
+    # the booking's status was when they signed.
+    if kind == 'quote':
+        from bookings.services.quote_acceptance import accept_quote
+        event = accept_quote(booking, user=None)
+    else:
+        from events.models import EventStatus
+        event = booking
+        if event.status == EventStatus.TENTATIVE:
+            event.status = EventStatus.CONFIRMED
+            if not event.booking_date:
+                event.booking_date = timezone.now().date()
+            event.save(update_fields=['status', 'booking_date'])
+
     sig = BookingSignature(
-        **parent,
+        event=event,
         signer_name=signer_name,
         signer_email=signer_email,
         signature_image=signature_image,
         consent_text=org_settings.quotation_terms or '',
-        agreed_total=booking.total,
+        agreed_total=booking.total,  # what the client actually saw and agreed to
         agreed_guest_count=_guest_count(booking),
         currency_code=org_settings.currency_code,
         ip_address=ip,
@@ -156,20 +181,9 @@ def sign_booking(booking, *, signer_name, signer_email, signature_image, ip, use
     )
     sig.save()
 
-    if kind == 'quote':
-        from bookings.services.quote_acceptance import accept_quote
-        accept_quote(booking, user=None)
-    else:
-        from events.models import EventStatus
-        if booking.status == EventStatus.TENTATIVE:
-            booking.status = EventStatus.CONFIRMED
-            if not booking.booking_date:
-                booking.booking_date = timezone.now().date()
-            booking.save(update_fields=['status', 'booking_date'])
-
-    # Freeze exactly what was signed (after confirmation) so later edits to the
-    # live booking can never rewrite the signed document.
-    pdf = generate_quote_pdf(booking) if kind == 'quote' else generate_event_pdf(booking)
+    # Freeze exactly the document the client signed (the quote PDF if they signed
+    # via a quote link, else the event PDF) so later edits can't rewrite it.
+    pdf = generate_quote_pdf(booking) if kind == 'quote' else generate_event_pdf(event)
     sig.signed_pdf = pdf
     sig.save(update_fields=['signed_pdf'])
     return sig
@@ -198,8 +212,9 @@ class PublicBookingSignView(APIView):
             return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
 
         # Idempotent: already signed → just return the signed state (v1 has no
-        # re-sign), so a double-submit or a refresh can't create two signatures.
-        if booking.latest_signature:
+        # re-sign). Checked via the event, so re-opening either the quote link or
+        # the event link after signing can't create a second signature.
+        if _effective_signature(booking):
             return Response(serialize_public_booking(booking))
 
         if not _is_signable(booking):
@@ -236,7 +251,7 @@ class PublicBookingPDFView(APIView):
         booking = _resolve_booking(token)
         if not booking:
             return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
-        sig = booking.latest_signature
+        sig = _effective_signature(booking)
         if sig and sig.signed_pdf:
             pdf = bytes(sig.signed_pdf)
         elif _booking_kind(booking) == 'quote':
