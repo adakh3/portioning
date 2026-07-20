@@ -40,7 +40,8 @@ def _resolve_booking(token):
     from bookings.models import Quote
     from events.models import Event
     related = ('account', 'primary_contact', 'venue', 'organisation')
-    prefetch = ('line_items', 'dishes__category', 'signatures')
+    prefetch = ('line_items', 'dishes__category', 'signatures',
+                'additional_meals', 'additional_meals__dishes')
     quote = (Quote.objects.unscoped().select_related(*related)
              .prefetch_related(*prefetch).filter(public_token=token).first())
     if quote:
@@ -107,6 +108,18 @@ def serialize_public_booking(booking):
         for li in booking.line_items.all()
     ]
 
+    # Additional meals (welcome drinks, second service…) — priced into the total,
+    # so the client must see them before signing (parity with the PDF).
+    additional_meals = [
+        {
+            'label': m.label,
+            'guest_count': m.guest_count,
+            'price_per_head': str(m.price_per_head) if m.price_per_head else None,
+            'items': sorted(d.name for d in m.dishes.all()),
+        }
+        for m in booking.additional_meals.all()
+    ]
+
     sig = _effective_signature(booking)
     # Address the person who receives and signs; a B2B account is shown alongside.
     customer = booking.primary_contact.name if booking.primary_contact_id else (
@@ -125,13 +138,17 @@ def serialize_public_booking(booking):
         'venue_name': booking.venue.name if booking.venue_id else None,
         'venue_address': booking.venue_address or '',
         'guest_count': _guest_count(booking),
+        'gents': booking.gents or 0,
+        'ladies': booking.ladies or 0,
         'event_type': booking.event_type or '',
         'meal_type': booking.meal_type or '',
         'service_style': booking.service_style or '',
         'menu': menu,
+        'additional_meals': additional_meals,
         'line_items': line_items,
         'price_per_head': str(booking.price_per_head) if booking.price_per_head else None,
         'subtotal': str(booking.subtotal),
+        'tax_rate': str(booking.tax_rate),
         'tax_amount': str(booking.tax_amount),
         'total': str(booking.total),
         'notes': booking.notes or '',
@@ -182,8 +199,10 @@ def sign_booking(booking, *, signer_name, signer_email, signature_image, ip, use
     sig.save()
 
     # Freeze exactly the document the client signed (the quote PDF if they signed
-    # via a quote link, else the event PDF) so later edits can't rewrite it.
-    pdf = generate_quote_pdf(booking) if kind == 'quote' else generate_event_pdf(event)
+    # via a quote link, else the event PDF), stamped with the ACCEPTANCE block, so
+    # later edits can't rewrite it and the signature is on the copy.
+    pdf = (generate_quote_pdf(booking, signature=sig) if kind == 'quote'
+           else generate_event_pdf(event, signature=sig))
     sig.signed_pdf = pdf
     sig.save(update_fields=['signed_pdf'])
     return sig
@@ -255,9 +274,9 @@ class PublicBookingPDFView(APIView):
         if sig and sig.signed_pdf:
             pdf = bytes(sig.signed_pdf)
         elif _booking_kind(booking) == 'quote':
-            pdf = generate_quote_pdf(booking)
+            pdf = generate_quote_pdf(booking, signature=sig)
         else:
-            pdf = generate_event_pdf(booking)
+            pdf = generate_event_pdf(booking, signature=sig)
         response = HttpResponse(pdf, content_type='application/pdf')
         response['Content-Disposition'] = f'inline; filename="booking-{booking.pk}.pdf"'
         return response

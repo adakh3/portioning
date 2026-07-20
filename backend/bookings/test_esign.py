@@ -197,6 +197,21 @@ class ESignBackendTests(TestCase):
         self.assertEqual(event.status, EventStatus.CONFIRMED)
         self.assertTrue(BookingSignature.objects.filter(event=event).exists())
 
+    def test_signed_event_cannot_be_hard_deleted(self):
+        # Deleting the event would cascade-destroy the client's signature; staff
+        # must cancel/archive instead. The guard protects the signed record.
+        q = self._quote(status=QuoteStatus.SENT)
+        token = q.ensure_public_token()
+        self.public.post(f"/api/public/bookings/{token}/sign/",
+                         {"signer_name": "Aisha Khan", "consent": True}, format="json")
+        q.refresh_from_db()
+        event = q.event
+
+        resp = self.staff.delete(f"/api/events/{event.pk}/")
+        self.assertEqual(resp.status_code, 400)  # refused
+        self.assertTrue(Event.objects.filter(pk=event.pk).exists())          # still there
+        self.assertTrue(BookingSignature.objects.filter(event=event).exists())  # signature safe
+
     # ── public: signed PDF ───────────────────────────────────────────────────
 
     def test_signed_pdf_is_downloadable(self):
@@ -213,3 +228,7 @@ class ESignBackendTests(TestCase):
 
         text = "\n".join(p.extract_text() for p in PdfReader(io.BytesIO(resp.content)).pages)
         self.assertNotIn("SECRET MARGIN 40%", text)  # internal notes never leak
+        # The signed copy carries the acceptance block (who signed).
+        self.assertIn("ACCEPTANCE", text)
+        self.assertIn("Aisha Khan", text)
+        self.assertIn("signed electronically", text)

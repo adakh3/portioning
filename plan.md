@@ -2,6 +2,8 @@
 
 **Date:** 2026-07-20 · **Branch:** `competitor-gap` · **Model pass:** Fable 5 re-review of the plan as written in Linear REL-402 (+ sub-issues REL-403…407), verified against the actual code on this branch and the unmerged sibling worktrees.
 
+> **Status update (2026-07-20, later same day):** the review below has been applied to Linear — REL-402/403/404/405/406/407 rewritten, **REL-408** created (Foundation: land payments-stripe), **REL-409** created (Wave 2b). Decisions taken: e-sign **merged to main** (PR #50, incl. wa.me sign-link send + event-canonical signatures); foundation route = **Option A** (land `payments-stripe` whole — grandfathering/comp gate verified in code). "Wave F" below is therefore superseded by REL-408, and Wave 2b gained the e-sign hardening items (auto-send signed copy, SHA-256 of signed PDF, electronic-business consent line). Part 1 is kept as the review record; Parts 2–3 remain the implementation reference alongside the Linear issues.
+
 This document has three parts:
 
 1. **Review of REL-402 as written** — what holds up, what is factually stale, what decisions it leaves open.
@@ -61,7 +63,7 @@ The plan leans on `country_defaults.py` and (implicitly, for kids/vendor buckets
 | B | **Extract the two foundation commits** (`3c28d69` country defaults + starter catalog, `686a60b` guest segments stage 1) onto a fresh `us-readiness-foundation` branch off main, renumber migrations, land alone | **Recommended.** Small, self-contained, both commits were written as foundations and have their own tests |
 | C | Rebuild `country_defaults.py` fresh on the wave branch | Throws away working, tested code and guarantees a later conflict with `payments-stripe` |
 
-**Recommended landing order:** ① e-sign (this branch — already renumbered onto main head, ready) → ② `us-readiness-foundation` (Option B, renumbered above e-sign: guest-segment migrations become `events/0026+`, and any `bookings` migrations renumber above `0071`) → ③ Wave branches, each cut from fresh `main`. `payments-stripe` then rebases on top and drops its now-landed foundation commits. *(Owner call — Option A is legitimate if billing is close to shippable.)*
+**DECIDED (2026-07-20): land the rest of `payments-stripe`, tracked as REL-408.** **Corrected same day:** ancestor checks show the Stripe billing (paywall gate, card-required trial, comp/grandfathering, tiered pricing) is **already merged on main** — only the **two foundation commits** (`3c28d69`, `686a60b`) are unmerged, so Options A and B collapsed into the same small task (27 files, ~990 insertions). **Landing order:** ① e-sign — **done** (PR #50) → ② REL-408: merge origin/main into the branch, resolve mechanical conflicts (`events/models.py`, `staff/models.py`, `users/signals.py`, seed commands), renumber `events/0024–0025 → 0026–0027` and `staff/0006–0008 → 0008–0010` (rules/0006 and dishes/0006 don't collide) → ③ Wave branches, each cut from fresh `main`.
 
 ### 2.2 Flags: model default = new-org behaviour, data migration = old-org behaviour
 
@@ -101,21 +103,20 @@ Add once, run every wave: a backend test fixture representing a **legacy desi or
 
 ## Part 3 — Wave-by-wave execution plan
 
-### Wave F — Foundation (new; prerequisite, from Part 2.1)
+### Foundation — REL-408 (supersedes the "Wave F" extraction; decided 2026-07-20)
 
-**Branch:** `us-readiness-foundation` off fresh main (after e-sign lands).
+**Task (corrected scope):** land the **two remaining unmerged commits** of `payments-stripe` — the Stripe billing itself is already on main. In its worktree: merge `origin/main` in (mechanical conflicts expected in `events/models.py`, `staff/models.py`, `users/signals.py` — main's signal now also seeds choice defaults — and the seed commands), renumber colliding migrations (`events/0024–0025 → 0026–0027`, `staff/0006–0008 → 0008–0010`; `rules/0006` and `dishes/0006` are clear), regenerate `seed.json` if seeds changed, run both suites + pre-push e2e, then push/PR/merge.
 
-1. Extract `3c28d69`: `users/country_defaults.py` (country → currency symbol/code, tax label/rate, timezone, date format; USD fallback), applied **only** in the org-creation signal; `seed_starter_catalog` command + admin action; per-org uniqueness fixes it carries.
-2. Extract `686a60b`: `GuestSegment` rename + `BookingGuestCount` + backfill-from-gents/ladies. Renumber `events/0024–0025 → 0026+`.
-3. Extend `country_defaults.py` with the Wave-1 keys so later waves only add table rows, not plumbing: `service_charge_default_pct` (US≈20, else 0), `guest_mode` (US `single`, else `split`), `time_format` (US `12h`).
-4. **Gate (2.6):** add the legacy-org snapshot tests in this wave so every subsequent wave inherits them.
+Brings: `users/country_defaults.py` + US starter catalog + per-org uniqueness/org-scoping fixes (`3c28d69`), and `GuestSegment` + `BookingGuestCount` stage 1 (`686a60b`; engine stage 2 stays open).
 
-**Existing-org safety:** country defaults fire only on org creation; the segment migration preserves rows and backfills counts from existing columns (already written that way).
+Two items move out of the old Wave F into the waves: the **Wave-1 `country_defaults` keys** (`service_charge_default_pct`, `guest_mode`, `time_format`) are added on the Wave 0/1 branches, and the **legacy-org snapshot gate (2.6)** is built in Wave 0.
+
+**Existing-org safety:** country defaults fire only on org creation; the segment migration preserves rows and backfills counts from existing columns (already written that way). No billing behaviour changes in this task — billing is already live on main with existing orgs comped.
 
 ### Wave 0 — Locale (REL-403)
 
 **Backend**
-- `users/signals.py`: apply `country_defaults` on org creation (from Wave F).
+- `users/signals.py`: apply `country_defaults` on org creation (from REL-408).
 - Align stray UK defaults for *new* rows: `Venue.country`, `Account.billing_country` (derive from org country; migration only changes the column default, existing rows untouched).
 - `bookings/pdf.py`: `_fmt(value, cs='£')` → make `cs` required (callers already pass the org symbol; the default is the only leak). Sweep `£` out of model `__str__`s.
 - "VAT Number" → label change to "Tax ID" in serializers/UI; **keep** the `vat_number` column name (rename is churn with zero user value).
@@ -165,12 +166,13 @@ With all new fields 0 this reduces exactly to today's 5 steps — that equivalen
 - **Entrée-choice counts:** integer `choice_count` on the booking dish line (nullable = not tracked).
 - **Timeline:** `bookings.BookingTimelineEntry` (booking XOR, `time`, `label`, `sort_order`) + org-configurable presets via the existing choice-option pattern. The 4 legacy fields (`setup_time`, `guest_arrival_time`, `meal_time`, `end_time`) stay; renderers show legacy fields **only when a booking has no entries**; new-org UI writes entries; existing bookings never migrated.
 
-### Wave 2b — Operational outputs (REL-405 second half; buyer-visible)
+### Wave 2b — Operational outputs (REL-409; buyer-visible)
 
 - **BEO / day-of export:** new `bookings/pdf_beo.py` assembling: event header + guarantee fields (`guaranteed_count`/`final_count`/`final_count_due` — already exist), timeline (union rule above), courses + service styles + dietary flags, staffing (`AllocationRule`/`Shift`), equipment windows (`EquipmentReservation`), contacts, setup notes. Render-and-extract pypdf test (per CLAUDE.md rule) from day one.
-- **WhatsApp delivery:** widen `WhatsAppMessage` (nullable `lead`; add nullable `quote`/`event` FKs + a constraint mirroring the signature XOR-ish pattern); `WhatsAppService.send_booking_link(booking, kind)` for quote-PDF / e-sign `/b/<token>` / BEO; endpoints `POST /api/bookings/quotes/<pk>/send-whatsapp/` etc. Existing lead flows untouched.
+- **WhatsApp delivery:** widen `WhatsAppMessage` (nullable `lead`; add nullable `quote`/`event` FKs + a constraint mirroring the signature XOR-ish pattern); `WhatsAppService.send_booking_link(booking, kind)` for quote-PDF / e-sign `/b/<token>` / BEO; endpoints `POST /api/bookings/quotes/<pk>/send-whatsapp/` etc. Existing lead flows untouched. Note: a **wa.me sign-link send already shipped with e-sign v1** (PR #50) — this adds the Twilio-API path and the quote/BEO kinds.
 - **Email fallback (new infra, small):** provider config (SMTP/API key, platform-level like Twilio), `bookings/services/email.py`, minimal templates for the same three sends. Named as its own sub-task — it's currently zero-infrastructure.
 - **Deposit / cancellation on the contract:** snapshot fields on booking: `deposit_pct`/`deposit_amount`, `deposit_due_date`, `cancellation_policy_text` (copied from a new `OrgSettings.cancellation_policy_text` at creation); rendered on the sign page + signed PDF so what the client signs includes them. Backfill: null/empty for existing bookings, sign page hides empty sections.
+- **E-sign hardening (from the 2026-07-20 ESIGN/UETA evidence review):** ① auto-send the signed copy to the signer (WhatsApp + email) — retention-of-copy is the current weakest link; ② store a SHA-256 of `signed_pdf` at signing time (tamper-evidence); ③ add an electronic-business consent line to the default consent text; ④ deposit/cancellation terms into what's signed (the item above).
 
 ### Wave 3 — Ops depth (REL-406)
 
@@ -185,17 +187,15 @@ Cheap capture fields + uploads, no workflow: alcohol section (supplier enum, bar
 ## Sequencing summary
 
 ```
-e-sign (this branch, ready) ──► Wave F (foundation extract) ──► Wave 0 ──► Wave 1 ──► Wave 2a ──► Wave 2b ──► Wave 3/4 (opportunistic)
-                                        ▲
-                    payments-stripe rebases on top, drops its landed commits
+e-sign ✅ merged (PR #50) ──► REL-408 Foundation (land payments-stripe) ──► Wave 0 ──► Wave 1 ──► Wave 2a ──► Wave 2b ──► Wave 3/4 (opportunistic)
 ```
 
 Each wave: branch from fresh main → build → renumber migrations → legacy-org snapshot gate green → append-only golden cases green → both suites + pre-push e2e → merge. One owner per money-math file trio at any time (avoid the divergent-totals risk REL-402 flags).
 
 ## Open decisions for the owner
 
-1. **Foundation route (Part 2.1):** extract the two `payments-stripe` commits (recommended) vs. land all of `payments-stripe` first.
-2. **Gratuity semantics:** plan assumes gratuity is always voluntary/untaxed and "mandatory tip" must be modelled as service charge — confirm that's acceptable US-side simplification.
-3. **"Big Eaters" replacement label** — "Guest count buffer" proposed; pick the final string once.
-4. **Units deferral:** engine stays gram-native; oz/lb display conversion parked (not in any wave). Confirm.
-5. **Landing e-sign:** this branch is renumbered onto main head and green — merge it first so foundation/wave numbering has a stable base.
+~~Foundation route~~ — DECIDED: Option A, land `payments-stripe` (REL-408). ~~Landing e-sign~~ — DONE (PR #50).
+
+1. **Gratuity semantics:** plan assumes gratuity is always voluntary/untaxed and "mandatory tip" must be modelled as service charge — confirm that's acceptable US-side simplification.
+2. **"Big Eaters" replacement label** — "Guest count buffer" proposed; pick the final string once.
+3. **Units deferral:** engine stays gram-native; oz/lb display conversion parked (not in any wave). Confirm.

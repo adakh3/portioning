@@ -184,7 +184,9 @@ class QuotePDFView(APIView):
             ).prefetch_related('line_items', 'dishes'),
             request, pk=pk,
         )
-        pdf_bytes = generate_quote_pdf(quote)
+        # Once the client has signed, the staff copy shows the acceptance block too.
+        sig = quote.event.latest_signature if quote.event_id else None
+        pdf_bytes = generate_quote_pdf(quote, signature=sig)
         response = HttpResponse(pdf_bytes, content_type='application/pdf')
         response['Content-Disposition'] = f'attachment; filename="Quote-{quote.pk}-v{quote.version}.pdf"'
         return response

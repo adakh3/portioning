@@ -54,6 +54,13 @@ function BookingView({
   onSigned: (b: PublicBooking) => void;
 }) {
   const money = (v: string | null) => (v == null ? "" : `${booking.currency_symbol}${v}`);
+  const guestLabel =
+    booking.guest_count && booking.gents + booking.ladies === booking.guest_count && (booking.gents || booking.ladies)
+      ? `${booking.guest_count} (${booking.gents} gents / ${booking.ladies} ladies)`
+      : booking.guest_count
+      ? String(booking.guest_count)
+      : null;
+  const taxPct = booking.tax_rate ? Math.round(parseFloat(booking.tax_rate) * 100) : 0;
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-8 sm:py-12">
@@ -75,7 +82,7 @@ function BookingView({
         </h2>
         <dl className="grid grid-cols-2 gap-3 text-sm">
           <Detail label="Date" value={booking.event_date} />
-          <Detail label="Guests" value={booking.guest_count ? String(booking.guest_count) : null} />
+          <Detail label="Guests" value={guestLabel} />
           <Detail label="Type" value={booking.event_type} />
           <Detail label="Service" value={booking.service_style} />
           <Detail label="Venue" value={booking.venue_name || booking.venue_address} />
@@ -102,6 +109,36 @@ function BookingView({
         </section>
       )}
 
+      {/* Additional meals — priced into the total, so the client sees them */}
+      {booking.additional_meals.length > 0 && (
+        <section className="mt-4 rounded-xl border border-neutral-200 bg-white p-5">
+          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-neutral-400">
+            Additional meals
+          </h2>
+          <div className="space-y-3">
+            {booking.additional_meals.map((meal, i) => (
+              <div key={i}>
+                <div className="flex justify-between text-sm font-semibold text-neutral-700">
+                  <span>{meal.label}</span>
+                  {meal.price_per_head && (
+                    <span>
+                      {money(meal.price_per_head)} pp × {meal.guest_count}
+                    </span>
+                  )}
+                </div>
+                {meal.items.length > 0 && (
+                  <ul className="mt-1 text-sm text-neutral-600">
+                    {meal.items.map((item) => (
+                      <li key={item}>{item}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* Charges */}
       <section className="mt-4 rounded-xl border border-neutral-200 bg-white p-5">
         <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-neutral-400">Charges</h2>
@@ -113,7 +150,7 @@ function BookingView({
         ))}
         <div className="mt-3 space-y-1 border-t border-neutral-200 pt-3">
           <Row label="Subtotal" value={money(booking.subtotal)} />
-          <Row label={booking.tax_label} value={money(booking.tax_amount)} />
+          <Row label={taxPct ? `${booking.tax_label} (${taxPct}%)` : booking.tax_label} value={money(booking.tax_amount)} />
           <Row label="Total" value={money(booking.total)} bold />
         </div>
       </section>

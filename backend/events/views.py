@@ -111,6 +111,19 @@ class EventListCreateView(generics.ListCreateAPIView):
 class EventDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = EventSerializer
 
+    def perform_destroy(self, instance):
+        # A client signature is a legal acceptance record and lives on the event
+        # (BookingSignature.event is CASCADE), so a hard delete would silently
+        # destroy the signed copy. Refuse — the booking must be cancelled/archived
+        # (status → cancelled) instead, which keeps both the event and its signature.
+        if instance.signatures.exists():
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError(
+                "This booking has a client signature and can't be deleted. "
+                "Cancel (archive) it instead — that keeps the signed record."
+            )
+        instance.delete()
+
     def get_queryset(self):
         _auto_advance_event_statuses(org=get_request_org(self.request))
         qs = Event.objects.select_related(

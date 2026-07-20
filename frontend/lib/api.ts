@@ -1196,13 +1196,17 @@ export interface PublicBooking {
   venue_name: string | null;
   venue_address: string;
   guest_count: number;
+  gents: number;
+  ladies: number;
   event_type: string;
   meal_type: string;
   service_style: string;
   menu: { category: string; items: string[] }[];
+  additional_meals: { label: string; guest_count: number; price_per_head: string | null; items: string[] }[];
   line_items: { description: string; category: string; quantity: string; unit: string; line_total: string }[];
   price_per_head: string | null;
   subtotal: string;
+  tax_rate: string;
   tax_amount: string;
   total: string;
   notes: string;

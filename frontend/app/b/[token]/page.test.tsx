@@ -34,13 +34,17 @@ const booking: PublicBooking = {
   venue_name: "Grand Hall",
   venue_address: "",
   guest_count: 120,
+  gents: 60,
+  ladies: 60,
   event_type: "Wedding",
   meal_type: "Dinner",
   service_style: "Buffet",
   menu: [{ category: "Mains", items: ["Biryani", "Karahi"] }],
+  additional_meals: [{ label: "Drivers food", guest_count: 25, price_per_head: "4350.00", items: ["Chicken Biryani"] }],
   line_items: [{ description: "Chair rental", category: "Rental", quantity: "120", unit: "Each", line_total: "600.00" }],
   price_per_head: "50.00",
   subtotal: "6600.00",
+  tax_rate: "0.2000",
   tax_amount: "660.00",
   total: "7260.00",
   notes: "",
@@ -69,6 +73,7 @@ describe("Public booking sign page", () => {
     await screen.findByText("Quote #42");
     expect(screen.getByText("Spice Route Catering")).toBeInTheDocument();
     expect(screen.getByText("Biryani")).toBeInTheDocument();
+    expect(screen.getByText("Drivers food")).toBeInTheDocument(); // additional meal shown
     expect(screen.getByText("$7260.00")).toBeInTheDocument();
 
     // Cannot submit without name + consent
