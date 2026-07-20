@@ -810,6 +810,19 @@ class WhatsAppShortcutEndpointTests(TestCase):
         from bookings.services.followup_scheduler import lead_last_touch
         self.assertEqual((timezone.now() - lead_last_touch(lead)).days, 0)
 
+    def test_mark_sent_stores_a_column_safe_phone(self):
+        # Regression: to_phone = 'whatsapp:' + E.164 overflowed varchar(20) on
+        # Postgres (SQLite ignores max_length, so this asserts via full_clean,
+        # which enforces it in Python regardless of backend). A real UK number.
+        lead = _stale_lead(self.org, contact_phone='+447533359242')
+        draft = FollowUpDraft.objects.create(organisation=self.org, lead=lead, body='hi')
+        res = self.client.post(f'/api/bookings/followup-drafts/{draft.id}/mark-sent/')
+        self.assertEqual(res.status_code, 200, res.content)
+        msg = WhatsAppMessage.objects.get(lead=lead)
+        msg.full_clean(exclude=['organisation', 'lead', 'sent_by'])  # raises if any field exceeds max_length
+        maxlen = WhatsAppMessage._meta.get_field('to_phone').max_length
+        self.assertLessEqual(len(msg.to_phone), maxlen)
+
     def test_mark_sent_respects_role_scope(self):
         rep = User.objects.create(
             email='rep@shortcut.test', first_name='R', last_name='S',
