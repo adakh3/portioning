@@ -88,6 +88,7 @@ export default function ESignPanel({ kind, id, publicToken, signature, contactPh
         </div>
         {!signUrl && (
           <Button onClick={send} disabled={busy}>
+            <MessageCircle className="w-4 h-4 mr-1.5" aria-hidden />
             {busy ? "…" : "Send for signature"}
           </Button>
         )}
