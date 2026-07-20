@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { ValidatedInput } from "@/components/ui/validated-input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { formatCurrency } from "@/lib/utils";
+import { useOrgLocale } from "@/lib/orgLocale";
 
 type Tab = "roster" | "roles" | "allocation";
 
@@ -66,6 +66,7 @@ export default function StaffPage() {
 }
 
 function StaffRosterTab() {
+  const { formatMoney } = useOrgLocale();
   const { data: staff = [], error: loadError, isLoading: loading, mutate: mutateStaff } = useStaff();
   const { data: roles = [] } = useLaborRoles();
   const [error, setError] = useState("");
@@ -285,7 +286,7 @@ function StaffRosterTab() {
                   <div className="text-right">
                     {member.hourly_rate && (
                       <span className="text-sm font-medium text-foreground">
-                        {formatCurrency(member.hourly_rate)}/hr
+                        {formatMoney(member.hourly_rate)}/hr
                       </span>
                     )}
                     <Button
@@ -416,6 +417,7 @@ function StaffRosterTab() {
 }
 
 function LabourRolesTab() {
+  const { formatMoney } = useOrgLocale();
   const { data: roles = [], error: loadError, isLoading: loading, mutate: mutateRoles } = useLaborRoles();
   const [error, setError] = useState("");
   const [showForm, setShowForm] = useState(false);
@@ -561,7 +563,7 @@ function LabourRolesTab() {
                   </div>
                   <div className="text-right">
                     <span className="text-sm font-medium text-foreground">
-                      {formatCurrency(role.default_hourly_rate)}/hr
+                      {formatMoney(role.default_hourly_rate)}/hr
                     </span>
                     <Button
                       variant="link"

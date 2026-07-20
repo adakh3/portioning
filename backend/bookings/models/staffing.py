@@ -15,7 +15,7 @@ class LaborRole(models.Model):
         ordering = ['name']
 
     def __str__(self):
-        return f"{self.name} (£{self.default_hourly_rate}/hr)"
+        return f"{self.name} ({self.default_hourly_rate}/hr)"
 
 
 class StaffMember(models.Model):

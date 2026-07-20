@@ -4,9 +4,10 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
 import { api, Invoice } from "@/lib/api";
-import { useInvoice, useDateFormat, useSiteSettings } from "@/lib/hooks";
+import { useInvoice, useDateFormat } from "@/lib/hooks";
 import { formatDate as sharedFormatDate } from "@/lib/dateFormat";
 import { formatCurrency } from "@/lib/utils";
+import { useOrgLocale } from "@/lib/orgLocale";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -42,8 +43,7 @@ export default function InvoiceDetailPage() {
 
   const { data: invoice, error: loadError, isLoading: loading, mutate: mutateInvoice } = useInvoice(invoiceId || null);
   const dateFormat = useDateFormat();
-  const { data: rawSettings } = useSiteSettings();
-  const cs = rawSettings?.currency_symbol || "£";
+  const cs = useOrgLocale().symbol;
   const [error, setError] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
 

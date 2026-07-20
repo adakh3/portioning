@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
 import TopNav from "@/components/TopNav";
 import { AuthProvider, useAuth } from "@/lib/auth";
+import { OrgLocaleProvider } from "@/lib/orgLocale";
 import { canAccess } from "@/lib/routeAccess";
 
 function AppShellInner({ children }: { children: React.ReactNode }) {
@@ -55,7 +56,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <Suspense fallback={null}>
       <AuthProvider>
-        <AppShellInner>{children}</AppShellInner>
+        <OrgLocaleProvider>
+          <AppShellInner>{children}</AppShellInner>
+        </OrgLocaleProvider>
       </AuthProvider>
     </Suspense>
   );

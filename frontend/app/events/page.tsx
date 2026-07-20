@@ -3,9 +3,10 @@
 import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEvents, useSiteSettings, useDateFormat, useUsers, useProductLines, useEventTypes } from "@/lib/hooks";
+import { useEvents, useDateFormat, useUsers, useProductLines, useEventTypes } from "@/lib/hooks";
 import { formatDate } from "@/lib/dateFormat";
 import { formatCurrency, cn } from "@/lib/utils";
+import { useOrgLocale } from "@/lib/orgLocale";
 import { statusColor } from "@/lib/statusColors";
 import { useQueryState } from "@/lib/useQueryState";
 import { Button } from "@/components/ui/button";
@@ -60,8 +61,7 @@ function EventsContent() {
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
   const { data: events = [], error: loadError, isLoading: loading } = useEvents(filter !== "all" ? { status: filter } : undefined);
-  const { data: rawSettings } = useSiteSettings();
-  const cs = rawSettings?.currency_symbol || "£";
+  const cs = useOrgLocale().symbol;
   const dateFormat = useDateFormat();
   const { data: users = [] } = useUsers();
   const { data: productLines = [] } = useProductLines();

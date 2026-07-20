@@ -59,7 +59,7 @@ export function revalidatePrefix(prefix: string) {
 
 export function useDateFormat(): string {
   const { data } = useSiteSettings();
-  return data?.date_format || "DD/MM/YYYY";
+  return data?.date_format || "MM/DD/YYYY";
 }
 
 // ── Billing ──

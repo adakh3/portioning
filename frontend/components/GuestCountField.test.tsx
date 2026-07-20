@@ -62,7 +62,7 @@ describe("GuestCountField", () => {
 
   it("enables the big-eaters modifier", () => {
     const onChange = setup();
-    fireEvent.click(screen.getByRole("checkbox", { name: /big eaters/i }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /hearty eaters/i }));
     expect(onChange).toHaveBeenCalledWith({ big_eaters: true });
   });
 });

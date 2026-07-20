@@ -135,7 +135,7 @@ class BookingLineItem(models.Model):
         ]
 
     def __str__(self):
-        return f"{self.description} — £{self.line_total}"
+        return f"{self.description} — {self.line_total}"
 
     @property
     def _guest_count(self):

@@ -39,7 +39,7 @@ const FORMAT_CONFIG: Record<string, FormatConfig> = {
 };
 
 function getConfig(dateFormat: string): FormatConfig {
-  return FORMAT_CONFIG[dateFormat] || FORMAT_CONFIG["DD/MM/YYYY"];
+  return FORMAT_CONFIG[dateFormat] || FORMAT_CONFIG["MM/DD/YYYY"];
 }
 
 /** Format a date string (ISO/date) as date only — e.g. "10/03/2026" or "14 Mar 2026" */

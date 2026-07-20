@@ -40,9 +40,9 @@ describe("formatDate", () => {
     expect(result).toMatch(/Mar 10, 2026/);
   });
 
-  it("falls back to DD/MM/YYYY for unknown format", () => {
+  it("falls back to MM/DD/YYYY (US-generic) for unknown format", () => {
     const result = formatDate("2026-03-10", "UNKNOWN");
-    expect(result).toBe("10/03/2026");
+    expect(result).toBe("03/10/2026");
   });
 });
 

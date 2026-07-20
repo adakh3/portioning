@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useAuth } from "@/lib/auth";
 import { useEvents, useQuotes, useLeads, useDashboardStats, useMyDashboardStats, useSiteSettings, useReminderCounts,
   useFollowUpStats, useDateFormat } from "@/lib/hooks";
+import { useOrgLocale } from "@/lib/orgLocale";
 import { formatDate } from "@/lib/dateFormat";
 import { api, AutoAssignResult , FollowUpStats } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -99,7 +100,7 @@ export default function Dashboard() {
     period === "custom" ? customTo || undefined : undefined,
   );
   const { data: rawSettings } = useSiteSettings();
-  const cs = rawSettings?.currency_symbol || "\u00a3";
+  const cs = useOrgLocale().symbol;
   const dateFormat = useDateFormat();
 
   const { data: myStats } = useMyDashboardStats();

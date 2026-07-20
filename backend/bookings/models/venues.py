@@ -13,7 +13,7 @@ class Venue(models.Model):
     address_line2 = models.CharField(max_length=200, blank=True)
     city = models.CharField(max_length=100, blank=True)
     postcode = models.CharField(max_length=20, blank=True)
-    country = models.CharField(max_length=100, default='UK')
+    country = models.CharField(max_length=100, blank=True)
     contact_name = models.CharField(max_length=200, blank=True)
     contact_phone = models.CharField(max_length=50, blank=True)
     contact_email = models.EmailField(blank=True)
@@ -27,6 +27,13 @@ class Venue(models.Model):
 
     class Meta:
         ordering = ['name']
+
+    def save(self, *args, **kwargs):
+        # New rows default their country to the org's country (not a hardcoded
+        # 'UK'); existing rows are never rewritten.
+        if not self.pk and not self.country and self.organisation_id:
+            self.country = self.organisation.country
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return self.name

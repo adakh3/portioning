@@ -118,7 +118,7 @@ export default function GuestCountField({
             onChange={(e) => onChange({ big_eaters: e.target.checked })}
             className="rounded border-input text-primary focus:ring-ring"
           />
-          <span className="font-medium text-foreground">Big Eaters</span>
+          <span className="font-medium text-foreground">Hearty eaters</span>
         </label>
         {value.big_eaters && (
           <div className="ml-4 flex items-center gap-1.5">
@@ -132,6 +132,10 @@ export default function GuestCountField({
           </div>
         )}
       </div>
+      <p className="text-xs text-muted-foreground -mt-0.5">
+        Increase all portions by a set percentage (default 20%) for a crowd with
+        bigger appetites (athletes, teens, BBQ events).
+      </p>
     </div>
   );
 }

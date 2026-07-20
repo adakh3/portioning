@@ -5,7 +5,8 @@ import { motion } from "framer-motion";
 import CountUp from "react-countup";
 import confetti from "canvas-confetti";
 
-import { useMyCommission, useSiteSettings } from "@/lib/hooks";
+import { useMyCommission } from "@/lib/hooks";
+import { useOrgLocale } from "@/lib/orgLocale";
 import { formatCurrency } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -29,8 +30,7 @@ const rise = {
  *  dashboard (previously its own /commission page). */
 export default function MyTargetsPanel() {
   const { data, error, isLoading } = useMyCommission();
-  const { data: settings } = useSiteSettings();
-  const cs = settings?.currency_symbol || "£";
+  const cs = useOrgLocale().symbol;
 
   const attainment = data ? parseFloat(data.attainment_pct) || 0 : 0;
   const fill = Math.max(0, Math.min(100, attainment));

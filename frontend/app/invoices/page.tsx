@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { useState } from "react";
 import { Invoice } from "@/lib/api";
-import { useInvoices, useDateFormat, useSiteSettings } from "@/lib/hooks";
+import { useInvoices, useDateFormat } from "@/lib/hooks";
 import { formatDate as sharedFormatDate } from "@/lib/dateFormat";
 import { formatCurrency } from "@/lib/utils";
+import { useOrgLocale } from "@/lib/orgLocale";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 
@@ -40,8 +41,7 @@ function invoiceTypeLabel(type: string): string {
 
 export default function InvoicesPage() {
   const dateFormat = useDateFormat();
-  const { data: rawSettings } = useSiteSettings();
-  const cs = rawSettings?.currency_symbol || "£";
+  const cs = useOrgLocale().symbol;
   const [statusFilter, setStatusFilter] = useState("");
   const { data: invoices = [], error: loadError, isLoading: loading } = useInvoices(
     statusFilter ? { status: statusFilter } : undefined

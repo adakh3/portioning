@@ -5,6 +5,7 @@ import { api, CommissionPlanConfig, CommissionBandConfig } from "@/lib/api";
 import {
   useSiteSettings, useCommissionPlans, useCommissionBands, useSalesTargetGrid,
 } from "@/lib/hooks";
+import { useOrgLocale } from "@/lib/orgLocale";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -30,7 +31,7 @@ export default function CommissionSettings() {
     finally { setBusy(false); }
   }
 
-  const cs = settings?.currency_symbol || "£";
+  const cs = useOrgLocale().symbol;
   const modelChoices = settings?.commission_model_choices || [];
   const defaultPlanId = plans.find((p) => p.is_default)?.id;
   const periodWord = ({ monthly: "month", quarterly: "quarter", yearly: "year" } as Record<string, string>)[settings?.target_period || "monthly"] || "period";

@@ -37,7 +37,7 @@ export default function SettingsPage() {
   const [formData, setFormData] = useState({
     currency_symbol: "",
     currency_code: "",
-    date_format: "DD/MM/YYYY",
+    date_format: "MM/DD/YYYY",
     time_format: "24h",
     timezone: "",
     tax_label: "",
@@ -63,7 +63,7 @@ export default function SettingsPage() {
       const f = {
         currency_symbol: settings.currency_symbol,
         currency_code: settings.currency_code,
-        date_format: settings.date_format || "DD/MM/YYYY",
+        date_format: settings.date_format || "MM/DD/YYYY",
         time_format: settings.time_format || "24h",
         timezone: settings.timezone || "",
         tax_label: settings.tax_label || "",

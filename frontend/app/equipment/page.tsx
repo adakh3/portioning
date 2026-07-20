@@ -9,7 +9,7 @@ import { ValidatedInput } from "@/components/ui/validated-input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { formatCurrency } from "@/lib/utils";
+import { useOrgLocale } from "@/lib/orgLocale";
 
 const CATEGORIES = [
   { value: "chafer", label: "Chafer / Warmer" },
@@ -28,6 +28,7 @@ const CATEGORY_LABELS: Record<string, string> = Object.fromEntries(
 );
 
 export default function EquipmentPage() {
+  const { formatMoney } = useOrgLocale();
   const { data: equipment = [], error: loadError, isLoading: loading, mutate: mutateEquipment } = useEquipment();
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
@@ -246,7 +247,7 @@ export default function EquipmentPage() {
                     </span>
                     {item.rental_price && (
                       <span className="text-sm font-medium text-foreground">
-                        {formatCurrency(item.rental_price)}/event
+                        {formatMoney(item.rental_price)}/event
                       </span>
                     )}
                   </div>

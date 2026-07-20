@@ -87,7 +87,7 @@ export default function EventDetailPage() {
     ? [{ id: currentUser.id, first_name: currentUser.first_name, last_name: currentUser.last_name }, ...salespeople]
     : salespeople;
   const { data: rawSettings } = useSiteSettings();
-  const settings = rawSettings || { currency_symbol: "\u00A3", currency_code: "GBP", date_format: "DD/MM/YYYY", default_price_per_head: "0.00", target_food_cost_percentage: "30.00", price_rounding_step: "50", tax_label: "VAT", default_tax_rate: "0.2000" };
+  const settings = rawSettings || { currency_symbol: "", currency_code: "", date_format: "MM/DD/YYYY", default_price_per_head: "0.00", target_food_cost_percentage: "30.00", price_rounding_step: "50", tax_label: "", default_tax_rate: "0.0000" };
   const dateFormat = useDateFormat();
   const timeFormat: "12h" | "24h" = ((rawSettings as { time_format?: string } | undefined)?.time_format === "12h") ? "12h" : "24h";
   const { data: eventTypesData = [] } = useEventTypes();
@@ -867,7 +867,7 @@ export default function EventDetailPage() {
                   <InfoRow label="Guest Count" value={event!.guest_count} />
                   {(event!.gents > 0 || event!.ladies > 0) && <InfoRow label="Gents" value={event!.gents} />}
                   {(event!.gents > 0 || event!.ladies > 0) && <InfoRow label="Ladies" value={event!.ladies} />}
-                  {event!.big_eaters && <InfoRow label="Big Eaters" value={`+${event!.big_eaters_percentage}%`} />}
+                  {event!.big_eaters && <InfoRow label="Hearty eaters" value={`+${event!.big_eaters_percentage}%`} />}
                   {event!.guaranteed_count != null && <InfoRow label="Guaranteed Count" value={event!.guaranteed_count} />}
                   {event!.final_count != null && <InfoRow label="Final Count" value={event!.final_count} />}
                   {event!.final_count_due && <InfoRow label="Final Count Due" value={formatDate(event!.final_count_due, dateFormat)} />}

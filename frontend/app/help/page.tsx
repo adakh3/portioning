@@ -208,7 +208,7 @@ export default function HelpPage() {
         </p>
       </Section>
 
-      <Section title="Guest Mix & Big Eaters">
+      <Section title="Guest Mix & Hearty Eaters">
         <p>
           All portions are calculated for a <strong>base guest</strong> (multiplier 1.0),
           then expanded across the booking&apos;s <strong>guest segments</strong> — named
@@ -226,7 +226,8 @@ export default function HelpPage() {
             for 158, while the guest count stays 150
           </li>
           <li>
-            <strong>Big eaters</strong> — if enabled, all portions increase by 20%
+            <strong>Hearty eaters</strong> — if enabled, all portions increase by a set
+            percentage (default 20%) for a crowd with bigger appetites
           </li>
         </ul>
         <p>
