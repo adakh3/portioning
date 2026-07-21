@@ -1,5 +1,11 @@
 # User Stories & Manual Test Cases
 
+> **⚠️ Frozen archive — do not add new files here.** Acceptance criteria and manual
+> verification steps now live in each change's **Linear ticket (Verify section)**,
+> which the raise/implement-ticket workflow already mandates — so a separate story
+> file is duplicated maintenance. The files below are kept for **history** and remain
+> occasionally useful reference; they are no longer the source of truth.
+
 One markdown file per feature. Each captures the **user story** (who/what/why), the
 **acceptance criteria**, and **manual test cases** the user can walk through to verify
 the feature end-to-end (beyond the automated suite).

@@ -27,8 +27,7 @@ to the planning session afterwards, so the ticket is also the **report channel**
 5. **Repo rules always apply:** backend + frontend tests for any feature/fix; the
    pre-commit hook runs them (worktree-aware — commit normally); pre-push Playwright
    e2e for UI/persistence changes; regenerate `seed.json` on seed changes; doc-sync
-   rules (PORTIONING_LOGIC ↔ help page, totals trio per CALCULATION_PARITY); user
-   story in `docs/user-stories/` for new features.
+   rules (PORTIONING_LOGIC ↔ help page, totals trio per CALCULATION_PARITY).
 6. **Run everything in the ticket's Verify section** and say plainly what passed/failed.
 7. **Ask the owner before any push** (prod auto-deploys from main). Then PR → merge
    per their instruction.
