@@ -47,7 +47,7 @@ export default function MenuBuilder({
   onChange,
   pricePerHead,
   onPricePerHeadChange,
-  currencySymbol = "£",
+  currencySymbol = "",
   disabled = false,
   priceRoundingStep = 1,
 }: Props) {

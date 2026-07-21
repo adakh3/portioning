@@ -371,7 +371,7 @@ def calculate_portions(dish_ids, guests, constraint_overrides=None,
 
     if big_eaters:
         all_adjustments.append(
-            f"Big eaters: all portions increased by {big_eaters_percentage:.0f}%"
+            f"Hearty eaters: all portions increased by {big_eaters_percentage:.0f}%"
         )
 
     total_covers = sum(s.count for s in segments)

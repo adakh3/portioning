@@ -15,7 +15,7 @@ export default function DealWonDialog({
   eventName,
   repName,
   revenue,
-  currencySymbol = "£",
+  currencySymbol = "",
 }: {
   open: boolean;
   onClose: () => void;

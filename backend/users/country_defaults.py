@@ -18,29 +18,34 @@ COUNTRY_DEFAULTS = {
         'currency_symbol': '$', 'currency_code': 'USD',
         'tax_label': 'Sales Tax', 'default_tax_rate': Decimal('0.0000'),
         'timezone': 'America/New_York', 'date_format': 'MM/DD/YYYY',
+        'time_format': '12h',
     },
     'GB': {
         'currency_symbol': '£', 'currency_code': 'GBP',
         'tax_label': 'VAT', 'default_tax_rate': Decimal('0.2000'),
         'timezone': 'Europe/London', 'date_format': 'DD/MM/YYYY',
+        'time_format': '24h',
     },
     'AE': {
         'currency_symbol': 'د.إ', 'currency_code': 'AED',
         'tax_label': 'VAT', 'default_tax_rate': Decimal('0.0500'),
         'timezone': 'Asia/Dubai', 'date_format': 'DD/MM/YYYY',
+        'time_format': '24h',
     },
     'PK': {
         'currency_symbol': 'Rs', 'currency_code': 'PKR',
         'tax_label': 'GST', 'default_tax_rate': Decimal('0.0000'),
         'timezone': 'Asia/Karachi', 'date_format': 'DD/MM/YYYY',
+        'time_format': '24h',
     },
 }
 
-# Used when the org's country isn't in the map above.
+# Used when the org's country isn't in the map above (US-generic).
 FALLBACK_DEFAULTS = {
     'currency_symbol': '$', 'currency_code': 'USD',
     'tax_label': 'Sales Tax', 'default_tax_rate': Decimal('0.0000'),
     'timezone': 'UTC', 'date_format': 'MM/DD/YYYY',
+    'time_format': '12h',
 }
 
 

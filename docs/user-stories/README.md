@@ -34,6 +34,7 @@ here. Keep it test-focused — numbered cases with concrete steps and expected r
 | Starter dropdown defaults for a new org | [new-org-choice-defaults.md](new-org-choice-defaults.md) | Built — awaiting manual verification |
 | New-org bootstrap (US starter catalog + country defaults) | [new-org-bootstrap.md](new-org-bootstrap.md) | Built (backend) — awaiting manual sign-off |
 | Guest segments — stage 2 (N-segment portioning engine) | [guest-segments-stage2.md](guest-segments-stage2.md) | Built (backend) — awaiting manual sign-off |
+| Locale cleanup (USD / MM-DD / 12h / Tax ID) | [locale-cleanup.md](locale-cleanup.md) | Built — awaiting manual sign-off |
 
 ## Template
 

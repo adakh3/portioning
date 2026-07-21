@@ -38,7 +38,7 @@ class Account(models.Model):
     billing_address_line2 = models.CharField(max_length=200, blank=True)
     billing_city = models.CharField(max_length=100, blank=True)
     billing_postcode = models.CharField(max_length=20, blank=True)
-    billing_country = models.CharField(max_length=100, default='UK')
+    billing_country = models.CharField(max_length=100, blank=True)
     vat_number = models.CharField(max_length=50, blank=True)
     payment_terms = models.CharField(
         max_length=20,
@@ -51,6 +51,13 @@ class Account(models.Model):
 
     class Meta:
         ordering = ['name']
+
+    def save(self, *args, **kwargs):
+        # New rows default billing_country to the org's country (not 'UK');
+        # existing rows are never rewritten.
+        if not self.pk and not self.billing_country and self.organisation_id:
+            self.billing_country = self.organisation.country
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return self.name

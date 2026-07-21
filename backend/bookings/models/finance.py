@@ -50,7 +50,7 @@ class Invoice(models.Model):
         ordering = ['-issue_date']
 
     def __str__(self):
-        return f"{self.invoice_number} — £{self.total} ({self.get_status_display()})"
+        return f"{self.invoice_number} — {self.total} ({self.get_status_display()})"
 
     @property
     def amount_paid(self):
@@ -87,7 +87,7 @@ class Payment(models.Model):
         ordering = ['-payment_date']
 
     def __str__(self):
-        return f"£{self.amount} on {self.payment_date} ({self.get_method_display()})"
+        return f"{self.amount} on {self.payment_date} ({self.get_method_display()})"
 
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)

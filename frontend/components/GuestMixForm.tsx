@@ -123,7 +123,7 @@ export default function GuestMixForm({
             onChange={(e) => onBigEatersChange(e.target.checked)}
             className="rounded border-input"
           />
-          Big eaters
+          Hearty eaters
         </label>
         {bigEaters && (
           <div className="flex items-center gap-1.5">

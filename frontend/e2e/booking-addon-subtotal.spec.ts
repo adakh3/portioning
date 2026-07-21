@@ -29,10 +29,10 @@ test.describe("Add-ons stay in the saved subtotal after an edit", () => {
     await page.getByRole("button", { name: "Save Quote" }).click();
 
     // 3) back in view mode we read the STORED subtotal — it must include the add-on.
-    await expect(page.getByText(/Subtotal:\s*£10,000\.00/)).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText(/Subtotal:\s*\$10,000\.00/)).toBeVisible({ timeout: 10_000 });
 
     // 4) and it survives a hard reload (truly persisted, not just in-memory).
     await page.reload();
-    await expect(page.getByText(/Subtotal:\s*£10,000\.00/)).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText(/Subtotal:\s*\$10,000\.00/)).toBeVisible({ timeout: 10_000 });
   });
 });

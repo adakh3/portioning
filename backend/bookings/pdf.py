@@ -52,8 +52,12 @@ UNIT_LABELS = {
 }
 
 
-def _fmt(value, cs='£'):
-    """Format a Decimal as a currency string with thousand separators."""
+def _fmt(value, cs):
+    """Format a Decimal as a currency string with thousand separators.
+
+    ``cs`` (the org's currency symbol) is required — there is no `£` default, so
+    a US org's PDF can never silently render pounds.
+    """
     return f'{cs}{value:,.2f}'
 
 
@@ -62,7 +66,7 @@ def _dt_fmt(time_format='24h'):
     return '%d %b %Y, %I:%M %p' if time_format == '12h' else '%d %b %Y, %H:%M'
 
 
-def food_summary_text(price_per_head, guest_count, food_total, cs='£'):
+def food_summary_text(price_per_head, guest_count, food_total, cs):
     """The 'X per head × N guests = total' food line, or None when there's no
     food cost. Pure + unit-tested (the PDF has no text-extraction test path)."""
     if not food_total or food_total <= 0:
@@ -70,7 +74,7 @@ def food_summary_text(price_per_head, guest_count, food_total, cs='£'):
     return f'{_fmt(price_per_head or 0, cs)} per head × {guest_count} guests = {_fmt(food_total, cs)}'
 
 
-def meal_line_text(meal, cs='£', time_format='24h'):
+def meal_line_text(meal, cs, time_format='24h'):
     """One-line summary for an additional meal, or None when it has no price."""
     pph = meal.price_per_head
     if not pph or pph <= 0:
@@ -83,7 +87,7 @@ def meal_line_text(meal, cs='£', time_format='24h'):
     return f'{meal.label or "Additional Meal"}{when} — {_fmt(pph, cs)}/head × {meal.guest_count} = {_fmt(total, cs)}'
 
 
-def addon_cells(item, cs='£'):
+def addon_cells(item, cs):
     """(category, description, rate, amount) display strings for one add-on row —
     includes the category label (F3). Pure + unit-tested."""
     unit = UNIT_LABELS.get(item.unit, item.unit)

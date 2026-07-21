@@ -1,0 +1,72 @@
+"""Legacy-org snapshot gate.
+
+Wave 0 (locale cleanup) changed the *defaults* a new org gets (US-generic
+$/Sales Tax/MM-DD instead of UK £/VAT/DD-MM). This gate proves that an EXISTING
+desi org — one with explicit £/VAT/DD-MM settings and a gents/ladies split — is
+completely unaffected: its computed totals and its rendered quote-PDF text stay
+byte-for-byte what they are today.
+
+Every later US-readiness wave inherits this gate: if a change ever alters a
+legacy org's numbers or PDF, this test fails first.
+"""
+import io
+from decimal import Decimal
+
+from django.test import TestCase
+
+from bookings.models.settings import OrgSettings
+from bookings.pdf import generate_quote_pdf
+from bookings.tests import _make_org, make_contact, make_quote
+
+try:
+    from pypdf import PdfReader
+    HAVE_PYPDF = True
+except ImportError:  # pragma: no cover
+    HAVE_PYPDF = False
+
+
+class LegacyOrgSnapshotGate(TestCase):
+    def setUp(self):
+        self.org = _make_org(slug="legacy-desi", country="GB")
+        # An established desi/UK org: explicit £/VAT/DD-MM (not the new US defaults).
+        s = OrgSettings.for_org(self.org)
+        s.currency_symbol = "£"
+        s.currency_code = "GBP"
+        s.tax_label = "VAT"
+        s.date_format = "DD/MM/YYYY"
+        s.default_tax_rate = Decimal("0.2000")
+        s.save()
+        self.contact = make_contact(org=self.org)
+
+    def _quote(self):
+        q = make_quote(
+            org=self.org, primary_contact=self.contact,
+            guest_count=100, gents=60, ladies=40,
+            price_per_head=Decimal("10.00"),
+            is_taxable=True, tax_rate=Decimal("0.2000"),
+        )
+        q.recalculate_totals()
+        q.refresh_from_db()
+        return q
+
+    def test_computed_totals_are_unchanged(self):
+        q = self._quote()
+        # £10/head × 100 = £1,000 food; VAT @ 20% = £200; total £1,200.
+        self.assertEqual(q.subtotal, Decimal("1000.00"))
+        self.assertEqual(q.tax_amount, Decimal("200.00"))
+        self.assertEqual(q.total, Decimal("1200.00"))
+
+    def test_quote_pdf_still_renders_pounds_vat_and_the_split(self):
+        if not HAVE_PYPDF:
+            self.skipTest("pypdf not installed")
+        q = self._quote()
+        reader = PdfReader(io.BytesIO(generate_quote_pdf(q)))
+        text = "\n".join(page.extract_text() for page in reader.pages)
+
+        # Pounds, not dollars; VAT, not Sales Tax; the gents/ladies split intact.
+        self.assertIn("£1,000.00", text)
+        self.assertIn("£1,200.00", text)
+        self.assertIn("VAT", text)
+        self.assertNotIn("$", text)
+        self.assertNotIn("Sales Tax", text)
+        self.assertIn("60 gents / 40 ladies", text)

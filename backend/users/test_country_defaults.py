@@ -13,6 +13,13 @@ class CountryDefaultsUnitTests(TestCase):
         d = defaults_for_country('US')
         self.assertEqual(d['currency_code'], 'USD')
         self.assertEqual(d['tax_label'], 'Sales Tax')
+        self.assertEqual(d['time_format'], '12h')
+
+    def test_time_format_per_country(self):
+        self.assertEqual(defaults_for_country('US')['time_format'], '12h')
+        self.assertEqual(defaults_for_country('GB')['time_format'], '24h')
+        # US-generic fallback for unmapped countries.
+        self.assertEqual(defaults_for_country('ZZ')['time_format'], '12h')
 
     def test_case_insensitive(self):
         self.assertEqual(defaults_for_country('gb')['currency_code'], 'GBP')
@@ -40,6 +47,7 @@ class OrgSettingsFromCountryTests(TestCase):
         self.assertEqual(s.tax_label, 'Sales Tax')
         self.assertEqual(s.default_tax_rate, Decimal('0.0000'))
         self.assertEqual(s.date_format, 'MM/DD/YYYY')
+        self.assertEqual(s.time_format, '12h')
 
     def test_uae_org_gets_aed(self):
         s = self._settings_for('AE')
@@ -64,3 +72,37 @@ class OrgSettingsFromCountryTests(TestCase):
             with self.subTest(country=country):
                 self.assertEqual(self._settings_for(country).quotation_terms,
                                  DEFAULT_QUOTATION_TERMS)
+
+
+class ApplyCountryDefaultsCommandTests(TestCase):
+    """The by-hand `apply_country_defaults --org` command re-derives one org's
+    locale from its country; existing orgs are never bulk-rewritten."""
+
+    def test_applies_defaults_to_one_org(self):
+        from django.core.management import call_command
+
+        # A US org whose settings were mis-provisioned to UK values.
+        org = Organisation.objects.create(name="Fix Me", slug="fix-me", country="US")
+        s = OrgSettings.objects.get(organisation=org)
+        s.currency_symbol, s.currency_code, s.tax_label = "£", "GBP", "VAT"
+        s.save()
+
+        call_command("apply_country_defaults", org="Fix Me", verbosity=0)
+
+        s.refresh_from_db()
+        self.assertEqual(s.currency_symbol, "$")
+        self.assertEqual(s.currency_code, "USD")
+        self.assertEqual(s.tax_label, "Sales Tax")
+
+    def test_dry_run_writes_nothing(self):
+        from django.core.management import call_command
+
+        org = Organisation.objects.create(name="Peek", slug="peek", country="US")
+        s = OrgSettings.objects.get(organisation=org)
+        s.currency_symbol = "£"
+        s.save()
+
+        call_command("apply_country_defaults", org="Peek", dry_run=True, verbosity=0)
+
+        s.refresh_from_db()
+        self.assertEqual(s.currency_symbol, "£")  # unchanged

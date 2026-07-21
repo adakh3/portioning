@@ -185,7 +185,7 @@ export default function LeadDetailPage() {
   const { data: lead, error: loadError, isLoading: leadLoading, mutate: mutateLead } = useLead(isNew ? null : (Number(id) || null));
   const loading = isNew ? false : leadLoading;
   const { data: rawSettings } = useSiteSettings();
-  const settings = rawSettings || { currency_symbol: "\u00a3", currency_code: "GBP", date_format: "DD/MM/YYYY", default_price_per_head: "0.00", target_food_cost_percentage: "30.00", price_rounding_step: "50" };
+  const settings = rawSettings || { currency_symbol: "", currency_code: "", date_format: "MM/DD/YYYY", default_price_per_head: "0.00", target_food_cost_percentage: "30.00", price_rounding_step: "50" };
   const dateFormat = useDateFormat();
   const { data: productLines = [] } = useProductLines();
   const { data: users = [] } = useUsers();

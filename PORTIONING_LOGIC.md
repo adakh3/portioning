@@ -326,7 +326,7 @@ named guest bucket, configured per org (`rules.GuestSegment`), carrying a
 - **Kids:** eat less — e.g. multiplier 0.6.
 - **Ladies:** a segment like any other; orgs that split by gender give it its own
   multiplier (1.0 by default).
-- **Big eaters flag:** if enabled, all portions increase by a percentage (default +20%).
+- **Hearty eaters flag:** if enabled, all portions increase by a percentage (default +20%).
 
 A dish's grams for a segment = `round(base_grams × segment_multiplier, 1)`, and a
 dish's total = the sum of `segment_grams × segment_count` over **every** segment.
@@ -406,7 +406,7 @@ The engine outputs two lists alongside the portions: **warnings** (red, importan
 | Category total constraint applied | "Salad total reduced from 150g to 100g (category limit)" |
 | Global food cap triggered | "Total food exceeded 1000g limit — all portions scaled down" |
 | High protein content reduced | "High protein content — reduced Mutton Seekh Kabab, Chicken Boti Tikka to stay within limits" |
-| Big eaters enabled | "Big eaters: all portions increased by 20%" |
+| Hearty eaters enabled | "Hearty eaters: all portions increased by 20%" |
 
 ### Warnings
 
@@ -566,7 +566,7 @@ Each violation has a severity:
 
 ### Comparison with Engine
 
-After validating, the checker also runs the standard calculation engine with the same inputs (dishes, guests, big eaters). The response includes a side-by-side comparison: user's portion vs. engine-recommended portion per dish, with absolute and percentage deltas.
+After validating, the checker also runs the standard calculation engine with the same inputs (dishes, guests, hearty eaters). The response includes a side-by-side comparison: user's portion vs. engine-recommended portion per dish, with absolute and percentage deltas.
 
 ### Unit Handling
 

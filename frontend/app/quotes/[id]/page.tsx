@@ -52,7 +52,7 @@ export default function QuoteDetailPage() {
   const { data: accounts = [] } = useAccounts();
   const { data: orgContacts = [] } = useContacts();
   const { data: rawSettings } = useSiteSettings();
-  const settings = rawSettings || { currency_symbol: "£", currency_code: "GBP", date_format: "DD/MM/YYYY", default_price_per_head: "0.00", target_food_cost_percentage: "30.00", price_rounding_step: "50", tax_label: "VAT", default_tax_rate: "0.2000" };
+  const settings = rawSettings || { currency_symbol: "", currency_code: "", date_format: "MM/DD/YYYY", default_price_per_head: "0.00", target_food_cost_percentage: "30.00", price_rounding_step: "50", tax_label: "", default_tax_rate: "0.0000" };
   const dateFormat = useDateFormat();
   const timeFormat: "12h" | "24h" = ((rawSettings as { time_format?: string } | undefined)?.time_format === "12h") ? "12h" : "24h";
   const { data: users = [] } = useUsers();
@@ -551,7 +551,7 @@ export default function QuoteDetailPage() {
             subtotal={createTotals.subtotal}
             taxAmount={createTotals.tax_amount}
             total={createTotals.total}
-            taxLabel={settings.tax_label || "VAT"}
+            taxLabel={settings.tax_label}
             taxPercent={(parseFloat(createData.tax_rate || "0") * 100).toFixed(0)}
             taxRateField={
               <div>
@@ -1084,7 +1084,7 @@ export default function QuoteDetailPage() {
         subtotal={subtotal}
         taxAmount={editing ? liveTotals.tax_amount : parseFloat(q.tax_amount)}
         total={editing ? liveTotals.total : parseFloat(q.total)}
-        taxLabel={settings.tax_label || "VAT"}
+        taxLabel={settings.tax_label}
         taxPercent={editing ? parseFloat(editData.tax_rate || "0").toFixed(0) : (parseFloat(q.tax_rate) * 100).toFixed(0)}
         taxRateField={editing ? (
           <div>

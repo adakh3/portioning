@@ -166,7 +166,7 @@ export default function AccountDetailPage() {
                 <ValidatedInput type="text" maxLength={100} value={formData.billing_city || ""} onChange={(e) => setFormData({ ...formData, billing_city: e.target.value })} />
               </div>
               <div>
-                <label className="block text-sm font-medium text-foreground mb-1">VAT Number</label>
+                <label className="block text-sm font-medium text-foreground mb-1">Tax ID</label>
                 <ValidatedInput type="text" maxLength={20} value={formData.vat_number || ""} onChange={(e) => setFormData({ ...formData, vat_number: e.target.value })} />
               </div>
               <div className="md:col-span-2">
@@ -177,7 +177,7 @@ export default function AccountDetailPage() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 text-sm">
               {account.billing_city && <div><span className="text-muted-foreground">City:</span> {account.billing_city}</div>}
-              {account.vat_number && <div><span className="text-muted-foreground">VAT:</span> {account.vat_number}</div>}
+              {account.vat_number && <div><span className="text-muted-foreground">Tax ID:</span> {account.vat_number}</div>}
               {account.notes && <div className="md:col-span-2"><span className="text-muted-foreground">Notes:</span> {account.notes}</div>}
             </div>
           )}
