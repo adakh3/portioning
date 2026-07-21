@@ -13,8 +13,10 @@ to the planning session afterwards, so the ticket is also the **report channel**
 ## Steps
 
 1. **Fetch the ticket** (Linear MCP `get_issue`, include relations). Read the whole
-   body — especially *Execution notes*, *Steps*, *Verify*, *Safety*. Check it isn't
-   blocked by an open ticket; if it is, stop and tell the owner.
+   body — especially *Execution notes*, *Steps*, *Verify*, *Safety* — **and its comment
+   thread** (late owner/planning notes land there). Check it isn't blocked by an open
+   ticket; if it is, stop and tell the owner. **Re-read the comment thread again
+   immediately before pushing** — a correction may have arrived while you worked.
 2. **Set it In Progress** (`save_issue`).
 3. **Set up where the ticket says:** enter the named existing worktree (EnterWorktree
    with `path`), or create the branch it specifies off **fresh origin/main**
@@ -27,8 +29,9 @@ to the planning session afterwards, so the ticket is also the **report channel**
 5. **Repo rules always apply:** backend + frontend tests for any feature/fix; the
    pre-commit hook runs them (worktree-aware — commit normally); pre-push Playwright
    e2e for UI/persistence changes; regenerate `seed.json` on seed changes; doc-sync
-   rules (PORTIONING_LOGIC ↔ help page, totals trio per CALCULATION_PARITY); user
-   story in `docs/user-stories/` for new features.
+   rules (PORTIONING_LOGIC ↔ help page, totals trio per CALCULATION_PARITY); keep the
+   ticket's **User story & manual test cases** section accurate if scope shifts (stories
+   live in the ticket now, not `docs/user-stories/` — that's a frozen archive).
 6. **Run everything in the ticket's Verify section** and say plainly what passed/failed.
 7. **Ask the owner before any push** (prod auto-deploys from main). Then PR → merge
    per their instruction.

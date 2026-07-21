@@ -28,7 +28,7 @@ Stage 2 (REL-410) makes segments real:
 - **Dual-write:** editing gents/ladies keeps `BookingGuestCount` in sync while the
   columns are deprecated (not dropped).
 
-**No visible UI change** — the frontend still edits gents/ladies. Existing (desi)
+**No visible UI change** — the frontend still edits gents/ladies. Existing (GB/PK)
 orgs are unaffected: it's an internals swap proven by parity tests. The
 segment-aware breakdown UI ships later (Wave 2a / REL-405).
 

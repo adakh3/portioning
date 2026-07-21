@@ -1,6 +1,6 @@
 """Apply country-derived locale defaults to ONE org's OrgSettings, by hand.
 
-Existing orgs are deliberately never bulk-rewritten (a live desi org's
+Existing orgs are deliberately never bulk-rewritten (a live org's
 UK-flavoured settings may be intentional). When an org is known to be
 mis-provisioned, an operator runs this explicitly:
 

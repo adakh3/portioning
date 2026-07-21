@@ -366,7 +366,7 @@ def calculate_portions(dish_ids, guests, constraint_overrides=None,
     # is that base × its own multiplier, and dish totals sum over ALL covers
     # (in-count + additional). The legacy gent/lady keys are kept populated for
     # the PDF/serializers that still read them: gent == the base grams, lady ==
-    # the 'ladies' segment when present (the two-segment desi path), else base.
+    # the 'ladies' segment when present (the two-segment gents/ladies path), else base.
     big_eaters_mult = 1.0 + (big_eaters_percentage / 100.0) if big_eaters else 1.0
 
     if big_eaters:

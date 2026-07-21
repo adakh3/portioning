@@ -34,7 +34,7 @@ Create country `AE` → AED; an unmapped country → USD.
 ### TC2 — Seed starter catalog
 Run the **Seed US starter catalog** admin action (or the command) on the org. **Expected:** ~18
 dishes, 2 menus, add-ons, labor roles, equipment; log in as its owner → menus + calculator work,
-currency shows `$`, no desi data.
+currency shows `$`, no GB/PK reference data.
 
 ### TC3 — Two orgs, isolated
 Seed two different orgs. **Expected:** each has its own full copy; neither sees the other's

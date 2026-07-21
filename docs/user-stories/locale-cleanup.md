@@ -25,7 +25,7 @@ fallback, so a US org leaked pound signs on whichever page was missed. Wave 0:
 - **No bulk rewrite** of existing orgs — an operator runs
   `python manage.py apply_country_defaults --org "<name>"` by hand for a
   mis-provisioned org.
-- **Legacy-org snapshot gate** — a fixture desi org (£/VAT, gents/ladies split)
+- **Legacy-org snapshot gate** — a fixture GB org (£/VAT, gents/ladies split)
   whose totals + quote-PDF text are pinned, so later waves can't regress it.
 
 ## Manual test cases
@@ -35,7 +35,7 @@ fallback, so a US org leaked pound signs on whichever page was missed. Wave 0:
    MM-DD-YYYY and 12-hour times — no `£`/VAT anywhere.
 2. **Neutral loading.** On a slow load, money/dates render as `—` briefly, never
    `£`.
-3. **Existing desi org unchanged.** An org with explicit £/VAT still shows pounds
+3. **Existing GB org unchanged.** An org with explicit £/VAT still shows pounds
    and "VAT" on screen and in its quote PDF (the snapshot gate proves this).
 4. **Tax ID label.** The account form/detail reads "Tax ID", not "VAT Number"
    (the stored value is unchanged).
