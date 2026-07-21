@@ -18,7 +18,7 @@ COUNTRY_DEFAULTS = {
         'currency_symbol': '$', 'currency_code': 'USD',
         'tax_label': 'Sales Tax', 'default_tax_rate': Decimal('0.0000'),
         'timezone': 'America/New_York', 'date_format': 'MM/DD/YYYY',
-        'time_format': '12h',
+        'time_format': '12h', 'service_charge_default_pct': Decimal('20.00'),
     },
     'GB': {
         'currency_symbol': '£', 'currency_code': 'GBP',
@@ -45,7 +45,7 @@ FALLBACK_DEFAULTS = {
     'currency_symbol': '$', 'currency_code': 'USD',
     'tax_label': 'Sales Tax', 'default_tax_rate': Decimal('0.0000'),
     'timezone': 'UTC', 'date_format': 'MM/DD/YYYY',
-    'time_format': '12h',
+    'time_format': '12h', 'service_charge_default_pct': Decimal('20.00'),
 }
 
 

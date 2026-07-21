@@ -15,13 +15,15 @@ const item = (over: Partial<LineItemInput>): LineItemInput => ({
 describe("computeQuoteTotals", () => {
   it("food only (price × guests) goes into subtotal", () => {
     expect(computeQuoteTotals(50, 100, 0, [])).toEqual({
-      food_total: 5000, subtotal: 5000, tax_amount: 0, total: 5000,
+      food_total: 5000, subtotal: 5000, service_charge: 0, tax_base: 5000,
+      tax_amount: 0, gratuity: 0, total: 5000,
     });
   });
 
   it("applies tax to the whole subtotal", () => {
     expect(computeQuoteTotals(50, 100, 0.2, [])).toEqual({
-      food_total: 5000, subtotal: 5000, tax_amount: 1000, total: 6000,
+      food_total: 5000, subtotal: 5000, service_charge: 0, tax_base: 5000,
+      tax_amount: 1000, gratuity: 0, total: 6000,
     });
   });
 
@@ -29,7 +31,10 @@ describe("computeQuoteTotals", () => {
     const t = computeQuoteTotals(0, 100, 0, [
       item({ unit: "each", quantity: 10, unit_price: 5 }),
     ]);
-    expect(t).toEqual({ food_total: 0, subtotal: 50, tax_amount: 0, total: 50 });
+    expect(t).toEqual({
+      food_total: 0, subtotal: 50, service_charge: 0, tax_base: 50,
+      tax_amount: 0, gratuity: 0, total: 50,
+    });
   });
 
   it("taxes the whole subtotal (no per-line taxable split)", () => {
@@ -38,7 +43,10 @@ describe("computeQuoteTotals", () => {
       item({ unit: "flat", quantity: 1, unit_price: 100 }),
     ]);
     // subtotal 300; tax = 10% of 300 = 30; total 330
-    expect(t).toEqual({ food_total: 0, subtotal: 300, tax_amount: 30, total: 330 });
+    expect(t).toEqual({
+      food_total: 0, subtotal: 300, service_charge: 0, tax_base: 300,
+      tax_amount: 30, gratuity: 0, total: 330,
+    });
   });
 
   it("per_guest unit multiplies by guest count", () => {
@@ -65,7 +73,21 @@ describe("computeQuoteTotals", () => {
 const golden = JSON.parse(
   // Vitest runs with cwd = frontend/, so the repo-root docs dir is one up.
   readFileSync(resolve(process.cwd(), "../docs/calculation-golden-cases.json"), "utf-8"),
-) as { cases: { name: string; food_total: string; items: { line_total: string }[]; tax_rate: string; expected: { subtotal: string; tax_amount: string; total: string } }[] };
+) as {
+  cases: {
+    name: string;
+    food_total: string;
+    items: { line_total: string }[];
+    tax_rate: string;
+    service_charge_pct?: string;
+    service_charge_taxable?: boolean;
+    gratuity_pct?: string;
+    expected: {
+      subtotal: string; tax_amount: string; total: string;
+      service_charge?: string; tax_base?: string; gratuity?: string;
+    };
+  }[];
+};
 
 describe("golden-case parity with the backend engine", () => {
   // Each precomputed line_total is fed as a flat qty-1 line so lineItemTotal
@@ -76,10 +98,22 @@ describe("golden-case parity with the backend engine", () => {
         category: "fee", description: "x", quantity: 1, unit: "flat",
         unit_price: Number(i.line_total),
       }));
-      const t = computeBookingTotals(Number(c.food_total), items, 0, Number(c.tax_rate));
+      const t = computeBookingTotals(
+        Number(c.food_total), items, 0, Number(c.tax_rate),
+        Number(c.service_charge_pct ?? 0),
+        c.service_charge_taxable ?? true,
+        Number(c.gratuity_pct ?? 0),
+      );
       expect(t.subtotal).toBeCloseTo(Number(c.expected.subtotal), 2);
       expect(t.tax_amount).toBeCloseTo(Number(c.expected.tax_amount), 2);
       expect(t.total).toBeCloseTo(Number(c.expected.total), 2);
+      // Service-charge / gratuity outputs asserted only when the case declares them.
+      if (c.expected.service_charge !== undefined)
+        expect(t.service_charge).toBeCloseTo(Number(c.expected.service_charge), 2);
+      if (c.expected.tax_base !== undefined)
+        expect(t.tax_base).toBeCloseTo(Number(c.expected.tax_base), 2);
+      if (c.expected.gratuity !== undefined)
+        expect(t.gratuity).toBeCloseTo(Number(c.expected.gratuity), 2);
     });
   }
 });
@@ -92,12 +126,18 @@ describe("computeBookingTotals (shared engine — quotes & events)", () => {
       item({ unit: "flat", quantity: 1, unit_price: 100 }),
     ], 50, 0.15);
     // subtotal = 1600; tax = 1600 * 0.15 = 240
-    expect(t).toEqual({ food_total: 1300, subtotal: 1600, tax_amount: 240, total: 1840 });
+    expect(t).toEqual({
+      food_total: 1300, subtotal: 1600, service_charge: 0, tax_base: 1600,
+      tax_amount: 240, gratuity: 0, total: 1840,
+    });
   });
 
   it("passing rate 0 (not taxable) yields no tax", () => {
     const t = computeBookingTotals(1000, [item({ unit: "flat", unit_price: 100 })], 20, 0);
-    expect(t).toEqual({ food_total: 1000, subtotal: 1100, tax_amount: 0, total: 1100 });
+    expect(t).toEqual({
+      food_total: 1000, subtotal: 1100, service_charge: 0, tax_base: 1100,
+      tax_amount: 0, gratuity: 0, total: 1100,
+    });
   });
 
   it("matches computeQuoteTotals for the same inputs (no meals)", () => {

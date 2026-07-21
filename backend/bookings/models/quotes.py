@@ -56,6 +56,10 @@ class Quote(OrgScopedModel, models.Model):
         on_delete=models.SET_NULL, related_name='quotes',
     )
     venue_address = models.TextField(blank=True, help_text='Freeform address for ad-hoc venues')
+    # Structured address parts for ad-hoc venues (additive; venue_address kept as-is).
+    venue_city = models.CharField(max_length=100, blank=True)
+    venue_state = models.CharField(max_length=100, blank=True)
+    venue_zip = models.CharField(max_length=20, blank=True)
     product = models.ForeignKey(
         'bookings.ProductLine', null=True, blank=True,
         on_delete=models.SET_NULL, related_name='quotes',
@@ -87,6 +91,14 @@ class Quote(OrgScopedModel, models.Model):
     subtotal = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
     tax_rate = models.DecimalField(max_digits=5, decimal_places=4, default=Decimal('0.2000'))
     tax_amount = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+    # Service charge (snapshot % + stored amount) and gratuity — copied from
+    # OrgSettings at creation; amounts stored by recalculate_totals. Default 0 so
+    # existing rows and non-US orgs are unaffected.
+    service_charge_pct = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('0.00'), help_text='Service charge as a percentage of the subtotal')
+    service_charge_taxable = models.BooleanField(default=True, help_text='Whether the service charge is added to the tax base')
+    service_charge = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+    gratuity_pct = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('0.00'), help_text='Gratuity as a percentage of the subtotal (post-tax, never taxed)')
+    gratuity = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
     total = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
     event = models.OneToOneField(
         'events.Event', null=True, blank=True,
@@ -173,11 +185,20 @@ class Quote(OrgScopedModel, models.Model):
         # just-added add-ons and the stored subtotal would silently drop them.
         for rel in ('line_items', 'additional_meals'):
             getattr(self, '_prefetched_objects_cache', {}).pop(rel, None)
-        totals = compute_booking_totals(self.food_total, self.line_items.all(), rate)
+        totals = compute_booking_totals(
+            self.food_total, self.line_items.all(), rate,
+            service_charge_pct=self.service_charge_pct,
+            service_charge_taxable=self.service_charge_taxable,
+            gratuity_pct=self.gratuity_pct,
+        )
         self.subtotal = totals.subtotal
+        self.service_charge = totals.service_charge
         self.tax_amount = totals.tax_amount
+        self.gratuity = totals.gratuity
         self.total = totals.total
-        self.save(update_fields=['subtotal', 'tax_amount', 'total', 'updated_at'])
+        self.save(update_fields=[
+            'subtotal', 'service_charge', 'tax_amount', 'gratuity', 'total', 'updated_at',
+        ])
 
     @property
     def is_editable(self):

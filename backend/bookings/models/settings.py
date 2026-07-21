@@ -65,6 +65,19 @@ class OrgSettings(models.Model):
         max_digits=5, decimal_places=4, default=Decimal('0.2000'),
         help_text='Default tax rate as decimal (e.g. 0.2000 = 20%)',
     )
+    # Service charge + gratuity defaults, copied onto a booking at creation.
+    # US orgs get 20% (via country_defaults); others default to 0.
+    service_charge_default_pct = models.DecimalField(
+        max_digits=5, decimal_places=2, default=Decimal('0.00'),
+        help_text='Default service charge % for new bookings (US ≈ 20)',
+    )
+    service_charge_taxable_default = models.BooleanField(
+        default=True, help_text='Whether the service charge is taxed by default',
+    )
+    gratuity_default_pct = models.DecimalField(
+        max_digits=5, decimal_places=2, default=Decimal('0.00'),
+        help_text='Default gratuity % for new bookings (voluntary, never taxed)',
+    )
     default_price_per_head = models.DecimalField(
         max_digits=10, decimal_places=2, default=Decimal('0.00'),
         help_text='Default food price per head for new quotes/events',

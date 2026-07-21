@@ -74,6 +74,62 @@
       ],
       "tax_rate": "0.05",
       "expected": { "subtotal": "114000.00", "tax_amount": "5700.00", "total": "119700.00" }
+    },
+    {
+      "name": "service_charge_taxable",
+      "food_total": "1000",
+      "items": [],
+      "tax_rate": "0.20",
+      "service_charge_pct": "20",
+      "service_charge_taxable": true,
+      "expected": { "subtotal": "1000.00", "service_charge": "200.00", "tax_base": "1200.00", "tax_amount": "240.00", "gratuity": "0.00", "total": "1440.00" }
+    },
+    {
+      "name": "service_charge_non_taxable",
+      "food_total": "1000",
+      "items": [],
+      "tax_rate": "0.20",
+      "service_charge_pct": "20",
+      "service_charge_taxable": false,
+      "expected": { "subtotal": "1000.00", "service_charge": "200.00", "tax_base": "1000.00", "tax_amount": "200.00", "gratuity": "0.00", "total": "1400.00" }
+    },
+    {
+      "name": "service_charge_plus_discount",
+      "food_total": "1000",
+      "items": [
+        { "line_total": "-200" }
+      ],
+      "tax_rate": "0.20",
+      "service_charge_pct": "20",
+      "service_charge_taxable": true,
+      "expected": { "subtotal": "800.00", "service_charge": "160.00", "tax_base": "960.00", "tax_amount": "192.00", "gratuity": "0.00", "total": "1152.00" }
+    },
+    {
+      "name": "gratuity_only_post_tax",
+      "food_total": "1000",
+      "items": [],
+      "tax_rate": "0.20",
+      "gratuity_pct": "15",
+      "expected": { "subtotal": "1000.00", "service_charge": "0.00", "tax_base": "1000.00", "tax_amount": "200.00", "gratuity": "150.00", "total": "1350.00" }
+    },
+    {
+      "name": "service_charge_gratuity_tax_combo",
+      "food_total": "1000",
+      "items": [],
+      "tax_rate": "0.20",
+      "service_charge_pct": "20",
+      "service_charge_taxable": true,
+      "gratuity_pct": "15",
+      "expected": { "subtotal": "1000.00", "service_charge": "200.00", "tax_base": "1200.00", "tax_amount": "240.00", "gratuity": "150.00", "total": "1590.00" }
+    },
+    {
+      "name": "all_zero_reduces_to_legacy",
+      "food_total": "1000",
+      "items": [],
+      "tax_rate": "0.20",
+      "service_charge_pct": "0",
+      "gratuity_pct": "0",
+      "expected": { "subtotal": "1000.00", "service_charge": "0.00", "tax_base": "1000.00", "tax_amount": "200.00", "gratuity": "0.00", "total": "1200.00" }
     }
   ]
 }

@@ -84,12 +84,15 @@ class QuoteSerializer(OrgScopedModelSerializer):
             'is_b2b', 'account', 'account_name',
             'version', 'status', 'status_display', 'is_editable',
             'event_date', 'venue', 'venue_name', 'venue_address',
+            'venue_city', 'venue_state', 'venue_zip',
             'product', 'product_name', 'guest_count',
             'gents', 'ladies', 'big_eaters', 'big_eaters_percentage',
             'price_per_head', 'food_total',
             'event_type', 'meal_type', 'booking_date', 'service_style', 'valid_until',
             'setup_time', 'guest_arrival_time', 'meal_time', 'end_time',
             'is_taxable', 'subtotal', 'tax_rate', 'tax_amount', 'total',
+            'service_charge_pct', 'service_charge_taxable', 'service_charge',
+            'gratuity_pct', 'gratuity',
             'dishes', 'dish_ids', 'dish_names', 'based_on_template',
             'additional_meals',
             'notes', 'internal_notes',
@@ -102,6 +105,7 @@ class QuoteSerializer(OrgScopedModelSerializer):
         ]
         read_only_fields = [
             'status', 'subtotal', 'tax_amount', 'total',
+            'service_charge', 'gratuity',  # stored amounts, computed by recalculate_totals
             'sent_at', 'accepted_at', 'event',
             'created_by',
             'created_at', 'updated_at',
@@ -211,6 +215,17 @@ class QuoteSerializer(OrgScopedModelSerializer):
         dishes = validated_data.pop('dishes', [])
         line_items_data = validated_data.pop('line_items', None)
         meals_data = validated_data.pop('additional_meals', None)
+        # Snapshot the org's pricing defaults (tax rate + service charge / gratuity)
+        # when the payload omits them. Fixes the asymmetry where only events copied
+        # tax_rate from OrgSettings — quotes relied on the model's UK-flavoured
+        # default; now both snapshot the org's settings at creation.
+        if validated_data.get('organisation'):
+            from bookings.models import OrgSettings
+            s = OrgSettings.for_org(validated_data['organisation'])
+            validated_data.setdefault('tax_rate', s.default_tax_rate)
+            validated_data.setdefault('service_charge_pct', s.service_charge_default_pct)
+            validated_data.setdefault('service_charge_taxable', s.service_charge_taxable_default)
+            validated_data.setdefault('gratuity_pct', s.gratuity_default_pct)
         quote = super().create(validated_data)
         if dishes:
             quote.dishes.set(dishes)
