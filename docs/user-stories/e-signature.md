@@ -72,3 +72,11 @@ Design notes:
 ### TC7 — Internal notes never leak
 **Steps:** Put text in a quote's **internal notes**, send for signature, open the client link, and download the signed PDF.
 **Expected:** The internal-notes text appears in **neither** the web view **nor** the PDF.
+
+### TC8 — Terms are collapsible on the client page
+**Steps:** Open a client sign link for a booking whose org has (long) Terms & Conditions.
+**Expected:** Terms show as a collapsed **"Terms & Conditions"** section ("Tap to read") that expands on click — the long text doesn't push the sign form far down the page. Markdown markers (`#`, `**`, `-`) render as clean headings/bold/bullets, not raw symbols.
+
+### TC9 — Signed PDF doesn't print the IP
+**Steps:** Sign a booking, download the signed PDF, read the **ACCEPTANCE** block.
+**Expected:** It reads "Accepted & signed electronically by \<name\> on \<date, time\>" — **no** IP address. (The IP is still stored on the signature record for audit.)

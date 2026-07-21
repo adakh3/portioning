@@ -241,7 +241,8 @@ def _signature_image_flowable(data_url):
 
 def _acceptance_block(signature, s):
     """Flowables for the 'ACCEPTANCE' block stamped onto a signed PDF — the drawn
-    signature (if any) plus who signed, when, and from where. Empty if unsigned."""
+    signature (if any) plus who signed and when. Empty if unsigned. The signer's
+    IP is retained on the record for audit but intentionally not printed here."""
     if signature is None:
         return []
     out = [Spacer(1, 8 * mm),
@@ -254,9 +255,41 @@ def _acceptance_block(signature, s):
     line = f"Accepted &amp; signed electronically by <b>{signature.signer_name}</b>"
     if when:
         line += f" on {when}"
-    if signature.ip_address:
-        line += f" (IP {signature.ip_address})"
     out.append(Paragraph(line, s['note']))
+    return out
+
+
+def _terms_flowables(terms_text, s):
+    """Render the lightweight-markdown Terms & Conditions (headings, bold,
+    bullets) into flowables — mirrors the client web page's formatter so the PDF
+    shows clean headings/bold/bullets instead of raw '#'/'**'/'-' markers. Plain
+    (non-markdown) terms render exactly as before: one paragraph per line."""
+    import re
+
+    h1 = ParagraphStyle('TermsH1', parent=s['note'], fontName='Helvetica-Bold',
+                         fontSize=11, leading=14, spaceBefore=6, spaceAfter=3, textColor=TEXT_DARK)
+    h2 = ParagraphStyle('TermsH2', parent=s['note'], fontName='Helvetica-Bold',
+                         fontSize=9.5, leading=12, spaceBefore=6, spaceAfter=2, textColor=TEXT_DARK)
+    bullet = ParagraphStyle('TermsBullet', parent=s['note'], leftIndent=10, bulletIndent=0)
+
+    def inline(t):
+        # Escape for ReportLab's mini-markup, then turn **bold** into <b> tags.
+        t = t.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+        return re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', t)
+
+    out = []
+    for raw in terms_text.split('\n'):
+        line = raw.strip()
+        if line == '' or line == '---':
+            out.append(Spacer(1, 2 * mm))
+        elif line.startswith('## '):
+            out.append(Paragraph(inline(line[3:]), h2))
+        elif line.startswith('# '):
+            out.append(Paragraph(inline(line[2:]), h1))
+        elif line.startswith('- '):
+            out.append(Paragraph(inline(line[2:]), bullet, bulletText='•'))
+        else:
+            out.append(Paragraph(inline(line), s['note']))
     return out
 
 
@@ -327,6 +360,9 @@ def generate_quote_pdf(quote, signature=None):
     Returns:
         bytes — PDF file content
     """
+    from bookings.services.presentation import booking_presentation
+    pres = booking_presentation(quote, signature)
+
     settings = OrgSettings.for_org(quote.organisation)
     cs = settings.currency_symbol
     s = _styles()
@@ -382,14 +418,13 @@ def generate_quote_pdf(quote, signature=None):
     # Left column: "To: Customer" (person-first); the business is shown only when present.
     left_data = []
     c = quote.primary_contact
-    to_name = c.name if c else (quote.account.name if quote.account_id else '—')
+    to_name = pres['customer_name'] or '—'
     left_data.append([Paragraph(f'<b>To: {to_name}</b>', s['info_header']), ''])
 
-    if c:
-        if c.phone:
-            left_data.append([Paragraph('Phone:', s['info_label']), Paragraph(c.phone, s['info_value'])])
-        if c.email:
-            left_data.append([Paragraph('Email:', s['info_label']), Paragraph(c.email, s['info_value'])])
+    if pres['contact_phone']:
+        left_data.append([Paragraph('Phone:', s['info_label']), Paragraph(pres['contact_phone'], s['info_value'])])
+    if pres['contact_email']:
+        left_data.append([Paragraph('Email:', s['info_label']), Paragraph(pres['contact_email'], s['info_value'])])
 
     if quote.account_id:
         acct = quote.account
@@ -411,11 +446,7 @@ def generate_quote_pdf(quote, signature=None):
     elif quote.venue_address:
         left_data.append([Paragraph('Venue:', s['info_label']), Paragraph(quote.venue_address, s['info_value'])])
 
-    et_label = (
-        EventTypeOption.objects.filter(value=quote.event_type, organisation=quote.organisation)
-        .values_list('label', flat=True).first()
-        or quote.event_type
-    )
+    et_label = pres['event_type_label']
     left_data.append([Paragraph('Event Type:', s['info_label']), Paragraph(et_label, s['info_value'])])
 
     LEFT_COL_W = CONTENT_W * 0.52
@@ -430,20 +461,8 @@ def generate_quote_pdf(quote, signature=None):
     ]))
 
     # Right column: Structured info table with section header
-    ss_label = ''
-    if quote.service_style:
-        ss_label = (
-            ServiceStyleOption.objects.filter(value=quote.service_style, organisation=quote.organisation)
-            .values_list('label', flat=True).first()
-            or quote.service_style
-        )
-    mt_label = ''
-    if quote.meal_type:
-        mt_label = (
-            MealTypeOption.objects.filter(value=quote.meal_type, organisation=quote.organisation)
-            .values_list('label', flat=True).first()
-            or quote.meal_type
-        )
+    ss_label = pres['service_style_label']
+    mt_label = pres['meal_type_label']
 
     RIGHT_COL_W = CONTENT_W * 0.48
     right_header = _section_header(
@@ -534,7 +553,7 @@ def generate_quote_pdf(quote, signature=None):
         elements.append(Spacer(1, 6 * mm))
 
     # ── 3. Menu Items Table (2-column layout with summary row) ──
-    dish_names = dish_names_in_added_order(quote)
+    dish_names = pres['menu_flat']
     has_food_total = quote.food_total and quote.food_total > 0
 
     ADDON_COL_WIDTHS = [CONTENT_W * 0.18, CONTENT_W * 0.42, CONTENT_W * 0.20, CONTENT_W * 0.20]
@@ -605,10 +624,10 @@ def generate_quote_pdf(quote, signature=None):
         elements.append(Spacer(1, 6 * mm))
 
     # ── 5. Notes (customer-visible only; internal notes are never in the PDF) ──
-    if quote.notes:
+    if pres['notes']:
         elements.append(Spacer(1, 2 * mm))
         elements.append(Paragraph('<b>Notes:</b>', s['body_bold']))
-        elements.append(Paragraph(quote.notes, s['note']))
+        elements.append(Paragraph(pres['notes'], s['note']))
         elements.append(Spacer(1, 6 * mm))
 
     # ── 6. Totals block (right-aligned) ──
@@ -661,7 +680,7 @@ def generate_quote_pdf(quote, signature=None):
     elements.append(outer_totals)
 
     # ── 7. Terms & Conditions (page 2 if present) ──
-    terms_text = settings.quotation_terms.strip() if settings.quotation_terms else ''
+    terms_text = pres['terms'].strip()
     if terms_text:
         elements.append(PageBreak())
 
@@ -672,13 +691,8 @@ def generate_quote_pdf(quote, signature=None):
         ))
         elements.append(Spacer(1, 6 * mm))
 
-        # Render each paragraph of the terms
-        for para in terms_text.split('\n'):
-            para = para.strip()
-            if para:
-                elements.append(Paragraph(para, s['note']))
-            else:
-                elements.append(Spacer(1, 2 * mm))
+        # Render the terms (lightweight markdown: headings, bold, bullets).
+        elements += _terms_flowables(terms_text, s)
 
     elements += _acceptance_block(signature, s)
 

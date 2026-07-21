@@ -64,6 +64,15 @@ class OrgSettingsFromCountryTests(TestCase):
         s = self._settings_for('ZZ')
         self.assertEqual(s.currency_code, 'USD')
 
+    def test_new_org_gets_starter_terms(self):
+        """Every new org is seeded with the starter T&C template, regardless of
+        country, so its quote/sign page isn't blank on day one."""
+        from bookings.default_terms import DEFAULT_QUOTATION_TERMS
+        for country in ('US', 'AE', 'ZZ'):
+            with self.subTest(country=country):
+                self.assertEqual(self._settings_for(country).quotation_terms,
+                                 DEFAULT_QUOTATION_TERMS)
+
 
 class ApplyCountryDefaultsCommandTests(TestCase):
     """The by-hand `apply_country_defaults --org` command re-derives one org's

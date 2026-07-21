@@ -49,3 +49,7 @@ This wires the same catalog seed into org creation:
 ### TC4 — Toggle off
 **Steps:** Set `SEED_STARTER_CATALOG_ON_ORG_CREATE=False` (env) and create an org.
 **Expected:** The org is created with settings + choice options but **no** dish/menu/add-on catalog.
+
+### TC5 — Starter Terms & Conditions
+**Steps:** Create a new org, then open **Settings → quotation terms** (or a new quote's PDF / client sign page).
+**Expected:** A sample **Terms & Conditions** template (from `bookings/default_terms.py`) is pre-filled — market-neutral, bracketed placeholders, closing disclaimer that it's a sample to be reviewed by an attorney. Seeded regardless of country; fully editable in Settings. The demo org (`seed_demo`) gets the same template if it has none yet.

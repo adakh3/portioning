@@ -1,0 +1,77 @@
+Golden Caterers
+To: Aisha Khan
+Phone:
++447700900123
+Email:
+aisha@example.com
+Business:
+Acme Events Ltd
+Address:
+1 High St, London, EC1A 1AA
+Venue:
+Grand Hall — 2 Park Ave, London
+Event Type:
+Wedding
+QUOTATION DETAILS
+Quote Date:
+10 July 2026
+Quotation #:
+Q-<pk>
+Customer ID: <id>
+No. of Guests:
+100 (60 gents / 40 ladies)
+Event Date:
+01 September 2026
+Event Day:
+Tuesday
+Booking Date:
+15 July 2026
+Meal Type:
+Dinner
+Service Style:
+Plated
+Valid Until:
+01 August 2026
+MENU ITEMS
+Biryani
+Karahi
+£50.00 per head × 100 guests = £5,000.00
+ADDITIONAL MEALS
+Welcome drinks — £10.00/head × 100 = £1,000.00
+Biryani
+CATEGORY
+ADD-ONS / ADDITIONAL ITEMS
+ RATE
+ AMOUNT
+Fee
+Setup fee
+ £100.00
+ £100.00
+Beverage
+Soft drinks (100.00 × Each)
+ £3.00
+ £300.00
+Labour
+Waiter (5.00 × Each)
+ £40.00
+ £200.00
+Discount
+Loyalty discount
+ £50.00
+ £-50.00
+Notes:
+Please keep nut-free.
+ Sub Total
+ £6,550.00
+ TOTAL
+ £6,550.00
+ VAT Rate
+ 20%
+ VAT Amount
+ £1,310.00
+ GRAND TOTAL
+ £7,860.00
+
+TERMS & CONDITIONS
+A 25% deposit is required to confirm the booking.
+Balance due 14 days before the event.

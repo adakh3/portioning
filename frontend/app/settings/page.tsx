@@ -333,10 +333,14 @@ export default function SettingsPage() {
                   onChange={(e) => setFormData({ ...formData, quotation_terms: e.target.value })}
                   rows={6}
                   className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  placeholder="Printed on the Terms & Conditions page of every quotation PDF. One paragraph per line."
+                  placeholder={"# Heading\n## Sub-heading\n**Bold text**\n- Bullet point"}
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  Shown on the Terms &amp; Conditions page of quotation PDFs.
+                  Shown on quotation PDFs and the client sign page. Supports simple formatting:{" "}
+                  <code className="rounded bg-muted px-1"># </code> and{" "}
+                  <code className="rounded bg-muted px-1">## </code> for headings,{" "}
+                  <code className="rounded bg-muted px-1">**bold**</code>, and{" "}
+                  <code className="rounded bg-muted px-1">- </code> for bullet lists. Plain text works too.
                 </p>
               </div>
             </div>
