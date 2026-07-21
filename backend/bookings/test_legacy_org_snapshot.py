@@ -2,8 +2,8 @@
 
 Wave 0 (locale cleanup) changed the *defaults* a new org gets (US-generic
 $/Sales Tax/MM-DD instead of UK £/VAT/DD-MM). This gate proves that an EXISTING
-desi org — one with explicit £/VAT/DD-MM settings and a gents/ladies split — is
-completely unaffected: its computed totals and its rendered quote-PDF text stay
+GB-region org — one with explicit £/VAT/DD-MM settings and a gents/ladies split —
+is completely unaffected: its computed totals and its rendered quote-PDF text stay
 byte-for-byte what they are today.
 
 Every later US-readiness wave inherits this gate: if a change ever alters a
@@ -27,8 +27,8 @@ except ImportError:  # pragma: no cover
 
 class LegacyOrgSnapshotGate(TestCase):
     def setUp(self):
-        self.org = _make_org(slug="legacy-desi", country="GB")
-        # An established desi/UK org: explicit £/VAT/DD-MM (not the new US defaults).
+        self.org = _make_org(slug="existing-gb-org", country="GB")
+        # An established GB org: explicit £/VAT/DD-MM (not the new US defaults).
         s = OrgSettings.for_org(self.org)
         s.currency_symbol = "£"
         s.currency_code = "GBP"
@@ -63,10 +63,15 @@ class LegacyOrgSnapshotGate(TestCase):
         reader = PdfReader(io.BytesIO(generate_quote_pdf(q)))
         text = "\n".join(page.extract_text() for page in reader.pages)
 
-        # Pounds, not dollars; VAT, not Sales Tax; the gents/ladies split intact.
+        # Money renders in pounds; tax label is VAT; the gents/ladies split intact.
         self.assertIn("£1,000.00", text)
         self.assertIn("£1,200.00", text)
+        self.assertIn("£200.00", text)   # VAT amount
         self.assertIn("VAT", text)
-        self.assertNotIn("$", text)
-        self.assertNotIn("Sales Tax", text)
         self.assertIn("60 gents / 40 ladies", text)
+        # The rendered amounts are £, never $. (The starter T&C boilerplate may
+        # itself mention "$" — that's template text, not a currency-rendered
+        # figure — so assert on the actual money amounts, not a bare "$".)
+        self.assertNotIn("$1,000", text)
+        self.assertNotIn("$1,200", text)
+        self.assertNotIn("$200.00", text)

@@ -3,7 +3,7 @@ org is usable immediately (dishes, menus, add-ons, staff/equipment, rules, and t
 choice options quotes/events need).
 
 Idempotent (get_or_create) — safe to re-run. Per-org, so every org gets its own
-copy (unlike the dev-only desi ``seed_data``).
+copy (unlike the dev-only PK/GB reference ``seed_data``).
 
     python manage.py seed_starter_catalog --org "Acme Catering"
 """

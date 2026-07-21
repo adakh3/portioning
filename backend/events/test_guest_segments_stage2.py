@@ -84,7 +84,7 @@ class DualWriteTests(TestCase):
     def setUp(self):
         self.user = get_test_user()
         self.org = self.user.organisation
-        # A desi org: seed_data already defines gents/ladies segments.
+        # A gents/ladies (GB/PK) org: seed_data already defines gents/ladies segments.
         self.gents = GuestSegment.objects.get(organisation=self.org, name='gents')
         self.ladies = GuestSegment.objects.get(organisation=self.org, name='ladies')
         self.client = APIClient()

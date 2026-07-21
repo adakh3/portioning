@@ -56,7 +56,7 @@ hook's `node_modules` symlink; free ports 8000/3000). See **`docs/WORKTREE_SETUP
 - **New org setup**: A `post_save` signal on `Organisation` (`users/signals.py`) auto-creates `OrgSettings` with defaults, a default commission plan, workflow options (lead statuses + lost reasons), and the non-workflow choice-dropdown starters (event types, sources, service styles, meal types). No manual setup needed for new orgs.
 - **Any new npm package** must be committed with both `frontend/package.json` and `frontend/package-lock.json` so deployments can install it.
 - **Any new feature or bug fix** must include backend and/or frontend tests. Tests are run automatically by the pre-commit hook — never skip them.
-- **Any new feature** must also get a user story + manual test cases in **`docs/user-stories/<feature>.md`** (see `docs/user-stories/README.md`), so the change can be verified by hand. Keep the stories there — not in this file.
+- **Any new feature** must get a **user story + manual test cases** — written as a **"User story & manual test cases" section in its Linear ticket** (who/what/why + numbered manual cases with expected results), so it can be verified by hand. **`docs/user-stories/` is a frozen archive** (older stories, kept for history) — do not add files there.
 - **Code maintenance** — follow **`docs/CODE_MAINTENANCE.md`**: the **Boy Scout rule** (clean up any file/function you touch, only what you touched, before committing), one **single source of truth** for calculations (booking totals → `bookings/services/totals.py`, used by quotes *and* events; portioning → `calculator/engine/`), and **tests for any money/total math** covering the combinations.
 
 ## Testing

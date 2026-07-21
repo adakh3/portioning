@@ -1,11 +1,15 @@
 # User Stories & Manual Test Cases
 
+> # 🗄️ ARCHIVED — frozen as of 2026-07-21
+>
+> **Do not add or update files here.** User stories now live in **Linear tickets** — each
+> feature ticket carries a **"User story & manual test cases"** section (who/what/why +
+> numbered manual cases). One source of truth, next to the spec and the implementer's
+> report. The files below are kept for **history only**.
+
 One markdown file per feature. Each captures the **user story** (who/what/why), the
 **acceptance criteria**, and **manual test cases** the user can walk through to verify
 the feature end-to-end (beyond the automated suite).
-
-**Convention:** whenever a new feature or significant change ships, add or update a file
-here. Keep it test-focused — numbered cases with concrete steps and expected results.
 
 ## Index
 

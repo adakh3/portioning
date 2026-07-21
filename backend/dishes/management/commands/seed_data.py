@@ -250,7 +250,7 @@ class Command(BaseCommand):
             if created:
                 profile.categories.set([categories[cn] for cn in cat_names])
 
-        # ── Guest Segments ── (this desi seed splits by gender)
+        # ── Guest Segments ── (this PK/GB reference seed splits by gender)
         for i, (name, mult) in enumerate([('gents', 1.0), ('ladies', 1.0)]):
             GuestSegment.objects.get_or_create(
                 name=name, organisation=self.org,

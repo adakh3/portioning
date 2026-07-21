@@ -30,6 +30,9 @@ Required sections (adapt headings as needed):
    "existing-org output byte-identical").
 5. **Safety** — existing-org / data-migration constraints that must not be violated
    (default-vs-backfill, no batch recompute of stored totals, additive-only schema).
+6. **User story & manual test cases** (feature tickets) — the user story (who/what/why)
+   plus numbered manual test cases with expected results. This lives in the ticket now,
+   not a `docs/user-stories/` file (that directory is a frozen archive).
 
 ## Mechanics
 
@@ -37,7 +40,7 @@ Required sections (adapt headings as needed):
   **priority**, `blocks`/`blockedBy` relations, and state **Todo** when ready.
 - Repo rules travel with the ticket where relevant: tests required, `seed.json`
   regeneration, doc-sync (PORTIONING_LOGIC ↔ help page; totals trio per
-  CALCULATION_PARITY), user story in `docs/user-stories/`.
+  CALCULATION_PARITY).
 - After raising it, tell the owner: *"REL-xxx is ready — open a new session, switch to
   Opus (`/model opus`), and run `/implement-ticket REL-xxx`."*
 - Do **not** start implementing here, even partially. If the owner asks for code in a
