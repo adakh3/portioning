@@ -161,6 +161,7 @@ export default function SettingsPage() {
                     type="text"
                     required
                     maxLength={5}
+                    aria-label="Currency Symbol"
                     value={formData.currency_symbol}
                     onChange={(e) => setFormData({ ...formData, currency_symbol: e.target.value })}
                   />
@@ -185,6 +186,7 @@ export default function SettingsPage() {
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Date Format</label>
                   <select
+                    aria-label="Date Format"
                     value={formData.date_format}
                     onChange={(e) => setFormData({ ...formData, date_format: e.target.value })}
                     className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
