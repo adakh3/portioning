@@ -37,8 +37,7 @@ Required sections (adapt headings as needed):
   **priority**, `blocks`/`blockedBy` relations, and state **Todo** when ready.
 - Repo rules travel with the ticket where relevant: tests required, `seed.json`
   regeneration, doc-sync (PORTIONING_LOGIC ↔ help page; totals trio per
-  CALCULATION_PARITY). Acceptance criteria + manual verification go in the ticket's
-  **Verify** section (not a `docs/user-stories/` file — that's a frozen archive).
+  CALCULATION_PARITY), user story in `docs/user-stories/`.
 - After raising it, tell the owner: *"REL-xxx is ready — open a new session, switch to
   Opus (`/model opus`), and run `/implement-ticket REL-xxx`."*
 - Do **not** start implementing here, even partially. If the owner asks for code in a
