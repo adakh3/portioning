@@ -103,6 +103,26 @@ describe("Public booking sign page", () => {
     expect(screen.getByText(/Signed by Aisha Khan/)).toBeInTheDocument();
   });
 
+  it("renders terms in a collapsible section with markdown stripped", async () => {
+    h.getPublicBooking.mockResolvedValue({
+      ...booking,
+      terms: "# Service Agreement\n\n**Effective Date:** [Date]\n\n## 1. Booking\n- A deposit is required.",
+    });
+    render(<PublicBookingSignPage />);
+
+    // Collapsible <details> with a summary the client can expand.
+    await screen.findByText("Terms & Conditions");
+    const details = screen.getByText("Terms & Conditions").closest("details");
+    expect(details).toBeInTheDocument();
+    expect(details).not.toHaveAttribute("open"); // collapsed by default
+
+    // Markdown markers are stripped — no raw "##" heading or "**" bold syntax.
+    expect(screen.getByText("1. Booking")).toBeInTheDocument();
+    expect(screen.getByText(/Effective Date:/)).toBeInTheDocument();
+    expect(screen.queryByText(/##/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/\*\*/)).not.toBeInTheDocument();
+  });
+
   it("shows an error state for an invalid link", async () => {
     h.getPublicBooking.mockRejectedValue(new Error("Not found"));
     render(<PublicBookingSignPage />);

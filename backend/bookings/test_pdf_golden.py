@@ -127,7 +127,26 @@ class QuotePdfGoldenTests(TestCase):
         self.assertIn("ACCEPTANCE", text)
         self.assertIn("signed electronically by", text)
         self.assertIn("Aisha Khan", text)
-        self.assertIn("203.0.113.7", text)
+        # IP is kept on the signature record for audit, but must NOT be printed.
+        self.assertNotIn("203.0.113.7", text)
+
+    def test_markdown_terms_render_without_raw_markers(self):
+        """The seeded T&C template is lightweight markdown — the PDF must render
+        headings/bold/bullets, never raw '#'/'##'/'**'/'- ' markers."""
+        settings = OrgSettings.for_org(self.org)
+        settings.quotation_terms = (
+            "# Service Agreement\n\n"
+            "**Effective Date:** [Date]\n\n"
+            "## 1. Booking & Confirmation\n"
+            "- A deposit is required to confirm.\n"
+        )
+        settings.save()
+        text = _pdf_text(self._maximal_quote())
+        for token in ("Service Agreement", "1. Booking & Confirmation",
+                      "Effective Date:", "A deposit is required to confirm."):
+            self.assertIn(token, text)
+        self.assertNotIn("##", text)
+        self.assertNotIn("**", text)
 
     def test_booking_presentation_contract(self):
         """Lock the single-source contract: a future edit can't quietly drop a

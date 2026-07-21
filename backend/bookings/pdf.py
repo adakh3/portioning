@@ -237,7 +237,8 @@ def _signature_image_flowable(data_url):
 
 def _acceptance_block(signature, s):
     """Flowables for the 'ACCEPTANCE' block stamped onto a signed PDF — the drawn
-    signature (if any) plus who signed, when, and from where. Empty if unsigned."""
+    signature (if any) plus who signed and when. Empty if unsigned. The signer's
+    IP is retained on the record for audit but intentionally not printed here."""
     if signature is None:
         return []
     out = [Spacer(1, 8 * mm),
@@ -250,9 +251,41 @@ def _acceptance_block(signature, s):
     line = f"Accepted &amp; signed electronically by <b>{signature.signer_name}</b>"
     if when:
         line += f" on {when}"
-    if signature.ip_address:
-        line += f" (IP {signature.ip_address})"
     out.append(Paragraph(line, s['note']))
+    return out
+
+
+def _terms_flowables(terms_text, s):
+    """Render the lightweight-markdown Terms & Conditions (headings, bold,
+    bullets) into flowables — mirrors the client web page's formatter so the PDF
+    shows clean headings/bold/bullets instead of raw '#'/'**'/'-' markers. Plain
+    (non-markdown) terms render exactly as before: one paragraph per line."""
+    import re
+
+    h1 = ParagraphStyle('TermsH1', parent=s['note'], fontName='Helvetica-Bold',
+                         fontSize=11, leading=14, spaceBefore=6, spaceAfter=3, textColor=TEXT_DARK)
+    h2 = ParagraphStyle('TermsH2', parent=s['note'], fontName='Helvetica-Bold',
+                         fontSize=9.5, leading=12, spaceBefore=6, spaceAfter=2, textColor=TEXT_DARK)
+    bullet = ParagraphStyle('TermsBullet', parent=s['note'], leftIndent=10, bulletIndent=0)
+
+    def inline(t):
+        # Escape for ReportLab's mini-markup, then turn **bold** into <b> tags.
+        t = t.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+        return re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', t)
+
+    out = []
+    for raw in terms_text.split('\n'):
+        line = raw.strip()
+        if line == '' or line == '---':
+            out.append(Spacer(1, 2 * mm))
+        elif line.startswith('## '):
+            out.append(Paragraph(inline(line[3:]), h2))
+        elif line.startswith('# '):
+            out.append(Paragraph(inline(line[2:]), h1))
+        elif line.startswith('- '):
+            out.append(Paragraph(inline(line[2:]), bullet, bulletText='•'))
+        else:
+            out.append(Paragraph(inline(line), s['note']))
     return out
 
 
@@ -654,13 +687,8 @@ def generate_quote_pdf(quote, signature=None):
         ))
         elements.append(Spacer(1, 6 * mm))
 
-        # Render each paragraph of the terms
-        for para in terms_text.split('\n'):
-            para = para.strip()
-            if para:
-                elements.append(Paragraph(para, s['note']))
-            else:
-                elements.append(Spacer(1, 2 * mm))
+        # Render the terms (lightweight markdown: headings, bold, bullets).
+        elements += _terms_flowables(terms_text, s)
 
     elements += _acceptance_block(signature, s)
 
