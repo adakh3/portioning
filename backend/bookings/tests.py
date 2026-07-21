@@ -1585,3 +1585,55 @@ class TestSiteSettingsAPI(TestCase):
         self.assertEqual(data["currency_code"], "EUR")
         self.assertEqual(data["currency_symbol"], "€")
         self.assertEqual(data["target_food_cost_percentage"], "35.00")
+
+
+class InvoiceListQueryCountTests(TestCase):
+    """Regression: GET /api/bookings/invoices/ must not fire a payments-aggregate
+    query per invoice. amount_paid/balance_due read the prefetched payments cache,
+    so query count is O(1) in the number of invoices."""
+
+    def setUp(self):
+        from tests.base import get_test_user
+        self.org = get_test_user().organisation
+        self.client = _authenticated_client()
+
+    def _make_invoice(self, i):
+        from events.models import Event
+        event = Event.objects.create(
+            name=f"Event {i}", event_date="2026-06-15", gents=10, ladies=10,
+            organisation=self.org,
+        )
+        inv = Invoice.objects.create(
+            event=event, invoice_number=f"INV-{i}", invoice_type="final",
+            issue_date="2026-06-01", due_date="2026-06-15",
+            subtotal=Decimal("1000.00"), tax_amount=Decimal("200.00"), total=Decimal("1200.00"),
+        )
+        Payment.objects.create(invoice=inv, amount=Decimal("500.00"),
+                               payment_date="2026-06-05", method="bank_transfer")
+        return inv
+
+    def test_list_query_count_does_not_grow_with_invoices(self):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        self._make_invoice(0)
+        with CaptureQueriesContext(connection) as baseline:
+            self.client.get("/api/bookings/invoices/?page_size=all")
+
+        for i in range(1, 4):
+            self._make_invoice(i)
+
+        with CaptureQueriesContext(connection) as scaled:
+            res = self.client.get("/api/bookings/invoices/?page_size=all")
+
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        rows = data["results"] if isinstance(data, dict) else data
+        self.assertEqual(len(rows), 4)
+        self.assertEqual(
+            len(scaled), len(baseline),
+            f"invoice list query count grew {len(baseline)}→{len(scaled)} with invoice count — N+1 regression.",
+        )
+        # amount_paid/balance_due still correct off the prefetch cache.
+        self.assertEqual(rows[0]["amount_paid"], "500.00")
+        self.assertEqual(rows[0]["balance_due"], "700.00")

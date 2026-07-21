@@ -37,7 +37,9 @@ class StaffMemberSerializer(serializers.ModelSerializer):
         }
 
     def get_role_names(self, obj):
-        return list(obj.roles.values_list('name', flat=True))
+        # Read the prefetched `roles` cache (the list view prefetch_relateds it);
+        # .values_list() would bypass that cache and query per staff member.
+        return [r.name for r in obj.roles.all()]
 
 
 class ShiftSerializer(OrgScopedModelSerializer):

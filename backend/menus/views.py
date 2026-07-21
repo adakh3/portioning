@@ -8,12 +8,17 @@ from .serializers import MenuTemplateListSerializer, MenuTemplateDetailSerialize
 
 
 class MenuTemplateListView(OrgQuerySetMixin, generics.ListAPIView):
-    queryset = MenuTemplate.objects.filter(is_active=True)
+    # Prefetch what the list serializer's method-fields read, so dish_count /
+    # suggested_price / has_unpriced don't each query per template (N+1).
+    queryset = MenuTemplate.objects.filter(is_active=True).prefetch_related(
+        'portions__dish', 'price_tiers')
     serializer_class = MenuTemplateListSerializer
 
 
 class MenuTemplateDetailView(OrgQuerySetMixin, generics.RetrieveAPIView):
-    queryset = MenuTemplate.objects.filter(is_active=True).prefetch_related('portions__dish')
+    # portions serializer reads dish.category.display_name; price_tiers is nested.
+    queryset = MenuTemplate.objects.filter(is_active=True).prefetch_related(
+        'portions__dish__category', 'price_tiers')
     serializer_class = MenuTemplateDetailSerializer
 
 

@@ -20,6 +20,23 @@ class PriceTierSerializer(serializers.ModelSerializer):
         fields = ['min_guests', 'price_per_head']
 
 
+def _suggested_price_per_head(portions):
+    """Sum selling price across a template's portions. Takes an iterable so the
+    caller passes the PREFETCHED `obj.portions.all()` cache — never re-query per
+    row (the views prefetch `portions__dish`)."""
+    total = Decimal('0')
+    for p in portions:
+        if p.dish.selling_price_per_gram:
+            total += p.dish.selling_price_per_gram * Decimal(str(p.portion_grams))
+    return round(float(total), 2) if total else None
+
+
+def _has_unpriced_dishes(portions):
+    """True if any portion's dish lacks a selling price. Reads the prefetched
+    cache, so no per-row query."""
+    return any(p.dish.selling_price_per_gram is None for p in portions)
+
+
 class MenuTemplateListSerializer(serializers.ModelSerializer):
     dish_count = serializers.SerializerMethodField()
     suggested_price_per_head = serializers.SerializerMethodField()
@@ -33,22 +50,13 @@ class MenuTemplateListSerializer(serializers.ModelSerializer):
                   'price_tiers', 'created_at']
 
     def get_dish_count(self, obj):
-        return obj.portions.count()
+        return len(obj.portions.all())          # len() over the prefetch cache, not .count()
 
     def get_suggested_price_per_head(self, obj):
-        try:
-            total = Decimal('0')
-            for portion in obj.portions.select_related('dish').all():
-                if portion.dish.selling_price_per_gram:
-                    total += portion.dish.selling_price_per_gram * Decimal(str(portion.portion_grams))
-            return round(float(total), 2) if total else None
-        except Exception:
-            return None
+        return _suggested_price_per_head(obj.portions.all())
 
     def get_has_unpriced_dishes(self, obj):
-        return obj.portions.select_related('dish').filter(
-            dish__selling_price_per_gram__isnull=True
-        ).exists()
+        return _has_unpriced_dishes(obj.portions.all())
 
 
 class MenuTemplateDetailSerializer(serializers.ModelSerializer):
@@ -64,16 +72,7 @@ class MenuTemplateDetailSerializer(serializers.ModelSerializer):
                   'price_tiers', 'created_at']
 
     def get_suggested_price_per_head(self, obj):
-        try:
-            total = Decimal('0')
-            for portion in obj.portions.select_related('dish').all():
-                if portion.dish.selling_price_per_gram:
-                    total += portion.dish.selling_price_per_gram * Decimal(str(portion.portion_grams))
-            return round(float(total), 2) if total else None
-        except Exception:
-            return None
+        return _suggested_price_per_head(obj.portions.all())
 
     def get_has_unpriced_dishes(self, obj):
-        return obj.portions.select_related('dish').filter(
-            dish__selling_price_per_gram__isnull=True
-        ).exists()
+        return _has_unpriced_dishes(obj.portions.all())

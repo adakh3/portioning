@@ -29,7 +29,8 @@ class WhatsAppMessageListView(APIView):
     def get(self, request, lead_pk):
         lead = get_org_object_or_404(Lead, request, pk=lead_pk)
         qs = apply_org_filter(
-            WhatsAppMessage.objects.filter(lead=lead), request
+            # select_related sent_by so sent_by_name doesn't query per message.
+            WhatsAppMessage.objects.filter(lead=lead).select_related('sent_by'), request
         )
         serializer = WhatsAppMessageSerializer(qs, many=True)
         return Response(serializer.data)
