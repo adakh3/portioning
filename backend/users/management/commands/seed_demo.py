@@ -72,6 +72,11 @@ class Command(BaseCommand):
         settings_obj.target_period = "monthly"
         settings_obj.commission_basis = "event_date"
         settings_obj.fiscal_year_start_month = 1
+        # Starter T&C template — only if the org hasn't set its own (idempotent so
+        # re-seeding an existing demo org backfills terms without clobbering edits).
+        if not settings_obj.quotation_terms:
+            from bookings.default_terms import DEFAULT_QUOTATION_TERMS
+            settings_obj.quotation_terms = DEFAULT_QUOTATION_TERMS
         settings_obj.save()
 
         # Booking-form reference options + a few customers, so the quote/event

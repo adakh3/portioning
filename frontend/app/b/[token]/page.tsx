@@ -4,6 +4,25 @@ import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "re
 import { useParams } from "next/navigation";
 import { api, PublicBooking } from "@/lib/api";
 
+// Terms are stored as a lightweight-markdown template (headings, bullets, bold).
+// Render them as clean text rather than showing raw `#`/`**`/`-` markers — no
+// markdown dependency, just line-level formatting for the handful of constructs
+// the seeded template uses.
+function formatTerms(text: string) {
+  const strip = (s: string) => s.replace(/\*\*(.+?)\*\*/g, "$1");
+  return text.split("\n").map((line, i) => {
+    if (line.trim() === "---") return <hr key={i} className="my-3 border-neutral-200" />;
+    if (line.startsWith("## "))
+      return <p key={i} className="mt-3 mb-1 font-semibold text-neutral-700">{strip(line.slice(3))}</p>;
+    if (line.startsWith("# "))
+      return <p key={i} className="mt-2 mb-1 text-sm font-semibold text-neutral-800">{strip(line.slice(2))}</p>;
+    if (line.startsWith("- "))
+      return <p key={i} className="ml-3 -indent-3 pl-3">• {strip(line.slice(2))}</p>;
+    if (line.trim() === "") return <div key={i} className="h-2" />;
+    return <p key={i}>{strip(line)}</p>;
+  });
+}
+
 export default function PublicBookingSignPage() {
   const { token } = useParams<{ token: string }>();
   const [booking, setBooking] = useState<PublicBooking | null>(null);
@@ -83,12 +102,36 @@ function BookingView({
         <dl className="grid grid-cols-2 gap-3 text-sm">
           <Detail label="Date" value={booking.event_date} />
           <Detail label="Guests" value={guestLabel} />
-          <Detail label="Type" value={booking.event_type} />
-          <Detail label="Service" value={booking.service_style} />
+          <Detail label="Type" value={booking.event_type_label || booking.event_type} />
+          <Detail label="Service" value={booking.service_style_label || booking.service_style} />
           <Detail label="Venue" value={booking.venue_name || booking.venue_address} />
-          <Detail label="Meal" value={booking.meal_type} />
+          <Detail label="Meal" value={booking.meal_type_label || booking.meal_type} />
         </dl>
       </section>
+
+      {/* Timeline */}
+      {booking.timeline.length > 0 && (
+        <section className="mt-4 rounded-xl border border-neutral-200 bg-white p-5">
+          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-neutral-400">Timeline</h2>
+          <dl className="space-y-1 text-sm">
+            {booking.timeline.map((t) => (
+              <div key={t.label} className="flex justify-between">
+                <dt className="text-neutral-500">{t.label}</dt>
+                <dd className="text-neutral-800">
+                  {t.time
+                    ? new Date(t.time).toLocaleString(undefined, {
+                        day: "numeric",
+                        month: "short",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })
+                    : "—"}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+      )}
 
       {/* Menu */}
       {booking.menu.length > 0 && (
@@ -163,10 +206,16 @@ function BookingView({
       )}
 
       {booking.terms && (
-        <section className="mt-4 rounded-xl border border-neutral-200 bg-white p-5">
-          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">Terms</h2>
-          <p className="whitespace-pre-line text-xs text-neutral-500">{booking.terms}</p>
-        </section>
+        <details className="group mt-4 rounded-xl border border-neutral-200 bg-white p-5">
+          <summary className="flex cursor-pointer list-none items-center justify-between text-xs font-semibold uppercase tracking-wide text-neutral-400">
+            <span>Terms &amp; Conditions</span>
+            <span className="text-[10px] font-normal normal-case tracking-normal text-neutral-400 group-open:hidden">
+              Tap to read
+            </span>
+            <span className="hidden text-neutral-400 transition group-open:inline">▾</span>
+          </summary>
+          <div className="mt-3 text-xs leading-relaxed text-neutral-500">{formatTerms(booking.terms)}</div>
+        </details>
       )}
 
       {!booking.is_signed && booking.signable && (

@@ -1199,8 +1199,12 @@ export interface PublicBooking {
   gents: number;
   ladies: number;
   event_type: string;
+  event_type_label: string;
   meal_type: string;
+  meal_type_label: string;
   service_style: string;
+  service_style_label: string;
+  timeline: { label: string; time: string | null }[];
   menu: { category: string; items: string[] }[];
   additional_meals: { label: string; guest_count: number; price_per_head: string | null; items: string[] }[];
   line_items: { description: string; category: string; quantity: string; unit: string; line_total: string }[];

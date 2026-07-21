@@ -81,83 +81,21 @@ def _guest_count(booking):
 
 
 def serialize_public_booking(booking):
-    """Customer-safe view of a booking. Never exposes internal_notes or costs."""
-    from bookings.models import OrgSettings
-    kind = _booking_kind(booking)
-    settings = OrgSettings.for_org(booking.organisation)
-
-    # Menu grouped by dish category, in the org's display order
-    groups = {}
-    for dish in booking.dishes.all():
-        cat = dish.category
-        key = (cat.display_order, cat.display_name)
-        groups.setdefault(key, []).append(dish.name)
-    menu = [
-        {'category': name, 'items': sorted(items)}
-        for (_order, name), items in sorted(groups.items())
-    ]
-
-    line_items = [
-        {
-            'description': li.description,
-            'category': li.get_category_display(),
-            'quantity': str(li.quantity),
-            'unit': li.get_unit_display(),
-            'line_total': str(li.line_total),
-        }
-        for li in booking.line_items.all()
-    ]
-
-    # Additional meals (welcome drinks, second service…) — priced into the total,
-    # so the client must see them before signing (parity with the PDF).
-    additional_meals = [
-        {
-            'label': m.label,
-            'guest_count': m.guest_count,
-            'price_per_head': str(m.price_per_head) if m.price_per_head else None,
-            'items': sorted(d.name for d in m.dishes.all()),
-        }
-        for m in booking.additional_meals.all()
-    ]
-
+    """Customer-safe view for the /b/<token> sign page = the shared
+    booking_presentation content + the sign-page-specific status flags. The
+    presentation is the single source both this page and the quote PDF render
+    from, so they can't diverge on fields."""
+    from bookings.services.presentation import booking_presentation
     sig = _effective_signature(booking)
-    # Address the person who receives and signs; a B2B account is shown alongside.
-    customer = booking.primary_contact.name if booking.primary_contact_id else (
-        booking.account.name if booking.account_id else None)
-
-    return {
-        'kind': kind,
-        'reference': f"{'Quote' if kind == 'quote' else 'Event'} #{booking.pk}",
-        'business_name': booking.organisation.name,
-        'currency_symbol': settings.currency_symbol,
-        'currency_code': settings.currency_code,
-        'tax_label': settings.tax_label,
-        'terms': settings.quotation_terms or '',
-        'customer_name': customer,
-        'event_date': booking.event_date.isoformat() if booking.event_date else None,
-        'venue_name': booking.venue.name if booking.venue_id else None,
-        'venue_address': booking.venue_address or '',
-        'guest_count': _guest_count(booking),
-        'gents': booking.gents or 0,
-        'ladies': booking.ladies or 0,
-        'event_type': booking.event_type or '',
-        'meal_type': booking.meal_type or '',
-        'service_style': booking.service_style or '',
-        'menu': menu,
-        'additional_meals': additional_meals,
-        'line_items': line_items,
-        'price_per_head': str(booking.price_per_head) if booking.price_per_head else None,
-        'subtotal': str(booking.subtotal),
-        'tax_rate': str(booking.tax_rate),
-        'tax_amount': str(booking.tax_amount),
-        'total': str(booking.total),
-        'notes': booking.notes or '',
+    data = booking_presentation(booking, signature=sig)
+    data.update({
         'status': booking.status,
         'is_signed': sig is not None,
         'signable': sig is None and _is_signable(booking),
         'signer_name': sig.signer_name if sig else None,
         'signed_at': sig.signed_at.isoformat() if sig else None,
-    }
+    })
+    return data
 
 
 def sign_booking(booking, *, signer_name, signer_email, signature_image, ip, user_agent):

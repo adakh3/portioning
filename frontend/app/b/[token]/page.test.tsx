@@ -36,9 +36,13 @@ const booking: PublicBooking = {
   guest_count: 120,
   gents: 60,
   ladies: 60,
-  event_type: "Wedding",
-  meal_type: "Dinner",
-  service_style: "Buffet",
+  event_type: "wedding",
+  event_type_label: "Wedding",
+  meal_type: "dinner",
+  meal_type_label: "Dinner",
+  service_style: "buffet",
+  service_style_label: "Buffet",
+  timeline: [{ label: "Meal service", time: "2026-09-01T18:00:00Z" }],
   menu: [{ category: "Mains", items: ["Biryani", "Karahi"] }],
   additional_meals: [{ label: "Drivers food", guest_count: 25, price_per_head: "4350.00", items: ["Chicken Biryani"] }],
   line_items: [{ description: "Chair rental", category: "Rental", quantity: "120", unit: "Each", line_total: "600.00" }],
@@ -74,6 +78,8 @@ describe("Public booking sign page", () => {
     expect(screen.getByText("Spice Route Catering")).toBeInTheDocument();
     expect(screen.getByText("Biryani")).toBeInTheDocument();
     expect(screen.getByText("Drivers food")).toBeInTheDocument(); // additional meal shown
+    expect(screen.getByText("Wedding")).toBeInTheDocument(); // resolved type label, not "wedding"
+    expect(screen.getByText("Meal service")).toBeInTheDocument(); // timeline shown
     expect(screen.getByText("$7260.00")).toBeInTheDocument();
 
     // Cannot submit without name + consent
@@ -95,6 +101,26 @@ describe("Public booking sign page", () => {
     // Signed confirmation replaces the form
     await screen.findByText(/accepted & signed/i);
     expect(screen.getByText(/Signed by Aisha Khan/)).toBeInTheDocument();
+  });
+
+  it("renders terms in a collapsible section with markdown stripped", async () => {
+    h.getPublicBooking.mockResolvedValue({
+      ...booking,
+      terms: "# Service Agreement\n\n**Effective Date:** [Date]\n\n## 1. Booking\n- A deposit is required.",
+    });
+    render(<PublicBookingSignPage />);
+
+    // Collapsible <details> with a summary the client can expand.
+    await screen.findByText("Terms & Conditions");
+    const details = screen.getByText("Terms & Conditions").closest("details");
+    expect(details).toBeInTheDocument();
+    expect(details).not.toHaveAttribute("open"); // collapsed by default
+
+    // Markdown markers are stripped — no raw "##" heading or "**" bold syntax.
+    expect(screen.getByText("1. Booking")).toBeInTheDocument();
+    expect(screen.getByText(/Effective Date:/)).toBeInTheDocument();
+    expect(screen.queryByText(/##/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/\*\*/)).not.toBeInTheDocument();
   });
 
   it("shows an error state for an invalid link", async () => {
