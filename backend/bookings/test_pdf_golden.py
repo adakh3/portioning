@@ -1,0 +1,127 @@
+"""GOLDEN-MASTER regression net for the quote PDF.
+
+Renders a maximal quote — every section: header/org, contact (phone+email),
+business + address, venue, event-type/service/meal labels, guest split, all
+dates, full menu, per-head line, an additional meal with its own menu, one of
+every line-item category (fee/beverage/labour/discount), notes, terms, totals,
+and (separately) the signed ACCEPTANCE block — extracts the text with pypdf and
+asserts it matches a frozen golden stored in test_data/quote_pdf_golden.txt.
+Volatile IDs (Q-<pk>, Customer ID) are normalised.
+
+This exists so the "single source" refactor (PDF rendering FROM a shared
+booking_presentation) can be proven a pure no-op: if the golden still matches,
+not one rendered character changed. Any drift in a field, value, or ordering
+fails the test. To intentionally re-baseline, delete the golden file and re-run.
+"""
+import datetime
+import io
+import re
+from decimal import Decimal
+from pathlib import Path
+
+from django.test import TestCase
+
+from bookings.models import BookingLineItem, Quote
+from bookings.models.choices import EventTypeOption, ServiceStyleOption, MealTypeOption
+from bookings.models.settings import OrgSettings
+from bookings.pdf import generate_quote_pdf
+from bookings.tests import _make_org, make_account, make_contact, make_venue, make_quote
+from dishes.tests import make_dish, make_category
+from events.models import BookingMeal
+from users.models import User
+
+try:
+    from pypdf import PdfReader
+    HAVE_PYPDF = True
+except ImportError:  # pragma: no cover
+    HAVE_PYPDF = False
+
+GOLDEN_PATH = Path(__file__).parent / "test_data" / "quote_pdf_golden.txt"
+
+
+def _normalise(text):
+    """Strip run-to-run volatility (auto-increment pks) so the golden is stable."""
+    text = re.sub(r'Q-\d+', 'Q-<pk>', text)
+    text = re.sub(r'Customer ID:\s*\d+', 'Customer ID: <id>', text)
+    return text
+
+
+def _pdf_text(quote, signature=None):
+    reader = PdfReader(io.BytesIO(generate_quote_pdf(quote, signature=signature)))
+    return _normalise("\n".join(p.extract_text() for p in reader.pages))
+
+
+class QuotePdfGoldenTests(TestCase):
+    def setUp(self):
+        if not HAVE_PYPDF:
+            self.skipTest("pypdf not installed")
+        self.org = _make_org(slug="pdf-golden", name="Golden Caterers", country="GB")
+        EventTypeOption.objects.get_or_create(organisation=self.org, value="wedding", defaults={"label": "Wedding"})
+        ServiceStyleOption.objects.get_or_create(organisation=self.org, value="plated", defaults={"label": "Plated"})
+        MealTypeOption.objects.get_or_create(organisation=self.org, value="dinner", defaults={"label": "Dinner"})
+        settings = OrgSettings.for_org(self.org)
+        settings.currency_symbol = "£"
+        settings.tax_label = "VAT"
+        settings.quotation_terms = ("A 25% deposit is required to confirm the booking.\n"
+                                    "Balance due 14 days before the event.")
+        settings.save()
+        self.user = User.objects.create_user(email="owner@golden.test", password="x", organisation=self.org)
+
+    def _maximal_quote(self):
+        account = make_account(org=self.org, name="Acme Events Ltd",
+                               billing_address_line1="1 High St", billing_city="London", billing_postcode="EC1A 1AA")
+        contact = make_contact(account=account, org=self.org, name="Aisha Khan",
+                               email="aisha@example.com", phone="+447700900123")
+        venue = make_venue(org=self.org, name="Grand Hall", address_line1="2 Park Ave", city="London")
+        cat = make_category(org=self.org, name="mains", display_name="Mains", display_order=1)
+        d1 = make_dish(org=self.org, category=cat, name="Biryani")
+        d2 = make_dish(org=self.org, category=cat, name="Karahi")
+        q = make_quote(
+            org=self.org, account=account, primary_contact=contact, is_b2b=True, venue=venue,
+            event_date=datetime.date(2026, 9, 1), guest_count=100, gents=60, ladies=40,
+            price_per_head=Decimal("50"), event_type="wedding", service_style="plated",
+            meal_type="dinner", valid_until=datetime.date(2026, 8, 1),
+            booking_date=datetime.date(2026, 7, 15), tax_rate=Decimal("0.2000"), is_taxable=True,
+            notes="Please keep nut-free.", created_by=self.user,
+        )
+        q.dishes.set([d1, d2])
+        meal = BookingMeal.objects.create(quote=q, label="Welcome drinks", guest_count=100, price_per_head=Decimal("10"))
+        meal.dishes.set([d1])
+        BookingLineItem.objects.create(quote=q, category="fee", description="Setup fee", quantity=1, unit="flat", unit_price=Decimal("100"))
+        BookingLineItem.objects.create(quote=q, category="beverage", description="Soft drinks", quantity=100, unit="each", unit_price=Decimal("3"))
+        BookingLineItem.objects.create(quote=q, category="labor", description="Waiter", quantity=5, unit="each", unit_price=Decimal("40"))
+        BookingLineItem.objects.create(quote=q, category="discount", description="Loyalty discount", quantity=1, unit="flat", unit_price=Decimal("50"))
+        Quote.objects.filter(pk=q.pk).update(created_at=datetime.datetime(2026, 7, 10, 9, 0, tzinfo=datetime.timezone.utc))
+        q.refresh_from_db()
+        q.recalculate_totals()
+        q.refresh_from_db()
+        return q
+
+    def test_quote_pdf_matches_golden(self):
+        text = _pdf_text(self._maximal_quote())
+        if not GOLDEN_PATH.exists():
+            GOLDEN_PATH.parent.mkdir(exist_ok=True)
+            GOLDEN_PATH.write_text(text)
+            self.skipTest("golden written — re-run to assert against it")
+        self.assertEqual(
+            text, GOLDEN_PATH.read_text(),
+            "Quote PDF output changed vs the golden. If this change is intentional, "
+            "delete backend/bookings/test_data/quote_pdf_golden.txt and re-run to re-baseline.",
+        )
+
+    def test_signed_pdf_has_acceptance_block(self):
+        from bookings.models import BookingSignature
+        q = self._maximal_quote()
+        # Sign it (attach to the quote for the PDF stamp), freeze the timestamp.
+        sig = BookingSignature.objects.create(
+            quote=q, signer_name="Aisha Khan", agreed_total=q.total,
+            ip_address="203.0.113.7", consent_text="agreed",
+        )
+        BookingSignature.objects.filter(pk=sig.pk).update(
+            signed_at=datetime.datetime(2026, 7, 20, 8, 47, tzinfo=datetime.timezone.utc))
+        sig.refresh_from_db()
+        text = _pdf_text(q, signature=sig)
+        self.assertIn("ACCEPTANCE", text)
+        self.assertIn("signed electronically by", text)
+        self.assertIn("Aisha Khan", text)
+        self.assertIn("203.0.113.7", text)
