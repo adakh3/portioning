@@ -323,6 +323,9 @@ def generate_quote_pdf(quote, signature=None):
     Returns:
         bytes — PDF file content
     """
+    from bookings.services.presentation import booking_presentation
+    pres = booking_presentation(quote, signature)
+
     settings = OrgSettings.for_org(quote.organisation)
     cs = settings.currency_symbol
     s = _styles()
@@ -378,14 +381,13 @@ def generate_quote_pdf(quote, signature=None):
     # Left column: "To: Customer" (person-first); the business is shown only when present.
     left_data = []
     c = quote.primary_contact
-    to_name = c.name if c else (quote.account.name if quote.account_id else '—')
+    to_name = pres['customer_name'] or '—'
     left_data.append([Paragraph(f'<b>To: {to_name}</b>', s['info_header']), ''])
 
-    if c:
-        if c.phone:
-            left_data.append([Paragraph('Phone:', s['info_label']), Paragraph(c.phone, s['info_value'])])
-        if c.email:
-            left_data.append([Paragraph('Email:', s['info_label']), Paragraph(c.email, s['info_value'])])
+    if pres['contact_phone']:
+        left_data.append([Paragraph('Phone:', s['info_label']), Paragraph(pres['contact_phone'], s['info_value'])])
+    if pres['contact_email']:
+        left_data.append([Paragraph('Email:', s['info_label']), Paragraph(pres['contact_email'], s['info_value'])])
 
     if quote.account_id:
         acct = quote.account
@@ -407,11 +409,7 @@ def generate_quote_pdf(quote, signature=None):
     elif quote.venue_address:
         left_data.append([Paragraph('Venue:', s['info_label']), Paragraph(quote.venue_address, s['info_value'])])
 
-    et_label = (
-        EventTypeOption.objects.filter(value=quote.event_type, organisation=quote.organisation)
-        .values_list('label', flat=True).first()
-        or quote.event_type
-    )
+    et_label = pres['event_type_label']
     left_data.append([Paragraph('Event Type:', s['info_label']), Paragraph(et_label, s['info_value'])])
 
     LEFT_COL_W = CONTENT_W * 0.52
@@ -426,20 +424,8 @@ def generate_quote_pdf(quote, signature=None):
     ]))
 
     # Right column: Structured info table with section header
-    ss_label = ''
-    if quote.service_style:
-        ss_label = (
-            ServiceStyleOption.objects.filter(value=quote.service_style, organisation=quote.organisation)
-            .values_list('label', flat=True).first()
-            or quote.service_style
-        )
-    mt_label = ''
-    if quote.meal_type:
-        mt_label = (
-            MealTypeOption.objects.filter(value=quote.meal_type, organisation=quote.organisation)
-            .values_list('label', flat=True).first()
-            or quote.meal_type
-        )
+    ss_label = pres['service_style_label']
+    mt_label = pres['meal_type_label']
 
     RIGHT_COL_W = CONTENT_W * 0.48
     right_header = _section_header(
@@ -530,7 +516,7 @@ def generate_quote_pdf(quote, signature=None):
         elements.append(Spacer(1, 6 * mm))
 
     # ── 3. Menu Items Table (2-column layout with summary row) ──
-    dish_names = dish_names_in_added_order(quote)
+    dish_names = pres['menu_flat']
     has_food_total = quote.food_total and quote.food_total > 0
 
     ADDON_COL_WIDTHS = [CONTENT_W * 0.18, CONTENT_W * 0.42, CONTENT_W * 0.20, CONTENT_W * 0.20]
@@ -601,10 +587,10 @@ def generate_quote_pdf(quote, signature=None):
         elements.append(Spacer(1, 6 * mm))
 
     # ── 5. Notes (customer-visible only; internal notes are never in the PDF) ──
-    if quote.notes:
+    if pres['notes']:
         elements.append(Spacer(1, 2 * mm))
         elements.append(Paragraph('<b>Notes:</b>', s['body_bold']))
-        elements.append(Paragraph(quote.notes, s['note']))
+        elements.append(Paragraph(pres['notes'], s['note']))
         elements.append(Spacer(1, 6 * mm))
 
     # ── 6. Totals block (right-aligned) ──
@@ -657,7 +643,7 @@ def generate_quote_pdf(quote, signature=None):
     elements.append(outer_totals)
 
     # ── 7. Terms & Conditions (page 2 if present) ──
-    terms_text = settings.quotation_terms.strip() if settings.quotation_terms else ''
+    terms_text = pres['terms'].strip()
     if terms_text:
         elements.append(PageBreak())
 
