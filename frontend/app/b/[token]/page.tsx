@@ -83,12 +83,36 @@ function BookingView({
         <dl className="grid grid-cols-2 gap-3 text-sm">
           <Detail label="Date" value={booking.event_date} />
           <Detail label="Guests" value={guestLabel} />
-          <Detail label="Type" value={booking.event_type} />
-          <Detail label="Service" value={booking.service_style} />
+          <Detail label="Type" value={booking.event_type_label || booking.event_type} />
+          <Detail label="Service" value={booking.service_style_label || booking.service_style} />
           <Detail label="Venue" value={booking.venue_name || booking.venue_address} />
-          <Detail label="Meal" value={booking.meal_type} />
+          <Detail label="Meal" value={booking.meal_type_label || booking.meal_type} />
         </dl>
       </section>
+
+      {/* Timeline */}
+      {booking.timeline.length > 0 && (
+        <section className="mt-4 rounded-xl border border-neutral-200 bg-white p-5">
+          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-neutral-400">Timeline</h2>
+          <dl className="space-y-1 text-sm">
+            {booking.timeline.map((t) => (
+              <div key={t.label} className="flex justify-between">
+                <dt className="text-neutral-500">{t.label}</dt>
+                <dd className="text-neutral-800">
+                  {t.time
+                    ? new Date(t.time).toLocaleString(undefined, {
+                        day: "numeric",
+                        month: "short",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })
+                    : "—"}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+      )}
 
       {/* Menu */}
       {booking.menu.length > 0 && (
