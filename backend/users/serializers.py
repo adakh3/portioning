@@ -58,7 +58,9 @@ class UserManageSerializer(serializers.ModelSerializer):
                 self.fields['product_lines'].child_relation.queryset = ProductLine.objects.filter(organisation=org)
 
     def get_product_line_names(self, obj):
-        return list(obj.product_lines.values_list('name', flat=True))
+        # Read the prefetched `product_lines` cache (the list view prefetches it);
+        # .values_list() would bypass it and query per user.
+        return [pl.name for pl in obj.product_lines.all()]
 
     def create(self, validated_data):
         from .models import User

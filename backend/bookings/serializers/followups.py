@@ -26,10 +26,20 @@ class FollowUpDraftSerializer(serializers.ModelSerializer):
 
     def get_lead_days_stale(self, obj):
         from django.utils import timezone
-        from bookings.services.followup_scheduler import lead_last_touch
+        from bookings.services.followup_scheduler import last_touch_from_parts, lead_last_touch
         if not obj.lead_id:
             return None
-        return max((timezone.now() - lead_last_touch(obj.lead)).days, 0)
+        # Fast path: list views annotate the two "last touch" aggregates onto the
+        # row (see _annotate_last_touch), so we avoid two queries per draft. Single-
+        # object responses (approve/dismiss/generate) aren't annotated → fall back
+        # to the live, self-querying computation (one object, negligible cost).
+        if hasattr(obj, '_last_reviewed_at'):
+            last = last_touch_from_parts(
+                obj.lead.updated_at, obj._last_reviewed_at, obj._last_message_at,
+            )
+        else:
+            last = lead_last_touch(obj.lead)
+        return max((timezone.now() - last).days, 0)
 
     class Meta:
         model = FollowUpDraft

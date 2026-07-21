@@ -311,6 +311,48 @@ class FollowupApiTests(TestCase):
         self.assertEqual(res.status_code, 200)
         self.assertEqual(len(res.json()), 1)
 
+    def test_queue_query_count_does_not_grow_with_drafts(self):
+        """Regression: the review queue must not fire per-draft queries (the
+        lead_days_stale N+1 that made the tab slow to populate). The query count
+        for many drafts equals the count for one — O(1) in draft count."""
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        def add_pending_draft():
+            lead = _stale_lead(self.org)
+            # Exercise BOTH aggregate subqueries: an outbound message and a
+            # previously-reviewed draft on the same lead.
+            WhatsAppMessage.objects.create(
+                organisation=self.org, lead=lead, to_phone='x', from_phone='y',
+                body='hi', direction='outbound', status='sent',
+            )
+            FollowUpDraft.objects.create(
+                organisation=self.org, lead=lead, body='old', status='dismissed',
+                reviewed_at=timezone.now(),
+            )
+            return FollowUpDraft.objects.create(
+                organisation=self.org, lead=lead, body='Hi!', status='pending',
+            )
+
+        # Baseline: just the one pending draft from setUp.
+        with CaptureQueriesContext(connection) as baseline:
+            self.client.get(f'{self.BASE}?page_size=all')
+
+        for _ in range(4):
+            add_pending_draft()
+
+        with CaptureQueriesContext(connection) as scaled:
+            res = self.client.get(f'{self.BASE}?page_size=all')
+
+        self.assertEqual(len(res.json()), 5)
+        self.assertEqual(
+            len(scaled), len(baseline),
+            f"Queue query count grew {len(baseline)}→{len(scaled)} with draft count — N+1 regression.",
+        )
+        # And days_stale is still computed correctly off the annotations.
+        by_id = {d['id']: d for d in res.json()}
+        self.assertGreaterEqual(by_id[self.draft.id]['lead_days_stale'], 29)
+
     def test_approve_sends_and_marks_sent(self):
         with _fake_send() as MockSvc:
             msg = WhatsAppMessage.objects.create(

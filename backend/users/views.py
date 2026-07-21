@@ -238,7 +238,9 @@ class UserManageListCreateView(generics.ListCreateAPIView):
 
     def get_queryset(self):
         org = getattr(self.request, 'organisation', None) or self.request.user.organisation
-        return User.objects.filter(organisation=org).order_by('first_name', 'last_name')
+        # prefetch product_lines so the serializer's product_line_names doesn't query per user.
+        return User.objects.filter(organisation=org).prefetch_related(
+            'product_lines').order_by('first_name', 'last_name')
 
     def perform_create(self, serializer):
         from rest_framework.exceptions import PermissionDenied

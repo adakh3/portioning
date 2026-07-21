@@ -37,6 +37,54 @@ def make_dish(org, category=None, **kwargs):
     return Dish.objects.create(**defaults)
 
 
+class MenuListQueryCountTests(TestCase):
+    """Regression: GET /api/menus/ must not fire per-template queries. The list
+    serializer's dish_count / suggested_price / has_unpriced / price_tiers read
+    the prefetched cache — so query count is O(1) in the number of templates."""
+
+    def setUp(self):
+        from bookings.tests import _authenticated_client
+        from tests.base import get_test_user
+        self.org = get_test_user().organisation
+        self.client = _authenticated_client()
+
+    def _make_template(self, i):
+        cat = make_category(self.org, name=f"cat{i}")
+        t = MenuTemplate.objects.create(name=f"Menu {i}", organisation=self.org, is_active=True)
+        for j in range(2):
+            d = make_dish(self.org, category=cat, name=f"D{i}-{j}",
+                          selling_price_per_gram=Decimal("0.0500"))
+            MenuDishPortion.objects.create(menu=t, dish=d, portion_grams=100)
+        MenuTemplatePriceTier.objects.create(menu=t, min_guests=10, price_per_head=Decimal("20"))
+        return t
+
+    def test_list_query_count_does_not_grow_with_templates(self):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        self._make_template(0)
+        with CaptureQueriesContext(connection) as baseline:
+            self.client.get("/api/menus/?page_size=all")
+
+        for i in range(1, 4):
+            self._make_template(i)
+
+        with CaptureQueriesContext(connection) as scaled:
+            res = self.client.get("/api/menus/?page_size=all")
+
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        rows = data["results"] if isinstance(data, dict) else data
+        self.assertEqual(len(rows), 4)
+        self.assertEqual(
+            len(scaled), len(baseline),
+            f"menu list query count grew {len(baseline)}→{len(scaled)} with template count — N+1 regression.",
+        )
+        # Method-fields still correct off the prefetch cache.
+        self.assertEqual(rows[0]["dish_count"], 2)
+        self.assertIsNotNone(rows[0]["suggested_price_per_head"])
+
+
 class TestSuggestedPricePerHead(TestCase):
     """MenuTemplateDetailSerializer.suggested_price_per_head sums selling × portion."""
 

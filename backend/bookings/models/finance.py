@@ -54,7 +54,11 @@ class Invoice(models.Model):
 
     @property
     def amount_paid(self):
-        return self.payments.aggregate(total=models.Sum('amount'))['total'] or Decimal('0.00')
+        # Sum the prefetched `payments` cache when present (list views prefetch
+        # 'payments'), so this doesn't fire an aggregate query PER invoice on the
+        # list. A lone, non-prefetched instance falls back to one query. (Can't
+        # annotate this on the queryset — the property would shadow the annotation.)
+        return sum((p.amount for p in self.payments.all()), Decimal('0.00'))
 
     @property
     def balance_due(self):

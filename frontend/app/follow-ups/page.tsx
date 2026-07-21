@@ -664,9 +664,28 @@ function GeneratePanel({ onDraftCreated }: { onDraftCreated: () => void }) {
   );
 }
 
+function DraftSkeleton() {
+  return (
+    <div className="p-3 border border-border rounded-lg flex gap-3 animate-pulse">
+      <div className="flex-1 min-w-0 space-y-2">
+        <div className="h-4 w-40 rounded bg-muted" />
+        <div className="h-3 w-2/3 rounded bg-muted" />
+        <div className="h-20 w-full rounded bg-muted" />
+        <div className="h-8 w-36 rounded bg-muted" />
+      </div>
+      <div className="hidden sm:block w-40 shrink-0 border-l border-border pl-3 space-y-2">
+        <div className="h-3 w-20 rounded bg-muted" />
+        <div className="h-3 w-16 rounded bg-muted" />
+        <div className="h-3 w-24 rounded bg-muted" />
+      </div>
+    </div>
+  );
+}
+
 function DraftsTab() {
   const shortcutsMode = useShortcutsMode();
-  const { data: drafts = [], mutate } = useFollowUpDrafts("pending");
+  const { data: drafts, isLoading, mutate } = useFollowUpDrafts("pending");
+  const list = drafts ?? [];
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkError, setBulkError] = useState("");
 
@@ -691,7 +710,13 @@ function DraftsTab() {
     <div className="space-y-4">
       <GeneratePanel onDraftCreated={() => mutate()} />
 
-      {drafts.length === 0 ? (
+      {isLoading ? (
+        <div className="max-w-3xl space-y-2" aria-busy="true" aria-label="Loading AI drafts">
+          {[0, 1, 2].map((i) => (
+            <DraftSkeleton key={i} />
+          ))}
+        </div>
+      ) : list.length === 0 ? (
         <Card>
           <CardContent className="p-8 text-center text-muted-foreground">
             No AI drafts to review. Use &quot;Generate follow-ups&quot; to draft messages
@@ -702,17 +727,17 @@ function DraftsTab() {
         <div className="max-w-3xl space-y-4">
           <div className="flex items-center justify-between">
             <p className="text-sm text-muted-foreground">
-              {drafts.length} draft{drafts.length === 1 ? "" : "s"} awaiting your review.
+              {list.length} draft{list.length === 1 ? "" : "s"} awaiting your review.
             </p>
             {!shortcutsMode && (
               <Button size="sm" onClick={handleBulkApprove} disabled={bulkBusy}>
-                {bulkBusy ? "Sending..." : `Approve & send all (${drafts.length})`}
+                {bulkBusy ? "Sending..." : `Approve & send all (${list.length})`}
               </Button>
             )}
           </div>
           {bulkError && <p className="text-sm text-destructive">{bulkError}</p>}
           <div className="space-y-2">
-            {drafts.map((d) => (
+            {list.map((d) => (
               <DraftReviewCard key={d.id} draft={d} onDone={() => mutate()} />
             ))}
           </div>

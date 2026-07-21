@@ -1,4 +1,4 @@
-from django.db.models import Q
+from django.db.models import DateTimeField, Max, OuterRef, Q, Subquery
 from django.conf import settings as django_settings
 from django.utils import timezone
 from rest_framework import generics, status
@@ -15,6 +15,27 @@ from bookings.views.dashboard import parse_period_window
 from users.mixins import (
     get_request_org, is_superuser_without_org, get_org_object_or_404,
 )
+
+
+def _annotate_last_touch(qs):
+    """Annotate each draft with its lead's two "last touch" aggregate stamps as
+    subqueries, so the serializer's `lead_days_stale` reads them off the row
+    instead of firing two queries PER draft (the N+1 that made the review queue
+    slow to open). Mirrors lead_last_touch's inputs exactly."""
+    last_reviewed = (
+        FollowUpDraft.objects
+        .filter(lead=OuterRef('lead'), status__in=('sent', 'dismissed'))
+        .values('lead').annotate(m=Max('reviewed_at')).values('m')
+    )
+    last_message = (
+        WhatsAppMessage.objects
+        .filter(lead=OuterRef('lead'))
+        .values('lead').annotate(m=Max('created_at')).values('m')
+    )
+    return qs.annotate(
+        _last_reviewed_at=Subquery(last_reviewed, output_field=DateTimeField()),
+        _last_message_at=Subquery(last_message, output_field=DateTimeField()),
+    )
 
 
 def _scoped_drafts(request):
@@ -61,7 +82,7 @@ class FollowUpDraftListView(generics.ListAPIView):
     serializer_class = FollowUpDraftSerializer
 
     def get_queryset(self):
-        qs = _scoped_drafts(self.request)
+        qs = _annotate_last_touch(_scoped_drafts(self.request))
         status_filter = self.request.query_params.get('status', 'pending')
         if status_filter:
             qs = qs.filter(status=status_filter)
@@ -77,8 +98,10 @@ class LeadFollowUpDraftListView(generics.ListAPIView):
 
     def get_queryset(self):
         get_org_object_or_404(Lead, self.request, pk=self.kwargs['pk'])
-        return FollowUpDraft.objects.select_related('lead', 'lead__assigned_to', 'reviewed_by').filter(
-            lead_id=self.kwargs['pk'],
+        return _annotate_last_touch(
+            FollowUpDraft.objects.select_related('lead', 'lead__assigned_to', 'reviewed_by').filter(
+                lead_id=self.kwargs['pk'],
+            )
         )
 
 

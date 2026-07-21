@@ -107,22 +107,32 @@ def find_stale_leads(org, settings):
     )
 
 
+def last_touch_from_parts(updated_at, last_reviewed=None, last_message=None):
+    """The freshest of the quiet-clock timestamps, given the parts already in
+    hand. Split out from lead_last_touch so callers that have *annotated* those
+    two aggregates onto a queryset (the review-queue list) don't re-query them
+    per row — the divergence-proof single source of "which stamps count"."""
+    stamps = [updated_at]
+    if last_reviewed:
+        stamps.append(last_reviewed)
+    if last_message:
+        stamps.append(last_message)
+    return max(stamps)
+
+
 def lead_last_touch(lead):
     """The freshest of the four quiet-clocks the cadence runs on: record
     edits, our last reviewed follow-up (sent OR dismissed — a dismissal skips
     that stage, it doesn't re-arm it), any outbound WhatsApp from us (e.g. a
     quote share), the lead's last reply. Display code uses this so 'days
-    quiet' always matches what the scheduler actually measures."""
-    stamps = [lead.updated_at]
-    last_sent = lead.followup_drafts.filter(status__in=('sent', 'dismissed')).aggregate(
+    quiet' always matches what the scheduler actually measures. Fires two
+    aggregate queries — for lists, annotate instead and use
+    last_touch_from_parts (see followup views)."""
+    last_reviewed = lead.followup_drafts.filter(status__in=('sent', 'dismissed')).aggregate(
         m=Max('reviewed_at'))['m']
-    if last_sent:
-        stamps.append(last_sent)
     last_message = WhatsAppMessage.objects.filter(lead=lead).aggregate(
         m=Max('created_at'))['m']
-    if last_message:
-        stamps.append(last_message)
-    return max(stamps)
+    return last_touch_from_parts(lead.updated_at, last_reviewed, last_message)
 
 
 def run_for_org(org, dry_run=False):
