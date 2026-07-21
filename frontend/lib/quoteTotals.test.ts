@@ -155,7 +155,8 @@ describe("buildQuoteSavePayload", () => {
     price_per_head: "50.00", venue: "", venue_address: "", event_type: "wedding",
     meal_type: "", booking_date: "", service_style: "", product: "",
     setup_time: "", guest_arrival_time: "", meal_time: "", end_time: "",
-    tax_rate: "20", valid_until: "", notes: "", internal_notes: "",
+    tax_rate: "20", service_charge_pct: "0", service_charge_taxable: true, gratuity_pct: "0",
+    valid_until: "", notes: "", internal_notes: "",
   };
   const menuData = { dish_ids: [1, 2], based_on_template: null };
 
@@ -195,7 +196,7 @@ describe("buildEventSavePayload", () => {
     guest_count: 40, gents: 25, ladies: 15, guaranteed_count: 40, final_count: null, final_count_due: "",
     big_eaters: true, big_eaters_percentage: 30,
     setup_time: "2026-09-01T09:00", guest_arrival_time: "", meal_time: "", end_time: "",
-    is_taxable: true,
+    is_taxable: true, service_charge_pct: "0", service_charge_taxable: true, gratuity_pct: "0",
     dish_ids: [1, 2], based_on_template: null,
     line_items: [{ id: 7, category: "rental", description: "Chairs", quantity: 2, unit: "each", unit_price: 100 }],
     meals: [{ label: "Tea", guest_count: 40, price_per_head: "15.00", dishes: [3], based_on_template: null, meal_time: null, notes: "" }],

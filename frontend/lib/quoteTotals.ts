@@ -152,6 +152,9 @@ export interface QuoteEditData {
   meal_time: string;
   end_time: string;
   tax_rate: string; // percent string (e.g. "20") as shown in the form
+  service_charge_pct: string; // percent (e.g. "20")
+  service_charge_taxable: boolean;
+  gratuity_pct: string; // percent (e.g. "15")
   valid_until: string;
   notes: string;
   internal_notes: string;
@@ -223,6 +226,9 @@ export function buildQuoteSavePayload(
     meal_time: editData.meal_time || null,
     end_time: editData.end_time || null,
     tax_rate: (parseFloat(editData.tax_rate || "0") / 100).toFixed(4),
+    service_charge_pct: editData.service_charge_pct || "0",
+    service_charge_taxable: editData.service_charge_taxable,
+    gratuity_pct: editData.gratuity_pct || "0",
     product: editData.product ? Number(editData.product) : null,
     valid_until: editData.valid_until || null,
     notes: editData.notes,
@@ -268,6 +274,9 @@ export interface EventSaveInput {
   meal_time: string;
   end_time: string;
   is_taxable: boolean;
+  service_charge_pct: string;
+  service_charge_taxable: boolean;
+  gratuity_pct: string;
   dish_ids: number[];
   based_on_template: number | null;
   line_items: LineItemInput[];
@@ -306,6 +315,9 @@ export function buildEventSavePayload(v: EventSaveInput) {
     meal_time: v.meal_time || null,
     end_time: v.end_time || null,
     is_taxable: v.is_taxable,
+    service_charge_pct: v.service_charge_pct || "0",
+    service_charge_taxable: v.service_charge_taxable,
+    gratuity_pct: v.gratuity_pct || "0",
     dish_ids: v.dish_ids,
     based_on_template: v.based_on_template,
     line_items: buildLineItemsPayload(v.line_items),

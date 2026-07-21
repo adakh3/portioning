@@ -443,6 +443,11 @@ export interface Quote {
   subtotal: string;
   tax_rate: string;
   tax_amount: string;
+  service_charge_pct: string;
+  service_charge_taxable: boolean;
+  service_charge: string;
+  gratuity_pct: string;
+  gratuity: string;
   total: string;
   dishes: number[];
   dish_names: string[];
@@ -600,6 +605,11 @@ export interface Invoice {
   subtotal: string;
   tax_rate: string;
   tax_amount: string;
+  service_charge_pct: string;
+  service_charge_taxable: boolean;
+  service_charge: string;
+  gratuity_pct: string;
+  gratuity: string;
   total: string;
   status: string;
   notes: string;
@@ -643,6 +653,10 @@ export interface SiteSettingsData {
   quotation_terms: string;
   tax_label: string;
   default_tax_rate: string;
+  service_charge_default_pct?: string;
+  service_charge_taxable_default?: boolean;
+  gratuity_default_pct?: string;
+  guest_segments?: { name: string; is_default: boolean; counts_toward_total: boolean }[];
   // Commission & targets (model/rate are per-plan; choices kept for the plan form)
   commission_model_choices?: { value: string; label: string }[];
   target_period?: string;
@@ -750,6 +764,11 @@ export interface EventData {
   // Computed totals (food + add-on line items + tax) — server-side via the shared engine.
   subtotal: string;
   tax_amount: string;
+  service_charge_pct: string;
+  service_charge_taxable: boolean;
+  service_charge: string;
+  gratuity_pct: string;
+  gratuity: string;
   total: string;
   // Timeline
   setup_time: string | null;
@@ -1212,6 +1231,11 @@ export interface PublicBooking {
   subtotal: string;
   tax_rate: string;
   tax_amount: string;
+  service_charge_pct: string;
+  service_charge_taxable: boolean;
+  service_charge: string;
+  gratuity_pct: string;
+  gratuity: string;
   total: string;
   notes: string;
   status: string;

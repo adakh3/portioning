@@ -98,6 +98,9 @@ export default function QuoteDetailPage() {
     end_time: "",
     product: "",
     tax_rate: "",
+    service_charge_pct: "0",
+    service_charge_taxable: true,
+    gratuity_pct: "0",
     valid_until: "",
     notes: "",
     internal_notes: "",
@@ -130,6 +133,9 @@ export default function QuoteDetailPage() {
     end_time: "",
     product: "",
     tax_rate: "0.2000",
+    service_charge_pct: "0",
+    service_charge_taxable: true,
+    gratuity_pct: "0",
     valid_until: "",
     notes: "",
     internal_notes: "",
@@ -161,12 +167,19 @@ export default function QuoteDetailPage() {
     }
   }, [isNew, rawSettings, menuData]);
 
-  // Seed the tax rate from the ORG default once settings load, so a new quote
-  // reflects the current org tax % (not a hardcoded 20%).
+  // Seed the tax rate + service charge / gratuity from the ORG defaults once
+  // settings load, so a new quote reflects the org's pricing (e.g. a US org's
+  // 20% service charge) — not hardcoded values.
   const defaultTaxApplied = useRef(false);
   useEffect(() => {
-    if (isNew && rawSettings?.default_tax_rate && !defaultTaxApplied.current) {
-      setCreateData((prev) => ({ ...prev, tax_rate: rawSettings.default_tax_rate }));
+    if (isNew && rawSettings && !defaultTaxApplied.current) {
+      setCreateData((prev) => ({
+        ...prev,
+        tax_rate: rawSettings.default_tax_rate ?? prev.tax_rate,
+        service_charge_pct: rawSettings.service_charge_default_pct ?? prev.service_charge_pct,
+        service_charge_taxable: rawSettings.service_charge_taxable_default ?? prev.service_charge_taxable,
+        gratuity_pct: rawSettings.gratuity_default_pct ?? prev.gratuity_pct,
+      }));
       defaultTaxApplied.current = true;
     }
   }, [isNew, rawSettings]);
@@ -248,6 +261,9 @@ export default function QuoteDetailPage() {
         meal_time: createData.meal_time || null,
         end_time: createData.end_time || null,
         tax_rate: createData.tax_rate,
+        service_charge_pct: createData.service_charge_pct || "0",
+        service_charge_taxable: createData.service_charge_taxable,
+        gratuity_pct: createData.gratuity_pct || "0",
         valid_until: createData.valid_until || null,
         notes: createData.notes,
         internal_notes: createData.internal_notes,
@@ -297,6 +313,9 @@ export default function QuoteDetailPage() {
       meal_time: quote.meal_time ? quote.meal_time.slice(0, 16) : "",
       end_time: quote.end_time ? quote.end_time.slice(0, 16) : "",
       tax_rate: String(Math.round(parseFloat(quote.tax_rate) * 10000) / 100),
+      service_charge_pct: quote.service_charge_pct ?? "0",
+      service_charge_taxable: quote.service_charge_taxable ?? true,
+      gratuity_pct: quote.gratuity_pct ?? "0",
       valid_until: quote.valid_until || "",
       notes: quote.notes,
       internal_notes: quote.internal_notes,
@@ -411,6 +430,8 @@ export default function QuoteDetailPage() {
     const createTotals = computeQuoteTotals(
       createData.price_per_head, createData.guest_count,
       parseFloat(createData.tax_rate || "0"), createLineItems, createMeals,
+      parseFloat(createData.service_charge_pct || "0"), createData.service_charge_taxable,
+      parseFloat(createData.gratuity_pct || "0"),
     );
     return (
       <div className="space-y-6">
@@ -549,7 +570,27 @@ export default function QuoteDetailPage() {
             meals={bookingMealRows(createMeals, cs)}
             addOnsTotal={Math.round((createTotals.subtotal - createTotals.food_total) * 100) / 100}
             subtotal={createTotals.subtotal}
+            serviceCharge={createTotals.service_charge}
+            serviceChargeControl={
+              <span className="flex items-center gap-1">
+                Service charge
+                <ValidatedInput type="number" step="0.01" min={0} max={100} className="w-16 h-7"
+                  value={createData.service_charge_pct}
+                  onChange={(e) => setCreateData({ ...createData, service_charge_pct: e.target.value })} />
+                %
+              </span>
+            }
             taxAmount={createTotals.tax_amount}
+            gratuity={createTotals.gratuity}
+            gratuityControl={
+              <span className="flex items-center gap-1">
+                Gratuity
+                <ValidatedInput type="number" step="0.01" min={0} max={100} className="w-16 h-7"
+                  value={createData.gratuity_pct}
+                  onChange={(e) => setCreateData({ ...createData, gratuity_pct: e.target.value })} />
+                %
+              </span>
+            }
             total={createTotals.total}
             taxLabel={settings.tax_label}
             taxPercent={(parseFloat(createData.tax_rate || "0") * 100).toFixed(0)}
@@ -610,6 +651,8 @@ export default function QuoteDetailPage() {
     editData.price_per_head, editData.guest_count,
     parseFloat(editData.tax_rate || "0") / 100, editLineItems,
     editing ? editMeals : (q.additional_meals || []),
+    parseFloat(editData.service_charge_pct || "0"), editData.service_charge_taxable,
+    parseFloat(editData.gratuity_pct || "0"),
   );
 
   return (
@@ -1082,7 +1125,27 @@ export default function QuoteDetailPage() {
         meals={bookingMealRows(mealsList, cs)}
         addOnsTotal={Math.round((subtotal - fullFood) * 100) / 100}
         subtotal={subtotal}
+        serviceCharge={editing ? liveTotals.service_charge : parseFloat(q.service_charge)}
+        serviceChargePct={editing ? parseFloat(editData.service_charge_pct || "0").toFixed(0) : parseFloat(q.service_charge_pct).toFixed(0)}
+        serviceChargeControl={editing ? (
+          <span className="flex items-center gap-1">
+            Service charge
+            <ValidatedInput type="number" step="0.01" min={0} max={100} className="w-16 h-7"
+              value={editData.service_charge_pct} onChange={setEdit("service_charge_pct")} />
+            %
+          </span>
+        ) : undefined}
         taxAmount={editing ? liveTotals.tax_amount : parseFloat(q.tax_amount)}
+        gratuity={editing ? liveTotals.gratuity : parseFloat(q.gratuity)}
+        gratuityPct={editing ? parseFloat(editData.gratuity_pct || "0").toFixed(0) : parseFloat(q.gratuity_pct).toFixed(0)}
+        gratuityControl={editing ? (
+          <span className="flex items-center gap-1">
+            Gratuity
+            <ValidatedInput type="number" step="0.01" min={0} max={100} className="w-16 h-7"
+              value={editData.gratuity_pct} onChange={setEdit("gratuity_pct")} />
+            %
+          </span>
+        ) : undefined}
         total={editing ? liveTotals.total : parseFloat(q.total)}
         taxLabel={settings.tax_label}
         taxPercent={editing ? parseFloat(editData.tax_rate || "0").toFixed(0) : (parseFloat(q.tax_rate) * 100).toFixed(0)}

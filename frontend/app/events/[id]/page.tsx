@@ -203,8 +203,11 @@ export default function EventDetailPage() {
 
   // Add-on line items (catalog-driven or ad-hoc)
   const [formLineItems, setFormLineItems] = useState<LineItemInput[]>([]);
-  // Tax
+  // Tax + service charge / gratuity (percent strings)
   const [formIsTaxable, setFormIsTaxable] = useState(false);
+  const [formServiceChargePct, setFormServiceChargePct] = useState("0");
+  const [formServiceChargeTaxable, setFormServiceChargeTaxable] = useState(true);
+  const [formGratuityPct, setFormGratuityPct] = useState("0");
   // Additional meals
   const [formAdditionalMeals, setFormAdditionalMeals] = useState<EventMealData[]>([]);
 
@@ -245,6 +248,9 @@ export default function EventDetailPage() {
       sort_order: li.sort_order ?? 0,
     })));
     setFormIsTaxable(data.is_taxable || false);
+    setFormServiceChargePct(data.service_charge_pct ?? "0");
+    setFormServiceChargeTaxable(data.service_charge_taxable ?? true);
+    setFormGratuityPct(data.gratuity_pct ?? "0");
     setFormAdditionalMeals(data.additional_meals || []);
   }, []);
 
@@ -320,6 +326,9 @@ export default function EventDetailPage() {
       meal_time: formMealTime,
       end_time: formEndTime,
       is_taxable: formIsTaxable,
+      service_charge_pct: formServiceChargePct || "0",
+      service_charge_taxable: formServiceChargeTaxable,
+      gratuity_pct: formGratuityPct || "0",
       dish_ids: menuData.dish_ids,
       based_on_template: menuData.based_on_template,
       line_items: formLineItems,
@@ -955,10 +964,16 @@ export default function EventDetailPage() {
         const taxRate = parseFloat(event?.tax_rate || settings.default_tax_rate) || 0;
         // One engine, same rule as quotes (tax on food + meals + taxable add-ons
         // only). Editing → live preview; viewing → the server's stored totals.
-        const computed = computeBookingTotals(foodTotal + mealsTotal, liItems, guests, taxable ? taxRate : 0);
+        const computed = computeBookingTotals(
+          foodTotal + mealsTotal, liItems, guests, taxable ? taxRate : 0,
+          parseFloat(formServiceChargePct || "0"), formServiceChargeTaxable,
+          parseFloat(formGratuityPct || "0"),
+        );
         const subtotal = editing ? computed.subtotal : parseFloat(event?.subtotal || "0");
         const taxAmount = editing ? computed.tax_amount : parseFloat(event?.tax_amount || "0");
         const grandTotal = editing ? computed.total : parseFloat(event?.total || "0");
+        const serviceCharge = editing ? computed.service_charge : parseFloat(event?.service_charge || "0");
+        const gratuity = editing ? computed.gratuity : parseFloat(event?.gratuity || "0");
 
         return (
           <BookingTotalsCard
@@ -969,7 +984,31 @@ export default function EventDetailPage() {
             meals={mealRows}
             addOnsTotal={addOnsTotal}
             subtotal={subtotal}
+            serviceCharge={serviceCharge}
+            serviceChargePct={editing ? parseFloat(formServiceChargePct || "0").toFixed(0) : parseFloat(event?.service_charge_pct || "0").toFixed(0)}
+            serviceChargeControl={editing ? (
+              <span className="flex items-center gap-1">
+                Service charge
+                <input type="number" step="0.01" min={0} max={100}
+                  className="w-16 h-7 rounded-md border border-input bg-transparent px-2 text-sm"
+                  value={formServiceChargePct}
+                  onChange={(e) => setFormServiceChargePct(e.target.value)} />
+                %
+              </span>
+            ) : undefined}
             taxAmount={taxAmount}
+            gratuity={gratuity}
+            gratuityPct={editing ? parseFloat(formGratuityPct || "0").toFixed(0) : parseFloat(event?.gratuity_pct || "0").toFixed(0)}
+            gratuityControl={editing ? (
+              <span className="flex items-center gap-1">
+                Gratuity
+                <input type="number" step="0.01" min={0} max={100}
+                  className="w-16 h-7 rounded-md border border-input bg-transparent px-2 text-sm"
+                  value={formGratuityPct}
+                  onChange={(e) => setFormGratuityPct(e.target.value)} />
+                %
+              </span>
+            ) : undefined}
             total={grandTotal}
             taxLabel={settings.tax_label}
             taxPercent={(taxRate * 100).toFixed(0)}
