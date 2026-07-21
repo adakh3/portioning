@@ -48,6 +48,7 @@ class OrgSettingsFromCountryTests(TestCase):
         self.assertEqual(s.default_tax_rate, Decimal('0.0000'))
         self.assertEqual(s.date_format, 'MM/DD/YYYY')
         self.assertEqual(s.time_format, '12h')
+        self.assertEqual(s.service_charge_default_pct, Decimal('20.00'))  # US caterers charge ~20%
 
     def test_uae_org_gets_aed(self):
         s = self._settings_for('AE')

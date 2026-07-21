@@ -95,11 +95,35 @@ For quantity-based items (bread, tea), `cost_per_gram` stores cost-per-unit and 
 
 ---
 
+## Booking Totals: Service Charge & Gratuity
+
+The per-head menu price above feeds the **booking total**, computed by one shared
+engine (`bookings/services/totals.py: compute_booking_totals`, mirrored in
+`frontend/lib/quoteTotals.ts`; see `docs/CALCULATION_PARITY.md`). The pipeline:
+
+1. **Food total** — `price_per_head × guests` + any additional meals.
+2. **Add-on items** — line items (discounts are negative).
+3. **Subtotal** = food + items.
+4. **Service charge** = `round2(subtotal × service_charge_pct / 100)`.
+5. **Tax** = `round2(tax_base × tax_rate)`, where `tax_base = subtotal + (service_charge if service_charge_taxable else 0)`.
+6. **Gratuity** = `round2(subtotal × gratuity_pct / 100)` — **always post-tax and never taxed** (a mandatory tip must be entered as a service charge instead).
+7. **Total** = subtotal + service charge + tax + gratuity.
+
+`service_charge_pct`, `service_charge_taxable`, and `gratuity_pct` are **snapshotted
+onto each quote/event at creation** from `OrgSettings` — US orgs default to a 20%
+taxable service charge; other markets default to 0, so existing bookings are
+unchanged (all-zero reduces exactly to `subtotal → tax → total`). Stored amounts
+(`service_charge`, `gratuity`) are written by `recalculate_totals`, so PDFs and the
+public sign page render stored values. Zero rows are hidden.
+
+---
+
 ## Where Things Are Configured
 
 | Setting | Location | Example |
 |---------|----------|---------|
 | Tier prices per menu | Django admin → Menu Template Price Tiers | 150+ pax = PKR 2,750 |
+| Service charge / gratuity defaults | Settings → General (or admin) | US: 20% service charge, taxable |
 | Dish cost data | Django admin → Dishes (or `update_dish_costs` command) | Mutton Qorma: 2.558/g |
 | Target food cost % | Django admin → Site Settings | 30% |
 | Price rounding step | Django admin → Site Settings | 50 |
