@@ -17,7 +17,9 @@ export default defineConfig({
   timeout: 45_000,
   fullyParallel: false,
   workers: 1,
-  reporter: [["list"]],
+  // list for live console output; html so CI has a real report to upload as an
+  // artifact on failure (open: never — don't auto-launch a browser locally).
+  reporter: [["list"], ["html", { open: "never" }]],
   use: {
     baseURL: process.env.E2E_BASE_URL || "http://localhost:3000",
     headless: true,
