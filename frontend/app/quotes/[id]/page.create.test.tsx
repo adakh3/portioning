@@ -71,10 +71,9 @@ describe("Quote create — guest split, timeline, meals reach the payload", () =
     await waitFor(() => expect(h.createQuote).toHaveBeenCalledTimes(1));
     const payload = h.createQuote.mock.calls[0][0] as Record<string, unknown>;
 
-    // Guest count primary; split not specified — never invented
+    // Guest count primary; breakdown not specified — never invented
     expect(payload.guest_count).toBe(40);
-    expect(payload.gents).toBe(0);
-    expect(payload.ladies).toBe(0);
+    expect(payload.guest_counts).toEqual([]);
     // Event date defaults to today (not empty → no "wrong format")
     expect(payload.event_date).toBe(today);
     // Timeline time anchored to the event date

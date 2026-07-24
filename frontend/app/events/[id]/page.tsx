@@ -27,7 +27,7 @@ import DealWonDialog from "@/components/DealWonDialog";
 import EventPaymentsCard from "@/components/EventPaymentsCard";
 import { useAuth } from "@/lib/auth";
 import { formatDate, formatDateTime as sharedFormatDateTime, todayISO } from "@/lib/dateFormat";
-import { LineItemInput, lineItemTotal, computeBookingTotals, buildEventSavePayload } from "@/lib/quoteTotals";
+import { LineItemInput, lineItemTotal, computeBookingTotals, buildEventSavePayload, segmentFood, defaultSegmentRemainder, hasVendorDoubleEntry, GuestSegmentMeta } from "@/lib/quoteTotals";
 import BookingTotalsCard from "@/components/BookingTotalsCard";
 import AddOnItemsEditor from "@/components/AddOnItemsEditor";
 import MenuBuilder from "@/components/MenuBuilder";
@@ -88,6 +88,7 @@ export default function EventDetailPage() {
     : salespeople;
   const { data: rawSettings } = useSiteSettings();
   const settings = rawSettings || { currency_symbol: "", currency_code: "", date_format: "MM/DD/YYYY", default_price_per_head: "0.00", target_food_cost_percentage: "30.00", price_rounding_step: "50", tax_label: "", default_tax_rate: "0.0000" };
+  const segmentMeta = (rawSettings?.guest_segments ?? []) as GuestSegmentMeta[];
   const dateFormat = useDateFormat();
   const timeFormat: "12h" | "24h" = ((rawSettings as { time_format?: string } | undefined)?.time_format === "12h") ? "12h" : "24h";
   const { data: eventTypesData = [] } = useEventTypes();
@@ -170,9 +171,7 @@ export default function EventDetailPage() {
 
   // Guest form fields
   const [formGuestCount, setFormGuestCount] = useState(0);
-  const [formCustomSplit, setFormCustomSplit] = useState(false);
-  const [formGents, setFormGents] = useState(0);
-  const [formLadies, setFormLadies] = useState(0);
+  const [formSegmentCounts, setFormSegmentCounts] = useState<Record<string, number>>({});
   const [formGuaranteed, setFormGuaranteed] = useState<number | null>(null);
   const [formFinalCount, setFormFinalCount] = useState<number | null>(null);
   const [formFinalCountDue, setFormFinalCountDue] = useState("");
@@ -182,9 +181,7 @@ export default function EventDetailPage() {
   // Adapter for the shared GuestCountField (canonical value = guest_count).
   const applyGuestPatch = (patch: Partial<GuestCountValue>) => {
     if (patch.guest_count !== undefined) setFormGuestCount(patch.guest_count);
-    if (patch.gents !== undefined) setFormGents(patch.gents);
-    if (patch.ladies !== undefined) setFormLadies(patch.ladies);
-    if (patch.custom_split !== undefined) setFormCustomSplit(patch.custom_split);
+    if (patch.segment_counts !== undefined) setFormSegmentCounts(patch.segment_counts);
     if (patch.big_eaters !== undefined) setFormBigEaters(patch.big_eaters);
     if (patch.big_eaters_percentage !== undefined) setFormBigEatersPercent(patch.big_eaters_percentage);
   };
@@ -229,10 +226,9 @@ export default function EventDetailPage() {
     setFormBanquetInstructions(data.banquet_instructions || "");
     setFormSetupInstructions(data.setup_instructions || "");
     setFormGuestCount(data.guest_count);
-    setFormGents(data.gents);
-    setFormLadies(data.ladies);
-    // The split section opens only when a real split exists (it adds up).
-    setFormCustomSplit((data.gents > 0 || data.ladies > 0) && data.gents + data.ladies === data.guest_count);
+    // Rehydrate the explicit per-segment breakdown from the saved rows (the
+    // default segment's entry is ignored downstream — it's the derived remainder).
+    setFormSegmentCounts(Object.fromEntries((data.guest_counts ?? []).map((r) => [r.segment, r.count])));
     setFormGuaranteed(data.guaranteed_count);
     setFormFinalCount(data.final_count);
     setFormFinalCountDue(data.final_count_due || "");
@@ -293,8 +289,8 @@ export default function EventDetailPage() {
       setError("A business is required for a B2B event");
       return;
     }
-    if (formCustomSplit && formGents + formLadies !== formGuestCount) {
-      setError(`Gents + ladies must add up to the guest count (${formGuestCount})`);
+    if (defaultSegmentRemainder(formGuestCount, formSegmentCounts, segmentMeta) < 0) {
+      setError(`The breakdown is more than the guest count (${formGuestCount})`);
       return;
     }
     setSaving(true);
@@ -319,8 +315,7 @@ export default function EventDetailPage() {
       banquet_instructions: formBanquetInstructions,
       setup_instructions: formSetupInstructions,
       guest_count: formGuestCount,
-      gents: formCustomSplit ? formGents : 0,
-      ladies: formCustomSplit ? formLadies : 0,
+      segment_counts: formSegmentCounts,
       guaranteed_count: formGuaranteed,
       final_count: formFinalCount,
       final_count_due: formFinalCountDue,
@@ -338,7 +333,7 @@ export default function EventDetailPage() {
       based_on_template: menuData.based_on_template,
       line_items: formLineItems,
       meals: formAdditionalMeals,
-    });
+    }, segmentMeta);
     try {
       if (isNew) {
         const created = await api.createEvent({ ...payload, status: formStatus, assigned_to: formAssigned });
@@ -817,9 +812,14 @@ export default function EventDetailPage() {
             {editing ? (
               <div className="space-y-4">
                 <GuestCountField
-                  value={{ guest_count: formGuestCount, gents: formGents, ladies: formLadies, custom_split: formCustomSplit, big_eaters: formBigEaters, big_eaters_percentage: formBigEatersPercent }}
+                  value={{ guest_count: formGuestCount, segment_counts: formSegmentCounts, big_eaters: formBigEaters, big_eaters_percentage: formBigEatersPercent }}
                   onChange={applyGuestPatch}
                 />
+                {hasVendorDoubleEntry(formSegmentCounts, formAdditionalMeals, segmentMeta) && (
+                  <p className="mb-2 text-xs text-amber-600 dark:text-amber-400">
+                    You have both vendor covers and a vendor-labelled meal — double-check you&apos;re not counting vendors twice.
+                  </p>
+                )}
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-foreground mb-1">Guaranteed Count</label>
@@ -953,7 +953,8 @@ export default function EventDetailPage() {
       {(() => {
         const pph = editing ? parseFloat(formPricePerHead) || 0 : parseFloat(event?.price_per_head || "0");
         const guests = editing ? totalGuests : (event?.guest_count || 0);
-        const foodTotal = pph * guests;
+        const viewSegmentCounts = Object.fromEntries((event?.guest_counts ?? []).map((r) => [r.segment, r.count]));
+        const foodTotal = segmentFood(pph, guests, editing ? formSegmentCounts : viewSegmentCounts, segmentMeta);
         const meals = editing ? formAdditionalMeals : (event?.additional_meals || []);
         const mealsTotal = meals.reduce((sum, m) => sum + m.guest_count * (parseFloat(m.price_per_head || "0") || 0), 0);
         const mealRows = meals

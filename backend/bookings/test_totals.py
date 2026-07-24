@@ -9,7 +9,7 @@ from django.test import TestCase
 
 from bookings.models import BookingLineItem, Quote
 from bookings.serializers.quotes import QuoteSerializer
-from bookings.services.totals import compute_booking_totals
+from bookings.services.totals import compute_booking_totals, segment_food_total
 from bookings.tests import make_quote, _make_org
 
 # Shared cross-language spec — the SAME file is loaded by the frontend mirror's
@@ -51,6 +51,15 @@ class TestGoldenCaseParity(TestCase):
             for key in ("service_charge", "tax_base", "gratuity"):
                 if key in exp:
                     self.assertEqual(getattr(t, key), Decimal(exp[key]), f"{case['name']}.{key}")
+
+    def test_backend_matches_segment_food_cases(self):
+        """Segment-aware per-head food (kids/vendor multipliers) — same shared
+        spec the frontend segmentFood test runs (REL-415 AC10/AC11)."""
+        with open(GOLDEN_CASES_PATH) as f:
+            data = json.load(f)
+        for case in data.get("segment_food_cases", []):
+            food = segment_food_total(Decimal(case["price_per_head"]), case["segments"])
+            self.assertEqual(food, Decimal(case["expected_food"]), case["name"])
 
 
 class TestComputeBookingTotals(TestCase):
