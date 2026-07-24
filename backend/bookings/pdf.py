@@ -102,6 +102,78 @@ def addon_cells(item, cs):
     )
 
 
+def _totals_rows(booking, cs, tax_label, tax_pct, s):
+    """Right-aligned totals rows shared by the quote and event PDFs: Sub Total →
+    [Service Charge] → TOTAL (pre-tax) → tax rate → tax amount → [Gratuity].
+
+    The service-charge and gratuity rows are hidden when zero, and the pre-tax
+    TOTAL is ``subtotal + service_charge`` (== ``subtotal`` when there's no service
+    charge) — so a booking without either renders exactly as before (the
+    quote-PDF byte-identity gate)."""
+    rows = [
+        [Paragraph('Sub Total', s['totals_label']), Paragraph(_fmt(booking.subtotal, cs), s['totals_value'])],
+    ]
+    if booking.service_charge and booking.service_charge > 0:
+        sc_pct = booking.service_charge_pct.quantize(Decimal('1'))
+        rows.append([Paragraph(f'Service Charge ({sc_pct}%)', s['totals_label']),
+                     Paragraph(_fmt(booking.service_charge, cs), s['totals_value'])])
+    rows.append([Paragraph('TOTAL', s['body_bold_right']),
+                 Paragraph(_fmt(booking.subtotal + booking.service_charge, cs), s['body_bold_right'])])
+    rows.append([Paragraph(f'{tax_label} Rate', s['totals_label']), Paragraph(f'{tax_pct}%', s['totals_value'])])
+    rows.append([Paragraph(f'{tax_label} Amount', s['totals_label']),
+                 Paragraph(_fmt(booking.tax_amount, cs), s['totals_value'])])
+    if booking.gratuity and booking.gratuity > 0:
+        grat_pct = booking.gratuity_pct.quantize(Decimal('1'))
+        rows.append([Paragraph(f'Gratuity ({grat_pct}%)', s['totals_label']),
+                     Paragraph(_fmt(booking.gratuity, cs), s['totals_value'])])
+    return rows
+
+
+def _totals_block(booking, cs, tax_label, s):
+    """The right-aligned totals table + dark grand-total bar, shared by the quote
+    and event PDFs. Returns one flowable to append to the story."""
+    tax_pct = (booking.tax_rate * 100).quantize(Decimal('1'))
+    TOTALS_LABEL_W = 110
+    TOTALS_VALUE_W = 120
+    TOTALS_W = TOTALS_LABEL_W + TOTALS_VALUE_W
+
+    totals_inner = Table(_totals_rows(booking, cs, tax_label, tax_pct, s),
+                         colWidths=[TOTALS_LABEL_W, TOTALS_VALUE_W])
+    totals_inner.setStyle(TableStyle([
+        ('TOPPADDING', (0, 0), (-1, -1), 3),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+        ('LEFTPADDING', (0, 0), (-1, -1), 6),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+        ('LINEBELOW', (0, 0), (-1, -2), 0.25, BORDER_LIGHT),
+        ('BOX', (0, 0), (-1, -1), 0.25, BORDER_LIGHT),
+        ('ROUNDEDCORNERS', [3, 3, 0, 0]),
+    ]))
+
+    grand_row = [[Paragraph('GRAND TOTAL', s['grand_label']), Paragraph(_fmt(booking.total, cs), s['grand_value'])]]
+    grand_table = Table(grand_row, colWidths=[TOTALS_LABEL_W, TOTALS_VALUE_W])
+    grand_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), DARK),
+        ('TOPPADDING', (0, 0), (-1, -1), 7),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 7),
+        ('LEFTPADDING', (0, 0), (-1, -1), 8),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+        ('ROUNDEDCORNERS', [0, 0, 3, 3]),
+    ]))
+
+    spacer_w = CONTENT_W - TOTALS_W
+    outer_totals = Table(
+        [[None, totals_inner], [None, grand_table]],
+        colWidths=[spacer_w, TOTALS_W],
+    )
+    outer_totals.setStyle(TableStyle([
+        ('LEFTPADDING', (0, 0), (-1, -1), 0),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+        ('TOPPADDING', (0, 0), (-1, -1), 0),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
+    ]))
+    return outer_totals
+
+
 def _styles():
     """Build paragraph styles used throughout the PDF."""
     base = getSampleStyleSheet()
@@ -631,53 +703,7 @@ def generate_quote_pdf(quote, signature=None):
         elements.append(Spacer(1, 6 * mm))
 
     # ── 6. Totals block (right-aligned) ──
-    tax_pct = (quote.tax_rate * 100).quantize(Decimal('1'))
-    TOTALS_LABEL_W = 110
-    TOTALS_VALUE_W = 120
-    TOTALS_W = TOTALS_LABEL_W + TOTALS_VALUE_W
-
-    tax_label = settings.tax_label or 'Tax'
-    totals_rows = [
-        [Paragraph('Sub Total', s['totals_label']), Paragraph(_fmt(quote.subtotal, cs), s['totals_value'])],
-        [Paragraph('TOTAL', s['body_bold_right']), Paragraph(_fmt(quote.subtotal, cs), s['body_bold_right'])],
-        [Paragraph(f'{tax_label} Rate', s['totals_label']), Paragraph(f'{tax_pct}%', s['totals_value'])],
-        [Paragraph(f'{tax_label} Amount', s['totals_label']), Paragraph(_fmt(quote.tax_amount, cs), s['totals_value'])],
-    ]
-    totals_inner = Table(totals_rows, colWidths=[TOTALS_LABEL_W, TOTALS_VALUE_W])
-    totals_inner.setStyle(TableStyle([
-        ('TOPPADDING', (0, 0), (-1, -1), 3),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
-        ('LEFTPADDING', (0, 0), (-1, -1), 6),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 6),
-        ('LINEBELOW', (0, 0), (-1, -2), 0.25, BORDER_LIGHT),
-        ('BOX', (0, 0), (-1, -1), 0.25, BORDER_LIGHT),
-        ('ROUNDEDCORNERS', [3, 3, 0, 0]),
-    ]))
-
-    # Grand total row (dark background — only dark bar in PDF)
-    grand_row = [[Paragraph('GRAND TOTAL', s['grand_label']), Paragraph(_fmt(quote.total, cs), s['grand_value'])]]
-    grand_table = Table(grand_row, colWidths=[TOTALS_LABEL_W, TOTALS_VALUE_W])
-    grand_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, -1), DARK),
-        ('TOPPADDING', (0, 0), (-1, -1), 7),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 7),
-        ('LEFTPADDING', (0, 0), (-1, -1), 8),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 8),
-        ('ROUNDEDCORNERS', [0, 0, 3, 3]),
-    ]))
-
-    spacer_w = CONTENT_W - TOTALS_W
-    outer_totals = Table(
-        [[None, totals_inner], [None, grand_table]],
-        colWidths=[spacer_w, TOTALS_W],
-    )
-    outer_totals.setStyle(TableStyle([
-        ('LEFTPADDING', (0, 0), (-1, -1), 0),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 0),
-        ('TOPPADDING', (0, 0), (-1, -1), 0),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
-    ]))
-    elements.append(outer_totals)
+    elements.append(_totals_block(quote, cs, settings.tax_label or 'Tax', s))
 
     # ── 7. Terms & Conditions (page 2 if present) ──
     terms_text = pres['terms'].strip()
@@ -896,6 +922,13 @@ def generate_event_pdf(event, signature=None):
             addon_style.append(('LINEBELOW', (0, i), (-1, i), 0.25, BORDER_LIGHT))
         addon_table.setStyle(TableStyle(addon_style))
         elements.append(addon_table)
+        elements.append(Spacer(1, 6 * mm))
+
+    # ── Totals block (right-aligned) — the event PDF doubles as the signed
+    #    contract (e-sign freezes it), so it must carry the numbers the client
+    #    agreed to, not just line-level money. Shown whenever there's a total. ──
+    if event.subtotal or event.total:
+        elements.append(_totals_block(event, cs, settings.tax_label or 'Tax', s))
         elements.append(Spacer(1, 6 * mm))
 
     # ── Ops instructions (kitchen / banquet / setup) ──

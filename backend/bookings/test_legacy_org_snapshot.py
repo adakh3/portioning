@@ -75,3 +75,29 @@ class LegacyOrgSnapshotGate(TestCase):
         self.assertNotIn("$1,000", text)
         self.assertNotIn("$1,200", text)
         self.assertNotIn("$200.00", text)
+
+    def test_event_pdf_has_a_gb_totals_block_and_no_service_charge(self):
+        # REL-404 deliberately adds a totals block to the event PDF (it doubles as
+        # the signed contract). For a GB org with no service charge it must show
+        # £ Sub Total / VAT / Grand Total and NO "Service Charge" line.
+        if not HAVE_PYPDF:
+            self.skipTest("pypdf not installed")
+        from events.models import Event
+        from bookings.pdf import generate_event_pdf
+        ev = Event.objects.create(
+            organisation=self.org, name="GB Event", event_date="2026-09-01",
+            guest_count=100, gents=60, ladies=40, price_per_head=Decimal("10.00"),
+            is_taxable=True, tax_rate=Decimal("0.2000"),
+        )
+        ev.recalculate_totals()
+        ev.refresh_from_db()
+        reader = PdfReader(io.BytesIO(generate_event_pdf(ev)))
+        text = "\n".join(page.extract_text() for page in reader.pages)
+
+        self.assertIn("Sub Total", text)
+        self.assertIn("£1,000.00", text)   # subtotal
+        self.assertIn("£200.00", text)     # VAT amount
+        self.assertIn("£1,200.00", text)   # grand total
+        self.assertIn("VAT", text)
+        self.assertNotIn("Service Charge", text)   # 0% for a GB org
+        self.assertNotIn("Gratuity", text)

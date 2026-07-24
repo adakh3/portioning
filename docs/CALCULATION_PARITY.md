@@ -23,11 +23,19 @@ languages. This doc is how we stop that.
   (the caller sums meals in before calling the engine; both quotes and events).
 - **subtotal** = food_total + every add-on line item (discounts are negative
   lines, so they reduce the subtotal).
-- **tax** = subtotal × tax_rate, rounded to 2 dp — tax applies to the **whole
-  subtotal**; there is no per-line taxable/non-taxable split.
-  (Quotes use the quote's `tax_rate`; events use `tax_rate` when `is_taxable`,
-  else 0.)
-- **total** = subtotal + tax.
+- **service_charge** = subtotal × `service_charge_pct` / 100, rounded to 2 dp
+  (a percentage, e.g. 20). US orgs default to 20%; others to 0.
+- **tax** = **tax_base** × tax_rate, rounded to 2 dp, where
+  **tax_base** = subtotal + (service_charge if `service_charge_taxable` else 0).
+  Tax applies to the whole subtotal (no per-line split); quotes use the quote's
+  `tax_rate`, events use it when `is_taxable`, else 0.
+- **gratuity** = subtotal × `gratuity_pct` / 100, rounded to 2 dp — **always
+  post-tax and never taxed**.
+- **total** = subtotal + service_charge + tax + gratuity.
+
+  All percentages zero reduces **exactly** to `subtotal → tax → total`, so every
+  existing booking's stored totals are unchanged (a named golden case + the
+  legacy-org snapshot gate prove it).
 
 Line-item totals: `per_guest` = unit_price × guest_count; `discount` =
 −|qty × unit_price|; everything else (`each`, `flat`, `per_hour`) = qty × unit_price.

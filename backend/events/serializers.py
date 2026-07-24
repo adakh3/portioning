@@ -164,12 +164,15 @@ class EventSerializer(OrgScopedModelSerializer):
                   'primary_contact', 'contact_name', 'contact_phone',
                   'is_b2b', 'account', 'account_name',
                   'venue', 'venue_name', 'venue_address',
+                  'venue_city', 'venue_state', 'venue_zip',
                   'product', 'product_name',
                   'assigned_to', 'assigned_to_name',
                   'created_by', 'created_by_name',
                   'event_type', 'meal_type', 'service_style', 'booking_date', 'price_per_head',
                   'status', 'status_display', 'is_taxable', 'tax_rate',
                   'subtotal', 'tax_amount', 'total',
+                  'service_charge_pct', 'service_charge_taxable', 'service_charge',
+                  'gratuity_pct', 'gratuity',
                   # Timeline
                   'setup_time', 'guest_arrival_time', 'meal_time', 'end_time',
                   # Guest counts
@@ -181,7 +184,8 @@ class EventSerializer(OrgScopedModelSerializer):
                   # Client payments
                   'payments', 'amount_paid', 'balance_due', 'payment_status']
         # created_by is stamped server-side on create; never client-writable.
-        read_only_fields = ['created_at', 'subtotal', 'tax_amount', 'total', 'created_by']
+        read_only_fields = ['created_at', 'subtotal', 'tax_amount', 'total',
+                            'service_charge', 'gratuity', 'created_by']
         extra_kwargs = {
             'notes': {'max_length': 5000},
             'kitchen_instructions': {'max_length': 5000},
@@ -207,11 +211,16 @@ class EventSerializer(OrgScopedModelSerializer):
         dish_comments_data = validated_data.pop('dish_comments', [])
         line_items_data = validated_data.pop('line_items', [])
         meals_data = validated_data.pop('additional_meals', [])
-        # Default the tax rate to the org's standard rate so a taxable event taxes
+        # Snapshot the org's pricing defaults (tax rate + service charge / gratuity)
+        # onto the event when the payload omits them, so a taxable event taxes
         # consistently with quotes / the rest of the app.
-        if 'tax_rate' not in validated_data and validated_data.get('organisation'):
+        if validated_data.get('organisation'):
             from bookings.models import OrgSettings
-            validated_data['tax_rate'] = OrgSettings.for_org(validated_data['organisation']).default_tax_rate
+            s = OrgSettings.for_org(validated_data['organisation'])
+            validated_data.setdefault('tax_rate', s.default_tax_rate)
+            validated_data.setdefault('service_charge_pct', s.service_charge_default_pct)
+            validated_data.setdefault('service_charge_taxable', s.service_charge_taxable_default)
+            validated_data.setdefault('gratuity_pct', s.gratuity_default_pct)
         event = Event.objects.create(**validated_data)
         sync_legacy_guest_counts(
             event, event.organisation, event.gents, event.ladies, event.guest_count,

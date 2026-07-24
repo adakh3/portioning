@@ -28,7 +28,13 @@ export default function BookingTotalsCard({
   meals = [],
   addOnsTotal,
   subtotal,
+  serviceCharge = 0,
+  serviceChargePct = "0",
+  serviceChargeControl,
   taxAmount,
+  gratuity = 0,
+  gratuityPct = "0",
+  gratuityControl,
   total,
   taxLabel,
   taxPercent,
@@ -43,7 +49,13 @@ export default function BookingTotalsCard({
   meals?: TotalsMealRow[];
   addOnsTotal: number;
   subtotal: number;
+  serviceCharge?: number;
+  serviceChargePct?: string;
+  serviceChargeControl?: ReactNode;
   taxAmount: number;
+  gratuity?: number;
+  gratuityPct?: string;
+  gratuityControl?: ReactNode;
   total: number;
   taxLabel: string;
   taxPercent: string;
@@ -81,6 +93,14 @@ export default function BookingTotalsCard({
             <span className="text-foreground">Subtotal</span>
             <span className="text-foreground">{fmt(subtotal)}</span>
           </div>
+          {(serviceCharge !== 0 || serviceChargeControl) && (
+            <div className="flex justify-between items-center px-4 py-2 text-sm">
+              <span className="text-muted-foreground flex items-center gap-2">
+                {serviceChargeControl ?? <span>Service charge ({serviceChargePct}%)</span>}
+              </span>
+              <span className="font-medium text-foreground">{fmt(serviceCharge)}</span>
+            </div>
+          )}
           <div className="flex justify-between items-center px-4 py-2 text-sm">
             <span className="text-muted-foreground flex items-center gap-2">
               {taxControl ?? (
@@ -89,6 +109,14 @@ export default function BookingTotalsCard({
             </span>
             <span className="font-medium text-foreground">{taxApplied ? fmt(taxAmount) : "—"}</span>
           </div>
+          {(gratuity !== 0 || gratuityControl) && (
+            <div className="flex justify-between items-center px-4 py-2 text-sm">
+              <span className="text-muted-foreground flex items-center gap-2">
+                {gratuityControl ?? <span>Gratuity ({gratuityPct}%)</span>}
+              </span>
+              <span className="font-medium text-foreground">{fmt(gratuity)}</span>
+            </div>
+          )}
           <div className="flex justify-between px-4 py-3 text-base font-bold bg-muted/30">
             <span className="text-foreground">Total</span>
             <span className="text-foreground">{fmt(total)}</span>

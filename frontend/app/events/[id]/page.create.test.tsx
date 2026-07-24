@@ -34,7 +34,7 @@ vi.mock("@/lib/hooks", () => ({
   useLaborRoles: () => ({ data: [] }),
   useStaff: () => ({ data: [] }),
   useUsers: () => ({ data: [] }),
-  useSiteSettings: () => ({ data: { currency_symbol: "£", currency_code: "GBP", date_format: "DD/MM/YYYY", price_rounding_step: "50", default_tax_rate: "0.2000" } }),
+  useSiteSettings: () => ({ data: { currency_symbol: "£", currency_code: "GBP", date_format: "DD/MM/YYYY", price_rounding_step: "50", default_tax_rate: "0.2000", service_charge_default_pct: "20.00", service_charge_taxable_default: true, gratuity_default_pct: "0.00" } }),
   useDateFormat: () => "DD/MM/YYYY",
   useEventTypes: () => ({ data: [{ id: 1, value: "wedding", label: "Wedding" }] }),
   useServiceStyles: () => ({ data: [] }),
@@ -89,5 +89,23 @@ describe("Event create — guest split + anchored timeline reach the payload", (
     expect(payload.guest_count).toBe(40);
     expect(payload.gents).toBe(25);
     expect(payload.ladies).toBe(15);               // auto-compensated to add up
+  });
+
+  it("seeds the org's default service charge into a new event's payload", async () => {
+    // Regression: the event create form must snapshot the org's service-charge
+    // default (like the quote form) — otherwise it always POSTs 0% and the
+    // backend snapshot can't fill a field the payload already sent as "0".
+    render(<EventCreatePage />);
+
+    fireEvent.click(screen.getByText("select-customer"));
+    fireEvent.change(screen.getByLabelText("Guest Count"), { target: { value: "40" } });
+
+    fireEvent.click(screen.getByText("Create Event"));
+
+    await waitFor(() => expect(h.createEvent).toHaveBeenCalledTimes(1));
+    const payload = h.createEvent.mock.calls[0][0] as Record<string, unknown>;
+    expect(payload.service_charge_pct).toBe("20.00");   // from OrgSettings, not a hardcoded 0
+    expect(payload.service_charge_taxable).toBe(true);
+    expect(payload.gratuity_pct).toBe("0.00");
   });
 });

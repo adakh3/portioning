@@ -137,8 +137,13 @@ def booking_presentation(booking, signature=None):
         'price_per_head': str(booking.price_per_head) if booking.price_per_head else None,
         # Money
         'subtotal': str(booking.subtotal),
+        'service_charge_pct': str(booking.service_charge_pct),
+        'service_charge': str(booking.service_charge),
+        'service_charge_taxable': booking.service_charge_taxable,
         'tax_rate': str(booking.tax_rate),
         'tax_amount': str(booking.tax_amount),
+        'gratuity_pct': str(booking.gratuity_pct),
+        'gratuity': str(booking.gratuity),
         'total': str(booking.total),
         # Extras
         'notes': booking.notes or '',

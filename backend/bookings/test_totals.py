@@ -37,12 +37,20 @@ class TestGoldenCaseParity(TestCase):
         for case in data["cases"]:
             items = [_Item(i["line_total"]) for i in case["items"]]
             t = compute_booking_totals(
-                Decimal(case["food_total"]), items, Decimal(case["tax_rate"])
+                Decimal(case["food_total"]), items, Decimal(case["tax_rate"]),
+                service_charge_pct=Decimal(str(case.get("service_charge_pct", 0))),
+                service_charge_taxable=case.get("service_charge_taxable", True),
+                gratuity_pct=Decimal(str(case.get("gratuity_pct", 0))),
             )
             exp = case["expected"]
             self.assertEqual(t.subtotal, Decimal(exp["subtotal"]), case["name"])
             self.assertEqual(t.tax_amount, Decimal(exp["tax_amount"]), case["name"])
             self.assertEqual(t.total, Decimal(exp["total"]), case["name"])
+            # Service-charge / gratuity outputs are asserted only for cases that
+            # declare them (the original 8 cases omit them and stay unchanged).
+            for key in ("service_charge", "tax_base", "gratuity"):
+                if key in exp:
+                    self.assertEqual(getattr(t, key), Decimal(exp[key]), f"{case['name']}.{key}")
 
 
 class TestComputeBookingTotals(TestCase):

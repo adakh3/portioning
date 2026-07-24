@@ -33,11 +33,25 @@ to the planning session afterwards, so the ticket is also the **report channel**
    ticket's **User story & manual test cases** section accurate if scope shifts (stories
    live in the ticket now, not `docs/user-stories/` — that's a frozen archive).
 6. **Run everything in the ticket's Verify section** and say plainly what passed/failed.
-7. **Ask the owner before any push** (prod auto-deploys from main). Then PR → merge
+   If the ticket added/changed a **new user-facing feature**, also run the
+   **`manual-test-before-push`** skill — a one-off drive of that feature in real Chrome
+   (not a regression sweep) — and share the GIF.
+7. **Get an independent review of the diff before pushing** — always, but scrutinise
+   money/totals, data migrations, and auth/permission changes hardest. Spawn a fresh
+   subagent (Agent tool, `general-purpose`) whose only job is to review
+   `git diff origin/main...HEAD` **adversarially** — verify, don't trust the author;
+   hunt correctness bugs, existing-row/migration safety, front-end↔back-end wiring
+   gaps (the "unit test passes, real payload is wrong" class), and missing test
+   coverage — and report findings by severity with a concrete failure scenario each.
+   Fix anything real **and add the regression test that would have caught it**; state
+   plainly what you deliberately defer and why. This ad-hoc pass is the one you run
+   yourself every time; the billed `/code-review ultra` is the **owner's** to trigger,
+   not yours (you cannot launch it).
+8. **Ask the owner before any push** (prod auto-deploys from main). Then PR → merge
    per their instruction.
-8. **Report back on the ticket** (`save_comment` + `save_issue`):
-   - comment: what changed (commits/PR link), Verify results, any deviations from the
-     ticket and why, and anything the planning session should know (discoveries,
-     follow-ups, stale assumptions in the epic);
+9. **Report back on the ticket** (`save_comment` + `save_issue`):
+   - comment: what changed (commits/PR link), Verify + review results, any deviations
+     from the ticket and why, and anything the planning session should know
+     (discoveries, follow-ups, stale assumptions in the epic);
    - state: **In Review** when the PR is up, **Done** once merged.
-9. Tell the owner it's done and that the planning session can pick the thread back up.
+10. Tell the owner it's done and that the planning session can pick the thread back up.

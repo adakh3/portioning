@@ -19,7 +19,10 @@ export interface LineItemInput {
 export interface BookingTotals {
   food_total: number;
   subtotal: number;
+  service_charge: number;
+  tax_base: number;
   tax_amount: number;
+  gratuity: number;
   total: number;
 }
 
@@ -44,22 +47,38 @@ export function lineItemTotal(item: LineItemInput, guestCount: number): number {
  *
  * `foodTotal` already includes any additional meals (the caller sums them, as
  * the backend does). `taxRate` is the EFFECTIVE decimal fraction (0.2 = 20%);
- * pass 0 when the booking isn't taxable. Tax applies to the WHOLE subtotal
- * (food + all line items) — a discount is a negative line, so it reduces the
- * subtotal before tax. There is no per-line taxable/non-taxable split.
+ * pass 0 when the booking isn't taxable. `serviceChargePct`/`gratuityPct` are
+ * PERCENTAGES (20 = 20%) applied to the subtotal. Pipeline: subtotal → service
+ * charge → tax (on subtotal + service charge if taxable) → gratuity (post-tax,
+ * never taxed) → total. A discount is a negative line, so it reduces the subtotal
+ * before everything. There is no per-line taxable/non-taxable split.
  */
 export function computeBookingTotals(
   foodTotal: number,
   lineItems: LineItemInput[],
   guestCount: number,
   taxRate: number,
+  serviceChargePct: number = 0,
+  serviceChargeTaxable: boolean = true,
+  gratuityPct: number = 0,
 ): BookingTotals {
   const food = round2(foodTotal || 0);
   let items = 0;
   for (const item of lineItems) items += lineItemTotal(item, guestCount);
   const subtotal = round2(food + items);
-  const tax_amount = round2(subtotal * (taxRate || 0));
-  return { food_total: food, subtotal, tax_amount, total: round2(subtotal + tax_amount) };
+  const service_charge = round2((subtotal * (serviceChargePct || 0)) / 100);
+  const tax_base = round2(subtotal + (serviceChargeTaxable ? service_charge : 0));
+  const tax_amount = round2(tax_base * (taxRate || 0));
+  const gratuity = round2((subtotal * (gratuityPct || 0)) / 100);
+  return {
+    food_total: food,
+    subtotal,
+    service_charge,
+    tax_base,
+    tax_amount,
+    gratuity,
+    total: round2(subtotal + service_charge + tax_amount + gratuity),
+  };
 }
 
 /**
@@ -97,11 +116,17 @@ export function computeQuoteTotals(
   taxRate: number | string | null | undefined,
   lineItems: LineItemInput[],
   meals?: { guest_count: number; price_per_head: string | null }[],
+  serviceChargePct: number | string | null | undefined = 0,
+  serviceChargeTaxable: boolean = true,
+  gratuityPct: number | string | null | undefined = 0,
 ): BookingTotals {
   const price = Number(pricePerHead) || 0;
   const guests = Number(guestCount) || 0;
   const food = round2((price > 0 ? round2(price * guests) : 0) + mealsFood(meals));
-  return computeBookingTotals(food, lineItems, guests, Number(taxRate) || 0);
+  return computeBookingTotals(
+    food, lineItems, guests, Number(taxRate) || 0,
+    Number(serviceChargePct) || 0, serviceChargeTaxable, Number(gratuityPct) || 0,
+  );
 }
 
 export interface QuoteEditData {
@@ -127,6 +152,9 @@ export interface QuoteEditData {
   meal_time: string;
   end_time: string;
   tax_rate: string; // percent string (e.g. "20") as shown in the form
+  service_charge_pct: string; // percent (e.g. "20")
+  service_charge_taxable: boolean;
+  gratuity_pct: string; // percent (e.g. "15")
   valid_until: string;
   notes: string;
   internal_notes: string;
@@ -198,6 +226,9 @@ export function buildQuoteSavePayload(
     meal_time: editData.meal_time || null,
     end_time: editData.end_time || null,
     tax_rate: (parseFloat(editData.tax_rate || "0") / 100).toFixed(4),
+    service_charge_pct: editData.service_charge_pct || "0",
+    service_charge_taxable: editData.service_charge_taxable,
+    gratuity_pct: editData.gratuity_pct || "0",
     product: editData.product ? Number(editData.product) : null,
     valid_until: editData.valid_until || null,
     notes: editData.notes,
@@ -243,6 +274,9 @@ export interface EventSaveInput {
   meal_time: string;
   end_time: string;
   is_taxable: boolean;
+  service_charge_pct: string;
+  service_charge_taxable: boolean;
+  gratuity_pct: string;
   dish_ids: number[];
   based_on_template: number | null;
   line_items: LineItemInput[];
@@ -281,6 +315,9 @@ export function buildEventSavePayload(v: EventSaveInput) {
     meal_time: v.meal_time || null,
     end_time: v.end_time || null,
     is_taxable: v.is_taxable,
+    service_charge_pct: v.service_charge_pct || "0",
+    service_charge_taxable: v.service_charge_taxable,
+    gratuity_pct: v.gratuity_pct || "0",
     dish_ids: v.dish_ids,
     based_on_template: v.based_on_template,
     line_items: buildLineItemsPayload(v.line_items),

@@ -193,7 +193,13 @@ function BookingView({
         ))}
         <div className="mt-3 space-y-1 border-t border-neutral-200 pt-3">
           <Row label="Subtotal" value={money(booking.subtotal)} />
+          {parseFloat(booking.service_charge || "0") > 0 && (
+            <Row label={`Service charge (${Math.round(parseFloat(booking.service_charge_pct || "0"))}%)`} value={money(booking.service_charge)} />
+          )}
           <Row label={taxPct ? `${booking.tax_label} (${taxPct}%)` : booking.tax_label} value={money(booking.tax_amount)} />
+          {parseFloat(booking.gratuity || "0") > 0 && (
+            <Row label={`Gratuity (${Math.round(parseFloat(booking.gratuity_pct || "0"))}%)`} value={money(booking.gratuity)} />
+          )}
           <Row label="Total" value={money(booking.total)} bold />
         </div>
       </section>

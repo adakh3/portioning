@@ -1,12 +1,25 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 
 import GuestCountField, { GuestCountValue, splitAddsUp } from "./GuestCountField";
+
+// The split UI is gated on the org's in-count segments (via useSiteSettings).
+const { mockUseSiteSettings } = vi.hoisted(() => ({
+  mockUseSiteSettings: vi.fn(() => ({ data: undefined }) as { data: unknown }),
+}));
+vi.mock("@/lib/hooks", () => ({ useSiteSettings: mockUseSiteSettings }));
+
+const seg = (name: string, counts_toward_total = true) => ({ name, is_default: false, counts_toward_total });
 
 const base: GuestCountValue = {
   guest_count: 0, gents: 0, ladies: 0, custom_split: false,
   big_eaters: false, big_eaters_percentage: 0,
 };
+
+beforeEach(() => {
+  // Default: settings not loaded yet — show the split so gents/ladies orgs never regress.
+  mockUseSiteSettings.mockReturnValue({ data: undefined });
+});
 
 function setup(over: Partial<GuestCountValue> = {}) {
   const onChange = vi.fn();
@@ -64,6 +77,32 @@ describe("GuestCountField", () => {
     const onChange = setup();
     fireEvent.click(screen.getByRole("checkbox", { name: /hearty eaters/i }));
     expect(onChange).toHaveBeenCalledWith({ big_eaters: true });
+  });
+});
+
+describe("GuestCountField — segment-gated split visibility (REL-404 single count)", () => {
+  it("shows the split for a Gents + Ladies org", () => {
+    mockUseSiteSettings.mockReturnValue({ data: { guest_segments: [seg("Gents"), seg("Ladies")] } });
+    setup({ guest_count: 50 });
+    expect(screen.getByRole("checkbox", { name: /gents \/ ladies split/i })).toBeInTheDocument();
+  });
+
+  it("hides the split (single count) for a US Adults/Kids/Vendors org", () => {
+    mockUseSiteSettings.mockReturnValue({
+      data: { guest_segments: [seg("Adults"), seg("Kids"), seg("Vendors", false)] },
+    });
+    setup({ guest_count: 50 });
+    expect(screen.queryByRole("checkbox", { name: /gents \/ ladies split/i })).not.toBeInTheDocument();
+    // No misleading "Split: not specified" line when there is no split concept.
+    expect(screen.queryByText(/Split: not specified/)).not.toBeInTheDocument();
+    // The canonical guest count still renders.
+    expect(screen.getByRole("textbox")).toHaveValue("50");
+  });
+
+  it("defaults to showing the split before settings load (no regression for existing orgs)", () => {
+    mockUseSiteSettings.mockReturnValue({ data: undefined });
+    setup({ guest_count: 50 });
+    expect(screen.getByRole("checkbox", { name: /gents \/ ladies split/i })).toBeInTheDocument();
   });
 });
 

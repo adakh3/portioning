@@ -1,6 +1,7 @@
 "use client";
 
 import { ValidatedInput } from "@/components/ui/validated-input";
+import { useSiteSettings } from "@/lib/hooks";
 
 export interface GuestCountValue {
   guest_count: number;             // THE number — drives money and displays
@@ -34,6 +35,20 @@ export default function GuestCountField({
   const splitTotal = (value.gents || 0) + (value.ladies || 0);
   const addsUp = splitTotal === total;
 
+  // STOPGAP (REL-404) — remove in REL-405. This whole split is a legacy feature
+  // that is gents/ladies-specific down to the DB columns (Quote/Event.gents/ladies),
+  // so it can only faithfully represent an org whose in-count segments ARE Gents +
+  // Ladies; showing it for any other segment set would mislabel. Hence the name
+  // match. It is NOT a country rule — it keys purely on the org's segment DATA, and
+  // an org without those segments simply has no breakdown UI yet (the functional gap
+  // REL-405's data-driven N-segment breakdown closes). Until settings load, default
+  // to showing it so existing gents/ladies orgs never regress.
+  const { data: settings } = useSiteSettings();
+  const segments = settings?.guest_segments;
+  const inCount = (segments ?? []).filter((s) => s.counts_toward_total).map((s) => s.name.toLowerCase());
+  const showSplit = segments === undefined
+    || (inCount.length === 2 && inCount.includes("gents") && inCount.includes("ladies"));
+
   const setTotal = (raw: number) => {
     const t = Math.max(0, raw || 0);
     // The split was for the old number — clear it and ask again.
@@ -61,18 +76,20 @@ export default function GuestCountField({
             onChange={(e) => setTotal(Number(e.target.value))}
           />
         </div>
-        <div className="flex items-end pb-1">
-          <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
-            <input
-              type="checkbox" checked={value.custom_split} disabled={disabled}
-              onChange={(e) => toggleCustom(e.target.checked)}
-              className="rounded border-input"
-            />
-            Gents / ladies split
-          </label>
-        </div>
+        {showSplit && (
+          <div className="flex items-end pb-1">
+            <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
+              <input
+                type="checkbox" checked={value.custom_split} disabled={disabled}
+                onChange={(e) => toggleCustom(e.target.checked)}
+                className="rounded border-input"
+              />
+              Gents / ladies split
+            </label>
+          </div>
+        )}
       </div>
-      {value.custom_split ? (
+      {showSplit && value.custom_split ? (
         <div>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             <div>
@@ -107,7 +124,7 @@ export default function GuestCountField({
           </p>
         </div>
       ) : (
-        total > 0 && (
+        showSplit && total > 0 && (
           <p className="text-xs text-muted-foreground">Split: not specified</p>
         )
       )}
