@@ -10,11 +10,19 @@ from decimal import Decimal
 
 from django.test import TestCase
 
+import io
+
 from bookings.models.quotes import Quote
 from bookings.services.totals import segment_food_total
 from bookings.tests import _make_org, make_contact, make_quote
 from events.models import Event, BookingGuestCount
 from rules.models import GuestSegment
+
+try:
+    from pypdf import PdfReader
+    HAVE_PYPDF = True
+except ImportError:  # pragma: no cover
+    HAVE_PYPDF = False
 
 
 class SegmentFoodTotalPureTests(TestCase):
@@ -115,3 +123,36 @@ class SegmentFoodTotalModelTests(TestCase):
             guest_count=150, price_per_head=Decimal('10'),
         )
         self.assertEqual(ev.food_total, Decimal('1500.00'))
+
+    def test_quote_pdf_renders_segment_priced_total(self):
+        # Document rule: a US kids/vendor booking's quote PDF must show the
+        # segment-priced food/subtotal (138×10 + 12×5 + 8×5 = 1,480), not 150×10.
+        if not HAVE_PYPDF:
+            self.skipTest("pypdf not installed")
+        from bookings.pdf import generate_quote_pdf
+        q = make_quote(
+            org=self.org, primary_contact=self.contact,
+            guest_count=150, gents=0, ladies=0, price_per_head=Decimal('10'),
+            is_taxable=False,
+        )
+        self._add_rows(q)
+        q.recalculate_totals()
+        q.refresh_from_db()
+        text = "\n".join(p.extract_text() for p in PdfReader(io.BytesIO(generate_quote_pdf(q))).pages)
+        self.assertIn("1,480.00", text)
+        self.assertNotIn("1,500.00", text)  # NOT the flat price × count
+
+    def test_event_pdf_renders_segment_priced_total(self):
+        if not HAVE_PYPDF:
+            self.skipTest("pypdf not installed")
+        from bookings.pdf import generate_event_pdf
+        ev = Event.objects.create(
+            organisation=self.org, name='E', event_date='2026-05-01',
+            guest_count=150, gents=0, ladies=0, price_per_head=Decimal('10'),
+        )
+        self._add_rows(ev)
+        ev.recalculate_totals()
+        ev.refresh_from_db()
+        text = "\n".join(p.extract_text() for p in PdfReader(io.BytesIO(generate_event_pdf(ev))).pages)
+        self.assertIn("1,480.00", text)
+        self.assertNotIn("1,500.00", text)

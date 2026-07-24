@@ -638,7 +638,11 @@ def generate_quote_pdf(quote, signature=None):
 
     # Food/menu summary — the MAIN meal line (shown even with no dish list, so
     # food_total never sits silently in the subtotal — the Q-59 bug).
-    main_food = (quote.price_per_head or 0) * quote.guest_count
+    # Segment-priced (kids/vendor multipliers), NOT flat price × count, so the food
+    # line agrees with the subtotal. Reduces to price × count with no breakdown.
+    from bookings.services.totals import segment_food_total
+    from events.models import resolve_booking_segments
+    main_food = segment_food_total(quote.price_per_head, resolve_booking_segments(quote))
     food_line = food_summary_text(quote.price_per_head, quote.guest_count, main_food, cs)
     if food_line:
         if dish_names:
@@ -881,7 +885,10 @@ def generate_event_pdf(event, signature=None):
         elements.append(_dish_table(dish_names, s))
         elements.append(Spacer(1, 3 * mm))
 
-    main_food = (event.price_per_head or 0) * event.guest_count
+    # Segment-priced (see the quote path) so the food line agrees with the subtotal.
+    from bookings.services.totals import segment_food_total
+    from events.models import resolve_booking_segments
+    main_food = segment_food_total(event.price_per_head, resolve_booking_segments(event))
     food_line = food_summary_text(event.price_per_head, event.guest_count, main_food, cs)
     if food_line:
         if not dish_names:

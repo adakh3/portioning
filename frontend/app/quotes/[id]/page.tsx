@@ -515,9 +515,10 @@ export default function QuoteDetailPage() {
                   onChange={(patch) => setCreateData((prev) => ({ ...prev, ...patch }))}
                 />
                 {hasVendorDoubleEntry(createData.segment_counts, createMeals, segmentMeta) && (
-                  <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
-                    You have both vendor covers and a vendor-labelled meal — double-check you&apos;re not counting vendors twice.
-                  </p>
+                  <div role="alert" className="mt-2 flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
+                    <span aria-hidden="true" className="text-sm leading-none">⚠️</span>
+                    <span>Possible double-count: you have <strong>vendor covers</strong> and a <strong>vendor-labelled meal</strong>. Vendors should be counted one way or the other, not both.</span>
+                  </div>
                 )}
               </div>
               <MenuBuilder
@@ -995,9 +996,10 @@ export default function QuoteDetailPage() {
                   onChange={(patch) => setEditData((prev) => ({ ...prev, ...patch }))}
                 />
                 {hasVendorDoubleEntry(editData.segment_counts, editMeals, segmentMeta) && (
-                  <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
-                    You have both vendor covers and a vendor-labelled meal — double-check you&apos;re not counting vendors twice.
-                  </p>
+                  <div role="alert" className="mt-2 flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
+                    <span aria-hidden="true" className="text-sm leading-none">⚠️</span>
+                    <span>Possible double-count: you have <strong>vendor covers</strong> and a <strong>vendor-labelled meal</strong>. Vendors should be counted one way or the other, not both.</span>
+                  </div>
                 )}
               </div>
               <MenuBuilder
