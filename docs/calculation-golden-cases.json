@@ -288,6 +288,17 @@
         }
       ],
       "expected_food": "0.00"
+    },
+    {
+      "name": "half_cent_rounds_half_up",
+      "price_per_head": "1.01",
+      "segments": [
+        {
+          "count": 1,
+          "price_multiplier": "0.5"
+        }
+      ],
+      "expected_food": "0.51"
     }
   ]
 }

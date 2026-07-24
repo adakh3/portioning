@@ -4,7 +4,7 @@ Do not re-implement this math anywhere else (serializers, views, models): call
 `compute_booking_totals`. See docs/CODE_MAINTENANCE.md.
 """
 from dataclasses import dataclass
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 
 TWO_PLACES = Decimal('0.01')
 
@@ -30,7 +30,10 @@ def segment_food_total(price_per_head, segments):
     for seg in segments:
         mult = Decimal(str(seg.get('price_multiplier', 1) if seg.get('price_multiplier') is not None else 1))
         total += price * mult * Decimal(seg.get('count', 0) or 0)
-    return total
+    # Round HALF_UP (not the Decimal default HALF_EVEN) so this matches the
+    # frontend mirror `segmentFood` (Math.round is half-up) to the cent even when a
+    # multiplier lands the amount on a half-cent — and the repo's commission.py.
+    return total.quantize(TWO_PLACES, rounding=ROUND_HALF_UP)
 
 
 @dataclass(frozen=True)

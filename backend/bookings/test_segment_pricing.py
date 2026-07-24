@@ -48,6 +48,14 @@ class SegmentFoodTotalPureTests(TestCase):
             Decimal('0.00'),
         )
 
+    def test_half_cent_rounds_half_up_matching_frontend(self):
+        # 1.01 × 0.5 × 1 = 0.505 → 0.51 (HALF_UP), NOT 0.50 (banker's/HALF_EVEN).
+        # Locks FE/BE parity for the half-cent class the multipliers newly expose.
+        self.assertEqual(
+            segment_food_total(Decimal('1.01'), [{'count': 1, 'price_multiplier': '0.5'}]),
+            Decimal('0.51'),
+        )
+
     def test_missing_or_null_multiplier_defaults_to_one(self):
         self.assertEqual(segment_food_total(Decimal('10'), [{'count': 10}]), Decimal('100'))
         self.assertEqual(

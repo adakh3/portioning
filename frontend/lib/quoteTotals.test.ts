@@ -24,6 +24,10 @@ describe("segmentFood (mirror of backend segment_food_total)", () => {
   it("zero price is zero", () => {
     expect(segmentFood("0", 150, { Kids: 12 }, SEG_META)).toBe(0);
   });
+  it("half-cent amounts round half-up (matches the backend, not banker's)", () => {
+    // 1.01 × 0.5 × 1 = 0.505 → 0.51, matching segment_food_total's ROUND_HALF_UP.
+    expect(segmentFood("1.01", 1, { Kids: 1 }, SEG_META)).toBe(0.51);
+  });
 });
 
 describe("buildGuestCountsPayload", () => {
@@ -171,7 +175,9 @@ describe("golden-case parity with the backend engine", () => {
   // test_backend_matches_segment_food_cases runs (REL-415).
   for (const c of golden.segment_food_cases) {
     it(`segment food: ${c.name}`, () => {
-      expect(segmentFoodFromRows(c.price_per_head, c.segments)).toBeCloseTo(Number(c.expected_food), 2);
+      // EXACT (not toBeCloseTo) — a ±0.005 tolerance would mask a 1¢ half-cent
+      // rounding-mode divergence, which is exactly the class this locks.
+      expect(segmentFoodFromRows(c.price_per_head, c.segments)).toBe(Number(c.expected_food));
     });
   }
 });
