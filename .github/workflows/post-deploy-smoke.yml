@@ -1,0 +1,54 @@
+name: post-deploy-smoke
+
+# After a push to main, DigitalOcean auto-deploys with no verification of its
+# own. This probes the LIVE app once the deploy has had time to roll out:
+#   - GET /api/health/  -> 200 {"status": "ok"}  (backend process is up)
+#   - GET /login        -> 200 + brand marker     (frontend is serving)
+#
+# A failed run IS the alert — the owner watches the Actions failure email.
+# Deliberately minimal; richer alerting can come later. See REL-360.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+# Only the newest deploy matters — cancel an older probe still retrying.
+concurrency:
+  group: post-deploy-smoke
+  cancel-in-progress: true
+
+jobs:
+  probe:
+    name: Probe production
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe /api/health/ and /login (retry while the deploy rolls out)
+        env:
+          BASE_URL: https://catering.relogue.com
+        run: |
+          set -u
+          # Give DigitalOcean time to pick up the push before the first probe.
+          sleep 60
+
+          # probe <url> <marker>: succeed when the URL returns 2xx AND the body
+          # contains <marker>. Retries to ride out the deploy rollout window.
+          probe() {
+            url="$1"; marker="$2"
+            for attempt in $(seq 1 20); do
+              if body="$(curl -fsS --max-time 15 "$url")" && printf '%s' "$body" | grep -qF "$marker"; then
+                echo "  OK  $url"
+                return 0
+              fi
+              echo "  ..  attempt $attempt/20 not ready for $url; retrying in 30s"
+              sleep 30
+            done
+            echo "  FAIL  $url never became healthy"
+            return 1
+          }
+
+          echo "Probing $BASE_URL/api/health/"
+          probe "$BASE_URL/api/health/" '"status": "ok"'
+
+          echo "Probing $BASE_URL/login"
+          probe "$BASE_URL/login" "Relogue Catering"

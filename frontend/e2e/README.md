@@ -5,8 +5,18 @@ Next.js on `:3000` → Django on `:8000` → sqlite — with **nothing mocked**.
 "did it actually work in a browser" check that the mocked vitest suite structurally
 cannot give (see below).
 
-They are **not** in the pre-commit hook or CI. They're a **manual pre-push gate**: run
-them before pushing so features are verified without clicking through by hand.
+They run in **two places**:
+
+1. **Manual pre-push gate** (primary) — run them before pushing so features are verified
+   without clicking through by hand. They're **not** in the pre-commit hook.
+2. **CI, on PRs only** — the `e2e` job in `.github/workflows/ci.yml` boots the full stack
+   in the cloud (`migrate` → `loaddata seed.json` → `seed_demo` → Django `:8000` + a built
+   Next on `:3000`) and runs these specs. It's the slow, flake-prone job, so it runs on
+   **pull requests only** (the backend/frontend/migration jobs are the fast gate on every
+   push). It starts **non-blocking**; once stable it's promoted to a required check
+   (REL-360). A failing run uploads the Playwright HTML report as a downloadable artifact.
+
+Running them locally still needs the dev servers up (below); CI boots its own.
 
 ## Run
 
