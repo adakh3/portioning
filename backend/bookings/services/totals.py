@@ -9,6 +9,30 @@ from decimal import Decimal
 TWO_PLACES = Decimal('0.01')
 
 
+def segment_food_total(price_per_head, segments):
+    """Per-head food cost across a booking's guest segments.
+
+    Each segment is charged ``price_per_head × price_multiplier × count`` and the
+    results are summed over **all** segments — in-count (Adults, Kids) *and*
+    additional covers (Vendors) alike, because vendors are billed too;
+    ``counts_toward_total`` only governs count validation/display, never pricing.
+
+    ``segments`` is an iterable of plain dicts ``{'count', 'price_multiplier'}``
+    (extra keys ignored). With a single default segment whose ``price_multiplier``
+    is 1.0 and ``count`` is the whole guest count, this reduces **exactly** to the
+    legacy ``price_per_head × guest_count`` — so a booking with no breakdown, and a
+    Gents/Ladies booking (both multipliers 1.0), keep their existing food total.
+    """
+    price = Decimal(price_per_head or 0)
+    if price <= 0:
+        return Decimal('0.00')
+    total = Decimal('0.00')
+    for seg in segments:
+        mult = Decimal(str(seg.get('price_multiplier', 1) if seg.get('price_multiplier') is not None else 1))
+        total += price * mult * Decimal(seg.get('count', 0) or 0)
+    return total
+
+
 @dataclass(frozen=True)
 class BookingTotals:
     taxable_subtotal: Decimal

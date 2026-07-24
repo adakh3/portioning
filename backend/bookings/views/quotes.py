@@ -69,9 +69,13 @@ class QuoteListCreateView(generics.ListCreateAPIView):
         qs = Quote.objects.select_related(
             'account', 'venue', 'lead', 'event', 'based_on_template',
             'primary_contact', 'product', 'created_by', 'assigned_to',
-        # food_total sums additional_meals, so the list serializer needs them
-        # prefetched (one query, not per-row) to avoid an N+1.
-        ).prefetch_related('additional_meals')
+        # food_total sums additional_meals and prices per guest segment, so the
+        # list serializer needs these prefetched (one query each, not per-row) to
+        # avoid an N+1: the booking's own segment rows and the org's segment
+        # definitions used by the count-first fallback.
+        ).prefetch_related(
+            'additional_meals', 'guest_counts__segment', 'organisation__guest_segments',
+        )
         # Only prefetch heavy relations for detail views
         if self.request.method != 'GET' or self.kwargs.get('pk'):
             qs = qs.prefetch_related('line_items', 'dishes')

@@ -25,10 +25,12 @@ def resolve_legacy_segments(organisation, guest_count, gents, ladies, has_split)
     Each segment's multiplier/flags come from the org's ``rules.GuestSegment``
     definitions (1.0 / in-count when the org has no matching segment).
     """
-    from rules.models import GuestSegment
     from bookings.models import OrgSettings
 
-    by_name = {s.name.lower(): s for s in GuestSegment.objects.filter(organisation=organisation)}
+    # Reverse relation (not GuestSegment.objects.filter) so a caller that
+    # prefetched ``organisation__guest_segments`` (list views, via food_total)
+    # hits the cache instead of one query per booking.
+    by_name = {s.name.lower(): s for s in organisation.guest_segments.all()}
 
     def as_segment(name, count):
         seg = by_name.get(name.lower())
@@ -36,6 +38,7 @@ def resolve_legacy_segments(organisation, guest_count, gents, ladies, has_split)
             'name': seg.name if seg else name,
             'count': count,
             'portion_multiplier': seg.portion_multiplier if seg else 1.0,
+            'price_multiplier': float(seg.price_multiplier) if seg else 1.0,
             'counts_toward_total': seg.counts_toward_total if seg else True,
         }
 
@@ -78,6 +81,36 @@ def sync_legacy_guest_counts(booking, organisation, gents, ladies, guest_count):
             )
         else:
             BookingGuestCount.objects.filter(segment=seg, **parent).delete()
+
+
+def resolve_booking_segments(booking):
+    """Segment mix for pricing **and** portioning a booking (quote XOR event).
+
+    Count-first: per-segment ``BookingGuestCount`` rows when present; otherwise the
+    legacy gents/ladies split; otherwise the whole ``guest_count`` under the org's
+    default segment. Works for both ``Quote`` and ``Event`` (both expose
+    ``guest_counts``, ``organisation``, ``guest_count``, ``gents``, ``ladies``).
+    Each segment carries both its portion multiplier (kitchen) and price multiplier
+    (billing), so the single resolver feeds `segment_food_total` and the engine.
+    """
+    # Use ``.all()`` (not ``.select_related``) so a caller that prefetched
+    # ``guest_counts__segment`` (list views, via food_total) hits the cache
+    # instead of an N+1; single-object callers pay only a couple of small queries.
+    rows = [r for r in booking.guest_counts.all() if r.count]
+    if rows:
+        return [
+            {'name': r.segment.name, 'count': r.count,
+             'portion_multiplier': r.segment.portion_multiplier,
+             'price_multiplier': float(r.segment.price_multiplier),
+             'counts_toward_total': r.segment.counts_toward_total}
+            for r in rows
+        ]
+    has_split = bool((booking.gents or booking.ladies)
+                     and booking.gents + booking.ladies == booking.guest_count)
+    return resolve_legacy_segments(
+        booking.organisation, booking.guest_count, booking.gents, booking.ladies,
+        has_split=has_split,
+    )
 
 
 class EventStatus(models.TextChoices):
@@ -236,27 +269,17 @@ class Event(OrgScopedModel, models.Model):
         ``guest_count`` under the org's default segment. Each segment carries its
         own portion multiplier, so the engine no longer hardcodes gents/ladies.
         """
-        rows = [r for r in self.guest_counts.select_related('segment').all() if r.count]
-        if rows:
-            return {'segments': [
-                {'name': r.segment.name, 'count': r.count,
-                 'portion_multiplier': r.segment.portion_multiplier,
-                 'counts_toward_total': r.segment.counts_toward_total}
-                for r in rows
-            ]}
-        return {'segments': resolve_legacy_segments(
-            self.organisation, self.guest_count, self.gents, self.ladies,
-            has_split=self.has_guest_split,
-        )}
+        return {'segments': resolve_booking_segments(self)}
 
     @property
     def food_total(self):
-        """Taxable food/menu cost: main menu (price_per_head × guest_count) +
-        any additional meals (their own price_per_head × guest_count)."""
-        total = Decimal('0.00')
-        pph = self.price_per_head
-        if pph and pph > 0:
-            total += pph * (self.guest_count or 0)
+        """Taxable food/menu cost: main menu priced per guest segment
+        (``price_per_head × price_multiplier × count``, summed over all segments) +
+        any additional meals (their own price_per_head × guest_count). With no
+        breakdown this reduces to ``price_per_head × guest_count`` (see
+        ``segment_food_total``)."""
+        from bookings.services.totals import segment_food_total
+        total = segment_food_total(self.price_per_head, resolve_booking_segments(self))
         for meal in self.additional_meals.all():
             if meal.price_per_head and meal.guest_count:
                 total += meal.price_per_head * meal.guest_count

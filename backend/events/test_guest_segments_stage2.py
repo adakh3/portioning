@@ -69,7 +69,8 @@ class PortioningReadPathTests(TestCase):
         segs = ev.portioning_guests()['segments']
         self.assertEqual(segs, [{
             'name': 'Adults', 'count': 120,
-            'portion_multiplier': 1.0, 'counts_toward_total': True,
+            'portion_multiplier': 1.0, 'price_multiplier': 1.0,
+            'counts_toward_total': True,
         }])
         self.assertTrue(default.is_default)
 
