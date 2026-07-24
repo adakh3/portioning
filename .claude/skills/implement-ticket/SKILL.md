@@ -13,10 +13,16 @@ to the planning session afterwards, so the ticket is also the **report channel**
 ## Steps
 
 1. **Fetch the ticket** (Linear MCP `get_issue`, include relations). Read the whole
-   body — especially *Execution notes*, *Steps*, *Verify*, *Safety* — **and its comment
-   thread** (late owner/planning notes land there). Check it isn't blocked by an open
-   ticket; if it is, stop and tell the owner. **Re-read the comment thread again
-   immediately before pushing** — a correction may have arrived while you worked.
+   body — especially *Execution notes*, *Steps*, *Verify*, *Safety*, the numbered
+   **acceptance criteria** — **and its comment thread** (late owner/planning notes land
+   there). **The body is the single living spec and wins on contradiction.** But a
+   decision sitting in a comment that isn't reflected in the body is **unprocessed** —
+   before you start, **fold it into the body** (read current description, merge into the
+   right section + add a `## Change log` line, write back via `save_issue`) or, if it
+   genuinely conflicts with the body, **flag it to the owner** rather than guessing which
+   is live. Check it isn't blocked by an open ticket; if it is, stop and tell the owner.
+   **Re-read the comment thread again immediately before pushing** — a correction may
+   have arrived while you worked; fold it in the same way.
 2. **Set it In Progress** (`save_issue`).
 3. **Set up where the ticket says:** enter the named existing worktree (EnterWorktree
    with `path`), or create the branch it specifies off **fresh origin/main**
@@ -49,11 +55,25 @@ to the planning session afterwards, so the ticket is also the **report channel**
    plainly what you deliberately defer and why. This ad-hoc pass is the one you run
    yourself every time; the billed `/code-review ultra` is the **owner's** to trigger,
    not yours (you cannot launch it).
+
+   **Add these conditional passes when the diff warrants them** (these skills exist —
+   they're just not in the default loop):
+   - diff touches **auth, org-scoping, or public/unauthenticated endpoints** → run
+     **`/security-review`** on the branch;
+   - diff **adds or changes a list endpoint or serializer** → apply the
+     **`avoid-n-plus-one-queries`** skill's checklist to it;
+   - diff changes **money/total math** (the totals trio, quote/event PDFs) → flag it in
+     your report and **recommend the owner trigger `/code-review ultra`** on the PR.
 8. **Ask the owner before any push** (prod auto-deploys from main). Then PR → merge
    per their instruction.
-9. **Report back on the ticket** (`save_comment` + `save_issue`):
-   - comment: what changed (commits/PR link), Verify + review results, any deviations
-     from the ticket and why, and anything the planning session should know
-     (discoveries, follow-ups, stale assumptions in the epic);
+9. **Report back on the ticket** (`save_comment` + `save_issue`) — **keep the body the
+   living spec**:
+   - **Any deviation that changes the agreed spec** (a step done differently, an AC
+     revised, scope cut/added) is **folded into the description** + a `## Change log`
+     line — not left only in a comment, which would immediately make the body stale.
+   - comment: a thin, dated progress/audit note — what changed (commits/PR link),
+     Verify + AC-trace + review results, a pointer to the spec edits you made, and
+     anything the planning session should know (discoveries, follow-ups, stale
+     assumptions in the epic);
    - state: **In Review** when the PR is up, **Done** once merged.
 10. Tell the owner it's done and that the planning session can pick the thread back up.
