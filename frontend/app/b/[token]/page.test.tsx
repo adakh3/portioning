@@ -108,6 +108,28 @@ describe("Public booking sign page", () => {
     expect(screen.getByText(/Signed by Aisha Khan/)).toBeInTheDocument();
   });
 
+  it("shows the service-charge and gratuity rows when they are non-zero", async () => {
+    // The client's contract must display what they're agreeing to pay. $6,600
+    // subtotal, 20% taxable SC ($1,320), tax on $7,920 = $1,584, 15% gratuity
+    // ($990) → total $10,494.
+    h.getPublicBooking.mockResolvedValue({
+      ...booking,
+      service_charge_pct: "20.00", service_charge: "1320.00",
+      tax_amount: "1584.00",
+      gratuity_pct: "15.00", gratuity: "990.00",
+      total: "10494.00",
+    });
+
+    render(<PublicBookingSignPage />);
+
+    await screen.findByText("Quote #42");
+    expect(screen.getByText("Service charge (20%)")).toBeInTheDocument();
+    expect(screen.getByText("$1320.00")).toBeInTheDocument();
+    expect(screen.getByText("Gratuity (15%)")).toBeInTheDocument();
+    expect(screen.getByText("$990.00")).toBeInTheDocument();
+    expect(screen.getByText("$10494.00")).toBeInTheDocument(); // grand total
+  });
+
   it("renders terms in a collapsible section with markdown stripped", async () => {
     h.getPublicBooking.mockResolvedValue({
       ...booking,

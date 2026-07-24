@@ -11,6 +11,11 @@
 
 set -e
 
+# Every commit: a reminder to cover the test MATRIX (surfaces × states), not just
+# the one path you touched. A shell hook can't run a Claude skill, but this line
+# surfaces at every commit — apply .claude/skills/writing-tests before finalizing.
+echo "🧭 writing-tests: did the tests cover the matrix (surfaces × states, quote↔event, ON-state, PDFs)? → .claude/skills/writing-tests/SKILL.md"
+
 # Code being committed lives in the current worktree...
 WORKTREE_ROOT="$(git rev-parse --show-toplevel)"
 

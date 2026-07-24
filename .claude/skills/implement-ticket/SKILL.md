@@ -26,7 +26,9 @@ to the planning session afterwards, so the ticket is also the **report channel**
    (file moved, number taken, approach impossible), don't improvise a big deviation
    silently — small mechanical adaptations are fine (note them for the report); real
    scope changes go back to the owner.
-5. **Repo rules always apply:** backend + frontend tests for any feature/fix; the
+5. **Repo rules always apply.** Before each commit that adds/changes behavior, apply
+   the **`writing-tests`** skill (cover the matrix — surfaces × states — not the one
+   path you touched). Then: backend + frontend tests for any feature/fix; the
    pre-commit hook runs them (worktree-aware — commit normally); pre-push Playwright
    e2e for UI/persistence changes; regenerate `seed.json` on seed changes; doc-sync
    rules (PORTIONING_LOGIC ↔ help page, totals trio per CALCULATION_PARITY); keep the

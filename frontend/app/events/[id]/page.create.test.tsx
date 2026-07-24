@@ -34,7 +34,7 @@ vi.mock("@/lib/hooks", () => ({
   useLaborRoles: () => ({ data: [] }),
   useStaff: () => ({ data: [] }),
   useUsers: () => ({ data: [] }),
-  useSiteSettings: () => ({ data: { currency_symbol: "£", currency_code: "GBP", date_format: "DD/MM/YYYY", price_rounding_step: "50", default_tax_rate: "0.2000", service_charge_default_pct: "20.00", service_charge_taxable_default: true, gratuity_default_pct: "0.00" } }),
+  useSiteSettings: () => ({ data: { currency_symbol: "£", currency_code: "GBP", date_format: "DD/MM/YYYY", price_rounding_step: "50", default_tax_rate: "0.2000", service_charge_default_pct: "20.00", service_charge_taxable_default: false, gratuity_default_pct: "0.00" } }),
   useDateFormat: () => "DD/MM/YYYY",
   useEventTypes: () => ({ data: [{ id: 1, value: "wedding", label: "Wedding" }] }),
   useServiceStyles: () => ({ data: [] }),
@@ -104,8 +104,8 @@ describe("Event create — guest split + anchored timeline reach the payload", (
 
     await waitFor(() => expect(h.createEvent).toHaveBeenCalledTimes(1));
     const payload = h.createEvent.mock.calls[0][0] as Record<string, unknown>;
-    expect(payload.service_charge_pct).toBe("20.00");   // from OrgSettings, not a hardcoded 0
-    expect(payload.service_charge_taxable).toBe(true);
+    expect(payload.service_charge_pct).toBe("20.00");    // from OrgSettings, not a hardcoded 0
+    expect(payload.service_charge_taxable).toBe(false);  // the flag flows from settings (default state is true)
     expect(payload.gratuity_pct).toBe("0.00");
   });
 });
