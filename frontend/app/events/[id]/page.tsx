@@ -261,13 +261,18 @@ export default function EventDetailPage() {
     }
   }, [event, syncFormToEvent, startInEditMode]);
 
-  // Set default price from settings in create mode
-  const defaultPriceApplied = useRef(false);
+  // Seed create-mode defaults from org settings, once, when settings first load:
+  // price/head AND the pricing snapshot (service charge / gratuity). Without the
+  // latter a new event would always POST 0% and lose the org's default service
+  // charge — the backend snapshot only fills fields the payload omits.
+  const createDefaultsApplied = useRef(false);
   useEffect(() => {
-    if (isNew && rawSettings && parseFloat(rawSettings.default_price_per_head) > 0 && !defaultPriceApplied.current) {
-      setFormPricePerHead(rawSettings.default_price_per_head);
-      defaultPriceApplied.current = true;
-    }
+    if (!isNew || !rawSettings || createDefaultsApplied.current) return;
+    if (parseFloat(rawSettings.default_price_per_head) > 0) setFormPricePerHead(rawSettings.default_price_per_head);
+    setFormServiceChargePct(String(rawSettings.service_charge_default_pct ?? "0"));
+    setFormServiceChargeTaxable(rawSettings.service_charge_taxable_default ?? true);
+    setFormGratuityPct(String(rawSettings.gratuity_default_pct ?? "0"));
+    createDefaultsApplied.current = true;
   }, [isNew, rawSettings]);
 
   useEffect(() => {

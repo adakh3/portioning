@@ -1125,8 +1125,8 @@ export default function QuoteDetailPage() {
         meals={bookingMealRows(mealsList, cs)}
         addOnsTotal={Math.round((subtotal - fullFood) * 100) / 100}
         subtotal={subtotal}
-        serviceCharge={editing ? liveTotals.service_charge : parseFloat(q.service_charge)}
-        serviceChargePct={editing ? parseFloat(editData.service_charge_pct || "0").toFixed(0) : parseFloat(q.service_charge_pct).toFixed(0)}
+        serviceCharge={editing ? liveTotals.service_charge : parseFloat(q.service_charge || "0")}
+        serviceChargePct={editing ? parseFloat(editData.service_charge_pct || "0").toFixed(0) : parseFloat(q.service_charge_pct || "0").toFixed(0)}
         serviceChargeControl={editing ? (
           <span className="flex items-center gap-1">
             Service charge
@@ -1136,8 +1136,8 @@ export default function QuoteDetailPage() {
           </span>
         ) : undefined}
         taxAmount={editing ? liveTotals.tax_amount : parseFloat(q.tax_amount)}
-        gratuity={editing ? liveTotals.gratuity : parseFloat(q.gratuity)}
-        gratuityPct={editing ? parseFloat(editData.gratuity_pct || "0").toFixed(0) : parseFloat(q.gratuity_pct).toFixed(0)}
+        gratuity={editing ? liveTotals.gratuity : parseFloat(q.gratuity || "0")}
+        gratuityPct={editing ? parseFloat(editData.gratuity_pct || "0").toFixed(0) : parseFloat(q.gratuity_pct || "0").toFixed(0)}
         gratuityControl={editing ? (
           <span className="flex items-center gap-1">
             Gratuity
