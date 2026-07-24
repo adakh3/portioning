@@ -33,6 +33,9 @@ to the planning session afterwards, so the ticket is also the **report channel**
    ticket's **User story & manual test cases** section accurate if scope shifts (stories
    live in the ticket now, not `docs/user-stories/` — that's a frozen archive).
 6. **Run everything in the ticket's Verify section** and say plainly what passed/failed.
+   If the ticket added/changed a **new user-facing feature**, also run the
+   **`manual-test-before-push`** skill — a one-off drive of that feature in real Chrome
+   (not a regression sweep) — and share the GIF.
 7. **Ask the owner before any push** (prod auto-deploys from main). Then PR → merge
    per their instruction.
 8. **Report back on the ticket** (`save_comment` + `save_issue`):

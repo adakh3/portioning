@@ -35,11 +35,14 @@ export default function GuestCountField({
   const splitTotal = (value.gents || 0) + (value.ladies || 0);
   const addsUp = splitTotal === total;
 
-  // Show the legacy gents/ladies split ONLY for orgs whose in-count segments are
-  // exactly Gents + Ladies (the only shape this split UI can faithfully express).
-  // US orgs (Adults/Kids/Vendors) get a plain single count; the N-segment
-  // breakdown UI ships in Wave 2a. Until settings load, default to showing it so
-  // existing gents/ladies orgs never regress.
+  // STOPGAP (REL-404) — remove in REL-405. This whole split is a legacy feature
+  // that is gents/ladies-specific down to the DB columns (Quote/Event.gents/ladies),
+  // so it can only faithfully represent an org whose in-count segments ARE Gents +
+  // Ladies; showing it for any other segment set would mislabel. Hence the name
+  // match. It is NOT a country rule — it keys purely on the org's segment DATA, and
+  // an org without those segments simply has no breakdown UI yet (the functional gap
+  // REL-405's data-driven N-segment breakdown closes). Until settings load, default
+  // to showing it so existing gents/ladies orgs never regress.
   const { data: settings } = useSiteSettings();
   const segments = settings?.guest_segments;
   const inCount = (segments ?? []).filter((s) => s.counts_toward_total).map((s) => s.name.toLowerCase());
