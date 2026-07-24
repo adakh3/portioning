@@ -18,6 +18,7 @@ class EquipmentCategory(models.TextChoices):
 
 
 class EquipmentItem(models.Model):
+    ci_drill_field = models.IntegerField(null=True, blank=True)  # DRILL: intentionally un-migrated (REL-360 AC4)
     objects = TenantManager()
 
     organisation = models.ForeignKey(
