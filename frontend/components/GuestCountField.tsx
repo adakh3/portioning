@@ -121,7 +121,7 @@ export default function GuestCountField({
           </p>
         </div>
       ) : (
-        total > 0 && (
+        showSplit && total > 0 && (
           <p className="text-xs text-muted-foreground">Split: not specified</p>
         )
       )}
