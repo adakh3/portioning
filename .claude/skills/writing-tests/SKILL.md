@@ -16,6 +16,27 @@ Run this **before every commit that adds or changes behavior**. It is not a
 regression sweep — it is a check that *this diff's* new behavior is actually pinned by
 tests.
 
+## Step 0 — Start from the acceptance criteria
+
+If this work has **acceptance criteria** (the numbered AC list the `requirements`
+skill wrote — in this repo, the "User story & acceptance criteria" section of the
+**ticket body**), they are the **checklist of record**. Read them from the **body,
+which is the single living spec** — not the comment thread. If a comment carries an AC
+that isn't in the body, the body is stale: fold it in (or flag it) *before* tracing
+coverage, so you test the agreed spec, not a scattered one. Before touching the diff:
+
+- Build a **traceability table**: for each AC (AC1, AC2, …) → the harness test(s) that
+  would **fail if that behaviour broke** → did it **run and pass**. This is the same
+  requirements-to-tests trace a normal QA team keeps.
+- **Every AC must end up with a real test in the harness that runs green.** An AC with
+  no failing-if-broken test is the deliverable — add it. Don't count "a test near it";
+  it must exercise *that* criterion.
+- If you find behaviour in the diff with **no matching AC**, either it's out of scope or
+  the AC list is incomplete — flag it back (don't silently invent scope).
+
+The matrix in Step 1 is the *technique* for proving each AC is covered across all its
+surfaces and states — it does not replace the AC list, it fills it in.
+
 ## Step 1 — Build the matrix for THIS diff
 
 List the two axes, from the diff, explicitly:
@@ -79,7 +100,14 @@ cells are the deliverable: fill them, or consciously log the skip and why.
 
 ## Output
 
-Before committing, state the matrix briefly: the surfaces × states you enumerated,
-which cells now have a failing-if-broken test, and any cell you deliberately left
-uncovered (with the reason). That short note is the proof you covered the grid, not a
+Before committing, state two things:
+
+1. **AC traceability** (if acceptance criteria exist) — each AC, the test(s) that pin
+   it, and that they ran green. Every AC accounted for; any left uncovered called out
+   with the reason.
+2. **The matrix** — the surfaces × states you enumerated, which cells now have a
+   failing-if-broken test, and any cell you deliberately left uncovered (with the
+   reason).
+
+That short note is the proof you covered the acceptance criteria and the grid — not a
 diagonal of it.
