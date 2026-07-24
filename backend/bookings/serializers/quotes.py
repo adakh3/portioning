@@ -52,6 +52,9 @@ class QuoteSerializer(OrgScopedModelSerializer):
     assigned_to_name = serializers.SerializerMethodField()
 
     food_total = serializers.SerializerMethodField()
+    # Per-segment guest breakdown (read); the write side is handled from the raw
+    # payload in create/update (mirrors the event serializer).
+    guest_counts = serializers.SerializerMethodField()
 
     # E-signature status (for the staff-side "send for signature" flow)
     public_token = serializers.CharField(read_only=True)
@@ -87,6 +90,7 @@ class QuoteSerializer(OrgScopedModelSerializer):
             'venue_city', 'venue_state', 'venue_zip',
             'product', 'product_name', 'guest_count',
             'gents', 'ladies', 'big_eaters', 'big_eaters_percentage',
+            'guest_counts',
             'price_per_head', 'food_total',
             'event_type', 'meal_type', 'booking_date', 'service_style', 'valid_until',
             'setup_time', 'guest_arrival_time', 'meal_time', 'end_time',
@@ -124,10 +128,29 @@ class QuoteSerializer(OrgScopedModelSerializer):
             raise serializers.ValidationError(
                 {'account': 'A business is required for a B2B quote.'}
             )
+        # N-segment breakdown: explicit in-count segments must not exceed the count.
+        raw_counts = self.initial_data.get('guest_counts') if hasattr(self, 'initial_data') else None
+        if raw_counts is not None:
+            from events.models import guest_counts_error
+            org = getattr(self.instance, 'organisation', None) or get_request_org(self.context.get('request'))
+            guest_count = attrs.get('guest_count', getattr(self.instance, 'guest_count', 0)) or 0
+            if org is not None:
+                err = guest_counts_error(org, guest_count, raw_counts)
+                if err:
+                    raise serializers.ValidationError({'guest_counts': err})
         return attrs
 
     def get_account_name(self, obj):
         return obj.account.name if obj.account_id else None
+
+    def get_guest_counts(self, obj):
+        # ``.all()`` (not select_related) so the list view's
+        # prefetch_related('guest_counts__segment') is used instead of an N+1.
+        return [
+            {'segment': r.segment.name, 'count': r.count,
+             'counts_toward_total': r.segment.counts_toward_total}
+            for r in obj.guest_counts.all()
+        ]
 
     def get_food_total(self, obj):
         try:
@@ -227,6 +250,7 @@ class QuoteSerializer(OrgScopedModelSerializer):
             validated_data.setdefault('service_charge_taxable', s.service_charge_taxable_default)
             validated_data.setdefault('gratuity_pct', s.gratuity_default_pct)
         quote = super().create(validated_data)
+        self._write_guest_counts(quote)
         if dishes:
             quote.dishes.set(dishes)
         if line_items_data:
@@ -241,6 +265,7 @@ class QuoteSerializer(OrgScopedModelSerializer):
         line_items_data = validated_data.pop('line_items', None)
         meals_data = validated_data.pop('additional_meals', None)
         quote = super().update(instance, validated_data)
+        self._write_guest_counts(quote)
         if dishes is not None:
             quote.dishes.set(dishes)
         if line_items_data is not None:
@@ -249,6 +274,20 @@ class QuoteSerializer(OrgScopedModelSerializer):
             replace_meals('quote', quote, meals_data)
         quote.recalculate_totals()
         return quote
+
+    def _write_guest_counts(self, quote):
+        """Dual-write the quote's guest breakdown into BookingGuestCount rows
+        (REL-415 AC4/AC7). A full N-segment breakdown from the new UI wins; an old
+        client that sends only gents/ladies columns still gets mirrored into rows.
+        """
+        from events.models import write_booking_segments, sync_legacy_guest_counts
+        raw_counts = self.initial_data.get('guest_counts') if hasattr(self, 'initial_data') else None
+        if raw_counts is not None:
+            write_booking_segments(quote, raw_counts)
+        else:
+            sync_legacy_guest_counts(
+                quote, quote.organisation, quote.gents, quote.ladies, quote.guest_count,
+            )
 
 
 # signature does a per-row query (latest_signature); it's a detail-view concern.

@@ -83,6 +83,62 @@ def sync_legacy_guest_counts(booking, organisation, gents, ladies, guest_count):
             BookingGuestCount.objects.filter(segment=seg, **parent).delete()
 
 
+def guest_counts_error(organisation, guest_count, raw_counts):
+    """Validation guard for a submitted breakdown: return an error message when the
+    explicit **in-count** segments sum to more than ``guest_count`` (a negative
+    remainder), else ``None``. Additional-cover segments (``counts_toward_total=
+    False``, e.g. Vendors) are ignored — they never reconcile against the count.
+    """
+    if not raw_counts:
+        return None
+    segs = {s.name.lower(): s for s in organisation.guest_segments.all()}
+    in_count = 0
+    for row in raw_counts:
+        seg = segs.get((row.get('segment') or '').lower())
+        if seg is not None and seg.counts_toward_total:
+            in_count += int(row.get('count') or 0)
+    if in_count > (guest_count or 0):
+        return (f'The breakdown ({in_count}) is more than the guest count '
+                f'({guest_count or 0}).')
+    return None
+
+
+def write_booking_segments(booking, raw_counts):
+    """Persist a booking's per-segment breakdown (list of ``{'segment','count'}``)
+    into ``BookingGuestCount`` rows (quote XOR event), replacing existing rows, and
+    mirror any Gents/Ladies counts into the legacy columns so column-reading
+    renderers (PDFs) stay correct. Data-driven — the gents/ladies mirror fires only
+    when the org actually defines those segments, never by org type.
+    """
+    org = booking.organisation
+    parent = {'event': booking} if isinstance(booking, Event) else {'quote': booking}
+    segs = {s.name.lower(): s for s in org.guest_segments.all()}
+    seen = []
+    gents = ladies = 0
+    for row in (raw_counts or []):
+        name = (row.get('segment') or '').lower()
+        seg = segs.get(name)
+        if seg is None:
+            continue
+        count = int(row.get('count') or 0)
+        if name == 'gents':
+            gents = count
+        elif name == 'ladies':
+            ladies = count
+        if count > 0:
+            BookingGuestCount.objects.update_or_create(
+                segment=seg, defaults={'count': count}, **parent,
+            )
+            seen.append(seg.id)
+    BookingGuestCount.objects.filter(**parent).exclude(segment_id__in=seen).delete()
+    # Keep the legacy gents/ladies columns in sync (PDF/back-compat), only when the
+    # org defines those segments and the values actually changed.
+    if ('gents' in segs or 'ladies' in segs) and (booking.gents != gents or booking.ladies != ladies):
+        booking.gents = gents
+        booking.ladies = ladies
+        booking.save(update_fields=['gents', 'ladies'])
+
+
 def resolve_booking_segments(booking):
     """Segment mix for pricing **and** portioning a booking (quote XOR event).
 
