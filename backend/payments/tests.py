@@ -11,7 +11,7 @@ from datetime import datetime, timedelta, timezone as dt_timezone
 from unittest.mock import patch
 
 from django.conf import settings
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.utils import timezone
 from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -138,6 +138,7 @@ class SubscriptionStatusViewTests(BillingTestBase):
 
 
 class CheckoutViewTests(BillingTestBase):
+    @override_settings(STRIPE_PRICE_ID="price_ci_test")
     @patch("payments.views.stripe_gateway.create_checkout_session")
     def test_owner_can_start_checkout_with_trial(self, mock_create):
         mock_create.return_value = {"url": "https://checkout.stripe.test/abc"}
@@ -150,6 +151,7 @@ class CheckoutViewTests(BillingTestBase):
         self.assertEqual(mock_create.call_args.kwargs["trial_period_days"],
                          settings.DEFAULT_TRIAL_DAYS)
 
+    @override_settings(STRIPE_PRICE_ID="price_ci_test")
     @patch("payments.views.stripe_gateway.create_checkout_session")
     def test_resubscribe_gets_no_second_trial(self, mock_create):
         # An org that has had a subscription before doesn't get another trial.
