@@ -25,7 +25,7 @@ vi.mock("@/lib/hooks", () => ({
   useContacts: () => ({ data: [{ id: 3, name: "Jane Doe", phone: "", account: null }] }),
   useAddOnProducts: () => ({ data: [] }),
   useVenues: () => ({ data: [] }),
-  useSiteSettings: () => ({ data: { currency_symbol: "£", currency_code: "GBP", date_format: "DD/MM/YYYY", price_rounding_step: "50", default_tax_rate: "0.2000" } }),
+  useSiteSettings: () => ({ data: { currency_symbol: "£", currency_code: "GBP", date_format: "DD/MM/YYYY", price_rounding_step: "50", default_tax_rate: "0.2000", service_charge_default_pct: "20.00", service_charge_taxable_default: false, gratuity_default_pct: "0.00" } }),
   useDateFormat: () => "DD/MM/YYYY",
   useEventTypes: () => ({ data: [{ id: 1, value: "wedding", label: "Wedding" }] }),
   useServiceStyles: () => ({ data: [] }),
@@ -85,5 +85,21 @@ describe("Quote create — guest split, timeline, meals reach the payload", () =
     expect(payload.additional_meals).toEqual([
       expect.objectContaining({ guest_count: 40, label: "", meal_time: `${today}T14:00` }),
     ]);
+  });
+
+  it("seeds the org's default service charge into a new quote's payload", async () => {
+    // Mirror of the event-form guard: the quote form must snapshot the org's
+    // service-charge default so a US org's 20% reaches api.createQuote.
+    render(<QuoteCreatePage />);
+
+    fireEvent.change(screen.getByLabelText("Guest Count"), { target: { value: "40" } });
+
+    fireEvent.click(screen.getByText("Create Quote"));
+
+    await waitFor(() => expect(h.createQuote).toHaveBeenCalledTimes(1));
+    const payload = h.createQuote.mock.calls[0][0] as Record<string, unknown>;
+    expect(payload.service_charge_pct).toBe("20.00");    // from OrgSettings, not a hardcoded 0
+    expect(payload.service_charge_taxable).toBe(false);  // the flag flows from settings (default state is true)
+    expect(payload.gratuity_pct).toBe("0.00");
   });
 });

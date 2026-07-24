@@ -8,7 +8,7 @@ from django.test import TestCase
 from rest_framework.test import APIRequestFactory
 
 from bookings.models.settings import OrgSettings
-from bookings.pdf import generate_quote_pdf
+from bookings.pdf import generate_quote_pdf, generate_event_pdf
 from bookings.serializers.quotes import QuoteSerializer
 from bookings.tests import _make_org, make_contact, make_quote
 from events.models import Event
@@ -83,6 +83,31 @@ class ServiceChargeGratuityTotals(TestCase):
         self.assertIn("$200.00", text)   # service charge amount
         self.assertIn("Gratuity (15%)", text)
         self.assertIn("$150.00", text)   # gratuity amount
+
+    def test_event_pdf_shows_service_charge_and_gratuity_rows(self):
+        # The event PDF doubles as the signed contract, so its totals block must
+        # render the service charge / gratuity when non-zero (the GB snapshot gate
+        # only covers the 0% case). $1,000 subtotal, 20% taxable SC, 15% gratuity:
+        # tax = 1,200 × 0.20 = 240; total = 1,000 + 200 + 240 + 150 = 1,590.
+        if not HAVE_PYPDF:
+            self.skipTest("pypdf not installed")
+        s = OrgSettings.for_org(self.org)
+        s.currency_symbol = "$"
+        s.save()
+        ev = Event.objects.create(
+            organisation=self.org, name="E", event_date="2026-09-01", guest_count=100,
+            gents=50, ladies=50, price_per_head=Decimal("10.00"), is_taxable=True,
+            tax_rate=Decimal("0.20"), service_charge_pct=Decimal("20"),
+            gratuity_pct=Decimal("15"),
+        )
+        ev.recalculate_totals()
+        ev.refresh_from_db()
+        text = "\n".join(p.extract_text() for p in PdfReader(io.BytesIO(generate_event_pdf(ev))).pages)
+        self.assertIn("Service Charge (20%)", text)
+        self.assertIn("$200.00", text)     # service charge amount
+        self.assertIn("Gratuity (15%)", text)
+        self.assertIn("$150.00", text)     # gratuity amount
+        self.assertIn("$1,590.00", text)   # grand total, incl. SC + tax + gratuity
 
 
 class PricingSnapshotOnCreate(TestCase):
