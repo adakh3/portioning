@@ -19,8 +19,18 @@ languages. This doc is how we stop that.
 
 ## The canonical rule (one definition of the math)
 
-- **food_total** = price/head × guests, **plus** any additional meals
-  (the caller sums meals in before calling the engine; both quotes and events).
+- **food_total** = the per-head menu cost across the guest **segments**, **plus**
+  any additional meals (the caller sums meals in before calling the engine; both
+  quotes and events). Segment food = Σ over all segments of
+  `price/head × segment.price_multiplier × segment.count` — in-count segments
+  (Adults, Kids) and additional covers (Vendors) alike; `counts_toward_total` only
+  governs count validation/display, never price. Backend:
+  `totals.py: segment_food_total`; frontend mirror:
+  `quoteTotals.ts: segmentFood` / `segmentFoodFromRows`. With **no** breakdown the
+  whole guest count sits under the org's default segment (multiplier 1.0), so this
+  reduces **exactly** to `price/head × guests` — existing bookings, and Gents/Ladies
+  orgs (both multipliers 1.0), keep byte-identical food totals. The shared
+  `segment_food_cases` in the golden file assert this in both engines.
 - **subtotal** = food_total + every add-on line item (discounts are negative
   lines, so they reduce the subtotal).
 - **service_charge** = subtotal × `service_charge_pct` / 100, rounded to 2 dp

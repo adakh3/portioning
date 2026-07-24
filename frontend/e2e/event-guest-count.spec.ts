@@ -2,39 +2,41 @@ import { test, expect } from "@playwright/test";
 import { login } from "./helpers";
 
 /**
- * Guest count is the primary number on an event. seed_demo's "Demo Co" is a US
- * org (Adults/Kids/Vendors segments), so per REL-404 it uses a single guest count
- * and the legacy gents/ladies split is NOT offered. Mocked tests prove the payload
- * wiring; only a real browser round-trip proves the native number input fires
- * onChange, the save reaches sqlite, and the count survives a reload.
- *
- * The gents/ladies split itself (open/adjust/clear) is a Gents+Ladies-org feature
- * — no demo org uses it anymore, so it is covered by GuestCountField's mocked
- * unit tests (components/GuestCountField.test.tsx) rather than here.
+ * Guest breakdown (REL-415). seed_demo's "Demo Co" is a US org
+ * (Adults[default]/Kids/Vendors segments), so the field is count-first: a
+ * canonical guest count, an optional in-count breakdown where Kids is an explicit
+ * input and Adults is the derived read-only remainder, and Vendors as an
+ * additional cover. Mocked unit/integration tests prove the payload wiring; only a
+ * real browser round-trip proves the native number inputs fire onChange, the save
+ * reaches sqlite, and the breakdown survives a reload (AC15).
  */
-test.describe("Event single guest count persists end-to-end (US org)", () => {
+test.describe("Event guest breakdown persists end-to-end (US org)", () => {
   test.beforeEach(async ({ page }) => {
     await login(page);
   });
 
-  test("count persists through a reload, and the gents/ladies split is not offered", async ({ page }) => {
+  test("count + kids + vendor covers survive a reload; Adults is the derived remainder", async ({ page }) => {
     await page.goto("/events/new");
 
     await page.getByLabel("Customer", { exact: false }).selectOption({ label: "Aisha Khan" });
     await page.getByLabel("Guest Count").fill("150");
-    // US org: no split control at all.
+    // No legacy gents/ladies split control for this org.
     await expect(page.getByRole("checkbox", { name: /gents \/ ladies split/i })).toHaveCount(0);
+
+    // Enter a breakdown: 12 kids → Adults derives to 138; 8 vendor covers.
+    await page.getByLabel("Kids", { exact: true }).fill("12");
+    await page.getByLabel("Vendors", { exact: true }).fill("8");
+    await expect(page.getByLabel("Adults (derived)")).toHaveText(/138/);
 
     await page.getByRole("button", { name: "Create Event" }).click();
     await page.waitForURL(/\/events\/\d+$/, { timeout: 15_000 });
 
-    await expect(page.getByText("150")).toBeVisible();
-    await expect(page.getByText("Split: not specified")).toHaveCount(0); // no split concept for this org
-
-    // Reopen the editor after a hard reload — the count persisted, still no split UI.
+    // Reopen the editor after a hard reload — the breakdown persisted.
     await page.reload();
     await page.getByRole("button", { name: "Edit", exact: true }).click();
     await expect(page.getByLabel("Guest Count")).toHaveValue("150");
-    await expect(page.getByRole("checkbox", { name: /gents \/ ladies split/i })).toHaveCount(0);
+    await expect(page.getByLabel("Kids", { exact: true })).toHaveValue("12");
+    await expect(page.getByLabel("Vendors", { exact: true })).toHaveValue("8");
+    await expect(page.getByLabel("Adults (derived)")).toHaveText(/138/);
   });
 });
