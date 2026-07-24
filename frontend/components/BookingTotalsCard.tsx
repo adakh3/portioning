@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/utils";
+import type { SegmentFoodRow } from "@/lib/quoteTotals";
 
 export interface TotalsMealRow {
   label: ReactNode;
@@ -25,6 +26,7 @@ export default function BookingTotalsCard({
   currencySymbol,
   foodTotal,
   foodLabel,
+  foodRows = null,
   meals = [],
   addOnsTotal,
   subtotal,
@@ -46,6 +48,7 @@ export default function BookingTotalsCard({
   currencySymbol: string;
   foodTotal: number;
   foodLabel: ReactNode;
+  foodRows?: SegmentFoodRow[] | null;
   meals?: TotalsMealRow[];
   addOnsTotal: number;
   subtotal: number;
@@ -71,11 +74,20 @@ export default function BookingTotalsCard({
         <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">{title}</h2>
         {taxRateField && <div className="ml-auto max-w-sm mb-4">{taxRateField}</div>}
         <div className="border border-border rounded-lg divide-y divide-border">
-          {foodTotal > 0 && (
-            <div className="flex justify-between px-4 py-2 text-sm">
-              <span className="text-muted-foreground">{foodLabel}</span>
-              <span className="font-medium text-foreground">{fmt(foodTotal)}</span>
-            </div>
+          {foodRows && foodRows.length > 0 ? (
+            foodRows.map((r, i) => (
+              <div key={`seg-${i}`} className="flex justify-between px-4 py-2 text-sm">
+                <span className="text-muted-foreground">{r.name} — {r.count} × {fmt(r.rate)}</span>
+                <span className="font-medium text-foreground">{fmt(r.amount)}</span>
+              </div>
+            ))
+          ) : (
+            foodTotal > 0 && (
+              <div className="flex justify-between px-4 py-2 text-sm">
+                <span className="text-muted-foreground">{foodLabel}</span>
+                <span className="font-medium text-foreground">{fmt(foodTotal)}</span>
+              </div>
+            )
           )}
           {meals.map((m, i) => (
             <div key={i} className="flex justify-between px-4 py-2 text-sm">

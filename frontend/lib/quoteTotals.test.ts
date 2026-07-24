@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import { resolve } from "path";
-import { computeQuoteTotals, computeBookingTotals, buildQuoteSavePayload, buildEventSavePayload, EventSaveInput, lineItemTotal, LineItemInput, segmentFood, segmentFoodFromRows, buildGuestCountsPayload, hasVendorDoubleEntry, GuestSegmentMeta } from "./quoteTotals";
+import { computeQuoteTotals, computeBookingTotals, buildQuoteSavePayload, buildEventSavePayload, EventSaveInput, lineItemTotal, LineItemInput, segmentFood, segmentFoodFromRows, segmentFoodRows, segmentEffectiveRate, buildGuestCountsPayload, hasVendorDoubleEntry, GuestSegmentMeta } from "./quoteTotals";
 
 // Adults(default)/Kids(0.5)/Vendors(0.5, additional covers) — mirrors the backend
 // segment_food_total fixture in bookings/test_segment_pricing.py (AC10/AC11).
@@ -27,6 +27,31 @@ describe("segmentFood (mirror of backend segment_food_total)", () => {
   it("half-cent amounts round half-up (matches the backend, not banker's)", () => {
     // 1.01 × 0.5 × 1 = 0.505 → 0.51, matching segment_food_total's ROUND_HALF_UP.
     expect(segmentFood("1.01", 1, { Kids: 1 }, SEG_META)).toBe(0.51);
+  });
+});
+
+describe("segmentFoodRows (itemized display) + segmentEffectiveRate", () => {
+  it("per-cover rate = round(price × multiplier)", () => {
+    expect(segmentEffectiveRate("10", "0.5")).toBe(5);
+    expect(segmentEffectiveRate("10", "1.0")).toBe(10);
+  });
+  it("itemizes multi-rate; amounts sum to segmentFood", () => {
+    const rows = segmentFoodRows("10", 150, { Kids: 12, Vendors: 8 }, SEG_META)!;
+    expect(rows.map((r) => [r.name, r.count, r.rate, r.amount])).toEqual([
+      ["Adults", 138, 10, 1380],
+      ["Kids", 12, 5, 60],
+      ["Vendors", 8, 5, 40],
+    ]);
+    // The itemized amounts sum EXACTLY to the subtotal food (parity with backend).
+    expect(rows.reduce((t, r) => t + r.amount, 0)).toBe(segmentFood("10", 150, { Kids: 12, Vendors: 8 }, SEG_META));
+  });
+  it("null for a single shared rate (gents/ladies) or a count-only booking", () => {
+    const GL: GuestSegmentMeta[] = [
+      { name: "Gents", is_default: true, counts_toward_total: true, price_multiplier: "1.0000", sort_order: 0 },
+      { name: "Ladies", is_default: false, counts_toward_total: true, price_multiplier: "1.0000", sort_order: 1 },
+    ];
+    expect(segmentFoodRows("10", 100, { Ladies: 40 }, GL)).toBeNull();
+    expect(segmentFoodRows("10", 150, {}, SEG_META)).toBeNull();
   });
 });
 

@@ -185,9 +185,13 @@ function BookingView({
       {/* Charges */}
       <section className="mt-4 rounded-xl border border-neutral-200 bg-white p-5">
         <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-neutral-400">Charges</h2>
-        {booking.price_per_head && (
+        {booking.food_rows && booking.food_rows.length > 0 ? (
+          booking.food_rows.map((r, i) => (
+            <Row key={i} label={`${r.name} — ${r.count} × ${money(r.rate)}`} value={money(r.amount)} />
+          ))
+        ) : booking.price_per_head ? (
           <Row label={`Food / menu (${money(booking.price_per_head)} pp)`} value="" />
-        )}
+        ) : null}
         {booking.line_items.map((li, i) => (
           <Row key={i} label={`${li.description}`} value={money(li.line_total)} />
         ))}

@@ -1230,6 +1230,7 @@ export interface PublicBooking {
   additional_meals: { label: string; guest_count: number; price_per_head: string | null; items: string[] }[];
   line_items: { description: string; category: string; quantity: string; unit: string; line_total: string }[];
   price_per_head: string | null;
+  food_rows: { name: string; count: number; rate: string; amount: string }[] | null;
   subtotal: string;
   tax_rate: string;
   tax_amount: string;

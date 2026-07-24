@@ -16,7 +16,7 @@ import GuestCountField, { GuestCountValue } from "@/components/GuestCountField";
 import BookingTimelineField from "@/components/BookingTimelineField";
 import BookingDetailsForm, { BookingDetailsValue } from "@/components/BookingDetailsForm";
 import AssigneePicker from "@/components/AssigneePicker";
-import { computeQuoteTotals, buildQuoteSavePayload, buildGuestCountsPayload, bookingMealRows, hasVendorDoubleEntry, segmentFood, LineItemInput, GuestSegmentMeta } from "@/lib/quoteTotals";
+import { computeQuoteTotals, buildQuoteSavePayload, buildGuestCountsPayload, bookingMealRows, hasVendorDoubleEntry, segmentFood, segmentFoodRows, LineItemInput, GuestSegmentMeta } from "@/lib/quoteTotals";
 import AddOnItemsEditor from "@/components/AddOnItemsEditor";
 import BookingTotalsCard from "@/components/BookingTotalsCard";
 import ESignPanel from "@/components/ESignPanel";
@@ -565,6 +565,7 @@ export default function QuoteDetailPage() {
             title="Quote Total"
             currencySymbol={cs}
             foodTotal={segmentFood(createData.price_per_head, createData.guest_count, createData.segment_counts, segmentMeta)}
+            foodRows={segmentFoodRows(createData.price_per_head, createData.guest_count, createData.segment_counts, segmentMeta)}
             foodLabel={`Food / Menu (${formatCurrency(createData.price_per_head || 0, cs)}/head × ${createData.guest_count} guests)`}
             meals={bookingMealRows(createMeals, cs)}
             addOnsTotal={Math.round((createTotals.subtotal - createTotals.food_total) * 100) / 100}
@@ -1128,6 +1129,7 @@ export default function QuoteDetailPage() {
         title="Quote Total"
         currencySymbol={cs}
         foodTotal={mainFood}
+        foodRows={segmentFoodRows(pph, guests, editing ? editData.segment_counts : viewSegmentCounts, segmentMeta)}
         foodLabel={`Food / Menu (${formatCurrency(editing ? editData.price_per_head : (q.price_per_head ?? 0), cs)}/head × ${editing ? editGuestCount : q.guest_count} guests)`}
         meals={bookingMealRows(mealsList, cs)}
         addOnsTotal={Math.round((subtotal - fullFood) * 100) / 100}

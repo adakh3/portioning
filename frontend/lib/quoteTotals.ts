@@ -218,18 +218,63 @@ export function defaultSegmentRemainder(
  * With no breakdown, the whole count is priced at the default segment's multiplier
  * (or 1.0), reducing to `price_per_head × guest_count`.
  */
+/** The per-cover price for a segment, rounded to cents — mirror of the backend
+ * `segment_effective_rate`: `round(price_per_head × multiplier)`. */
+export function segmentEffectiveRate(
+  pricePerHead: number | string | null | undefined,
+  priceMultiplier: string | number | null | undefined,
+): number {
+  const mult = priceMultiplier == null ? 1 : Number(priceMultiplier);
+  return round2((Number(pricePerHead) || 0) * mult);
+}
+
 /** Low-level food sum over already-resolved segment rows — the exact mirror of the
- * backend `segment_food_total` (both run the shared `segment_food_cases`). */
+ * backend `segment_food_total` (both run the shared `segment_food_cases`). Rounds
+ * per cover then sums, so itemized lines add up to this to the cent. */
 export function segmentFoodFromRows(
   pricePerHead: number | string | null | undefined,
   rows: { count: number; price_multiplier: string | number | null | undefined }[],
 ): number {
   const price = Number(pricePerHead) || 0;
   if (price <= 0) return 0;
-  return round2(rows.reduce((t, r) => {
-    const mult = r.price_multiplier == null ? 1 : Number(r.price_multiplier);
-    return t + price * mult * (r.count || 0);
-  }, 0));
+  return round2(rows.reduce((t, r) => t + segmentEffectiveRate(price, r.price_multiplier) * (r.count || 0), 0));
+}
+
+export interface SegmentFoodRow { name: string; count: number; rate: number; amount: number; }
+
+/** Itemized food lines for display — mirror of the backend `segment_food_rows`.
+ * Returns `null` when there is nothing to itemize (no price, <2 segments, or a
+ * single shared rate), so the caller shows the single food line and Gents/Ladies /
+ * count-only bookings stay byte-identical. */
+export function segmentFoodRows(
+  pricePerHead: number | string | null | undefined,
+  guestCount: number,
+  explicit: Record<string, number>,
+  meta: GuestSegmentMeta[],
+): SegmentFoodRow[] | null {
+  const price = Number(pricePerHead) || 0;
+  if (price <= 0) return null;
+  const byName: Record<string, GuestSegmentMeta> = Object.fromEntries(meta.map((m) => [m.name, m]));
+  const built = buildGuestCountsPayload(guestCount, explicit, meta);
+  let resolved: { name: string; count: number; mult: string | number }[];
+  if (built.length === 0) {
+    const def = meta.find((m) => m.is_default && m.counts_toward_total);
+    resolved = (guestCount || 0) > 0 ? [{ name: def?.name ?? "", count: guestCount, mult: def ? def.price_multiplier : 1 }] : [];
+  } else {
+    resolved = built.map((r) => ({ name: r.segment, count: r.count, mult: byName[r.segment]?.price_multiplier ?? 1 }));
+  }
+  const rows = resolved
+    .filter((r) => r.count > 0)
+    // Order by the org's segment order so the display matches the PDF/backend
+    // (which read rows ordered by sort_order), not the payload's explicit-then-default order.
+    .sort((a, b) => (byName[a.name]?.sort_order ?? 0) - (byName[b.name]?.sort_order ?? 0))
+    .map((r) => {
+      const rate = segmentEffectiveRate(price, r.mult);
+      return { name: r.name, count: r.count, rate, amount: round2(rate * r.count) };
+    });
+  const distinctRates = new Set(rows.map((r) => r.rate));
+  if (rows.length < 2 || distinctRates.size < 2) return null;
+  return rows;
 }
 
 export function segmentFood(

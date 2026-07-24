@@ -13,7 +13,7 @@ from django.test import TestCase
 import io
 
 from bookings.models.quotes import Quote
-from bookings.services.totals import segment_food_total
+from bookings.services.totals import segment_food_total, segment_food_rows
 from bookings.tests import _make_org, make_contact, make_quote
 from events.models import Event, BookingGuestCount
 from rules.models import GuestSegment
@@ -70,6 +70,40 @@ class SegmentFoodTotalPureTests(TestCase):
             segment_food_total(Decimal('10'), [{'count': 10, 'price_multiplier': None}]),
             Decimal('100'),
         )
+
+
+class SegmentFoodRowsTests(TestCase):
+    """Itemized food lines (count × effective rate = amount), summing to subtotal."""
+
+    def test_itemizes_multi_rate_and_sums_to_subtotal(self):
+        rows = segment_food_rows(Decimal('10'), [
+            {'name': 'Adults', 'count': 138, 'price_multiplier': '1.0'},
+            {'name': 'Kids', 'count': 12, 'price_multiplier': '0.5'},
+            {'name': 'Vendors', 'count': 8, 'price_multiplier': '0.5'},
+        ])
+        self.assertEqual(
+            [(r['name'], r['count'], str(r['rate']), str(r['amount'])) for r in rows],
+            [('Adults', 138, '10.00', '1380.00'),
+             ('Kids', 12, '5.00', '60.00'),
+             ('Vendors', 8, '5.00', '40.00')],
+        )
+        # The itemized amounts sum EXACTLY to segment_food_total (per-cover rounding).
+        self.assertEqual(sum(r['amount'] for r in rows), Decimal('1480.00'))
+
+    def test_none_when_single_rate_or_single_segment(self):
+        # Gents/Ladies both 1.0 → one rate → no itemization (single line, byte-identical).
+        self.assertIsNone(segment_food_rows(Decimal('10'), [
+            {'name': 'Gents', 'count': 60, 'price_multiplier': '1.0'},
+            {'name': 'Ladies', 'count': 40, 'price_multiplier': '1.0'},
+        ]))
+        # Count-only (one segment) → None.
+        self.assertIsNone(segment_food_rows(
+            Decimal('10'), [{'name': 'Adults', 'count': 150, 'price_multiplier': '1.0'}]))
+        # No price → None.
+        self.assertIsNone(segment_food_rows(Decimal('0'), [
+            {'name': 'Adults', 'count': 138, 'price_multiplier': '1.0'},
+            {'name': 'Kids', 'count': 12, 'price_multiplier': '0.5'},
+        ]))
 
 
 class SegmentFoodTotalModelTests(TestCase):
@@ -139,8 +173,13 @@ class SegmentFoodTotalModelTests(TestCase):
         q.recalculate_totals()
         q.refresh_from_db()
         text = "\n".join(p.extract_text() for p in PdfReader(io.BytesIO(generate_quote_pdf(q))).pages)
-        self.assertIn("1,480.00", text)
-        self.assertNotIn("1,500.00", text)  # NOT the flat price × count
+        self.assertIn("1,480.00", text)              # segment-priced subtotal
+        self.assertNotIn("1,500.00", text)           # NOT the flat price × count
+        # Itemized per segment: Adults 138 × $10, Kids 12 × $5, Vendors 8 × $5.
+        self.assertIn("138 × $10.00", text)
+        self.assertIn("Kids", text)
+        self.assertIn("12 × $5.00", text)
+        self.assertIn("Vendors", text)
 
     def test_event_pdf_renders_segment_priced_total(self):
         if not HAVE_PYPDF:
@@ -156,3 +195,5 @@ class SegmentFoodTotalModelTests(TestCase):
         text = "\n".join(p.extract_text() for p in PdfReader(io.BytesIO(generate_event_pdf(ev))).pages)
         self.assertIn("1,480.00", text)
         self.assertNotIn("1,500.00", text)
+        self.assertIn("138 × $10.00", text)
+        self.assertIn("12 × $5.00", text)

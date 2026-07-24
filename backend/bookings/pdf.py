@@ -74,6 +74,26 @@ def food_summary_text(price_per_head, guest_count, food_total, cs):
     return f'{_fmt(price_per_head or 0, cs)} per head × {guest_count} guests = {_fmt(food_total, cs)}'
 
 
+def food_summary_lines(booking, cs):
+    """Food line(s) for a booking PDF: one **per guest segment** when the segments
+    are multi-rate (Adults/Kids/Vendors — ``Name — count × rate = amount``, summing
+    to the subtotal), else the single ``price/head × guests = total`` line
+    (count-only or a Gents/Ladies org, so those PDFs stay byte-identical). Empty
+    list when there's no food cost."""
+    from bookings.services.totals import segment_food_total, segment_food_rows
+    from events.models import resolve_booking_segments
+    segs = resolve_booking_segments(booking)
+    rows = segment_food_rows(booking.price_per_head, segs)
+    if rows:
+        return [f'{r["name"]} — {r["count"]} × {_fmt(r["rate"], cs)} = {_fmt(r["amount"], cs)}'
+                for r in rows]
+    line = food_summary_text(
+        booking.price_per_head, booking.guest_count,
+        segment_food_total(booking.price_per_head, segs), cs,
+    )
+    return [line] if line else []
+
+
 def meal_line_text(meal, cs, time_format='24h'):
     """One-line summary for an additional meal, or None when it has no price."""
     pph = meal.price_per_head
@@ -638,18 +658,17 @@ def generate_quote_pdf(quote, signature=None):
 
     # Food/menu summary — the MAIN meal line (shown even with no dish list, so
     # food_total never sits silently in the subtotal — the Q-59 bug).
-    # Segment-priced (kids/vendor multipliers), NOT flat price × count, so the food
-    # line agrees with the subtotal. Reduces to price × count with no breakdown.
-    from bookings.services.totals import segment_food_total
-    from events.models import resolve_booking_segments
-    main_food = segment_food_total(quote.price_per_head, resolve_booking_segments(quote))
-    food_line = food_summary_text(quote.price_per_head, quote.guest_count, main_food, cs)
-    if food_line:
+    # Itemized per segment when multi-rate (kids/vendors), else a single line; either
+    # way segment-priced so it agrees with the subtotal, and byte-identical for
+    # count-only / Gents-Ladies bookings.
+    food_lines = food_summary_lines(quote, cs)
+    if food_lines:
         if dish_names:
             elements.append(Spacer(1, 3 * mm))
         else:
             elements.append(_section_header([Paragraph('FOOD / MENU', s['section_title'])], [CONTENT_W]))
-        elements.append(Paragraph(f'<b>{food_line}</b>', s['body']))
+        for food_line in food_lines:
+            elements.append(Paragraph(f'<b>{food_line}</b>', s['body']))
         elements.append(Spacer(1, 6 * mm))
 
     # Additional meals — a summary line + that meal's own menu as a table.
@@ -885,15 +904,14 @@ def generate_event_pdf(event, signature=None):
         elements.append(_dish_table(dish_names, s))
         elements.append(Spacer(1, 3 * mm))
 
-    # Segment-priced (see the quote path) so the food line agrees with the subtotal.
-    from bookings.services.totals import segment_food_total
-    from events.models import resolve_booking_segments
-    main_food = segment_food_total(event.price_per_head, resolve_booking_segments(event))
-    food_line = food_summary_text(event.price_per_head, event.guest_count, main_food, cs)
-    if food_line:
+    # Itemized per segment when multi-rate (see the quote path); segment-priced so it
+    # agrees with the subtotal, byte-identical for count-only / Gents-Ladies.
+    food_lines = food_summary_lines(event, cs)
+    if food_lines:
         if not dish_names:
             elements.append(_section_header([Paragraph('FOOD / MENU', s['section_title'])], [CONTENT_W]))
-        elements.append(Paragraph(f'<b>{food_line}</b>', s['body']))
+        for food_line in food_lines:
+            elements.append(Paragraph(f'<b>{food_line}</b>', s['body']))
         elements.append(Spacer(1, 6 * mm))
 
     # ── Additional meals — a summary line + that meal's own menu as a table. ──

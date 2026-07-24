@@ -27,7 +27,7 @@ import DealWonDialog from "@/components/DealWonDialog";
 import EventPaymentsCard from "@/components/EventPaymentsCard";
 import { useAuth } from "@/lib/auth";
 import { formatDate, formatDateTime as sharedFormatDateTime, todayISO } from "@/lib/dateFormat";
-import { LineItemInput, lineItemTotal, computeBookingTotals, buildEventSavePayload, segmentFood, defaultSegmentRemainder, hasVendorDoubleEntry, GuestSegmentMeta } from "@/lib/quoteTotals";
+import { LineItemInput, lineItemTotal, computeBookingTotals, buildEventSavePayload, segmentFood, segmentFoodRows, defaultSegmentRemainder, hasVendorDoubleEntry, GuestSegmentMeta } from "@/lib/quoteTotals";
 import BookingTotalsCard from "@/components/BookingTotalsCard";
 import AddOnItemsEditor from "@/components/AddOnItemsEditor";
 import MenuBuilder from "@/components/MenuBuilder";
@@ -987,6 +987,7 @@ export default function EventDetailPage() {
             title="Pricing"
             currencySymbol={settings.currency_symbol}
             foodTotal={foodTotal}
+            foodRows={segmentFoodRows(pph, guests, editing ? formSegmentCounts : viewSegmentCounts, segmentMeta)}
             foodLabel={`Food (${formatCurrency(pph, settings.currency_symbol)}/head × ${guests} guests)`}
             meals={mealRows}
             addOnsTotal={addOnsTotal}

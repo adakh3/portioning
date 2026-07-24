@@ -47,6 +47,7 @@ const booking: PublicBooking = {
   additional_meals: [{ label: "Drivers food", guest_count: 25, price_per_head: "4350.00", items: ["Chicken Biryani"] }],
   line_items: [{ description: "Chair rental", category: "Rental", quantity: "120", unit: "Each", line_total: "600.00" }],
   price_per_head: "50.00",
+  food_rows: null,
   subtotal: "6600.00",
   tax_rate: "0.2000",
   tax_amount: "660.00",
@@ -68,6 +69,23 @@ describe("Public booking sign page", () => {
   beforeEach(() => {
     h.getPublicBooking.mockReset();
     h.signPublicBooking.mockReset();
+  });
+
+  it("itemizes the food per guest segment when the booking is multi-rate", async () => {
+    h.getPublicBooking.mockResolvedValue({
+      ...booking,
+      food_rows: [
+        { name: "Adults", count: 138, rate: "10.00", amount: "1380.00" },
+        { name: "Kids", count: 12, rate: "5.00", amount: "60.00" },
+        { name: "Vendors", count: 8, rate: "5.00", amount: "40.00" },
+      ],
+    });
+    render(<PublicBookingSignPage />);
+    await screen.findByText("Quote #42");
+    expect(screen.getByText(/Adults — 138 × \$10\.00/)).toBeInTheDocument();
+    expect(screen.getByText(/Kids — 12 × \$5\.00/)).toBeInTheDocument();
+    expect(screen.getByText("$1380.00")).toBeInTheDocument(); // per-segment amount
+    expect(screen.getByText("$40.00")).toBeInTheDocument();   // vendor covers amount
   });
 
   it("renders the booking and signs with name + consent", async () => {

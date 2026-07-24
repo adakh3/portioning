@@ -9,13 +9,28 @@ from decimal import Decimal, ROUND_HALF_UP
 TWO_PLACES = Decimal('0.01')
 
 
+def _round2(x):
+    """2-dp HALF_UP — matches the frontend `round2` (Math.round is half-up), not
+    Decimal's default HALF_EVEN, so the two engines agree to the cent."""
+    return Decimal(x).quantize(TWO_PLACES, rounding=ROUND_HALF_UP)
+
+
+def segment_effective_rate(price_per_head, price_multiplier):
+    """The per-cover price for a segment, rounded to cents:
+    ``round(price_per_head × price_multiplier)`` (e.g. Kids at 0.5 → $5.00)."""
+    mult = Decimal(str(price_multiplier if price_multiplier is not None else 1))
+    return _round2(Decimal(price_per_head or 0) * mult)
+
+
 def segment_food_total(price_per_head, segments):
     """Per-head food cost across a booking's guest segments.
 
-    Each segment is charged ``price_per_head × price_multiplier × count`` and the
-    results are summed over **all** segments — in-count (Adults, Kids) *and*
-    additional covers (Vendors) alike, because vendors are billed too;
+    Each segment is charged its **rounded per-cover rate** (``round(price ×
+    multiplier)``) × count, summed over **all** segments — in-count (Adults, Kids)
+    *and* additional covers (Vendors) alike, because vendors are billed too;
     ``counts_toward_total`` only governs count validation/display, never pricing.
+    Rounding per cover (not once on the aggregate) is what makes the itemized food
+    lines sum **exactly** to this subtotal on every surface.
 
     ``segments`` is an iterable of plain dicts ``{'count', 'price_multiplier'}``
     (extra keys ignored). With a single default segment whose ``price_multiplier``
@@ -28,12 +43,36 @@ def segment_food_total(price_per_head, segments):
         return Decimal('0.00')
     total = Decimal('0.00')
     for seg in segments:
-        mult = Decimal(str(seg.get('price_multiplier', 1) if seg.get('price_multiplier') is not None else 1))
-        total += price * mult * Decimal(seg.get('count', 0) or 0)
-    # Round HALF_UP (not the Decimal default HALF_EVEN) so this matches the
-    # frontend mirror `segmentFood` (Math.round is half-up) to the cent even when a
-    # multiplier lands the amount on a half-cent — and the repo's commission.py.
-    return total.quantize(TWO_PLACES, rounding=ROUND_HALF_UP)
+        rate = segment_effective_rate(price, seg.get('price_multiplier'))
+        total += rate * Decimal(seg.get('count', 0) or 0)
+    return _round2(total)
+
+
+def segment_food_rows(price_per_head, segments):
+    """Itemized food lines — ``[{name, count, rate, amount}]`` where
+    ``rate = round(price × multiplier)`` (per-cover) and ``amount = rate × count``,
+    so ``count × rate = amount`` reads exactly and the amounts sum to
+    ``segment_food_total``.
+
+    Returns ``None`` when there is nothing worth itemizing — no price, fewer than
+    two segments with a count, or every segment sharing **one** rate (a count-only
+    booking, or a Gents/Ladies org whose segments are all 1.0×). Callers then render
+    the single ``price/head × guests = total`` line, so those surfaces stay
+    byte-identical (the owner's "only multi-rate breakdowns" decision).
+    """
+    price = Decimal(price_per_head or 0)
+    rows, rates = [], set()
+    for seg in segments:
+        count = int(seg.get('count', 0) or 0)
+        if count <= 0:
+            continue
+        rate = segment_effective_rate(price, seg.get('price_multiplier'))
+        rows.append({'name': seg.get('name', ''), 'count': count,
+                     'rate': rate, 'amount': rate * count})
+        rates.add(rate)
+    if price <= 0 or len(rows) < 2 or len(rates) < 2:
+        return None
+    return rows
 
 
 @dataclass(frozen=True)
