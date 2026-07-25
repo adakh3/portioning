@@ -80,13 +80,24 @@ class OrgSettingsInline(admin.StackedInline):
     max_num = 1
 
 
+class GuestSegmentInline(admin.TabularInline):
+    """The org's guest segments (Adults/Kids/Vendors or Gents/Ladies) — pricing/
+    portion multipliers, order, and the single default — edited in the context of
+    their org rather than a flat cross-org list."""
+    from rules.models import GuestSegment
+    model = GuestSegment
+    extra = 0
+    fields = ['name', 'portion_multiplier', 'price_multiplier', 'sort_order', 'is_default', 'is_active']
+    ordering = ['sort_order', 'name']
+
+
 @admin.register(Organisation)
 class OrganisationAdmin(admin.ModelAdmin):
     list_display = ["name", "country", "is_active", "subscription_status", "created_at"]
     list_editable = ["is_active"]  # toggle active inline from the list
     list_filter = ["is_active", "country"]
     search_fields = ["name", "slug"]
-    inlines = [OrgSettingsInline, SubscriptionInline, OrgUserInline]
+    inlines = [OrgSettingsInline, GuestSegmentInline, SubscriptionInline, OrgUserInline]
     actions = ["activate_organisations", "deactivate_organisations", "seed_starter_catalog"]
 
     @admin.action(description="Seed starter catalog (dishes, menus, add-ons, rules)")

@@ -2,7 +2,7 @@ from django.contrib import admin
 
 from users.admin_mixins import OrgVisibleAdminMixin
 from .models import (
-    GlobalConfig, BudgetProfile, GuestSegment,
+    GlobalConfig, BudgetProfile,
     CombinationRule, GlobalConstraint, CategoryConstraint,
 )
 
@@ -21,11 +21,9 @@ class BudgetProfileAdmin(OrgVisibleAdminMixin, admin.ModelAdmin):
     filter_horizontal = ['categories']
 
 
-@admin.register(GuestSegment)
-class GuestSegmentAdmin(OrgVisibleAdminMixin, admin.ModelAdmin):
-    list_display = ['name', 'organisation', 'portion_multiplier', 'price_multiplier',
-                    'sort_order', 'is_default', 'is_active']
-    list_editable = ['portion_multiplier', 'price_multiplier', 'sort_order', 'is_default', 'is_active']
+# GuestSegment is edited as an inline on the Organisation admin page (see
+# users/admin.py: GuestSegmentInline) — in the context of its org, not a flat
+# cross-org list — so it has no standalone admin registration here.
 
 
 @admin.register(CombinationRule)
