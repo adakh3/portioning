@@ -69,6 +69,16 @@ class Command(BaseCommand):
 
         # Org settings: monthly targets, commission by event date, calendar year.
         settings_obj = OrgSettings.for_org(org)
+        # Locale/pricing defaults must match the org's country (e.g. a US org gets a
+        # 20% service charge). The org-creation signal normally applies these, but a
+        # demo org restored from seed.json via loaddata bypasses the signal AND
+        # predates the country-defaults feature (null service charge), and
+        # get_or_create above won't re-fire the signal — so re-apply them here so the
+        # demo org is always a correct US org (idempotent reset). This is the bug that
+        # made a seeded Demo Co show no service charge.
+        from users.country_defaults import defaults_for_country
+        for _field, _val in defaults_for_country(org.country).items():
+            setattr(settings_obj, _field, _val)
         settings_obj.target_period = "monthly"
         settings_obj.commission_basis = "event_date"
         settings_obj.fiscal_year_start_month = 1
