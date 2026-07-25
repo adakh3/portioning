@@ -49,3 +49,22 @@ class SeedDemoTests(TestCase):
         self.assertEqual(s.target_period, "monthly")
         self.assertEqual(s.commission_basis, "event_date")
         self.assertEqual(s.fiscal_year_start_month, 1)
+
+    def test_demo_org_gets_its_country_locale_and_service_charge(self):
+        # The demo org is US, so it must have the US locale + a 20% service charge —
+        # even when restored (via seed.json/loaddata) with stale/zero settings that
+        # bypassed the org-creation signal. This is the bug that made a seeded Demo Co
+        # show no service charge (and broke the pricing e2e in CI).
+        from decimal import Decimal
+        self._run()
+        org = Organisation.objects.get(name="Demo Co")
+        # Simulate the loaddata-restored state: wrong locale + no service charge.
+        s = OrgSettings.for_org(org)
+        s.service_charge_default_pct = Decimal("0.00")
+        s.currency_symbol = "£"
+        s.save()
+        self._run()  # re-seeding must correct it back to the org's country defaults
+        s = OrgSettings.for_org(org)
+        self.assertEqual(s.service_charge_default_pct, Decimal("20.00"))
+        self.assertEqual(s.currency_symbol, "$")
+        self.assertEqual(s.currency_code, "USD")
