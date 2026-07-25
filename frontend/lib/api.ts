@@ -427,7 +427,7 @@ export interface Quote {
   guest_count: number;
   gents: number;
   ladies: number;
-  guest_counts?: { segment: string; count: number; counts_toward_total: boolean }[];
+  guest_counts?: { segment: string; count: number; counts_toward_total: boolean; price_per_head?: string | null }[];
   big_eaters: boolean;
   big_eaters_percentage: number;
   setup_time: string | null;
@@ -724,7 +724,7 @@ export interface EventData {
   guest_count: number;
   gents: number;
   ladies: number;
-  guest_counts?: { segment: string; count: number; counts_toward_total: boolean }[];
+  guest_counts?: { segment: string; count: number; counts_toward_total: boolean; price_per_head?: string | null }[];
   big_eaters: boolean;
   big_eaters_percentage: number;
   dishes: number[];
@@ -1330,13 +1330,13 @@ export const api = {
     const qs = searchParams.toString();
     return fetchList<EventData>(`/events/${qs ? `?${qs}` : ""}`);
   },
-  createEvent: (data: Omit<Partial<EventData>, "line_items" | "additional_meals" | "guest_counts"> & { dish_ids?: number[]; dish_comments?: EventDishComment[]; line_items?: unknown[]; additional_meals?: unknown[]; guest_counts?: { segment: string; count: number }[] }) =>
+  createEvent: (data: Omit<Partial<EventData>, "line_items" | "additional_meals" | "guest_counts"> & { dish_ids?: number[]; dish_comments?: EventDishComment[]; line_items?: unknown[]; additional_meals?: unknown[]; guest_counts?: { segment: string; count: number; price_per_head?: string | null }[] }) =>
     fetchApi<EventData>("/events/", {
       method: "POST",
       body: JSON.stringify(data),
     }),
   getEvent: (id: number) => fetchApi<EventData>(`/events/${id}/`),
-  updateEvent: (id: number, data: Omit<Partial<EventData>, "line_items" | "additional_meals" | "guest_counts"> & { dish_ids?: number[]; dish_comments?: EventDishComment[]; line_items?: unknown[]; additional_meals?: unknown[]; guest_counts?: { segment: string; count: number }[] }) =>
+  updateEvent: (id: number, data: Omit<Partial<EventData>, "line_items" | "additional_meals" | "guest_counts"> & { dish_ids?: number[]; dish_comments?: EventDishComment[]; line_items?: unknown[]; additional_meals?: unknown[]; guest_counts?: { segment: string; count: number; price_per_head?: string | null }[] }) =>
     fetchApi<EventData>(`/events/${id}/`, {
       method: "PATCH",
       body: JSON.stringify(data),
@@ -1531,9 +1531,9 @@ export const api = {
     return fetchList<Quote>(`/bookings/quotes/${qs ? `?${qs}` : ""}`);
   },
   getQuote: (id: number) => fetchApi<Quote>(`/bookings/quotes/${id}/`),
-  createQuote: (data: Omit<Partial<Quote>, "line_items" | "additional_meals" | "guest_counts"> & { dish_ids?: number[]; line_items?: unknown[]; additional_meals?: unknown[]; guest_counts?: { segment: string; count: number }[] }) =>
+  createQuote: (data: Omit<Partial<Quote>, "line_items" | "additional_meals" | "guest_counts"> & { dish_ids?: number[]; line_items?: unknown[]; additional_meals?: unknown[]; guest_counts?: { segment: string; count: number; price_per_head?: string | null }[] }) =>
     fetchApi<Quote>("/bookings/quotes/", { method: "POST", body: JSON.stringify(data) }),
-  updateQuote: (id: number, data: Omit<Partial<Quote>, "line_items" | "additional_meals" | "guest_counts"> & { dish_ids?: number[]; line_items?: unknown[]; additional_meals?: unknown[]; guest_counts?: { segment: string; count: number }[] }) =>
+  updateQuote: (id: number, data: Omit<Partial<Quote>, "line_items" | "additional_meals" | "guest_counts"> & { dish_ids?: number[]; line_items?: unknown[]; additional_meals?: unknown[]; guest_counts?: { segment: string; count: number; price_per_head?: string | null }[] }) =>
     fetchApi<Quote>(`/bookings/quotes/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
   deleteQuote: (id: number) =>
     fetchApi<void>(`/bookings/quotes/${id}/`, { method: "DELETE" }),

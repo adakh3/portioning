@@ -15,9 +15,12 @@ def _round2(x):
     return Decimal(x).quantize(TWO_PLACES, rounding=ROUND_HALF_UP)
 
 
-def segment_effective_rate(price_per_head, price_multiplier):
-    """The per-cover price for a segment, rounded to cents:
+def segment_effective_rate(price_per_head, price_multiplier, override=None):
+    """The per-cover price for a segment, rounded to cents. A per-segment
+    ``override`` (a flat/custom per-head set on the booking) wins; otherwise it's
     ``round(price_per_head × price_multiplier)`` (e.g. Kids at 0.5 → $5.00)."""
+    if override is not None:
+        return _round2(Decimal(str(override)))
     mult = Decimal(str(price_multiplier if price_multiplier is not None else 1))
     return _round2(Decimal(price_per_head or 0) * mult)
 
@@ -25,52 +28,47 @@ def segment_effective_rate(price_per_head, price_multiplier):
 def segment_food_total(price_per_head, segments):
     """Per-head food cost across a booking's guest segments.
 
-    Each segment is charged its **rounded per-cover rate** (``round(price ×
-    multiplier)``) × count, summed over **all** segments — in-count (Adults, Kids)
-    *and* additional covers (Vendors) alike, because vendors are billed too;
-    ``counts_toward_total`` only governs count validation/display, never pricing.
-    Rounding per cover (not once on the aggregate) is what makes the itemized food
-    lines sum **exactly** to this subtotal on every surface.
+    Each segment is charged its **rounded per-cover rate** — a per-segment
+    ``price_override`` if set, else ``round(base price × multiplier)`` — × count,
+    summed over **all** segments (in-count Adults/Kids *and* additional covers
+    Vendors; ``counts_toward_total`` only governs count validation/display, never
+    pricing). Rounding per cover (not once on the aggregate) is what makes the
+    itemized food lines sum **exactly** to this subtotal on every surface.
 
-    ``segments`` is an iterable of plain dicts ``{'count', 'price_multiplier'}``
-    (extra keys ignored). With a single default segment whose ``price_multiplier``
-    is 1.0 and ``count`` is the whole guest count, this reduces **exactly** to the
-    legacy ``price_per_head × guest_count`` — so a booking with no breakdown, and a
-    Gents/Ladies booking (both multipliers 1.0), keep their existing food total.
+    ``segments`` is an iterable of plain dicts ``{'count', 'price_multiplier',
+    'price_override'?}`` (extra keys ignored). With a single default segment at 1.0×
+    and no override, this reduces **exactly** to the legacy ``price × guest_count``
+    — so a booking with no breakdown, and a Gents/Ladies booking, keep their totals.
     """
-    price = Decimal(price_per_head or 0)
-    if price <= 0:
-        return Decimal('0.00')
     total = Decimal('0.00')
     for seg in segments:
-        rate = segment_effective_rate(price, seg.get('price_multiplier'))
+        rate = segment_effective_rate(price_per_head, seg.get('price_multiplier'), seg.get('price_override'))
         total += rate * Decimal(seg.get('count', 0) or 0)
     return _round2(total)
 
 
 def segment_food_rows(price_per_head, segments):
-    """Itemized food lines — ``[{name, count, rate, amount}]`` where
-    ``rate = round(price × multiplier)`` (per-cover) and ``amount = rate × count``,
-    so ``count × rate = amount`` reads exactly and the amounts sum to
-    ``segment_food_total``.
+    """Itemized food lines — ``[{name, count, rate, amount}]`` where ``rate`` is the
+    per-cover effective rate (override or ``round(price × multiplier)``) and
+    ``amount = rate × count``, so ``count × rate = amount`` reads exactly and the
+    amounts sum to ``segment_food_total``.
 
-    Returns ``None`` when there is nothing worth itemizing — no price, fewer than
-    two segments with a count, or every segment sharing **one** rate (a count-only
+    Returns ``None`` when there is nothing worth itemizing — no food, fewer than two
+    segments with a count, or every segment sharing **one** rate (a count-only
     booking, or a Gents/Ladies org whose segments are all 1.0×). Callers then render
     the single ``price/head × guests = total`` line, so those surfaces stay
     byte-identical (the owner's "only multi-rate breakdowns" decision).
     """
-    price = Decimal(price_per_head or 0)
     rows, rates = [], set()
     for seg in segments:
         count = int(seg.get('count', 0) or 0)
         if count <= 0:
             continue
-        rate = segment_effective_rate(price, seg.get('price_multiplier'))
+        rate = segment_effective_rate(price_per_head, seg.get('price_multiplier'), seg.get('price_override'))
         rows.append({'name': seg.get('name', ''), 'count': count,
                      'rate': rate, 'amount': rate * count})
         rates.add(rate)
-    if price <= 0 or len(rows) < 2 or len(rates) < 2:
+    if not any(r['rate'] > 0 for r in rows) or len(rows) < 2 or len(rates) < 2:
         return None
     return rows
 

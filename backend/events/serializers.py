@@ -158,7 +158,8 @@ class EventSerializer(OrgScopedModelSerializer):
     def get_guest_counts(self, obj):
         return [
             {'segment': r.segment.name, 'count': r.count,
-             'counts_toward_total': r.segment.counts_toward_total}
+             'counts_toward_total': r.segment.counts_toward_total,
+             'price_per_head': str(r.price_per_head) if r.price_per_head is not None else None}
             for r in obj.guest_counts.select_related('segment').all()
         ]
 

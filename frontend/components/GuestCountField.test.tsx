@@ -21,7 +21,7 @@ const US = [
 ];
 const GL = [seg("Gents", { is_default: true, sort_order: 0 }), seg("Ladies", { sort_order: 1 })];
 
-const base: GuestCountValue = { guest_count: 0, segment_counts: {}, big_eaters: false, big_eaters_percentage: 0 };
+const base: GuestCountValue = { guest_count: 0, segment_counts: {}, segment_prices: {}, big_eaters: false, big_eaters_percentage: 0 };
 
 const val = (el: HTMLElement) => (el as HTMLInputElement).value;
 
@@ -73,6 +73,22 @@ describe("GuestCountField — count-first breakdown", () => {
     expect(val(screen.getByLabelText("Ladies"))).toBe("40");
     expect(screen.getByLabelText("Gents (derived)")).toHaveTextContent("60");
     expect(screen.queryByRole("checkbox", { name: /split/i })).not.toBeInTheDocument();
+  });
+
+  it("per-segment rate box: shows the multiplier default as placeholder, stores an edit", () => {
+    mockUseSiteSettings.mockReturnValue({ data: { guest_segments: US } });
+    const onChange = vi.fn();
+    render(
+      <GuestCountField
+        value={{ ...base, guest_count: 150, segment_counts: { Kids: 12 } }}
+        onChange={onChange}
+        pricePerHead="10"
+      />,
+    );
+    const kidsRate = screen.getByLabelText("Kids price per head") as HTMLInputElement;
+    expect(kidsRate.placeholder).toBe("5.00"); // 0.5 × $10 default
+    fireEvent.change(kidsRate, { target: { value: "18" } });
+    expect(onChange).toHaveBeenCalledWith({ segment_prices: { Kids: "18" } });
   });
 
   it("enables the big-eaters modifier", () => {

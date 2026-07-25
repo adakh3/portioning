@@ -39,6 +39,7 @@ def resolve_legacy_segments(organisation, guest_count, gents, ladies, has_split)
             'count': count,
             'portion_multiplier': seg.portion_multiplier if seg else 1.0,
             'price_multiplier': float(seg.price_multiplier) if seg else 1.0,
+            'price_override': None,  # legacy/no-rows bookings have no per-segment override
             'counts_toward_total': seg.counts_toward_total if seg else True,
         }
 
@@ -126,8 +127,10 @@ def write_booking_segments(booking, raw_counts):
         elif name == 'ladies':
             ladies = count
         if count > 0:
+            raw_price = row.get('price_per_head')
+            override = Decimal(str(raw_price)) if raw_price not in (None, '') else None
             BookingGuestCount.objects.update_or_create(
-                segment=seg, defaults={'count': count}, **parent,
+                segment=seg, defaults={'count': count, 'price_per_head': override}, **parent,
             )
             seen.append(seg.id)
     BookingGuestCount.objects.filter(**parent).exclude(segment_id__in=seen).delete()
@@ -158,6 +161,8 @@ def resolve_booking_segments(booking):
             {'name': r.segment.name, 'count': r.count,
              'portion_multiplier': r.segment.portion_multiplier,
              'price_multiplier': float(r.segment.price_multiplier),
+             # Per-booking per-head override (flat/custom rate); None → use multiplier.
+             'price_override': float(r.price_per_head) if r.price_per_head is not None else None,
              'counts_toward_total': r.segment.counts_toward_total}
             for r in rows
         ]
@@ -490,6 +495,13 @@ class BookingGuestCount(models.Model):
     )
     segment = models.ForeignKey('rules.GuestSegment', on_delete=models.PROTECT, related_name='+')
     count = models.IntegerField(default=0, validators=[MinValueValidator(0), MaxValueValidator(50000)])
+    # Per-booking per-head price override for this segment. NULL → the rate falls
+    # back to base price_per_head × the segment's price_multiplier. Lets a caterer
+    # set a flat/custom per-segment rate on a booking (REL-415).
+    price_per_head = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True,
+        validators=[MinValueValidator(Decimal('0'))],
+    )
 
     class Meta:
         ordering = ['segment__sort_order', 'id']

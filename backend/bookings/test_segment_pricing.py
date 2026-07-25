@@ -90,6 +90,19 @@ class SegmentFoodRowsTests(TestCase):
         # The itemized amounts sum EXACTLY to segment_food_total (per-cover rounding).
         self.assertEqual(sum(r['amount'] for r in rows), Decimal('1480.00'))
 
+    def test_per_segment_override_wins_over_multiplier(self):
+        # Kids at a flat $18/head (not 0.5 × $10 = $5): 100×10 + 10×18 = 1,180.
+        segs = [
+            {'name': 'Adults', 'count': 100, 'price_multiplier': 1.0, 'price_override': None},
+            {'name': 'Kids', 'count': 10, 'price_multiplier': 0.5, 'price_override': 18},
+        ]
+        self.assertEqual(segment_food_total(Decimal('10'), segs), Decimal('1180.00'))
+        rows = segment_food_rows(Decimal('10'), segs)
+        self.assertEqual(
+            [(r['name'], str(r['rate']), str(r['amount'])) for r in rows],
+            [('Adults', '10.00', '1000.00'), ('Kids', '18.00', '180.00')],
+        )
+
     def test_none_when_single_rate_or_single_segment(self):
         # Gents/Ladies both 1.0 → one rate → no itemization (single line, byte-identical).
         self.assertIsNone(segment_food_rows(Decimal('10'), [

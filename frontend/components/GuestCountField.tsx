@@ -2,12 +2,14 @@
 
 import { ValidatedInput } from "@/components/ui/validated-input";
 import { useSiteSettings } from "@/lib/hooks";
-import { defaultSegmentRemainder, GuestSegmentMeta } from "@/lib/quoteTotals";
+import { defaultSegmentRemainder, segmentEffectiveRate, GuestSegmentMeta } from "@/lib/quoteTotals";
 
 export interface GuestCountValue {
   guest_count: number; // THE number — canonical, drives money and displays
   segment_counts: Record<string, number>; // explicit per-segment inputs; the org's
   // default segment is never entered here — it's the derived remainder.
+  segment_prices: Record<string, string>; // per-segment per-head overrides; blank = the
+  // multiplier default. The default segment (Adults) always uses the base price/head.
   big_eaters: boolean;
   big_eaters_percentage: number;
 }
@@ -41,22 +43,43 @@ export default function GuestCountField({
   value,
   onChange,
   disabled = false,
+  pricePerHead,
 }: {
   value: GuestCountValue;
   onChange: (patch: Partial<GuestCountValue>) => void;
   disabled?: boolean;
+  pricePerHead?: string; // base per-head (Adults rate); seeds each segment's default rate
 }) {
   const { data: settings } = useSiteSettings();
   const segments = (settings?.guest_segments ?? []) as GuestSegmentMeta[];
   const total = value.guest_count || 0;
   const counts = value.segment_counts || {};
+  const prices = value.segment_prices || {};
   const { defaultSeg, explicitInCount, additional } = groupSegments(segments);
   const remainder = defaultSegmentRemainder(total, counts, segments);
 
   const setCount = (name: string, raw: number) =>
     onChange({ segment_counts: { ...counts, [name]: Math.max(0, raw || 0) } });
+  const setPrice = (name: string, raw: string) =>
+    onChange({ segment_prices: { ...prices, [name]: raw } });
 
   const labelCls = "block text-sm font-medium text-foreground mb-1";
+
+  /** A per-head rate box for a non-default segment: default (base × multiplier)
+   * shows as the placeholder; typing stores a flat/custom override. */
+  const rateBox = (s: GuestSegmentMeta) => (
+    <div className="mt-1.5 flex items-center gap-1.5">
+      <span className="text-xs text-muted-foreground">$/head</span>
+      <ValidatedInput
+        type="number" step="0.01" min={0} disabled={disabled}
+        aria-label={`${s.name} price per head`}
+        placeholder={segmentEffectiveRate(pricePerHead, s.price_multiplier).toFixed(2)}
+        value={prices[s.name] ?? ""}
+        onChange={(e) => setPrice(s.name, e.target.value)}
+        className="h-8"
+      />
+    </div>
+  );
 
   return (
     <div className="space-y-4">
@@ -86,6 +109,7 @@ export default function GuestCountField({
                   value={counts[s.name] ?? ""}
                   onChange={(e) => setCount(s.name, Number(e.target.value))}
                 />
+                {rateBox(s)}
               </div>
             ))}
             {defaultSeg && (
@@ -123,6 +147,7 @@ export default function GuestCountField({
                   value={counts[s.name] ?? ""}
                   onChange={(e) => setCount(s.name, Number(e.target.value))}
                 />
+                {rateBox(s)}
               </div>
             ))}
           </div>

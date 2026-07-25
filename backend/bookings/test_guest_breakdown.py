@@ -66,6 +66,24 @@ class EventBreakdownTests(_Base):
         # Priced by multiplier: 138×10 + 12×5 + 8×5 = 1480.
         self.assertEqual(ev.food_total, Decimal('1480.00'))
 
+    def test_event_per_segment_price_override_persists_and_prices(self):
+        # Kids at a flat $18/head overrides the 0.5 multiplier; food reflects it.
+        res = self._post(guest_count=150, price_per_head='10', guest_counts=[
+            {'segment': 'Adults', 'count': 138},
+            {'segment': 'Kids', 'count': 12, 'price_per_head': '18.00'},
+            {'segment': 'Vendors', 'count': 8},
+        ])
+        self.assertEqual(res.status_code, 201, res.content)
+        ev = Event.objects.get(id=res.json()['id'])
+        kids = ev.guest_counts.get(segment__name='Kids')
+        self.assertEqual(str(kids.price_per_head), '18.00')
+        # 138×10 + 12×18 + 8×5 = 1380 + 216 + 40 = 1636.
+        self.assertEqual(ev.food_total, Decimal('1636.00'))
+        # Read returns the override so the form can rehydrate it.
+        data = self.client.get(f'/api/events/{ev.id}/').json()
+        kids_row = next(r for r in data['guest_counts'] if r['segment'] == 'Kids')
+        self.assertEqual(kids_row['price_per_head'], '18.00')
+
     def test_event_read_returns_breakdown(self):  # AC15 round-trip
         ev_id = self._post(guest_count=150, price_per_head='10',
                            guest_counts=self.BREAKDOWN).json()['id']

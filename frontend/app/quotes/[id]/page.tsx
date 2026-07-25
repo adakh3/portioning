@@ -82,6 +82,7 @@ export default function QuoteDetailPage() {
     event_date: "",
     guest_count: 0,
     segment_counts: {} as Record<string, number>,
+    segment_prices: {} as Record<string, string>,
     big_eaters: false,
     big_eaters_percentage: 0,
     price_per_head: "",
@@ -117,6 +118,7 @@ export default function QuoteDetailPage() {
     event_date: todayISO(),
     guest_count: 0,
     segment_counts: {} as Record<string, number>,
+    segment_prices: {} as Record<string, string>,
     big_eaters: false,
     big_eaters_percentage: 0,
     price_per_head: "",
@@ -214,6 +216,7 @@ export default function QuoteDetailPage() {
       event_date: selectedLead.event_date || prev.event_date,
       guest_count: selectedLead.guest_estimate || prev.guest_count,
       segment_counts: selectedLead.guest_estimate ? {} : prev.segment_counts,
+      segment_prices: selectedLead.guest_estimate ? {} : prev.segment_prices,
       event_type: selectedLead.event_type || prev.event_type,
       meal_type: selectedLead.meal_type || prev.meal_type,
       service_style: selectedLead.service_style || prev.service_style,
@@ -239,7 +242,7 @@ export default function QuoteDetailPage() {
         venue: createData.venue ? Number(createData.venue) : null,
         venue_address: createData.venue_address,
         event_date: createData.event_date,
-        guest_counts: buildGuestCountsPayload(createData.guest_count, createData.segment_counts, segmentMeta),
+        guest_counts: buildGuestCountsPayload(createData.guest_count, createData.segment_counts, segmentMeta, createData.segment_prices),
         guest_count: createData.guest_count,
         big_eaters: createData.big_eaters,
         big_eaters_percentage: createData.big_eaters_percentage,
@@ -290,6 +293,7 @@ export default function QuoteDetailPage() {
       // Rehydrate the explicit per-segment breakdown from the saved rows. The
       // default segment's entry is ignored downstream (it's the derived remainder).
       segment_counts: Object.fromEntries((quote.guest_counts ?? []).map((r) => [r.segment, r.count])),
+      segment_prices: Object.fromEntries((quote.guest_counts ?? []).filter((r) => r.price_per_head != null).map((r) => [r.segment, String(r.price_per_head)])),
       big_eaters: quote.big_eaters,
       big_eaters_percentage: quote.big_eaters_percentage,
       price_per_head: quote.price_per_head || "",
@@ -424,7 +428,7 @@ export default function QuoteDetailPage() {
       parseFloat(createData.tax_rate || "0"), createLineItems, createMeals,
       parseFloat(createData.service_charge_pct || "0"), createData.service_charge_taxable,
       parseFloat(createData.gratuity_pct || "0"),
-      createData.segment_counts, segmentMeta,
+      createData.segment_counts, segmentMeta, createData.segment_prices,
     );
     return (
       <div className="space-y-6">
@@ -511,8 +515,9 @@ export default function QuoteDetailPage() {
               <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Menu &amp; Pricing</h2>
               <div className="mb-4">
                 <GuestCountField
-                  value={{ guest_count: createData.guest_count, segment_counts: createData.segment_counts, big_eaters: createData.big_eaters, big_eaters_percentage: createData.big_eaters_percentage }}
+                  value={{ guest_count: createData.guest_count, segment_counts: createData.segment_counts, segment_prices: createData.segment_prices, big_eaters: createData.big_eaters, big_eaters_percentage: createData.big_eaters_percentage }}
                   onChange={(patch) => setCreateData((prev) => ({ ...prev, ...patch }))}
+                  pricePerHead={createData.price_per_head}
                 />
                 {hasVendorDoubleEntry(createData.segment_counts, createMeals, segmentMeta) && (
                   <div role="alert" className="mt-2 flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
@@ -564,8 +569,8 @@ export default function QuoteDetailPage() {
           <BookingTotalsCard
             title="Quote Total"
             currencySymbol={cs}
-            foodTotal={segmentFood(createData.price_per_head, createData.guest_count, createData.segment_counts, segmentMeta)}
-            foodRows={segmentFoodRows(createData.price_per_head, createData.guest_count, createData.segment_counts, segmentMeta)}
+            foodTotal={segmentFood(createData.price_per_head, createData.guest_count, createData.segment_counts, segmentMeta, createData.segment_prices)}
+            foodRows={segmentFoodRows(createData.price_per_head, createData.guest_count, createData.segment_counts, segmentMeta, createData.segment_prices)}
             foodLabel={`Food / Menu (${formatCurrency(createData.price_per_head || 0, cs)}/head × ${createData.guest_count} guests)`}
             meals={bookingMealRows(createMeals, cs)}
             addOnsTotal={Math.round((createTotals.subtotal - createTotals.food_total) * 100) / 100}
@@ -653,7 +658,7 @@ export default function QuoteDetailPage() {
     editing ? editMeals : (q.additional_meals || []),
     parseFloat(editData.service_charge_pct || "0"), editData.service_charge_taxable,
     parseFloat(editData.gratuity_pct || "0"),
-    editData.segment_counts, segmentMeta,
+    editData.segment_counts, segmentMeta, editData.segment_prices,
   );
 
   return (
@@ -993,8 +998,9 @@ export default function QuoteDetailPage() {
             <>
               <div className="mb-4">
                 <GuestCountField
-                  value={{ guest_count: editData.guest_count, segment_counts: editData.segment_counts, big_eaters: editData.big_eaters, big_eaters_percentage: editData.big_eaters_percentage }}
+                  value={{ guest_count: editData.guest_count, segment_counts: editData.segment_counts, segment_prices: editData.segment_prices, big_eaters: editData.big_eaters, big_eaters_percentage: editData.big_eaters_percentage }}
                   onChange={(patch) => setEditData((prev) => ({ ...prev, ...patch }))}
+                  pricePerHead={editData.price_per_head}
                 />
                 {hasVendorDoubleEntry(editData.segment_counts, editMeals, segmentMeta) && (
                   <div role="alert" className="mt-2 flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
@@ -1123,13 +1129,16 @@ export default function QuoteDetailPage() {
         const pph = parseFloat((editing ? editData.price_per_head : q.price_per_head) || "0") || 0;
         const guests = editing ? editGuestCount : q.guest_count;
         const viewSegmentCounts = Object.fromEntries((q.guest_counts ?? []).map((r) => [r.segment, r.count]));
-        const mainFood = segmentFood(pph, guests, editing ? editData.segment_counts : viewSegmentCounts, segmentMeta);
+        const viewSegmentPrices = Object.fromEntries((q.guest_counts ?? []).filter((r) => r.price_per_head != null).map((r) => [r.segment, String(r.price_per_head)]));
+        const segCounts = editing ? editData.segment_counts : viewSegmentCounts;
+        const segPrices = editing ? editData.segment_prices : viewSegmentPrices;
+        const mainFood = segmentFood(pph, guests, segCounts, segmentMeta, segPrices);
         return (
       <BookingTotalsCard
         title="Quote Total"
         currencySymbol={cs}
         foodTotal={mainFood}
-        foodRows={segmentFoodRows(pph, guests, editing ? editData.segment_counts : viewSegmentCounts, segmentMeta)}
+        foodRows={segmentFoodRows(pph, guests, segCounts, segmentMeta, segPrices)}
         foodLabel={`Food / Menu (${formatCurrency(editing ? editData.price_per_head : (q.price_per_head ?? 0), cs)}/head × ${editing ? editGuestCount : q.guest_count} guests)`}
         meals={bookingMealRows(mealsList, cs)}
         addOnsTotal={Math.round((subtotal - fullFood) * 100) / 100}

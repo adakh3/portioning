@@ -148,7 +148,8 @@ class QuoteSerializer(OrgScopedModelSerializer):
         # prefetch_related('guest_counts__segment') is used instead of an N+1.
         return [
             {'segment': r.segment.name, 'count': r.count,
-             'counts_toward_total': r.segment.counts_toward_total}
+             'counts_toward_total': r.segment.counts_toward_total,
+             'price_per_head': str(r.price_per_head) if r.price_per_head is not None else None}
             for r in obj.guest_counts.all()
         ]
 

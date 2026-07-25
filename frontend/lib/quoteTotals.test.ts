@@ -45,6 +45,20 @@ describe("segmentFoodRows (itemized display) + segmentEffectiveRate", () => {
     // The itemized amounts sum EXACTLY to the subtotal food (parity with backend).
     expect(rows.reduce((t, r) => t + r.amount, 0)).toBe(segmentFood("10", 150, { Kids: 12, Vendors: 8 }, SEG_META));
   });
+  it("honours a per-segment price override; default + others unchanged", () => {
+    const rows = segmentFoodRows("10", 150, { Kids: 12, Vendors: 8 }, SEG_META, { Kids: "18" })!;
+    expect(rows.find((r) => r.name === "Kids")).toMatchObject({ rate: 18, amount: 216 });
+    expect(rows.find((r) => r.name === "Adults")!.rate).toBe(10); // base, no override
+    expect(rows.find((r) => r.name === "Vendors")!.rate).toBe(5); // 0.5 × 10
+    // 138×10 + 12×18 + 8×5 = 1636.
+    expect(segmentFood("10", 150, { Kids: 12, Vendors: 8 }, SEG_META, { Kids: "18" })).toBe(1636);
+  });
+  it("buildGuestCountsPayload carries a segment override; the default never does", () => {
+    const rows = buildGuestCountsPayload(150, { Kids: 12 }, SEG_META, { Kids: "18", Adults: "99" });
+    expect(rows.find((r) => r.segment === "Kids")).toEqual({ segment: "Kids", count: 12, price_per_head: "18" });
+    expect(rows.find((r) => r.segment === "Adults")).toEqual({ segment: "Adults", count: 138 });
+  });
+
   it("null for a single shared rate (gents/ladies) or a count-only booking", () => {
     const GL: GuestSegmentMeta[] = [
       { name: "Gents", is_default: true, counts_toward_total: true, price_multiplier: "1.0000", sort_order: 0 },
@@ -240,7 +254,7 @@ describe("computeBookingTotals (shared engine — quotes & events)", () => {
 describe("buildQuoteSavePayload", () => {
   const editData = {
     primary_contact: "3", is_b2b: false, account: "", event_date: "2026-09-01",
-    guest_count: 100, segment_counts: {}, big_eaters: false, big_eaters_percentage: 0,
+    guest_count: 100, segment_counts: {}, segment_prices: {}, big_eaters: false, big_eaters_percentage: 0,
     price_per_head: "50.00", venue: "", venue_address: "", event_type: "wedding",
     meal_type: "", booking_date: "", service_style: "", product: "",
     setup_time: "", guest_arrival_time: "", meal_time: "", end_time: "",
@@ -282,7 +296,7 @@ describe("buildEventSavePayload", () => {
     venue: null, venue_address: "", event_type: "corporate", meal_type: "lunch",
     booking_date: "", service_style: "buffet", product: null, price_per_head: "50.00", notes: "n",
     kitchen_instructions: "k", banquet_instructions: "b", setup_instructions: "s",
-    guest_count: 40, segment_counts: {}, guaranteed_count: 40, final_count: null, final_count_due: "",
+    guest_count: 40, segment_counts: {}, segment_prices: {}, guaranteed_count: 40, final_count: null, final_count_due: "",
     big_eaters: true, big_eaters_percentage: 30,
     setup_time: "2026-09-01T09:00", guest_arrival_time: "", meal_time: "", end_time: "",
     is_taxable: true, service_charge_pct: "0", service_charge_taxable: true, gratuity_pct: "0",

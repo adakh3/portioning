@@ -172,6 +172,7 @@ export default function EventDetailPage() {
   // Guest form fields
   const [formGuestCount, setFormGuestCount] = useState(0);
   const [formSegmentCounts, setFormSegmentCounts] = useState<Record<string, number>>({});
+  const [formSegmentPrices, setFormSegmentPrices] = useState<Record<string, string>>({});
   const [formGuaranteed, setFormGuaranteed] = useState<number | null>(null);
   const [formFinalCount, setFormFinalCount] = useState<number | null>(null);
   const [formFinalCountDue, setFormFinalCountDue] = useState("");
@@ -182,6 +183,7 @@ export default function EventDetailPage() {
   const applyGuestPatch = (patch: Partial<GuestCountValue>) => {
     if (patch.guest_count !== undefined) setFormGuestCount(patch.guest_count);
     if (patch.segment_counts !== undefined) setFormSegmentCounts(patch.segment_counts);
+    if (patch.segment_prices !== undefined) setFormSegmentPrices(patch.segment_prices);
     if (patch.big_eaters !== undefined) setFormBigEaters(patch.big_eaters);
     if (patch.big_eaters_percentage !== undefined) setFormBigEatersPercent(patch.big_eaters_percentage);
   };
@@ -229,6 +231,7 @@ export default function EventDetailPage() {
     // Rehydrate the explicit per-segment breakdown from the saved rows (the
     // default segment's entry is ignored downstream — it's the derived remainder).
     setFormSegmentCounts(Object.fromEntries((data.guest_counts ?? []).map((r) => [r.segment, r.count])));
+    setFormSegmentPrices(Object.fromEntries((data.guest_counts ?? []).filter((r) => r.price_per_head != null).map((r) => [r.segment, String(r.price_per_head)])));
     setFormGuaranteed(data.guaranteed_count);
     setFormFinalCount(data.final_count);
     setFormFinalCountDue(data.final_count_due || "");
@@ -316,6 +319,7 @@ export default function EventDetailPage() {
       setup_instructions: formSetupInstructions,
       guest_count: formGuestCount,
       segment_counts: formSegmentCounts,
+      segment_prices: formSegmentPrices,
       guaranteed_count: formGuaranteed,
       final_count: formFinalCount,
       final_count_due: formFinalCountDue,
@@ -812,8 +816,9 @@ export default function EventDetailPage() {
             {editing ? (
               <div className="space-y-4">
                 <GuestCountField
-                  value={{ guest_count: formGuestCount, segment_counts: formSegmentCounts, big_eaters: formBigEaters, big_eaters_percentage: formBigEatersPercent }}
+                  value={{ guest_count: formGuestCount, segment_counts: formSegmentCounts, segment_prices: formSegmentPrices, big_eaters: formBigEaters, big_eaters_percentage: formBigEatersPercent }}
                   onChange={applyGuestPatch}
+                  pricePerHead={formPricePerHead}
                 />
                 {hasVendorDoubleEntry(formSegmentCounts, formAdditionalMeals, segmentMeta) && (
                   <div role="alert" className="mb-2 flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
@@ -821,36 +826,10 @@ export default function EventDetailPage() {
                     <span>Possible double-count: you have <strong>vendor covers</strong> and a <strong>vendor-labelled meal</strong>. Vendors should be counted one way or the other, not both.</span>
                   </div>
                 )}
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-1">Guaranteed Count</label>
-                    <ValidatedInput
-                      type="number"
-                      min={0}
-                      max={100000}
-                      value={formGuaranteed ?? ""}
-                      onChange={(e) => setFormGuaranteed(e.target.value ? Number(e.target.value) : null)}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-1">Final Count</label>
-                    <ValidatedInput
-                      type="number"
-                      min={0}
-                      max={100000}
-                      value={formFinalCount ?? ""}
-                      onChange={(e) => setFormFinalCount(e.target.value ? Number(e.target.value) : null)}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-1">Final Count Due</label>
-                    <ValidatedInput
-                      type="date"
-                      value={formFinalCountDue}
-                      onChange={(e) => setFormFinalCountDue(e.target.value)}
-                    />
-                  </div>
-                </div>
+                {/* Guaranteed Count / Final Count / Final Count Due are hidden until
+                    they actually drive money + the finals lifecycle (REL-419). The
+                    form state + save payload are kept so nothing is lost; REL-419
+                    re-surfaces them in the "Record final numbers" panel. */}
                 <div className="border-t border-border pt-4">
                   {isNew ? (
                     <MenuBuilder
@@ -955,7 +934,10 @@ export default function EventDetailPage() {
         const pph = editing ? parseFloat(formPricePerHead) || 0 : parseFloat(event?.price_per_head || "0");
         const guests = editing ? totalGuests : (event?.guest_count || 0);
         const viewSegmentCounts = Object.fromEntries((event?.guest_counts ?? []).map((r) => [r.segment, r.count]));
-        const foodTotal = segmentFood(pph, guests, editing ? formSegmentCounts : viewSegmentCounts, segmentMeta);
+        const viewSegmentPrices = Object.fromEntries((event?.guest_counts ?? []).filter((r) => r.price_per_head != null).map((r) => [r.segment, String(r.price_per_head)]));
+        const segCounts = editing ? formSegmentCounts : viewSegmentCounts;
+        const segPrices = editing ? formSegmentPrices : viewSegmentPrices;
+        const foodTotal = segmentFood(pph, guests, segCounts, segmentMeta, segPrices);
         const meals = editing ? formAdditionalMeals : (event?.additional_meals || []);
         const mealsTotal = meals.reduce((sum, m) => sum + m.guest_count * (parseFloat(m.price_per_head || "0") || 0), 0);
         const mealRows = meals
@@ -987,7 +969,7 @@ export default function EventDetailPage() {
             title="Pricing"
             currencySymbol={settings.currency_symbol}
             foodTotal={foodTotal}
-            foodRows={segmentFoodRows(pph, guests, editing ? formSegmentCounts : viewSegmentCounts, segmentMeta)}
+            foodRows={segmentFoodRows(pph, guests, segCounts, segmentMeta, segPrices)}
             foodLabel={`Food (${formatCurrency(pph, settings.currency_symbol)}/head × ${guests} guests)`}
             meals={mealRows}
             addOnsTotal={addOnsTotal}
