@@ -427,6 +427,7 @@ export interface Quote {
   guest_count: number;
   gents: number;
   ladies: number;
+  guest_counts?: { segment: string; count: number; counts_toward_total: boolean; price_per_head?: string | null }[];
   big_eaters: boolean;
   big_eaters_percentage: number;
   setup_time: string | null;
@@ -656,7 +657,7 @@ export interface SiteSettingsData {
   service_charge_default_pct?: string;
   service_charge_taxable_default?: boolean;
   gratuity_default_pct?: string;
-  guest_segments?: { name: string; is_default: boolean; counts_toward_total: boolean }[];
+  guest_segments?: { name: string; is_default: boolean; counts_toward_total: boolean; price_multiplier: string; sort_order: number }[];
   // Commission & targets (model/rate are per-plan; choices kept for the plan form)
   commission_model_choices?: { value: string; label: string }[];
   target_period?: string;
@@ -723,6 +724,7 @@ export interface EventData {
   guest_count: number;
   gents: number;
   ladies: number;
+  guest_counts?: { segment: string; count: number; counts_toward_total: boolean; price_per_head?: string | null }[];
   big_eaters: boolean;
   big_eaters_percentage: number;
   dishes: number[];
@@ -1228,6 +1230,7 @@ export interface PublicBooking {
   additional_meals: { label: string; guest_count: number; price_per_head: string | null; items: string[] }[];
   line_items: { description: string; category: string; quantity: string; unit: string; line_total: string }[];
   price_per_head: string | null;
+  food_rows: { name: string; count: number; rate: string; amount: string }[] | null;
   subtotal: string;
   tax_rate: string;
   tax_amount: string;
@@ -1327,13 +1330,13 @@ export const api = {
     const qs = searchParams.toString();
     return fetchList<EventData>(`/events/${qs ? `?${qs}` : ""}`);
   },
-  createEvent: (data: Omit<Partial<EventData>, "line_items" | "additional_meals"> & { dish_ids?: number[]; dish_comments?: EventDishComment[]; line_items?: unknown[]; additional_meals?: unknown[] }) =>
+  createEvent: (data: Omit<Partial<EventData>, "line_items" | "additional_meals" | "guest_counts"> & { dish_ids?: number[]; dish_comments?: EventDishComment[]; line_items?: unknown[]; additional_meals?: unknown[]; guest_counts?: { segment: string; count: number; price_per_head?: string | null }[] }) =>
     fetchApi<EventData>("/events/", {
       method: "POST",
       body: JSON.stringify(data),
     }),
   getEvent: (id: number) => fetchApi<EventData>(`/events/${id}/`),
-  updateEvent: (id: number, data: Omit<Partial<EventData>, "line_items" | "additional_meals"> & { dish_ids?: number[]; dish_comments?: EventDishComment[]; line_items?: unknown[]; additional_meals?: unknown[] }) =>
+  updateEvent: (id: number, data: Omit<Partial<EventData>, "line_items" | "additional_meals" | "guest_counts"> & { dish_ids?: number[]; dish_comments?: EventDishComment[]; line_items?: unknown[]; additional_meals?: unknown[]; guest_counts?: { segment: string; count: number; price_per_head?: string | null }[] }) =>
     fetchApi<EventData>(`/events/${id}/`, {
       method: "PATCH",
       body: JSON.stringify(data),
@@ -1528,9 +1531,9 @@ export const api = {
     return fetchList<Quote>(`/bookings/quotes/${qs ? `?${qs}` : ""}`);
   },
   getQuote: (id: number) => fetchApi<Quote>(`/bookings/quotes/${id}/`),
-  createQuote: (data: Omit<Partial<Quote>, "line_items" | "additional_meals"> & { dish_ids?: number[]; line_items?: unknown[]; additional_meals?: unknown[] }) =>
+  createQuote: (data: Omit<Partial<Quote>, "line_items" | "additional_meals" | "guest_counts"> & { dish_ids?: number[]; line_items?: unknown[]; additional_meals?: unknown[]; guest_counts?: { segment: string; count: number; price_per_head?: string | null }[] }) =>
     fetchApi<Quote>("/bookings/quotes/", { method: "POST", body: JSON.stringify(data) }),
-  updateQuote: (id: number, data: Omit<Partial<Quote>, "line_items" | "additional_meals"> & { dish_ids?: number[]; line_items?: unknown[]; additional_meals?: unknown[] }) =>
+  updateQuote: (id: number, data: Omit<Partial<Quote>, "line_items" | "additional_meals" | "guest_counts"> & { dish_ids?: number[]; line_items?: unknown[]; additional_meals?: unknown[]; guest_counts?: { segment: string; count: number; price_per_head?: string | null }[] }) =>
     fetchApi<Quote>(`/bookings/quotes/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
   deleteQuote: (id: number) =>
     fetchApi<void>(`/bookings/quotes/${id}/`, { method: "DELETE" }),

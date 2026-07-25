@@ -1,7 +1,94 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import { resolve } from "path";
-import { computeQuoteTotals, computeBookingTotals, buildQuoteSavePayload, buildEventSavePayload, EventSaveInput, lineItemTotal, LineItemInput } from "./quoteTotals";
+import { computeQuoteTotals, computeBookingTotals, buildQuoteSavePayload, buildEventSavePayload, EventSaveInput, lineItemTotal, LineItemInput, segmentFood, segmentFoodFromRows, segmentFoodRows, segmentEffectiveRate, buildGuestCountsPayload, hasVendorDoubleEntry, GuestSegmentMeta } from "./quoteTotals";
+
+// Adults(default)/Kids(0.5)/Vendors(0.5, additional covers) — mirrors the backend
+// segment_food_total fixture in bookings/test_segment_pricing.py (AC10/AC11).
+const SEG_META: GuestSegmentMeta[] = [
+  { name: "Adults", is_default: true, counts_toward_total: true, price_multiplier: "1.0000", sort_order: 0 },
+  { name: "Kids", is_default: false, counts_toward_total: true, price_multiplier: "0.5000", sort_order: 1 },
+  { name: "Vendors", is_default: false, counts_toward_total: false, price_multiplier: "0.5000", sort_order: 2 },
+];
+
+describe("segmentFood (mirror of backend segment_food_total)", () => {
+  it("no breakdown reduces to price × guest_count", () => {
+    expect(segmentFood("10", 150, {}, SEG_META)).toBe(1500);
+  });
+  it("AC10: kids priced by their multiplier (138×10 + 12×5 = 1440)", () => {
+    expect(segmentFood("10", 150, { Kids: 12 }, SEG_META)).toBe(1440);
+  });
+  it("AC11: vendor additional covers add at their multiplier (+8×5 = 1480)", () => {
+    expect(segmentFood("10", 150, { Kids: 12, Vendors: 8 }, SEG_META)).toBe(1480);
+  });
+  it("zero price is zero", () => {
+    expect(segmentFood("0", 150, { Kids: 12 }, SEG_META)).toBe(0);
+  });
+  it("half-cent amounts round half-up (matches the backend, not banker's)", () => {
+    // 1.01 × 0.5 × 1 = 0.505 → 0.51, matching segment_food_total's ROUND_HALF_UP.
+    expect(segmentFood("1.01", 1, { Kids: 1 }, SEG_META)).toBe(0.51);
+  });
+});
+
+describe("segmentFoodRows (itemized display) + segmentEffectiveRate", () => {
+  it("per-cover rate = round(price × multiplier)", () => {
+    expect(segmentEffectiveRate("10", "0.5")).toBe(5);
+    expect(segmentEffectiveRate("10", "1.0")).toBe(10);
+  });
+  it("itemizes multi-rate; amounts sum to segmentFood", () => {
+    const rows = segmentFoodRows("10", 150, { Kids: 12, Vendors: 8 }, SEG_META)!;
+    expect(rows.map((r) => [r.name, r.count, r.rate, r.amount])).toEqual([
+      ["Adults", 138, 10, 1380],
+      ["Kids", 12, 5, 60],
+      ["Vendors", 8, 5, 40],
+    ]);
+    // The itemized amounts sum EXACTLY to the subtotal food (parity with backend).
+    expect(rows.reduce((t, r) => t + r.amount, 0)).toBe(segmentFood("10", 150, { Kids: 12, Vendors: 8 }, SEG_META));
+  });
+  it("honours a per-segment price override; default + others unchanged", () => {
+    const rows = segmentFoodRows("10", 150, { Kids: 12, Vendors: 8 }, SEG_META, { Kids: "18" })!;
+    expect(rows.find((r) => r.name === "Kids")).toMatchObject({ rate: 18, amount: 216 });
+    expect(rows.find((r) => r.name === "Adults")!.rate).toBe(10); // base, no override
+    expect(rows.find((r) => r.name === "Vendors")!.rate).toBe(5); // 0.5 × 10
+    // 138×10 + 12×18 + 8×5 = 1636.
+    expect(segmentFood("10", 150, { Kids: 12, Vendors: 8 }, SEG_META, { Kids: "18" })).toBe(1636);
+  });
+  it("buildGuestCountsPayload carries a segment override; the default never does", () => {
+    const rows = buildGuestCountsPayload(150, { Kids: 12 }, SEG_META, { Kids: "18", Adults: "99" });
+    expect(rows.find((r) => r.segment === "Kids")).toEqual({ segment: "Kids", count: 12, price_per_head: "18" });
+    expect(rows.find((r) => r.segment === "Adults")).toEqual({ segment: "Adults", count: 138 });
+  });
+
+  it("null for a single shared rate (gents/ladies) or a count-only booking", () => {
+    const GL: GuestSegmentMeta[] = [
+      { name: "Gents", is_default: true, counts_toward_total: true, price_multiplier: "1.0000", sort_order: 0 },
+      { name: "Ladies", is_default: false, counts_toward_total: true, price_multiplier: "1.0000", sort_order: 1 },
+    ];
+    expect(segmentFoodRows("10", 100, { Ladies: 40 }, GL)).toBeNull();
+    expect(segmentFoodRows("10", 150, {}, SEG_META)).toBeNull();
+  });
+});
+
+describe("buildGuestCountsPayload", () => {
+  it("empty when no breakdown entered", () => {
+    expect(buildGuestCountsPayload(150, {}, SEG_META)).toEqual([]);
+  });
+  it("explicit + derived default + covers", () => {
+    expect(buildGuestCountsPayload(150, { Kids: 12, Vendors: 8 }, SEG_META)).toEqual([
+      { segment: "Kids", count: 12 },
+      { segment: "Adults", count: 138 },
+      { segment: "Vendors", count: 8 },
+    ]);
+  });
+});
+
+describe("hasVendorDoubleEntry (AC14)", () => {
+  it("warns only when both a vendor cover count and a vendor-labelled meal exist", () => {
+    expect(hasVendorDoubleEntry({ Vendors: 8 }, [{ label: "Vendor meals" }], SEG_META)).toBe(true);
+    expect(hasVendorDoubleEntry({ Vendors: 8 }, [{ label: "Kids buffet" }], SEG_META)).toBe(false);
+    expect(hasVendorDoubleEntry({ Vendors: 0 }, [{ label: "Vendor meals" }], SEG_META)).toBe(false);
+  });
+});
 
 const item = (over: Partial<LineItemInput>): LineItemInput => ({
   category: "rental",
@@ -87,6 +174,12 @@ const golden = JSON.parse(
       service_charge?: string; tax_base?: string; gratuity?: string;
     };
   }[];
+  segment_food_cases: {
+    name: string;
+    price_per_head: string;
+    segments: { count: number; price_multiplier: string }[];
+    expected_food: string;
+  }[];
 };
 
 describe("golden-case parity with the backend engine", () => {
@@ -114,6 +207,16 @@ describe("golden-case parity with the backend engine", () => {
         expect(t.tax_base).toBeCloseTo(Number(c.expected.tax_base), 2);
       if (c.expected.gratuity !== undefined)
         expect(t.gratuity).toBeCloseTo(Number(c.expected.gratuity), 2);
+    });
+  }
+
+  // Segment-aware food parity — the SAME shared cases the backend
+  // test_backend_matches_segment_food_cases runs (REL-415).
+  for (const c of golden.segment_food_cases) {
+    it(`segment food: ${c.name}`, () => {
+      // EXACT (not toBeCloseTo) — a ±0.005 tolerance would mask a 1¢ half-cent
+      // rounding-mode divergence, which is exactly the class this locks.
+      expect(segmentFoodFromRows(c.price_per_head, c.segments)).toBe(Number(c.expected_food));
     });
   }
 });
@@ -151,7 +254,7 @@ describe("computeBookingTotals (shared engine — quotes & events)", () => {
 describe("buildQuoteSavePayload", () => {
   const editData = {
     primary_contact: "3", is_b2b: false, account: "", event_date: "2026-09-01",
-    guest_count: 100, gents: 50, ladies: 50, big_eaters: false, big_eaters_percentage: 0,
+    guest_count: 100, segment_counts: {}, segment_prices: {}, big_eaters: false, big_eaters_percentage: 0,
     price_per_head: "50.00", venue: "", venue_address: "", event_type: "wedding",
     meal_type: "", booking_date: "", service_style: "", product: "",
     setup_time: "", guest_arrival_time: "", meal_time: "", end_time: "",
@@ -193,7 +296,7 @@ describe("buildEventSavePayload", () => {
     venue: null, venue_address: "", event_type: "corporate", meal_type: "lunch",
     booking_date: "", service_style: "buffet", product: null, price_per_head: "50.00", notes: "n",
     kitchen_instructions: "k", banquet_instructions: "b", setup_instructions: "s",
-    guest_count: 40, gents: 25, ladies: 15, guaranteed_count: 40, final_count: null, final_count_due: "",
+    guest_count: 40, segment_counts: {}, segment_prices: {}, guaranteed_count: 40, final_count: null, final_count_due: "",
     big_eaters: true, big_eaters_percentage: 30,
     setup_time: "2026-09-01T09:00", guest_arrival_time: "", meal_time: "", end_time: "",
     is_taxable: true, service_charge_pct: "0", service_charge_taxable: true, gratuity_pct: "0",
@@ -202,14 +305,32 @@ describe("buildEventSavePayload", () => {
     meals: [{ label: "Tea", guest_count: 40, price_per_head: "15.00", dishes: [3], based_on_template: null, meal_time: null, notes: "" }],
   };
 
-  it("carries the event-only fields (split, timeline, counts, instructions)", () => {
+  it("carries the event-only fields (timeline, counts, instructions)", () => {
     const p = buildEventSavePayload(base);
     expect(p).toMatchObject({
       name: "Acme — 2026-09-01", date: "2026-09-01",
-      gents: 25, ladies: 15, big_eaters: true, big_eaters_percentage: 30,
+      big_eaters: true, big_eaters_percentage: 30,
       guaranteed_count: 40, kitchen_instructions: "k", is_taxable: true,
       setup_time: "2026-09-01T09:00",
     });
+    // No breakdown entered → no guest_counts rows (whole count is the default).
+    expect(p.guest_counts).toEqual([]);
+  });
+
+  it("builds guest_counts from the breakdown: explicit segments + derived default + covers", () => {
+    const meta: GuestSegmentMeta[] = [
+      { name: "Adults", is_default: true, counts_toward_total: true, price_multiplier: "1.0000", sort_order: 0 },
+      { name: "Kids", is_default: false, counts_toward_total: true, price_multiplier: "0.5000", sort_order: 1 },
+      { name: "Vendors", is_default: false, counts_toward_total: false, price_multiplier: "0.5000", sort_order: 2 },
+    ];
+    const p = buildEventSavePayload(
+      { ...base, guest_count: 150, segment_counts: { Kids: 12, Vendors: 8 } }, meta,
+    );
+    expect(p.guest_counts).toEqual([
+      { segment: "Kids", count: 12 },
+      { segment: "Adults", count: 138 }, // derived remainder
+      { segment: "Vendors", count: 8 },  // additional cover
+    ]);
   });
 
   it("blank optional times/dates/counts become null", () => {

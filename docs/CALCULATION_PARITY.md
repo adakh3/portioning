@@ -19,8 +19,26 @@ languages. This doc is how we stop that.
 
 ## The canonical rule (one definition of the math)
 
-- **food_total** = price/head × guests, **plus** any additional meals
-  (the caller sums meals in before calling the engine; both quotes and events).
+- **food_total** = the per-head menu cost across the guest **segments**, **plus**
+  any additional meals (the caller sums meals in before calling the engine; both
+  quotes and events). Segment food = Σ over all segments of `rate × count`, where
+  the per-cover **rate = round(price/head × segment.price_multiplier)** to cents —
+  in-count segments (Adults, Kids) and additional covers (Vendors) alike;
+  `counts_toward_total` only governs count validation/display, never price. Rounding
+  **per cover** (not once on the aggregate) lets the itemized food lines sum
+  **exactly** to the subtotal. Backend: `totals.py: segment_food_total` /
+  `segment_effective_rate`; frontend mirror: `quoteTotals.ts: segmentFood` /
+  `segmentFoodFromRows` / `segmentEffectiveRate`. With **no** breakdown the whole
+  guest count sits under the org's default segment (multiplier 1.0), so this reduces
+  **exactly** to `price/head × guests` — existing bookings, and Gents/Ladies orgs
+  (both multipliers 1.0), keep byte-identical food totals. The shared
+  `segment_food_cases` in the golden file assert this in both engines.
+
+  **Itemized display** (`segment_food_rows` / `segmentFoodRows`) shows one line per
+  segment (`Name — count × rate = amount`) on the totals card, both PDFs, and the
+  sign page — but **only when segments have more than one distinct rate**. A
+  count-only booking or a Gents/Ladies org (single shared rate) keeps the single
+  `price/head × guests = total` line, so those surfaces stay byte-identical.
 - **subtotal** = food_total + every add-on line item (discounts are negative
   lines, so they reduce the subtotal).
 - **service_charge** = subtotal × `service_charge_pct` / 100, rounded to 2 dp

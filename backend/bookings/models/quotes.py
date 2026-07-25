@@ -164,12 +164,13 @@ class Quote(OrgScopedModel, models.Model):
 
     @property
     def food_total(self):
-        """Taxable food/menu cost: main menu (price_per_head × guests) + any
-        additional meals (their own price_per_head × guest_count). Same shape as
-        Event.food_total (the main meal still uses guest_count for quotes)."""
-        total = Decimal('0.00')
-        if self.price_per_head and self.price_per_head > 0:
-            total += self.price_per_head * self.guest_count
+        """Taxable food/menu cost: main menu priced per guest segment
+        (``price_per_head × price_multiplier × count``, summed over all segments) +
+        any additional meals. Mirrors Event.food_total; with no breakdown it
+        reduces to ``price_per_head × guest_count``."""
+        from bookings.services.totals import segment_food_total
+        from events.models import resolve_booking_segments
+        total = segment_food_total(self.price_per_head, resolve_booking_segments(self))
         for meal in self.additional_meals.all():
             if meal.price_per_head and meal.guest_count:
                 total += meal.price_per_head * meal.guest_count

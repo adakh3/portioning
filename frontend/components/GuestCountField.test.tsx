@@ -1,117 +1,108 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 
-import GuestCountField, { GuestCountValue, splitAddsUp } from "./GuestCountField";
+import GuestCountField, { GuestCountValue, breakdownValid } from "./GuestCountField";
+import { GuestSegmentMeta } from "@/lib/quoteTotals";
 
-// The split UI is gated on the org's in-count segments (via useSiteSettings).
 const { mockUseSiteSettings } = vi.hoisted(() => ({
   mockUseSiteSettings: vi.fn(() => ({ data: undefined }) as { data: unknown }),
 }));
 vi.mock("@/lib/hooks", () => ({ useSiteSettings: mockUseSiteSettings }));
 
-const seg = (name: string, counts_toward_total = true) => ({ name, is_default: false, counts_toward_total });
-
-const base: GuestCountValue = {
-  guest_count: 0, gents: 0, ladies: 0, custom_split: false,
-  big_eaters: false, big_eaters_percentage: 0,
-};
-
-beforeEach(() => {
-  // Default: settings not loaded yet — show the split so gents/ladies orgs never regress.
-  mockUseSiteSettings.mockReturnValue({ data: undefined });
+const seg = (name: string, over: Partial<GuestSegmentMeta> = {}): GuestSegmentMeta => ({
+  name, is_default: false, counts_toward_total: true, price_multiplier: "1.0000", sort_order: 0, ...over,
 });
 
-function setup(over: Partial<GuestCountValue> = {}) {
+// A US Adults(default)/Kids/Vendors org and a gents/ladies org — same UI, from data only.
+const US = [
+  seg("Adults", { is_default: true, sort_order: 0 }),
+  seg("Kids", { price_multiplier: "0.5000", sort_order: 1 }),
+  seg("Vendors", { counts_toward_total: false, price_multiplier: "0.5000", sort_order: 2 }),
+];
+const GL = [seg("Gents", { is_default: true, sort_order: 0 }), seg("Ladies", { sort_order: 1 })];
+
+const base: GuestCountValue = { guest_count: 0, segment_counts: {}, segment_prices: {}, big_eaters: false, big_eaters_percentage: 0 };
+
+const val = (el: HTMLElement) => (el as HTMLInputElement).value;
+
+beforeEach(() => mockUseSiteSettings.mockReturnValue({ data: { guest_segments: US } }));
+
+function setup(over: Partial<GuestCountValue> = {}, segments: GuestSegmentMeta[] = US) {
+  mockUseSiteSettings.mockReturnValue({ data: { guest_segments: segments } });
   const onChange = vi.fn();
   render(<GuestCountField value={{ ...base, ...over }} onChange={onChange} />);
   return onChange;
 }
 
-describe("GuestCountField", () => {
-  it("editing the count keeps the split unspecified (no fabricated 50/50)", () => {
-    const onChange = setup();
-    fireEvent.change(screen.getByRole("textbox"), { target: { value: "41" } });
-    expect(onChange).toHaveBeenCalledWith({ guest_count: 41, gents: 0, ladies: 0, custom_split: false });
+describe("GuestCountField — count-first breakdown", () => {
+  it("editing the guest count reports just that (never fabricates a breakdown)", () => {
+    const onChange = setup({ guest_count: 0 });
+    fireEvent.change(screen.getByLabelText("Guest Count"), { target: { value: "41" } });
+    expect(onChange).toHaveBeenCalledWith({ guest_count: 41 });
   });
 
-  it("shows the count and 'not specified' when there is no split", () => {
-    setup({ guest_count: 50 });
-    expect(screen.getByRole("textbox")).toHaveValue("50");
-    expect(screen.getByText(/Split: not specified/)).toBeInTheDocument();
+  it("AC1: entering Kids reports it as an explicit segment count", () => {
+    const onChange = setup({ guest_count: 150 });
+    fireEvent.change(screen.getByLabelText("Kids"), { target: { value: "12" } });
+    expect(onChange).toHaveBeenCalledWith({ segment_counts: { Kids: 12 } });
+    // (The derived Adults = 138 read-only field is asserted in AC4.)
   });
 
-  it("opening the split seeds an even suggestion to adjust", () => {
-    const onChange = setup({ guest_count: 41 });
-    fireEvent.click(screen.getByRole("checkbox", { name: /gents \/ ladies split/i }));
-    expect(onChange).toHaveBeenCalledWith({ custom_split: true, gents: 21, ladies: 20 });
+  it("AC2: no breakdown → the whole count is the default segment", () => {
+    setup({ guest_count: 150 });
+    expect(val(screen.getByLabelText("Guest Count"))).toBe("150");
+    expect(screen.getByLabelText("Adults (derived)")).toHaveTextContent("150");
+    expect(val(screen.getByLabelText("Kids"))).toBe("");
   });
 
-  it("editing gents auto-compensates ladies so the split keeps adding up", () => {
-    const onChange = setup({ guest_count: 50, gents: 30, ladies: 20, custom_split: true });
-    // [count, gents, ladies]
-    const [, gents] = screen.getAllByRole("textbox");
-    expect(gents).toHaveValue("30");
-    fireEvent.change(gents, { target: { value: "35" } });
-    expect(onChange).toHaveBeenCalledWith({ gents: 35, ladies: 15 }); // count stays 50
+  it("AC3: an over-count breakdown shows a validation warning", () => {
+    setup({ guest_count: 150, segment_counts: { Kids: 200 } });
+    expect(screen.getByText(/more than the guest count/i)).toBeInTheDocument();
   });
 
-  it("shows the adds-up confirmation when the split matches the count", () => {
-    setup({ guest_count: 50, gents: 30, ladies: 20, custom_split: true });
-    expect(screen.getByText(/adds up to 50/)).toBeInTheDocument();
+  it("AC4: vendors are additional covers — separate section, no effect on the remainder", () => {
+    setup({ guest_count: 150, segment_counts: { Kids: 12, Vendors: 8 } });
+    expect(screen.getByLabelText("Adults (derived)")).toHaveTextContent("138"); // not 130
+    expect(screen.getByText(/Additional covers/i)).toBeInTheDocument();
+    expect(screen.getByText(/Add it as a separate meal instead/i)).toBeInTheDocument();
+    expect(val(screen.getByLabelText("Vendors"))).toBe("8");
   });
 
-  it("changing the count clears an entered split (ask again, never scale)", () => {
-    const onChange = setup({ guest_count: 50, gents: 30, ladies: 20, custom_split: true });
-    const [count] = screen.getAllByRole("textbox");
-    fireEvent.change(count, { target: { value: "60" } });
-    expect(onChange).toHaveBeenCalledWith({ guest_count: 60, gents: 0, ladies: 0, custom_split: false });
+  it("AC5: a gents/ladies org gets the SAME remainder UI (Ladies input + Gents derived), no checkbox", () => {
+    setup({ guest_count: 100, segment_counts: { Ladies: 40 } }, GL);
+    expect(val(screen.getByLabelText("Ladies"))).toBe("40");
+    expect(screen.getByLabelText("Gents (derived)")).toHaveTextContent("60");
+    expect(screen.queryByRole("checkbox", { name: /split/i })).not.toBeInTheDocument();
   });
 
-  it("closing the split clears it back to unspecified", () => {
-    const onChange = setup({ guest_count: 50, gents: 35, ladies: 15, custom_split: true });
-    fireEvent.click(screen.getByRole("checkbox", { name: /gents \/ ladies split/i }));
-    expect(onChange).toHaveBeenCalledWith({ custom_split: false, gents: 0, ladies: 0 });
+  it("per-segment rate box: shows the multiplier default as placeholder, stores an edit", () => {
+    mockUseSiteSettings.mockReturnValue({ data: { guest_segments: US } });
+    const onChange = vi.fn();
+    render(
+      <GuestCountField
+        value={{ ...base, guest_count: 150, segment_counts: { Kids: 12 } }}
+        onChange={onChange}
+        pricePerHead="10"
+      />,
+    );
+    const kidsRate = screen.getByLabelText("Kids price per head") as HTMLInputElement;
+    expect(kidsRate.placeholder).toBe("5.00"); // 0.5 × $10 default
+    fireEvent.change(kidsRate, { target: { value: "18" } });
+    expect(onChange).toHaveBeenCalledWith({ segment_prices: { Kids: "18" } });
   });
 
   it("enables the big-eaters modifier", () => {
-    const onChange = setup();
+    const onChange = setup({ guest_count: 50 });
     fireEvent.click(screen.getByRole("checkbox", { name: /hearty eaters/i }));
     expect(onChange).toHaveBeenCalledWith({ big_eaters: true });
   });
 });
 
-describe("GuestCountField — segment-gated split visibility (REL-404 single count)", () => {
-  it("shows the split for a Gents + Ladies org", () => {
-    mockUseSiteSettings.mockReturnValue({ data: { guest_segments: [seg("Gents"), seg("Ladies")] } });
-    setup({ guest_count: 50 });
-    expect(screen.getByRole("checkbox", { name: /gents \/ ladies split/i })).toBeInTheDocument();
-  });
-
-  it("hides the split (single count) for a US Adults/Kids/Vendors org", () => {
-    mockUseSiteSettings.mockReturnValue({
-      data: { guest_segments: [seg("Adults"), seg("Kids"), seg("Vendors", false)] },
-    });
-    setup({ guest_count: 50 });
-    expect(screen.queryByRole("checkbox", { name: /gents \/ ladies split/i })).not.toBeInTheDocument();
-    // No misleading "Split: not specified" line when there is no split concept.
-    expect(screen.queryByText(/Split: not specified/)).not.toBeInTheDocument();
-    // The canonical guest count still renders.
-    expect(screen.getByRole("textbox")).toHaveValue("50");
-  });
-
-  it("defaults to showing the split before settings load (no regression for existing orgs)", () => {
-    mockUseSiteSettings.mockReturnValue({ data: undefined });
-    setup({ guest_count: 50 });
-    expect(screen.getByRole("checkbox", { name: /gents \/ ladies split/i })).toBeInTheDocument();
-  });
-});
-
-describe("splitAddsUp", () => {
-  it("passes when no split is open", () => {
-    expect(splitAddsUp({ guest_count: 50, gents: 0, ladies: 0, custom_split: false })).toBe(true);
-  });
-  it("passes when the split matches and fails when it does not", () => {
-    expect(splitAddsUp({ guest_count: 50, gents: 30, ladies: 20, custom_split: true })).toBe(true);
-    expect(splitAddsUp({ guest_count: 50, gents: 30, ladies: 10, custom_split: true })).toBe(false);
+describe("breakdownValid", () => {
+  it("true when the remainder is ≥ 0, false when the in-count breakdown exceeds the count", () => {
+    expect(breakdownValid({ ...base, guest_count: 150, segment_counts: { Kids: 12 } }, US)).toBe(true);
+    expect(breakdownValid({ ...base, guest_count: 150, segment_counts: { Kids: 200 } }, US)).toBe(false);
+    // Vendors (additional covers) never count against the guest count.
+    expect(breakdownValid({ ...base, guest_count: 150, segment_counts: { Kids: 150, Vendors: 99 } }, US)).toBe(true);
   });
 });

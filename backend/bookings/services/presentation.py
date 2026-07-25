@@ -41,6 +41,16 @@ def booking_presentation(booking, signature=None):
     gents, ladies = booking.gents or 0, booking.ladies or 0
     guest_count = getattr(booking, 'guest_count', None) or (gents + ladies)
 
+    # Itemized food lines per guest segment (kids/vendors) when multi-rate, else
+    # None so the surface shows the single food line. Same helper the PDFs use.
+    from bookings.services.totals import segment_food_rows
+    from events.models import resolve_booking_segments
+    _rows = segment_food_rows(booking.price_per_head, resolve_booking_segments(booking))
+    food_rows = [
+        {'name': r['name'], 'count': r['count'], 'rate': str(r['rate']), 'amount': str(r['amount'])}
+        for r in _rows
+    ] if _rows else None
+
     # Menu — grouped by course/category (rich structure; PDF flattens, HTML groups),
     # plus the flat added-order list the PDF's 2-column table uses verbatim.
     groups = {}
@@ -135,6 +145,7 @@ def booking_presentation(booking, signature=None):
         'additional_meals': additional_meals,
         'line_items': line_items,
         'price_per_head': str(booking.price_per_head) if booking.price_per_head else None,
+        'food_rows': food_rows,
         # Money
         'subtotal': str(booking.subtotal),
         'service_charge_pct': str(booking.service_charge_pct),

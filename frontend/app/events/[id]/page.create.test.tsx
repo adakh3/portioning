@@ -34,7 +34,7 @@ vi.mock("@/lib/hooks", () => ({
   useLaborRoles: () => ({ data: [] }),
   useStaff: () => ({ data: [] }),
   useUsers: () => ({ data: [] }),
-  useSiteSettings: () => ({ data: { currency_symbol: "£", currency_code: "GBP", date_format: "DD/MM/YYYY", price_rounding_step: "50", default_tax_rate: "0.2000", service_charge_default_pct: "20.00", service_charge_taxable_default: false, gratuity_default_pct: "0.00" } }),
+  useSiteSettings: () => ({ data: { currency_symbol: "£", currency_code: "GBP", date_format: "DD/MM/YYYY", price_rounding_step: "50", default_tax_rate: "0.2000", service_charge_default_pct: "20.00", service_charge_taxable_default: false, gratuity_default_pct: "0.00", guest_segments: [{ name: "Gents", is_default: true, counts_toward_total: true, price_multiplier: "1.0000", sort_order: 0 }, { name: "Ladies", is_default: false, counts_toward_total: true, price_multiplier: "1.0000", sort_order: 1 }] } }),
   useDateFormat: () => "DD/MM/YYYY",
   useEventTypes: () => ({ data: [{ id: 1, value: "wedding", label: "Wedding" }] }),
   useServiceStyles: () => ({ data: [] }),
@@ -66,29 +66,30 @@ describe("Event create — guest split + anchored timeline reach the payload", (
     await waitFor(() => expect(h.createEvent).toHaveBeenCalledTimes(1));
     const payload = h.createEvent.mock.calls[0][0] as Record<string, unknown>;
     expect(payload.guest_count).toBe(40);
-    expect(payload.gents).toBe(0);                 // split not specified — never invented
-    expect(payload.ladies).toBe(0);
+    expect(payload.guest_counts).toEqual([]);      // no breakdown entered — never invented
     expect(payload.date).toBe(today);              // defaults to today
     expect(payload.setup_time).toBe(`${today}T10:00`);
     expect(payload.assigned_to).toBe(7);           // defaults to the current user
     expect(payload.product).toBe(5);               // defaults to the org's first active product
   });
 
-  it("sends a real gents/ladies split when one is entered", async () => {
+  it("sends a breakdown when one is entered (Ladies input → Gents derived)", async () => {
     render(<EventCreatePage />);
 
     fireEvent.click(screen.getByText("select-customer"));
     fireEvent.change(screen.getByLabelText("Guest Count"), { target: { value: "40" } });
-    fireEvent.click(screen.getByRole("checkbox", { name: /gents \/ ladies split/i }));
-    fireEvent.change(screen.getByLabelText("Gents"), { target: { value: "25" } });
+    // Ladies is the explicit input; Gents (the default) is the derived remainder.
+    fireEvent.change(screen.getByLabelText("Ladies"), { target: { value: "15" } });
 
     fireEvent.click(screen.getByText("Create Event"));
 
     await waitFor(() => expect(h.createEvent).toHaveBeenCalledTimes(1));
     const payload = h.createEvent.mock.calls[0][0] as Record<string, unknown>;
     expect(payload.guest_count).toBe(40);
-    expect(payload.gents).toBe(25);
-    expect(payload.ladies).toBe(15);               // auto-compensated to add up
+    expect(payload.guest_counts).toEqual([
+      { segment: "Ladies", count: 15 },
+      { segment: "Gents", count: 25 }, // derived remainder
+    ]);
   });
 
   it("seeds the org's default service charge into a new event's payload", async () => {

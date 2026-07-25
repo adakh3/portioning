@@ -93,8 +93,7 @@ describe("Quote detail — one quote, one save", () => {
     await waitFor(() => expect(h.updateQuote).toHaveBeenCalledTimes(1));
     const payload = h.updateQuote.mock.calls[0][1] as Record<string, unknown>;
     expect(payload.guest_count).toBe(60);
-    expect(payload.gents).toBe(0);
-    expect(payload.ladies).toBe(0);
+    expect(payload.guest_counts).toEqual([]); // breakdown cleared, not scaled
     // Anchored to the quote's existing event date, not today.
     expect(payload.setup_time).toBe("2026-09-01T09:30");
   });

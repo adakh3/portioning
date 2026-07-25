@@ -56,7 +56,10 @@ class OrgSettingsSerializer(serializers.ModelSerializer):
     def get_guest_segments(self, obj):
         from rules.models import GuestSegment
         return [
-            {'name': s.name, 'is_default': s.is_default, 'counts_toward_total': s.counts_toward_total}
+            {'name': s.name, 'is_default': s.is_default,
+             'counts_toward_total': s.counts_toward_total,
+             # Needed by the breakdown UI: ordering + live per-segment pricing.
+             'price_multiplier': str(s.price_multiplier), 'sort_order': s.sort_order}
             for s in GuestSegment.objects.filter(
                 organisation=obj.organisation, is_active=True,
             ).order_by('sort_order', 'name')

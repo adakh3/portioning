@@ -185,9 +185,23 @@ function BookingView({
       {/* Charges */}
       <section className="mt-4 rounded-xl border border-neutral-200 bg-white p-5">
         <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-neutral-400">Charges</h2>
-        {booking.price_per_head && (
+        {booking.food_rows && booking.food_rows.length > 0 ? (
+          booking.food_rows.map((r, i) => (
+            <Row key={i} label={`${r.name} — ${r.count} × ${money(r.rate)}`} value={money(r.amount)} />
+          ))
+        ) : booking.price_per_head ? (
           <Row label={`Food / menu (${money(booking.price_per_head)} pp)`} value="" />
-        )}
+        ) : null}
+        {/* Priced additional meals as valued rows so the Charges add up to Subtotal. */}
+        {booking.additional_meals
+          .filter((m) => m.price_per_head && (parseFloat(m.price_per_head) || 0) > 0)
+          .map((m, i) => (
+            <Row
+              key={`meal-${i}`}
+              label={`${m.label} (${money(m.price_per_head as string)} pp × ${m.guest_count})`}
+              value={money(String((parseFloat(m.price_per_head as string) || 0) * (m.guest_count || 0)))}
+            />
+          ))}
         {booking.line_items.map((li, i) => (
           <Row key={i} label={`${li.description}`} value={money(li.line_total)} />
         ))}

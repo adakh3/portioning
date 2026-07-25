@@ -16,7 +16,7 @@ import GuestCountField, { GuestCountValue } from "@/components/GuestCountField";
 import BookingTimelineField from "@/components/BookingTimelineField";
 import BookingDetailsForm, { BookingDetailsValue } from "@/components/BookingDetailsForm";
 import AssigneePicker from "@/components/AssigneePicker";
-import { computeQuoteTotals, buildQuoteSavePayload, bookingMealRows, LineItemInput } from "@/lib/quoteTotals";
+import { computeQuoteTotals, buildQuoteSavePayload, buildGuestCountsPayload, bookingMealRows, hasVendorDoubleEntry, segmentFood, segmentFoodRows, LineItemInput, GuestSegmentMeta } from "@/lib/quoteTotals";
 import AddOnItemsEditor from "@/components/AddOnItemsEditor";
 import BookingTotalsCard from "@/components/BookingTotalsCard";
 import ESignPanel from "@/components/ESignPanel";
@@ -53,6 +53,7 @@ export default function QuoteDetailPage() {
   const { data: orgContacts = [] } = useContacts();
   const { data: rawSettings } = useSiteSettings();
   const settings = rawSettings || { currency_symbol: "", currency_code: "", date_format: "MM/DD/YYYY", default_price_per_head: "0.00", target_food_cost_percentage: "30.00", price_rounding_step: "50", tax_label: "", default_tax_rate: "0.0000" };
+  const segmentMeta = (rawSettings?.guest_segments ?? []) as GuestSegmentMeta[];
   const dateFormat = useDateFormat();
   const timeFormat: "12h" | "24h" = ((rawSettings as { time_format?: string } | undefined)?.time_format === "12h") ? "12h" : "24h";
   const { data: users = [] } = useUsers();
@@ -80,9 +81,8 @@ export default function QuoteDetailPage() {
     account: "",
     event_date: "",
     guest_count: 0,
-    gents: 0,
-    ladies: 0,
-    custom_split: false,
+    segment_counts: {} as Record<string, number>,
+    segment_prices: {} as Record<string, string>,
     big_eaters: false,
     big_eaters_percentage: 0,
     price_per_head: "",
@@ -117,9 +117,8 @@ export default function QuoteDetailPage() {
     venue_address: "",
     event_date: todayISO(),
     guest_count: 0,
-    gents: 0,
-    ladies: 0,
-    custom_split: false,
+    segment_counts: {} as Record<string, number>,
+    segment_prices: {} as Record<string, string>,
     big_eaters: false,
     big_eaters_percentage: 0,
     price_per_head: "",
@@ -216,9 +215,8 @@ export default function QuoteDetailPage() {
       account: isBusiness ? String(selectedLead.account) : prev.account,
       event_date: selectedLead.event_date || prev.event_date,
       guest_count: selectedLead.guest_estimate || prev.guest_count,
-      gents: selectedLead.guest_estimate ? 0 : prev.gents,
-      ladies: selectedLead.guest_estimate ? 0 : prev.ladies,
-      custom_split: selectedLead.guest_estimate ? false : prev.custom_split,
+      segment_counts: selectedLead.guest_estimate ? {} : prev.segment_counts,
+      segment_prices: selectedLead.guest_estimate ? {} : prev.segment_prices,
       event_type: selectedLead.event_type || prev.event_type,
       meal_type: selectedLead.meal_type || prev.meal_type,
       service_style: selectedLead.service_style || prev.service_style,
@@ -244,8 +242,7 @@ export default function QuoteDetailPage() {
         venue: createData.venue ? Number(createData.venue) : null,
         venue_address: createData.venue_address,
         event_date: createData.event_date,
-        gents: createData.gents,
-        ladies: createData.ladies,
+        guest_counts: buildGuestCountsPayload(createData.guest_count, createData.segment_counts, segmentMeta, createData.segment_prices),
         guest_count: createData.guest_count,
         big_eaters: createData.big_eaters,
         big_eaters_percentage: createData.big_eaters_percentage,
@@ -293,11 +290,10 @@ export default function QuoteDetailPage() {
       account: quote.account ? String(quote.account) : "",
       event_date: quote.event_date,
       guest_count: quote.guest_count,
-      gents: quote.gents,
-      ladies: quote.ladies,
-      // The split section opens only when a real split exists (it adds up).
-      custom_split: (quote.gents > 0 || quote.ladies > 0)
-        && quote.gents + quote.ladies === quote.guest_count,
+      // Rehydrate the explicit per-segment breakdown from the saved rows. The
+      // default segment's entry is ignored downstream (it's the derived remainder).
+      segment_counts: Object.fromEntries((quote.guest_counts ?? []).map((r) => [r.segment, r.count])),
+      segment_prices: Object.fromEntries((quote.guest_counts ?? []).filter((r) => r.price_per_head != null).map((r) => [r.segment, String(r.price_per_head)])),
       big_eaters: quote.big_eaters,
       big_eaters_percentage: quote.big_eaters_percentage,
       price_per_head: quote.price_per_head || "",
@@ -361,7 +357,7 @@ export default function QuoteDetailPage() {
     setSaving(true);
     setError("");
     try {
-      await api.updateQuote(quote.id, buildQuoteSavePayload(editData, menuData, editLineItems, editMeals));
+      await api.updateQuote(quote.id, buildQuoteSavePayload(editData, menuData, editLineItems, editMeals, segmentMeta));
       await mutateQuote();
       setEditing(false);
     } catch (err) {
@@ -432,6 +428,7 @@ export default function QuoteDetailPage() {
       parseFloat(createData.tax_rate || "0"), createLineItems, createMeals,
       parseFloat(createData.service_charge_pct || "0"), createData.service_charge_taxable,
       parseFloat(createData.gratuity_pct || "0"),
+      createData.segment_counts, segmentMeta, createData.segment_prices,
     );
     return (
       <div className="space-y-6">
@@ -518,9 +515,16 @@ export default function QuoteDetailPage() {
               <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Menu &amp; Pricing</h2>
               <div className="mb-4">
                 <GuestCountField
-                  value={{ guest_count: createData.guest_count, gents: createData.gents, ladies: createData.ladies, custom_split: createData.custom_split, big_eaters: createData.big_eaters, big_eaters_percentage: createData.big_eaters_percentage }}
+                  value={{ guest_count: createData.guest_count, segment_counts: createData.segment_counts, segment_prices: createData.segment_prices, big_eaters: createData.big_eaters, big_eaters_percentage: createData.big_eaters_percentage }}
                   onChange={(patch) => setCreateData((prev) => ({ ...prev, ...patch }))}
+                  pricePerHead={createData.price_per_head}
                 />
+                {hasVendorDoubleEntry(createData.segment_counts, createMeals, segmentMeta) && (
+                  <div role="alert" className="mt-2 flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
+                    <span aria-hidden="true" className="text-sm leading-none">⚠️</span>
+                    <span>Possible double-count: you have <strong>vendor covers</strong> and a <strong>vendor-labelled meal</strong>. Vendors should be counted one way or the other, not both.</span>
+                  </div>
+                )}
               </div>
               <MenuBuilder
                 selectedDishIds={menuData.dish_ids}
@@ -565,7 +569,8 @@ export default function QuoteDetailPage() {
           <BookingTotalsCard
             title="Quote Total"
             currencySymbol={cs}
-            foodTotal={Math.round((parseFloat(createData.price_per_head) || 0) * createData.guest_count * 100) / 100}
+            foodTotal={segmentFood(createData.price_per_head, createData.guest_count, createData.segment_counts, segmentMeta, createData.segment_prices)}
+            foodRows={segmentFoodRows(createData.price_per_head, createData.guest_count, createData.segment_counts, segmentMeta, createData.segment_prices)}
             foodLabel={`Food / Menu (${formatCurrency(createData.price_per_head || 0, cs)}/head × ${createData.guest_count} guests)`}
             meals={bookingMealRows(createMeals, cs)}
             addOnsTotal={Math.round((createTotals.subtotal - createTotals.food_total) * 100) / 100}
@@ -653,6 +658,7 @@ export default function QuoteDetailPage() {
     editing ? editMeals : (q.additional_meals || []),
     parseFloat(editData.service_charge_pct || "0"), editData.service_charge_taxable,
     parseFloat(editData.gratuity_pct || "0"),
+    editData.segment_counts, segmentMeta, editData.segment_prices,
   );
 
   return (
@@ -992,9 +998,16 @@ export default function QuoteDetailPage() {
             <>
               <div className="mb-4">
                 <GuestCountField
-                  value={{ guest_count: editData.guest_count, gents: editData.gents, ladies: editData.ladies, custom_split: editData.custom_split, big_eaters: editData.big_eaters, big_eaters_percentage: editData.big_eaters_percentage }}
+                  value={{ guest_count: editData.guest_count, segment_counts: editData.segment_counts, segment_prices: editData.segment_prices, big_eaters: editData.big_eaters, big_eaters_percentage: editData.big_eaters_percentage }}
                   onChange={(patch) => setEditData((prev) => ({ ...prev, ...patch }))}
+                  pricePerHead={editData.price_per_head}
                 />
+                {hasVendorDoubleEntry(editData.segment_counts, editMeals, segmentMeta) && (
+                  <div role="alert" className="mt-2 flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
+                    <span aria-hidden="true" className="text-sm leading-none">⚠️</span>
+                    <span>Possible double-count: you have <strong>vendor covers</strong> and a <strong>vendor-labelled meal</strong>. Vendors should be counted one way or the other, not both.</span>
+                  </div>
+                )}
               </div>
               <MenuBuilder
                 selectedDishIds={menuData.dish_ids}
@@ -1115,12 +1128,17 @@ export default function QuoteDetailPage() {
         const mealsList = editing ? editMeals : (q.additional_meals || []);
         const pph = parseFloat((editing ? editData.price_per_head : q.price_per_head) || "0") || 0;
         const guests = editing ? editGuestCount : q.guest_count;
-        const mainFood = Math.round(pph * guests * 100) / 100;
+        const viewSegmentCounts = Object.fromEntries((q.guest_counts ?? []).map((r) => [r.segment, r.count]));
+        const viewSegmentPrices = Object.fromEntries((q.guest_counts ?? []).filter((r) => r.price_per_head != null).map((r) => [r.segment, String(r.price_per_head)]));
+        const segCounts = editing ? editData.segment_counts : viewSegmentCounts;
+        const segPrices = editing ? editData.segment_prices : viewSegmentPrices;
+        const mainFood = segmentFood(pph, guests, segCounts, segmentMeta, segPrices);
         return (
       <BookingTotalsCard
         title="Quote Total"
         currencySymbol={cs}
         foodTotal={mainFood}
+        foodRows={segmentFoodRows(pph, guests, segCounts, segmentMeta, segPrices)}
         foodLabel={`Food / Menu (${formatCurrency(editing ? editData.price_per_head : (q.price_per_head ?? 0), cs)}/head × ${editing ? editGuestCount : q.guest_count} guests)`}
         meals={bookingMealRows(mealsList, cs)}
         addOnsTotal={Math.round((subtotal - fullFood) * 100) / 100}

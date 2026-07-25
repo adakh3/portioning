@@ -119,14 +119,196 @@ export function computeQuoteTotals(
   serviceChargePct: number | string | null | undefined = 0,
   serviceChargeTaxable: boolean = true,
   gratuityPct: number | string | null | undefined = 0,
+  segmentCounts: Record<string, number> = {},
+  segmentMeta: GuestSegmentMeta[] = [],
+  segmentPrices: Record<string, string> = {},
 ): BookingTotals {
   const price = Number(pricePerHead) || 0;
   const guests = Number(guestCount) || 0;
-  const food = round2((price > 0 ? round2(price * guests) : 0) + mealsFood(meals));
+  // Segment-aware food when the org exposes segments (kids/vendor multipliers +
+  // per-segment overrides); otherwise flat price × guests. Both reduce identically
+  // with no breakdown.
+  const menuFood = segmentMeta.length
+    ? segmentFood(price, guests, segmentCounts, segmentMeta, segmentPrices)
+    : (price > 0 ? round2(price * guests) : 0);
+  const food = round2(menuFood + mealsFood(meals));
   return computeBookingTotals(
     food, lineItems, guests, Number(taxRate) || 0,
     Number(serviceChargePct) || 0, serviceChargeTaxable, Number(gratuityPct) || 0,
   );
+}
+
+// ── Guest segments (kids/vendor buckets) — mirror of the backend resolver +
+// segment_food_total in bookings/services/totals.py (REL-415). ──
+
+export interface GuestSegmentMeta {
+  name: string;
+  is_default: boolean;
+  counts_toward_total: boolean;
+  price_multiplier: string; // decimal string, e.g. "0.5000"
+  sort_order: number;
+}
+
+export interface GuestCountRow {
+  segment: string;
+  count: number;
+  price_per_head?: string; // per-segment per-head override (flat/custom rate); omitted when unset
+}
+
+/**
+ * The guest_counts payload for a booking save: `[]` when no breakdown was entered
+ * (the whole count is the org's default segment), otherwise every explicit in-count
+ * segment plus the **derived default remainder** plus any additional-cover segments.
+ * `explicit` is the map of user-entered segment counts (the default is never entered
+ * — it is the remainder). Mirrors the backend write path.
+ */
+export function buildGuestCountsPayload(
+  guestCount: number,
+  explicit: Record<string, number>,
+  meta: GuestSegmentMeta[],
+  prices: Record<string, string> = {},
+): GuestCountRow[] {
+  const inCountNonDefault = meta.filter((m) => m.counts_toward_total && !m.is_default);
+  const additional = meta.filter((m) => !m.counts_toward_total);
+  const anyExplicit = [...inCountNonDefault, ...additional].some((m) => (explicit[m.name] || 0) > 0);
+  if (!anyExplicit) return [];
+  const row = (segment: string, count: number): GuestCountRow => {
+    const p = prices[segment];
+    return p != null && p !== "" ? { segment, count, price_per_head: p } : { segment, count };
+  };
+  const rows: GuestCountRow[] = [];
+  let sumInCount = 0;
+  for (const m of inCountNonDefault) {
+    const c = explicit[m.name] || 0;
+    if (c > 0) {
+      rows.push(row(m.name, c));
+      sumInCount += c;
+    }
+  }
+  const def = meta.find((m) => m.is_default && m.counts_toward_total);
+  const remainder = (guestCount || 0) - sumInCount;
+  if (def && remainder > 0) rows.push({ segment: def.name, count: remainder }); // default uses base rate
+  for (const m of additional) {
+    const c = explicit[m.name] || 0;
+    if (c > 0) rows.push(row(m.name, c));
+  }
+  return rows;
+}
+
+/** AC14: warn (don't block) when a booking has BOTH a vendor additional-cover
+ * count AND a vendor-labelled additional meal — the two ways to feed vendors,
+ * entered at once (double-entry). */
+export function hasVendorDoubleEntry(
+  segmentCounts: Record<string, number>,
+  meals: { label?: string }[] | undefined,
+  meta: GuestSegmentMeta[],
+): boolean {
+  const vendorSeg = meta.find((m) => !m.counts_toward_total && /vendor/i.test(m.name));
+  const vendorCovers = vendorSeg ? (segmentCounts[vendorSeg.name] || 0) : 0;
+  const vendorMeal = (meals || []).some((m) => /vendor/i.test(m.label || ""));
+  return vendorCovers > 0 && vendorMeal;
+}
+
+/** The derived remainder shown (read-only) for the org's default segment. */
+export function defaultSegmentRemainder(
+  guestCount: number,
+  explicit: Record<string, number>,
+  meta: GuestSegmentMeta[],
+): number {
+  const sumInCount = meta
+    .filter((m) => m.counts_toward_total && !m.is_default)
+    .reduce((t, m) => t + (explicit[m.name] || 0), 0);
+  return (guestCount || 0) - sumInCount;
+}
+
+/**
+ * Per-head food across the guest segments — mirror of `segment_food_total`.
+ * With no breakdown, the whole count is priced at the default segment's multiplier
+ * (or 1.0), reducing to `price_per_head × guest_count`.
+ */
+/** The per-cover price for a segment, rounded to cents — mirror of the backend
+ * `segment_effective_rate`. A per-segment `override` (flat/custom rate) wins;
+ * else `round(base price × multiplier)`. */
+export function segmentEffectiveRate(
+  pricePerHead: number | string | null | undefined,
+  priceMultiplier: string | number | null | undefined,
+  override?: string | number | null,
+): number {
+  if (override != null && override !== "") return round2(Number(override));
+  const mult = priceMultiplier == null ? 1 : Number(priceMultiplier);
+  return round2((Number(pricePerHead) || 0) * mult);
+}
+
+/** Low-level food sum over already-resolved segment rows — the exact mirror of the
+ * backend `segment_food_total` (both run the shared `segment_food_cases`). Rounds
+ * per cover then sums, so itemized lines add up to this to the cent. */
+export function segmentFoodFromRows(
+  pricePerHead: number | string | null | undefined,
+  rows: { count: number; price_multiplier: string | number | null | undefined; price_override?: string | number | null }[],
+): number {
+  return round2(rows.reduce((t, r) => t + segmentEffectiveRate(pricePerHead, r.price_multiplier, r.price_override) * (r.count || 0), 0));
+}
+
+export interface SegmentFoodRow { name: string; count: number; rate: number; amount: number; }
+
+/** Itemized food lines for display — mirror of the backend `segment_food_rows`.
+ * Returns `null` when there is nothing to itemize (no price, <2 segments, or a
+ * single shared rate), so the caller shows the single food line and Gents/Ladies /
+ * count-only bookings stay byte-identical. */
+export function segmentFoodRows(
+  pricePerHead: number | string | null | undefined,
+  guestCount: number,
+  explicit: Record<string, number>,
+  meta: GuestSegmentMeta[],
+  prices: Record<string, string> = {},
+): SegmentFoodRow[] | null {
+  const byName: Record<string, GuestSegmentMeta> = Object.fromEntries(meta.map((m) => [m.name, m]));
+  const built = buildGuestCountsPayload(guestCount, explicit, meta, prices);
+  let resolved: { name: string; count: number; mult: string | number }[];
+  if (built.length === 0) {
+    const def = meta.find((m) => m.is_default && m.counts_toward_total);
+    resolved = (guestCount || 0) > 0 ? [{ name: def?.name ?? "", count: guestCount, mult: def ? def.price_multiplier : 1 }] : [];
+  } else {
+    resolved = built.map((r) => ({ name: r.segment, count: r.count, mult: byName[r.segment]?.price_multiplier ?? 1 }));
+  }
+  const rows = resolved
+    .filter((r) => r.count > 0)
+    // Order by the org's segment order so the display matches the PDF/backend
+    // (which read rows ordered by sort_order), not the payload's explicit-then-default order.
+    .sort((a, b) => (byName[a.name]?.sort_order ?? 0) - (byName[b.name]?.sort_order ?? 0))
+    .map((r) => {
+      // A default (Adults) segment never carries an override; others may.
+      const isDefault = byName[r.name]?.is_default && byName[r.name]?.counts_toward_total;
+      const rate = segmentEffectiveRate(pricePerHead, r.mult, isDefault ? undefined : prices[r.name]);
+      return { name: r.name, count: r.count, rate, amount: round2(rate * r.count) };
+    });
+  const distinctRates = new Set(rows.map((r) => r.rate));
+  if (!rows.some((r) => r.rate > 0) || rows.length < 2 || distinctRates.size < 2) return null;
+  return rows;
+}
+
+export function segmentFood(
+  pricePerHead: number | string | null | undefined,
+  guestCount: number,
+  explicit: Record<string, number>,
+  meta: GuestSegmentMeta[],
+  prices: Record<string, string> = {},
+): number {
+  const byName: Record<string, GuestSegmentMeta> = Object.fromEntries(meta.map((m) => [m.name, m]));
+  const built = buildGuestCountsPayload(guestCount, explicit, meta, prices);
+  let rows: { count: number; price_multiplier: string | number; price_override?: string }[];
+  if (built.length === 0) {
+    const def = meta.find((m) => m.is_default && m.counts_toward_total);
+    rows = (guestCount || 0) > 0 ? [{ count: guestCount, price_multiplier: def ? def.price_multiplier : 1 }] : [];
+  } else {
+    rows = built.map((r) => ({
+      count: r.count,
+      price_multiplier: byName[r.segment]?.price_multiplier ?? 1,
+      // The default segment ignores overrides (uses base); others honour the payload's.
+      price_override: (byName[r.segment]?.is_default && byName[r.segment]?.counts_toward_total) ? undefined : r.price_per_head,
+    }));
+  }
+  return segmentFoodFromRows(pricePerHead, rows);
 }
 
 export interface QuoteEditData {
@@ -135,8 +317,8 @@ export interface QuoteEditData {
   account: string;
   event_date: string;
   guest_count: number;
-  gents: number;
-  ladies: number;
+  segment_counts: Record<string, number>; // explicit per-segment inputs (default derived)
+  segment_prices: Record<string, string>; // per-segment per-head overrides (blank = use multiplier)
   big_eaters: boolean;
   big_eaters_percentage: number;
   price_per_head: string;
@@ -203,14 +385,14 @@ export function buildQuoteSavePayload(
   menuData: QuoteMenuData,
   lineItems: LineItemInput[],
   meals: EventMealData[] = [],
+  segmentMeta: GuestSegmentMeta[] = [],
 ) {
   return {
     primary_contact: editData.primary_contact ? Number(editData.primary_contact) : null,
     is_b2b: editData.is_b2b,
     account: editData.is_b2b && editData.account ? Number(editData.account) : null,
     event_date: editData.event_date,
-    gents: editData.gents,
-    ladies: editData.ladies,
+    guest_counts: buildGuestCountsPayload(editData.guest_count, editData.segment_counts, segmentMeta, editData.segment_prices),
     guest_count: editData.guest_count,
     big_eaters: editData.big_eaters,
     big_eaters_percentage: editData.big_eaters_percentage,
@@ -262,8 +444,8 @@ export interface EventSaveInput {
   banquet_instructions: string;
   setup_instructions: string;
   guest_count: number;
-  gents: number;
-  ladies: number;
+  segment_counts: Record<string, number>; // explicit per-segment inputs (default derived)
+  segment_prices: Record<string, string>; // per-segment per-head overrides (blank = use multiplier)
   guaranteed_count: number | null;
   final_count: number | null;
   final_count_due: string;
@@ -283,7 +465,7 @@ export interface EventSaveInput {
   meals: EventMealData[];
 }
 
-export function buildEventSavePayload(v: EventSaveInput) {
+export function buildEventSavePayload(v: EventSaveInput, segmentMeta: GuestSegmentMeta[] = []) {
   return {
     name: v.name,
     date: v.date,
@@ -303,8 +485,7 @@ export function buildEventSavePayload(v: EventSaveInput) {
     banquet_instructions: v.banquet_instructions,
     setup_instructions: v.setup_instructions,
     guest_count: v.guest_count,
-    gents: v.gents,
-    ladies: v.ladies,
+    guest_counts: buildGuestCountsPayload(v.guest_count, v.segment_counts, segmentMeta, v.segment_prices),
     guaranteed_count: v.guaranteed_count,
     final_count: v.final_count,
     final_count_due: v.final_count_due || null,

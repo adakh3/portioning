@@ -25,10 +25,12 @@ def resolve_legacy_segments(organisation, guest_count, gents, ladies, has_split)
     Each segment's multiplier/flags come from the org's ``rules.GuestSegment``
     definitions (1.0 / in-count when the org has no matching segment).
     """
-    from rules.models import GuestSegment
     from bookings.models import OrgSettings
 
-    by_name = {s.name.lower(): s for s in GuestSegment.objects.filter(organisation=organisation)}
+    # Reverse relation (not GuestSegment.objects.filter) so a caller that
+    # prefetched ``organisation__guest_segments`` (list views, via food_total)
+    # hits the cache instead of one query per booking.
+    by_name = {s.name.lower(): s for s in organisation.guest_segments.all()}
 
     def as_segment(name, count):
         seg = by_name.get(name.lower())
@@ -36,6 +38,8 @@ def resolve_legacy_segments(organisation, guest_count, gents, ladies, has_split)
             'name': seg.name if seg else name,
             'count': count,
             'portion_multiplier': seg.portion_multiplier if seg else 1.0,
+            'price_multiplier': float(seg.price_multiplier) if seg else 1.0,
+            'price_override': None,  # legacy/no-rows bookings have no per-segment override
             'counts_toward_total': seg.counts_toward_total if seg else True,
         }
 
@@ -78,6 +82,104 @@ def sync_legacy_guest_counts(booking, organisation, gents, ladies, guest_count):
             )
         else:
             BookingGuestCount.objects.filter(segment=seg, **parent).delete()
+
+
+def guest_counts_error(organisation, guest_count, raw_counts):
+    """Validation guard for a submitted breakdown: return an error message when the
+    explicit **in-count** segments sum to more than ``guest_count`` (a negative
+    remainder), else ``None``. Additional-cover segments (``counts_toward_total=
+    False``, e.g. Vendors) are ignored — they never reconcile against the count.
+    """
+    if not raw_counts:
+        return None
+    segs = {s.name.lower(): s for s in organisation.guest_segments.all()}
+    in_count = 0
+    for row in raw_counts:
+        seg = segs.get((row.get('segment') or '').lower())
+        if seg is not None and seg.counts_toward_total:
+            in_count += int(row.get('count') or 0)
+    if in_count > (guest_count or 0):
+        return (f'The breakdown ({in_count}) is more than the guest count '
+                f'({guest_count or 0}).')
+    return None
+
+
+def write_booking_segments(booking, raw_counts):
+    """Persist a booking's per-segment breakdown (list of ``{'segment','count'}``)
+    into ``BookingGuestCount`` rows (quote XOR event), replacing existing rows, and
+    mirror any Gents/Ladies counts into the legacy columns so column-reading
+    renderers (PDFs) stay correct. Data-driven — the gents/ladies mirror fires only
+    when the org actually defines those segments, never by org type.
+    """
+    org = booking.organisation
+    parent = {'event': booking} if isinstance(booking, Event) else {'quote': booking}
+    segs = {s.name.lower(): s for s in org.guest_segments.all()}
+    seen = []
+    gents = ladies = 0
+    for row in (raw_counts or []):
+        name = (row.get('segment') or '').lower()
+        seg = segs.get(name)
+        if seg is None:
+            continue
+        count = int(row.get('count') or 0)
+        if name == 'gents':
+            gents = count
+        elif name == 'ladies':
+            ladies = count
+        if count > 0:
+            raw_price = row.get('price_per_head')
+            override = Decimal(str(raw_price)) if raw_price not in (None, '') else None
+            # The default in-count segment (Adults) always uses the base price/head —
+            # never an override — so the stored total can't diverge from the preview.
+            # Guard here (not just the UI) so the raw API / AI-agent write path can't
+            # set one either.
+            if seg.is_default and seg.counts_toward_total:
+                override = None
+            BookingGuestCount.objects.update_or_create(
+                segment=seg, defaults={'count': count, 'price_per_head': override}, **parent,
+            )
+            seen.append(seg.id)
+    BookingGuestCount.objects.filter(**parent).exclude(segment_id__in=seen).delete()
+    # Keep the legacy gents/ladies columns in sync (PDF/back-compat), only when the
+    # org defines those segments and the values actually changed.
+    if ('gents' in segs or 'ladies' in segs) and (booking.gents != gents or booking.ladies != ladies):
+        booking.gents = gents
+        booking.ladies = ladies
+        booking.save(update_fields=['gents', 'ladies'])
+
+
+def resolve_booking_segments(booking):
+    """Segment mix for pricing **and** portioning a booking (quote XOR event).
+
+    Count-first: per-segment ``BookingGuestCount`` rows when present; otherwise the
+    legacy gents/ladies split; otherwise the whole ``guest_count`` under the org's
+    default segment. Works for both ``Quote`` and ``Event`` (both expose
+    ``guest_counts``, ``organisation``, ``guest_count``, ``gents``, ``ladies``).
+    Each segment carries both its portion multiplier (kitchen) and price multiplier
+    (billing), so the single resolver feeds `segment_food_total` and the engine.
+    """
+    # Use ``.all()`` (not ``.select_related``) so a caller that prefetched
+    # ``guest_counts__segment`` (list views, via food_total) hits the cache
+    # instead of an N+1; single-object callers pay only a couple of small queries.
+    rows = [r for r in booking.guest_counts.all() if r.count]
+    if rows:
+        return [
+            {'name': r.segment.name, 'count': r.count,
+             'portion_multiplier': r.segment.portion_multiplier,
+             'price_multiplier': float(r.segment.price_multiplier),
+             # Per-booking per-head override (flat/custom rate); None → use multiplier.
+             # The default segment never honours an override (matches the write guard).
+             'price_override': (None if r.segment.is_default and r.segment.counts_toward_total
+                                else (float(r.price_per_head) if r.price_per_head is not None else None)),
+             'counts_toward_total': r.segment.counts_toward_total}
+            for r in rows
+        ]
+    has_split = bool((booking.gents or booking.ladies)
+                     and booking.gents + booking.ladies == booking.guest_count)
+    return resolve_legacy_segments(
+        booking.organisation, booking.guest_count, booking.gents, booking.ladies,
+        has_split=has_split,
+    )
 
 
 class EventStatus(models.TextChoices):
@@ -236,27 +338,17 @@ class Event(OrgScopedModel, models.Model):
         ``guest_count`` under the org's default segment. Each segment carries its
         own portion multiplier, so the engine no longer hardcodes gents/ladies.
         """
-        rows = [r for r in self.guest_counts.select_related('segment').all() if r.count]
-        if rows:
-            return {'segments': [
-                {'name': r.segment.name, 'count': r.count,
-                 'portion_multiplier': r.segment.portion_multiplier,
-                 'counts_toward_total': r.segment.counts_toward_total}
-                for r in rows
-            ]}
-        return {'segments': resolve_legacy_segments(
-            self.organisation, self.guest_count, self.gents, self.ladies,
-            has_split=self.has_guest_split,
-        )}
+        return {'segments': resolve_booking_segments(self)}
 
     @property
     def food_total(self):
-        """Taxable food/menu cost: main menu (price_per_head × guest_count) +
-        any additional meals (their own price_per_head × guest_count)."""
-        total = Decimal('0.00')
-        pph = self.price_per_head
-        if pph and pph > 0:
-            total += pph * (self.guest_count or 0)
+        """Taxable food/menu cost: main menu priced per guest segment
+        (``price_per_head × price_multiplier × count``, summed over all segments) +
+        any additional meals (their own price_per_head × guest_count). With no
+        breakdown this reduces to ``price_per_head × guest_count`` (see
+        ``segment_food_total``)."""
+        from bookings.services.totals import segment_food_total
+        total = segment_food_total(self.price_per_head, resolve_booking_segments(self))
         for meal in self.additional_meals.all():
             if meal.price_per_head and meal.guest_count:
                 total += meal.price_per_head * meal.guest_count
@@ -411,6 +503,13 @@ class BookingGuestCount(models.Model):
     )
     segment = models.ForeignKey('rules.GuestSegment', on_delete=models.PROTECT, related_name='+')
     count = models.IntegerField(default=0, validators=[MinValueValidator(0), MaxValueValidator(50000)])
+    # Per-booking per-head price override for this segment. NULL → the rate falls
+    # back to base price_per_head × the segment's price_multiplier. Lets a caterer
+    # set a flat/custom per-segment rate on a booking (REL-415).
+    price_per_head = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True,
+        validators=[MinValueValidator(Decimal('0'))],
+    )
 
     class Meta:
         ordering = ['segment__sort_order', 'id']

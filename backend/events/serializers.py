@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from .models import (
     Event, EventConstraintOverride, EventDishComment, EventPayment,
-    sync_legacy_guest_counts,
+    sync_legacy_guest_counts, write_booking_segments, guest_counts_error,
 )
 from dishes.models import Dish
 from dishes.ordering import dish_ids_in_added_order
@@ -129,6 +129,16 @@ class EventSerializer(OrgScopedModelSerializer):
                 {'gents': 'Gents + ladies must add up to the guest count '
                           '(or leave the split empty).'}
             )
+        # N-segment breakdown: explicit in-count segments must not exceed the count.
+        raw_counts = self.initial_data.get('guest_counts') if hasattr(self, 'initial_data') else None
+        if raw_counts is not None:
+            org = attrs.get('organisation') or getattr(self.instance, 'organisation', None)
+            if org is None:
+                org = get_request_org(self.context.get('request'))
+            if org is not None:
+                err = guest_counts_error(org, guest_count, raw_counts)
+                if err:
+                    raise serializers.ValidationError({'guest_counts': err})
         return attrs
 
     def get_assigned_to_name(self, obj):
@@ -148,7 +158,8 @@ class EventSerializer(OrgScopedModelSerializer):
     def get_guest_counts(self, obj):
         return [
             {'segment': r.segment.name, 'count': r.count,
-             'counts_toward_total': r.segment.counts_toward_total}
+             'counts_toward_total': r.segment.counts_toward_total,
+             'price_per_head': str(r.price_per_head) if r.price_per_head is not None else None}
             for r in obj.guest_counts.select_related('segment').all()
         ]
 
@@ -222,9 +233,13 @@ class EventSerializer(OrgScopedModelSerializer):
             validated_data.setdefault('service_charge_taxable', s.service_charge_taxable_default)
             validated_data.setdefault('gratuity_pct', s.gratuity_default_pct)
         event = Event.objects.create(**validated_data)
-        sync_legacy_guest_counts(
-            event, event.organisation, event.gents, event.ladies, event.guest_count,
-        )
+        raw_counts = self.initial_data.get('guest_counts') if hasattr(self, 'initial_data') else None
+        if raw_counts is not None:
+            write_booking_segments(event, raw_counts)
+        else:
+            sync_legacy_guest_counts(
+                event, event.organisation, event.gents, event.ladies, event.guest_count,
+            )
         if dishes:
             event.dishes.set(dishes)
         if override_data:
@@ -247,10 +262,14 @@ class EventSerializer(OrgScopedModelSerializer):
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
-        sync_legacy_guest_counts(
-            instance, instance.organisation, instance.gents, instance.ladies,
-            instance.guest_count,
-        )
+        raw_counts = self.initial_data.get('guest_counts') if hasattr(self, 'initial_data') else None
+        if raw_counts is not None:
+            write_booking_segments(instance, raw_counts)
+        else:
+            sync_legacy_guest_counts(
+                instance, instance.organisation, instance.gents, instance.ladies,
+                instance.guest_count,
+            )
         if dishes is not None:
             instance.dishes.set(dishes)
         if override_data is not None:
