@@ -84,6 +84,20 @@ class EventBreakdownTests(_Base):
         kids_row = next(r for r in data['guest_counts'] if r['segment'] == 'Kids')
         self.assertEqual(kids_row['price_per_head'], '18.00')
 
+    def test_default_segment_override_is_ignored_even_via_raw_api(self):
+        # The default (Adults) segment must always use the base price/head — a raw
+        # API / agent payload trying to override it is dropped, so the stored total
+        # can't diverge from the live preview.
+        res = self._post(guest_count=150, price_per_head='10', guest_counts=[
+            {'segment': 'Adults', 'count': 138, 'price_per_head': '99'},  # attempt override
+            {'segment': 'Kids', 'count': 12},
+        ])
+        self.assertEqual(res.status_code, 201, res.content)
+        ev = Event.objects.get(id=res.json()['id'])
+        self.assertIsNone(ev.guest_counts.get(segment__name='Adults').price_per_head)
+        # Priced at base (138×10 + 12×5 = 1440), NOT 138×99.
+        self.assertEqual(ev.food_total, Decimal('1440.00'))
+
     def test_event_read_returns_breakdown(self):  # AC15 round-trip
         ev_id = self._post(guest_count=150, price_per_head='10',
                            guest_counts=self.BREAKDOWN).json()['id']

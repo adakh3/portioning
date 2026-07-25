@@ -129,6 +129,12 @@ def write_booking_segments(booking, raw_counts):
         if count > 0:
             raw_price = row.get('price_per_head')
             override = Decimal(str(raw_price)) if raw_price not in (None, '') else None
+            # The default in-count segment (Adults) always uses the base price/head —
+            # never an override — so the stored total can't diverge from the preview.
+            # Guard here (not just the UI) so the raw API / AI-agent write path can't
+            # set one either.
+            if seg.is_default and seg.counts_toward_total:
+                override = None
             BookingGuestCount.objects.update_or_create(
                 segment=seg, defaults={'count': count, 'price_per_head': override}, **parent,
             )
@@ -162,7 +168,9 @@ def resolve_booking_segments(booking):
              'portion_multiplier': r.segment.portion_multiplier,
              'price_multiplier': float(r.segment.price_multiplier),
              # Per-booking per-head override (flat/custom rate); None → use multiplier.
-             'price_override': float(r.price_per_head) if r.price_per_head is not None else None,
+             # The default segment never honours an override (matches the write guard).
+             'price_override': (None if r.segment.is_default and r.segment.counts_toward_total
+                                else (float(r.price_per_head) if r.price_per_head is not None else None)),
              'counts_toward_total': r.segment.counts_toward_total}
             for r in rows
         ]
