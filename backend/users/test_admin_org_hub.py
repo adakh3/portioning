@@ -5,20 +5,26 @@ stale customer can be cleared in place."""
 from django.contrib.admin.sites import site
 from django.test import TestCase
 
-from users.admin import OrganisationAdmin, OrgUserInline, SubscriptionInline, OrgSettingsInline, OrgUserInlineForm
+from users.admin import OrganisationAdmin, OrgUserInline, SubscriptionInline, OrgSettingsInline, GuestSegmentInline, OrgUserInlineForm
 from users.models import Organisation, User
+from rules.models import GuestSegment
 
 
 class OrgHubInlineTests(TestCase):
     def setUp(self):
         self.org = Organisation.objects.create(name="Hub Co", slug="hub-co", country="US")
 
-    def test_org_admin_exposes_the_three_hub_inlines(self):
+    def test_org_admin_exposes_the_hub_inlines_including_guest_segments(self):
         admin = OrganisationAdmin(Organisation, site)
         classes = admin.inlines
         self.assertIn(OrgSettingsInline, classes)
+        self.assertIn(GuestSegmentInline, classes)  # segments live in the org, not a flat list
         self.assertIn(SubscriptionInline, classes)
         self.assertIn(OrgUserInline, classes)
+
+    def test_guest_segment_has_no_standalone_admin(self):
+        # Edited only as an org inline now — no flat cross-org list.
+        self.assertNotIn(GuestSegment, site._registry)
 
     def test_subscription_inline_lets_stripe_ids_be_cleared(self):
         # The reset-linkage escape hatch: unlike the standalone admin, the ids are
