@@ -186,6 +186,9 @@ class Quote(OrgScopedModel, models.Model):
         # just-added add-ons and the stored subtotal would silently drop them.
         for rel in ('line_items', 'additional_meals'):
             getattr(self, '_prefetched_objects_cache', {}).pop(rel, None)
+        # Keep audience-scoped meal counts current before pricing (dual-write).
+        from events.models import sync_audience_meal_counts
+        sync_audience_meal_counts(self)
         totals = compute_booking_totals(
             self.food_total, self.line_items.all(), rate,
             service_charge_pct=self.service_charge_pct,

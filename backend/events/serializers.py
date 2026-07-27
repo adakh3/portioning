@@ -5,6 +5,7 @@ from .models import (
 )
 from dishes.models import Dish
 from dishes.ordering import dish_ids_in_added_order
+from rules.models import GuestSegment
 from staff.serializers import ShiftSerializer
 from equipment.serializers import EquipmentReservationSerializer
 from bookings.serializers.finance import InvoiceSerializer
@@ -106,7 +107,11 @@ class EventSerializer(OrgScopedModelSerializer):
             else:
                 dish_qs = Dish.objects.all()
             self.fields['dish_ids'].child_relation.queryset = dish_qs
-            self.fields['additional_meals'].child.fields['dish_ids'].child_relation.queryset = dish_qs
+            meal_fields = self.fields['additional_meals'].child.fields
+            meal_fields['dish_ids'].child_relation.queryset = dish_qs
+            meal_fields['audience_segment'].queryset = (
+                org.guest_segments.all() if org else GuestSegment.objects.none()
+            )
 
     def validate(self, attrs):
         attrs = super().validate(attrs)

@@ -6,6 +6,7 @@ from rest_framework import serializers
 from dishes.models import Dish
 from dishes.ordering import dish_ids_in_added_order
 from events.models import BookingMeal, BookingMealDishComment
+from rules.models import GuestSegment
 
 
 class BookingMealDishCommentSerializer(serializers.ModelSerializer):
@@ -23,10 +24,18 @@ class BookingMealSerializer(serializers.ModelSerializer):
         many=True, source='dishes', queryset=Dish.objects.none(), write_only=True, required=False
     )
     dish_comments = BookingMealDishCommentSerializer(many=True, required=False)
+    # Who the meal serves. ``audience_segment`` is the segment NAME (the identifier
+    # used across the guest-count payload); the org queryset is wired by the parent
+    # Quote/Event serializer __init__ (like dish_ids).
+    audience_segment = serializers.SlugRelatedField(
+        slug_field='name', queryset=GuestSegment.objects.none(),
+        required=False, allow_null=True,
+    )
 
     class Meta:
         model = BookingMeal
-        fields = ['id', 'label', 'guest_count', 'price_per_head', 'dishes', 'dish_ids',
+        fields = ['id', 'label', 'audience', 'audience_segment', 'guest_count',
+                  'price_per_head', 'dishes', 'dish_ids',
                   'based_on_template', 'meal_time', 'notes', 'dish_comments']
         extra_kwargs = {
             'notes': {'max_length': 5000},

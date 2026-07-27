@@ -31,6 +31,7 @@ def _copy_additional_meals_to_event(quote, event):
     for meal in quote.additional_meals.all():
         copy = BookingMeal.objects.create(
             event=event, label=meal.label, guest_count=meal.guest_count,
+            audience=meal.audience, audience_segment=meal.audience_segment,
             price_per_head=meal.price_per_head, based_on_template=meal.based_on_template,
             meal_time=meal.meal_time, notes=meal.notes,
         )

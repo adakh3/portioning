@@ -5,6 +5,7 @@ from bookings.serializers.leads import _get_event_type_labels
 from bookings.serializers.meals import BookingMealSerializer, replace_meals
 from dishes.models import Dish
 from dishes.ordering import dish_ids_in_added_order, dish_names_in_added_order
+from rules.models import GuestSegment
 from users.mixins import get_request_org
 from users.serializer_mixins import OrgScopedModelSerializer
 
@@ -77,7 +78,11 @@ class QuoteSerializer(OrgScopedModelSerializer):
             dish_qs = Dish.objects.filter(organisation=org) if org else Dish.objects.none()
             self.fields['dish_ids'].child_relation.queryset = dish_qs
             if 'additional_meals' in self.fields:
-                self.fields['additional_meals'].child.fields['dish_ids'].child_relation.queryset = dish_qs
+                meal_fields = self.fields['additional_meals'].child.fields
+                meal_fields['dish_ids'].child_relation.queryset = dish_qs
+                meal_fields['audience_segment'].queryset = (
+                    org.guest_segments.all() if org else GuestSegment.objects.none()
+                )
 
     class Meta:
         model = Quote

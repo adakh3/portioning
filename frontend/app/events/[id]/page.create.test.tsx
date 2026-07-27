@@ -92,6 +92,28 @@ describe("Event create — guest split + anchored timeline reach the payload", (
     ]);
   });
 
+  it("an additional meal's Serves selection reaches the payload with a derived count (REL-426)", async () => {
+    render(<EventCreatePage />);
+
+    fireEvent.click(screen.getByText("select-customer"));
+    fireEvent.change(screen.getByLabelText("Guest Count"), { target: { value: "40" } });
+    fireEvent.change(screen.getByLabelText("Ladies"), { target: { value: "15" } });  // Gents 25 derived
+
+    fireEvent.click(screen.getByText("+ Add Meal"));
+    fireEvent.change(screen.getByPlaceholderText("Meal label"), { target: { value: "Ladies lunch" } });
+    // "Serves" the Ladies segment → its count (15) is derived, read-only.
+    fireEvent.change(screen.getByLabelText("Serves"), { target: { value: "seg:Ladies" } });
+    expect(screen.getByText("15 — from Ladies")).toBeTruthy();
+
+    fireEvent.click(screen.getByText("Create Event"));
+
+    await waitFor(() => expect(h.createEvent).toHaveBeenCalledTimes(1));
+    const payload = h.createEvent.mock.calls[0][0] as { additional_meals: Record<string, unknown>[] };
+    expect(payload.additional_meals[0]).toMatchObject({
+      label: "Ladies lunch", audience: "segment", audience_segment: "Ladies", guest_count: 15,
+    });
+  });
+
   it("seeds the org's default service charge into a new event's payload", async () => {
     // Regression: the event create form must snapshot the org's service-charge
     // default (like the quote form) — otherwise it always POSTs 0% and the

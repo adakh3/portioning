@@ -11,7 +11,8 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 
 from tests.base import get_test_user
-from events.models import Event, BookingMeal
+from events.models import Event, BookingMeal, MealAudience
+from rules.models import GuestSegment
 from bookings.models import BookingLineItem
 from bookings.pdf import generate_event_pdf
 from dishes.tests import make_dish
@@ -77,6 +78,27 @@ class EventPDFTests(TestCase):
         # Timeline leads, then food, then meals (mirrors the editor).
         self.assertLess(text.find("TIMELINE"), text.find("FOOD / MENU"))
         self.assertLess(text.find("FOOD / MENU"), text.find("ADDITIONAL MEALS"))
+
+    def test_audience_scoped_meal_shows_its_derived_count(self):
+        # REL-426 AC6: a meal that serves a single segment renders the DERIVED
+        # count (gents = 60), not a hand-typed number — proving derivation reaches
+        # the function sheet via the dual-written guest_count.
+        if not HAVE_PYPDF:
+            self.skipTest("pypdf not installed")
+        e = Event.objects.create(
+            organisation=self.org, name="Split Event",
+            event_date=datetime.date(2026, 8, 1), guest_count=100, gents=60, ladies=40,
+            price_per_head=Decimal("50"), status="confirmed",
+        )
+        gents = GuestSegment.objects.get(organisation=self.org, name="gents")
+        BookingMeal.objects.create(
+            event=e, label="Gents lunch", audience=MealAudience.SEGMENT,
+            audience_segment=gents, guest_count=0, price_per_head=Decimal("8"),
+        )
+        e.recalculate_totals()
+        text = self._text(e)
+        self.assertIn("Gents lunch", text)
+        self.assertIn("× 60", text)  # derived from the gents segment, not typed
 
     def test_pdf_endpoint_returns_pdf(self):
         e = self._event()
