@@ -72,6 +72,17 @@ def accept_quote(quote, user=None):
         organisation=quote.organisation,
     )
 
+    # Carry the per-segment guest breakdown (Adults/Kids/Vendors, or gents/ladies)
+    # BEFORE portioning and totals: kitchen portions, segment-priced food, and any
+    # audience-scoped additional meals all resolve from these rows. Without them a
+    # segmented quote would collapse to the default segment on its event — silently
+    # re-pricing the food and zeroing a vendor/kids meal (REL-426).
+    from events.models import BookingGuestCount
+    for r in quote.guest_counts.all():
+        BookingGuestCount.objects.create(
+            event=event, segment=r.segment, count=r.count, price_per_head=r.price_per_head,
+        )
+
     # Copy menu (dishes) from quote to event + auto-calculate kitchen portions
     if quote.dishes.exists():
         event.dishes.set(quote.dishes.all())

@@ -14,7 +14,7 @@ from rest_framework.test import APIClient
 from tests.base import get_test_user
 from events.models import (
     Event, BookingGuestCount, BookingMeal, MealAudience,
-    derive_meal_guest_count, sync_audience_meal_counts,
+    derive_meal_guest_count, sync_audience_meal_counts, write_booking_segments,
 )
 from bookings.models import Quote, Contact
 from bookings.views.quotes import _copy_additional_meals_to_event
@@ -160,6 +160,36 @@ class BackfillAndConversionTests(_UsSegmentsMixin, TestCase):
         copied = event.additional_meals.get()
         self.assertEqual(copied.audience, MealAudience.SEGMENT)
         self.assertEqual(copied.audience_segment, self.vendors)
+
+    def test_accepting_a_segmented_quote_keeps_derived_meal_counts_and_total(self):
+        # AC7 + regression: accepting a US-breakdown quote must carry the per-segment
+        # rows onto the event, so recalculate_totals re-derives audience meals from
+        # the SAME segments (not a collapsed default) and the total matches the quote.
+        from bookings.services.quote_acceptance import accept_quote
+        contact = Contact.objects.create(organisation=self.org, name='Client')
+        quote = Quote.objects.create(organisation=self.org, primary_contact=contact,
+                                     event_date='2026-05-01', guest_count=150,
+                                     price_per_head=Decimal('10'))
+        write_booking_segments(quote, [
+            {'segment': 'Adults', 'count': 138}, {'segment': 'Kids', 'count': 12},
+            {'segment': 'Vendors', 'count': 8},
+        ])
+        BookingMeal.objects.create(quote=quote, label='Dinner', audience=MealAudience.EVERYONE,
+                                   price_per_head=Decimal('20'), guest_count=0)
+        BookingMeal.objects.create(quote=quote, label='Crew', audience=MealAudience.SEGMENT,
+                                   audience_segment=self.vendors, price_per_head=Decimal('5'), guest_count=0)
+        quote.recalculate_totals()
+
+        event = accept_quote(quote)
+
+        # Breakdown carried across.
+        self.assertEqual({r.segment.name: r.count for r in event.guest_counts.all()},
+                         {'Adults': 138, 'Kids': 12, 'Vendors': 8})
+        # Audience meals derived from the SAME segments (not collapsed to 150 / 0).
+        counts = {m.label: m.guest_count for m in event.additional_meals.all()}
+        self.assertEqual(counts, {'Dinner': 158, 'Crew': 8})
+        # Event total matches the accepted quote.
+        self.assertEqual(event.total, quote.total)
 
 
 class MealAudienceApiTests(_UsSegmentsMixin, TestCase):
