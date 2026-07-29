@@ -49,14 +49,30 @@ export default function AdditionalMealsEditor({
   const patch = (idx: number, fields: Partial<EventMealData>) =>
     onChange(meals.map((m, i) => (i === idx ? { ...m, ...fields } : m)));
 
-  // "Serves" options: Everyone / Guests only / one per org segment / Custom. The
-  // segment options are data-driven so a Gents/Ladies org sees its own segments.
-  const audienceOptions = [
-    { value: "everyone", label: "Everyone" },
-    { value: "guests", label: "Guests only" },
-    ...[...segmentMeta].sort((a, b) => a.sort_order - b.sort_order).map((s) => ({ value: `seg:${s.name}`, label: s.name })),
-    { value: "custom", label: "Custom number" },
-  ];
+  // "Serves" options: Everyone / Guests only / Custom, plus one per segment that is
+  // actually USED on this booking — so an org that has segments but isn't splitting
+  // this booking sees a clean list, not zero-count segments. A segment counts as used
+  // if it has an entered count; the default (Adults) shows only once a breakdown
+  // exists. Data-driven, so a Gents/Ladies org sees its own segments.
+  const splitting = segmentMeta.some((m) => m.counts_toward_total && !m.is_default && (segmentCounts[m.name] || 0) > 0);
+  const usedSegmentNames = new Set(
+    segmentMeta
+      .filter((s) => (s.is_default && s.counts_toward_total ? splitting : (segmentCounts[s.name] || 0) > 0))
+      .map((s) => s.name),
+  );
+  const audienceOptionsFor = (m: EventMealData) => {
+    const names = new Set(usedSegmentNames);
+    // Always keep this meal's own segment selectable, even if its count dropped to 0,
+    // so the control never loses its current value.
+    if ((m.audience || "") === "segment" && m.audience_segment) names.add(m.audience_segment);
+    const segs = [...segmentMeta].sort((a, b) => a.sort_order - b.sort_order).filter((s) => names.has(s.name));
+    return [
+      { value: "everyone", label: "Everyone" },
+      { value: "guests", label: "Guests only" },
+      ...segs.map((s) => ({ value: `seg:${s.name}`, label: s.name })),
+      { value: "custom", label: "Custom number" },
+    ];
+  };
   const servesValue = (m: EventMealData) =>
     (m.audience || "custom") === "segment" ? `seg:${m.audience_segment ?? ""}` : (m.audience || "custom");
   const onServes = (idx: number, value: string) => {
@@ -132,7 +148,7 @@ export default function AdditionalMealsEditor({
                         onChange={(e) => onServes(idx, e.target.value)}
                         className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                       >
-                        {audienceOptions.map((o) => (
+                        {audienceOptionsFor(meal).map((o) => (
                           <option key={o.value} value={o.value}>{o.label}</option>
                         ))}
                       </select>

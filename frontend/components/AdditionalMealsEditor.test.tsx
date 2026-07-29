@@ -63,11 +63,27 @@ describe("AdditionalMealsEditor", () => {
   });
 
   // REL-426 — "Serves" audience selection + derived count.
-  it("lists the org's segments in the Serves selector (data-driven)", () => {
+  it("hides zero-count segments: a booking with no breakdown shows only Everyone/Guests/Custom", () => {
     setup([meal({ audience: "everyone" })], true, { segmentMeta: SEG_META, guestCount: 150 });
     const serves = screen.getByLabelText("Serves") as HTMLSelectElement;
-    const labels = Array.from(serves.options).map((o) => o.textContent);
-    expect(labels).toEqual(["Everyone", "Guests only", "Adults", "Kids", "Vendors", "Custom number"]);
+    expect(Array.from(serves.options).map((o) => o.textContent)).toEqual(["Everyone", "Guests only", "Custom number"]);
+  });
+
+  it("lists only the segments used on this booking (data-driven), incl. the derived default", () => {
+    // Kids 12 + Vendors 8 entered → Adults (default) becomes a real bucket too.
+    setup([meal({ audience: "everyone" })], true,
+      { segmentMeta: SEG_META, guestCount: 150, segmentCounts: { Kids: 12, Vendors: 8 } });
+    const serves = screen.getByLabelText("Serves") as HTMLSelectElement;
+    expect(Array.from(serves.options).map((o) => o.textContent))
+      .toEqual(["Everyone", "Guests only", "Adults", "Kids", "Vendors", "Custom number"]);
+  });
+
+  it("keeps a meal's own selected segment listed even if its count drops to 0", () => {
+    setup([meal({ audience: "segment", audience_segment: "Vendors" })], true,
+      { segmentMeta: SEG_META, guestCount: 150, segmentCounts: {} }); // no Vendors count entered
+    const serves = screen.getByLabelText("Serves") as HTMLSelectElement;
+    expect(Array.from(serves.options).map((o) => o.textContent)).toContain("Vendors");
+    expect(serves.value).toBe("seg:Vendors"); // control keeps its value
   });
 
   it("a derived audience shows a read-only count; Custom shows an editable input", () => {
@@ -82,7 +98,9 @@ describe("AdditionalMealsEditor", () => {
   });
 
   it("selecting a segment patches audience + audience_segment", () => {
-    const onChange = setup([meal({ audience: "everyone" })], true, { segmentMeta: SEG_META, guestCount: 150 });
+    // Vendors has a count on the booking, so it's an available "Serves" option.
+    const onChange = setup([meal({ audience: "everyone" })], true,
+      { segmentMeta: SEG_META, guestCount: 150, segmentCounts: { Vendors: 8 } });
     fireEvent.change(screen.getByLabelText("Serves"), { target: { value: "seg:Vendors" } });
     expect(onChange).toHaveBeenCalledWith([expect.objectContaining({ audience: "segment", audience_segment: "Vendors" })]);
   });
