@@ -78,17 +78,17 @@ describe("Quote form — the run-of-show reaches the payload", () => {
     h.id = "new";
   });
 
-  it("CREATE: a new quote sends its entries in the order they were built", async () => {
+  it("CREATE: the prefilled day reaches the payload, edits and all", async () => {
     render(<QuotePage />);
 
     fireEvent.change(screen.getByLabelText("Guest Count"), { target: { value: "40" } });
+    // One click lays out the standard day from this org's presets (here just
+    // cocktail hour + dinner service), anchored on the 18:30 default.
     fireEvent.click(screen.getByText("+ Build a run-of-show"));
+    expect(await screen.findByLabelText("Step 1 label")).toHaveValue("Cocktail hour");
 
-    fireEvent.change(await screen.findByLabelText("Step 1 time"), { target: { value: "17:00" } });
-    fireEvent.change(screen.getByLabelText("Step 1 label"), { target: { value: "Cocktail hour" } });
-    fireEvent.click(screen.getByText("+ Add step"));
-    fireEvent.change(await screen.findByLabelText("Step 2 time"), { target: { value: "18:30" } });
-    fireEvent.change(screen.getByLabelText("Step 2 label"), { target: { value: "Dinner service" } });
+    // Then the caterer nudges one of them — that edit must survive to the payload.
+    fireEvent.change(screen.getByLabelText("Step 1 time"), { target: { value: "17:00" } });
 
     fireEvent.click(screen.getByText("Create Quote"));
 
@@ -113,18 +113,19 @@ describe("Quote form — the run-of-show reaches the payload", () => {
     expect(payload.setup_time).toMatch(/T10:00$/);
   });
 
-  it("CREATE: a step added but not labelled still reaches the payload", async () => {
-    // Regression: the first click on "+ Build a run-of-show" makes a blank-label
-    // row. It must save, not 400 the whole quote.
+  it("CREATE: a step added but not yet chosen still reaches the payload", async () => {
+    // Regression: "+ Add step" appends a row with no label yet. It must save,
+    // not 400 the whole quote on a blank label.
     render(<QuotePage />);
 
     fireEvent.change(screen.getByLabelText("Guest Count"), { target: { value: "40" } });
     fireEvent.click(screen.getByText("+ Build a run-of-show"));
+    fireEvent.click(await screen.findByText("+ Add step"));
     fireEvent.click(screen.getByText("Create Quote"));
 
     await waitFor(() => expect(h.createQuote).toHaveBeenCalledTimes(1));
     const payload = h.createQuote.mock.calls[0][0] as Record<string, unknown>;
-    expect(payload.timeline_entries).toEqual([{ time: "17:00:00", label: "" }]);
+    expect(payload.timeline_entries).toContainEqual({ time: "19:30:00", label: "" });
   });
 
   it("EDIT: existing entries hydrate, and a reorder is what gets saved", async () => {

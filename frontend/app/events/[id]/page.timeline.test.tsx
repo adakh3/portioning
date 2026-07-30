@@ -88,18 +88,15 @@ describe("Event form — the run-of-show reaches the payload", () => {
     h.id = "new";
   });
 
-  it("CREATE: a new event sends its entries in the order they were built", async () => {
+  it("CREATE: the prefilled day reaches the payload, in run-of-show order", async () => {
     render(<EventPage />);
 
     fireEvent.click(screen.getByText("select-customer"));
     fireEvent.change(screen.getByLabelText("Guest Count"), { target: { value: "50" } });
+    // The prefill lays this org's presets out in day order (staff arrive well
+    // before cake cutting) even though the preset list isn't in that order.
     fireEvent.click(screen.getByText("+ Build a run-of-show"));
-
-    fireEvent.change(await screen.findByLabelText("Step 1 time"), { target: { value: "15:00" } });
-    fireEvent.change(screen.getByLabelText("Step 1 label"), { target: { value: "Staff arrive" } });
-    fireEvent.click(screen.getByText("+ Add step"));
-    fireEvent.change(await screen.findByLabelText("Step 2 time"), { target: { value: "21:00" } });
-    fireEvent.change(screen.getByLabelText("Step 2 label"), { target: { value: "Cake cutting" } });
+    expect(await screen.findByLabelText("Step 1 label")).toHaveValue("Staff arrive");
 
     fireEvent.click(screen.getByText("Create Event"));
 

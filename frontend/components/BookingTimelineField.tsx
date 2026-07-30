@@ -102,8 +102,34 @@ export default function BookingTimelineField({
   // "and then, a bit later, …", so the caterer adjusts rather than types from scratch.
   const addRow = () => {
     const last = rows[rows.length - 1];
-    const nextTime = last ? bumpHour(last.time) : "17:00";
+    const nextTime = last ? bumpHour(last.time) : DEFAULT_ANCHOR;
     onEntriesChange?.([...rows, { time: nextTime, label: "" }]);
+  };
+
+  /** First click: lay out a standard catering day rather than one empty row.
+   *
+   * An event day is predictable, so starting from the whole shape and deleting
+   * what doesn't apply beats building it step by step. Times hang off the
+   * booking's own meal time, and any of the four legacy slots it already has
+   * win over the computed offset — we never overwrite a time the user gave us.
+   *
+   * Only steps the org still has as presets are included, so an org that curated
+   * its list doesn't get deleted steps back. With no presets at all (an org that
+   * predates them and hasn't run `seed_org_choices`) it falls back to one blank
+   * row — the button must never look broken.
+   */
+  const startRunOfShow = () => {
+    const anchor = timePart(value.meal_time) || DEFAULT_ANCHOR;
+    const bySlug = new Map(presets.map((p) => [p.value, p.label]));
+
+    const seeded = STANDARD_DAY.flatMap((step) => {
+      const label = bySlug.get(step.slug);
+      if (label === undefined) return [];
+      const legacy = step.legacyField ? timePart(value[step.legacyField]) : "";
+      return [{ time: legacy || shiftTime(anchor, step.offsetMinutes), label }];
+    });
+
+    onEntriesChange?.(seeded.length ? seeded : [{ time: anchor, label: "" }]);
   };
 
   if (rows.length === 0) {
@@ -117,11 +143,12 @@ export default function BookingTimelineField({
         </div>
         {editable && (
           <div>
-            <Button type="button" size="sm" variant="outline" disabled={disabled} onClick={addRow}>
+            <Button type="button" size="sm" variant="outline" disabled={disabled} onClick={startRunOfShow}>
               + Build a run-of-show
             </Button>
             <p className="mt-1 text-xs text-muted-foreground">
-              Replaces the four slots above with your own ordered timeline.
+              Lays out a standard day from your Timeline Steps, timed off the meal
+              time — delete what doesn&apos;t apply. Replaces the four slots above.
             </p>
           </div>
         )}
@@ -184,6 +211,42 @@ export default function BookingTimelineField({
       )}
     </div>
   );
+}
+
+/** Where a day hangs when the booking has no meal time of its own. */
+const DEFAULT_ANCHOR = "18:30";
+
+/** The shape of a standard catering day, as offsets in minutes from meal service.
+ *
+ * Keyed by preset SLUG (`TimelinePresetOption.value`), not label — so an org that
+ * renamed "Dinner service" to "Mains out" still gets the row, under its own
+ * wording, and an org that deleted a step doesn't get it back.
+ *
+ * These slugs must exist in `backend/bookings/defaults.py` TIMELINE_PRESET_DEFAULTS;
+ * a test on each side pins that so the two can't drift apart.
+ */
+const STANDARD_DAY: {
+  slug: string;
+  offsetMinutes: number;
+  /** A legacy slot whose time, when set, wins over the computed offset. */
+  legacyField?: keyof BookingTimelineValue;
+}[] = [
+  { slug: "staff_arrival", offsetMinutes: -210 },
+  { slug: "setup", offsetMinutes: -150, legacyField: "setup_time" },
+  { slug: "guest_arrival", offsetMinutes: -90, legacyField: "guest_arrival_time" },
+  { slug: "cocktail_hour", offsetMinutes: -75 },
+  { slug: "dinner_service", offsetMinutes: 0, legacyField: "meal_time" },
+  { slug: "speeches", offsetMinutes: 90 },
+  { slug: "cake_cutting", offsetMinutes: 150 },
+  { slug: "breakdown", offsetMinutes: 270, legacyField: "end_time" },
+];
+
+/** Shift "HH:MM" by minutes, clamped inside the day — a run-of-show that wrapped
+ * past midnight would land on the wrong date. */
+function shiftTime(time: string, minutes: number): string {
+  const [h, m] = time.split(":").map((n) => parseInt(n, 10) || 0);
+  const clamped = Math.max(0, Math.min(h * 60 + m + minutes, 23 * 60 + 59));
+  return `${String(Math.floor(clamped / 60)).padStart(2, "0")}:${String(clamped % 60).padStart(2, "0")}`;
 }
 
 /** The labels a step may take: the org's presets, plus the row's own label when

@@ -59,6 +59,19 @@ class TimelinePresetSeedingTests(TestCase):
         # "Staff arrive" comes before "Cake cutting" in the day, though not A-Z.
         self.assertLess(labels.index('Staff arrive'), labels.index('Cake cutting'))
 
+    def test_defaults_cover_every_step_the_standard_day_prefill_seeds(self):
+        """The frontend's "+ Build a run-of-show" lays out a standard day keyed on
+        these slugs (`STANDARD_DAY` in components/BookingTimelineField.tsx). If a
+        slug is renamed or dropped here, that step silently vanishes from the
+        prefill — this pins the two together across the language boundary."""
+        from bookings.defaults import TIMELINE_PRESET_DEFAULTS
+        prefill_slugs = {
+            'staff_arrival', 'setup', 'guest_arrival', 'cocktail_hour',
+            'dinner_service', 'speeches', 'cake_cutting', 'breakdown',
+        }
+        seeded = {value for value, _label in TIMELINE_PRESET_DEFAULTS}
+        self.assertEqual(prefill_slugs - seeded, set())
+
     def test_presets_are_org_scoped(self):
         a = Organisation.objects.create(name='P Org A', slug='p-org-a', country='US')
         b = Organisation.objects.create(name='P Org B', slug='p-org-b', country='US')

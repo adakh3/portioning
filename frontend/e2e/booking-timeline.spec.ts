@@ -44,18 +44,22 @@ test.describe("Booking timeline persists end-to-end", () => {
     await page.getByLabel("Customer", { exact: false }).selectOption({ label: "Aisha Khan" });
     await page.getByLabel("Guest Count").fill("30");
 
-    // Build three steps, deliberately entered out of clock order so the assertion
-    // proves the SAVED order is the one on screen, not a re-sort by time.
-    // Labels are a closed dropdown of the org's Timeline Steps presets.
+    // One click prefills the standard day from the org's Timeline Steps; then we
+    // cut it down to three steps and set them deliberately out of clock order,
+    // so the assertion proves the SAVED order is the one on screen, not a
+    // re-sort by time. Labels are a closed dropdown of the org's presets.
     await page.getByRole("button", { name: "+ Build a run-of-show" }).click();
+    await expect(page.getByLabel("Step 1 label")).toHaveValue("Staff arrive");
+
+    // Delete down to three rows.
+    while ((await page.getByLabel(/^Remove step /).count()) > 3) {
+      await page.getByLabel("Remove step 4").click();
+    }
+
     await page.getByLabel("Step 1 time").selectOption("17:00");
     await page.getByLabel("Step 1 label").selectOption("Cocktail hour");
-
-    await page.getByRole("button", { name: "+ Add step" }).click();
     await page.getByLabel("Step 2 time").selectOption("21:00");
     await page.getByLabel("Step 2 label").selectOption("Cake cutting");
-
-    await page.getByRole("button", { name: "+ Add step" }).click();
     await page.getByLabel("Step 3 time").selectOption("18:30");
     await page.getByLabel("Step 3 label").selectOption("Dinner service");
 
@@ -86,9 +90,9 @@ test.describe("Booking timeline persists end-to-end", () => {
     await expect(page.getByLabel("Step 3 label")).toHaveValue("Cake cutting");
 
     // Remove every step and the booking falls back to the legacy slots (AC3).
-    await page.getByLabel("Remove step 1").click();
-    await page.getByLabel("Remove step 1").click();
-    await page.getByLabel("Remove step 1").click();
+    while ((await page.getByLabel(/^Remove step /).count()) > 0) {
+      await page.getByLabel("Remove step 1").click();
+    }
     await page.getByRole("button", { name: "Save Quote" }).click();
     await page.waitForTimeout(1000);
     await page.reload();

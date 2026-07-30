@@ -76,6 +76,20 @@ const presets = [
   { value: "cake_cutting", label: "Cake cutting" },
 ];
 
+// Every slug the standard-day prefill knows about, in the order it lays them out.
+// Mirrors TIMELINE_PRESET_DEFAULTS in backend/bookings/defaults.py — a backend
+// test pins that these slugs exist there, so the two can't drift.
+const fullPresets = [
+  { value: "staff_arrival", label: "Staff arrive" },
+  { value: "setup", label: "Setup" },
+  { value: "guest_arrival", label: "Guests arrive" },
+  { value: "cocktail_hour", label: "Cocktail hour" },
+  { value: "dinner_service", label: "Dinner service" },
+  { value: "speeches", label: "Speeches / toasts" },
+  { value: "cake_cutting", label: "Cake cutting" },
+  { value: "breakdown", label: "Breakdown" },
+];
+
 function renderEntries(entries: TimelineEntryValue[], onEntriesChange = vi.fn()) {
   render(
     <BookingTimelineField value={base} onChange={() => {}} entries={entries}
@@ -85,14 +99,95 @@ function renderEntries(entries: TimelineEntryValue[], onEntriesChange = vi.fn())
 }
 
 describe("BookingTimelineField — run-of-show entries", () => {
-  it("adds the first step from the legacy view", () => {
+  it("lays out a standard day on the first click, timed off the meal time", () => {
+    // The whole point of the prefill: one click gives the shape of the day, and
+    // the caterer deletes what doesn't apply.
+    const onEntriesChange = vi.fn();
+    render(
+      <BookingTimelineField value={{ ...base, meal_time: "2026-08-01T18:30" }}
+        onChange={() => {}} entries={[]} onEntriesChange={onEntriesChange}
+        presets={fullPresets} eventDate="2026-08-01" />,
+    );
+    fireEvent.click(screen.getByText("+ Build a run-of-show"));
+    expect(onEntriesChange).toHaveBeenCalledWith([
+      { time: "15:00", label: "Staff arrive" },
+      { time: "16:00", label: "Setup" },
+      { time: "17:00", label: "Guests arrive" },
+      { time: "17:15", label: "Cocktail hour" },
+      { time: "18:30", label: "Dinner service" },
+      { time: "20:00", label: "Speeches / toasts" },
+      { time: "21:00", label: "Cake cutting" },
+      { time: "23:00", label: "Breakdown" },
+    ]);
+  });
+
+  it("anchors on 18:30 when the booking has no meal time", () => {
     const onEntriesChange = vi.fn();
     render(
       <BookingTimelineField value={base} onChange={() => {}} entries={[]}
-        onEntriesChange={onEntriesChange} presets={presets} />,
+        onEntriesChange={onEntriesChange} presets={fullPresets} />,
     );
     fireEvent.click(screen.getByText("+ Build a run-of-show"));
-    expect(onEntriesChange).toHaveBeenCalledWith([{ time: "17:00", label: "" }]);
+    const seeded = onEntriesChange.mock.calls[0][0] as { time: string; label: string }[];
+    expect(seeded.find((r) => r.label === "Dinner service")!.time).toBe("18:30");
+  });
+
+  it("never overwrites a legacy time the booking already has", () => {
+    // Setup was explicitly set to 14:00 — the computed -2h30 offset must not win.
+    const onEntriesChange = vi.fn();
+    render(
+      <BookingTimelineField
+        value={{ ...base, meal_time: "2026-08-01T18:30", setup_time: "2026-08-01T14:00" }}
+        onChange={() => {}} entries={[]} onEntriesChange={onEntriesChange}
+        presets={fullPresets} eventDate="2026-08-01" />,
+    );
+    fireEvent.click(screen.getByText("+ Build a run-of-show"));
+    const seeded = onEntriesChange.mock.calls[0][0] as { time: string; label: string }[];
+    expect(seeded.find((r) => r.label === "Setup")!.time).toBe("14:00");
+  });
+
+  it("only seeds steps the org still has, under the org's own wording", () => {
+    // An org that deleted "Cake cutting" and renamed "Dinner service" gets
+    // neither the deleted row back nor someone else's wording.
+    const onEntriesChange = vi.fn();
+    render(
+      <BookingTimelineField value={{ ...base, meal_time: "2026-08-01T18:30" }}
+        onChange={() => {}} entries={[]} onEntriesChange={onEntriesChange}
+        presets={[
+          { value: "setup", label: "Load in" },
+          { value: "dinner_service", label: "Mains out" },
+        ]} eventDate="2026-08-01" />,
+    );
+    fireEvent.click(screen.getByText("+ Build a run-of-show"));
+    expect(onEntriesChange).toHaveBeenCalledWith([
+      { time: "16:00", label: "Load in" },
+      { time: "18:30", label: "Mains out" },
+    ]);
+  });
+
+  it("falls back to one blank row for an org with no presets yet", () => {
+    // An org that predates presets and hasn't run seed_org_choices. The button
+    // must still do something visible rather than appear broken.
+    const onEntriesChange = vi.fn();
+    render(
+      <BookingTimelineField value={base} onChange={() => {}} entries={[]}
+        onEntriesChange={onEntriesChange} presets={[]} />,
+    );
+    fireEvent.click(screen.getByText("+ Build a run-of-show"));
+    expect(onEntriesChange).toHaveBeenCalledWith([{ time: "18:30", label: "" }]);
+  });
+
+  it("clamps a seeded day inside the event date rather than wrapping past midnight", () => {
+    const onEntriesChange = vi.fn();
+    render(
+      <BookingTimelineField value={{ ...base, meal_time: "2026-08-01T22:00" }}
+        onChange={() => {}} entries={[]} onEntriesChange={onEntriesChange}
+        presets={fullPresets} eventDate="2026-08-01" />,
+    );
+    fireEvent.click(screen.getByText("+ Build a run-of-show"));
+    const seeded = onEntriesChange.mock.calls[0][0] as { time: string; label: string }[];
+    // Breakdown would be 02:30 the next day; it clamps to the end of the day.
+    expect(seeded.find((r) => r.label === "Breakdown")!.time).toBe("23:59");
   });
 
   it("appends a step an hour after the last one", () => {
