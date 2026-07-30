@@ -64,6 +64,28 @@ class CourseModelTests(TestCase):
         ], {})
         self.assertEqual([c.name for c in self.event.courses.all()], ['Starter', 'Dessert'])
 
+    def test_pdf_renders_the_menu_grouped_by_course(self):  # AC2 render
+        try:
+            from pypdf import PdfReader
+        except ImportError:
+            self.skipTest("pypdf not installed")
+        import io
+        from bookings.pdf import generate_event_pdf
+        from bookings.models.choices import ServiceStyleOption
+        ServiceStyleOption.objects.get_or_create(
+            organisation=self.org, value='plated', defaults={'label': 'Plated'})
+        write_booking_courses(self.event, [
+            {'name': 'Starter', 'service_style': 'plated', 'sort_order': 0},
+            {'name': 'Dessert', 'service_style': '', 'sort_order': 1},
+        ], {str(self.d1.id): 0, str(self.d3.id): 1})
+        self.event.refresh_from_db()  # get a real date object for the PDF renderer
+        text = "\n".join(p.extract_text() for p in PdfReader(io.BytesIO(generate_event_pdf(self.event))).pages)
+        self.assertIn('Starter', text)
+        self.assertIn('Plated', text)          # resolved service-style label
+        self.assertIn('Dessert', text)
+        # Course order: Starter section precedes Dessert section.
+        self.assertLess(text.find('Starter'), text.find('Dessert'))
+
     def test_reassign_clears_a_dropped_assignment(self):
         write_booking_courses(self.event, [{'name': 'Starter', 'sort_order': 0}], {str(self.d1.id): 0})
         self.assertEqual(EventDishComment.objects.get(event=self.event, dish=self.d1).course.name, 'Starter')
