@@ -57,20 +57,28 @@ MEAL_TYPE_DEFAULTS = [
 # Labels for the event-day run-of-show, in the rough order a day unfolds. The
 # order matters here (unlike the A-Z lists above) — the picker offers them in
 # `sort_order`, which is how a caterer thinks about the day.
+#
+# These rows are also the org's STANDARD-DAY TEMPLATE. The last two columns say
+# whether "+ Build a run-of-show" seeds the step, and where it lands relative to
+# meal service (negative = before, 0 = meal service itself). Every one of them is
+# editable in Settings, so this is only a starting shape — a lunch caterer with a
+# compressed day retimes them once and every future booking follows.
+#
+# (value, label, in_standard_day, offset_minutes)
 TIMELINE_PRESET_DEFAULTS = [
-    ('staff_arrival', 'Staff arrive'),
-    ('setup', 'Setup'),
-    ('vendor_arrival', 'Vendors arrive'),
-    ('doors_open', 'Doors open'),
-    ('guest_arrival', 'Guests arrive'),
-    ('cocktail_hour', 'Cocktail hour'),
-    ('speeches', 'Speeches / toasts'),
-    ('dinner_service', 'Dinner service'),
-    ('cake_cutting', 'Cake cutting'),
-    ('dancing', 'Dancing'),
-    ('last_call', 'Last call'),
-    ('breakdown', 'Breakdown'),
-    ('staff_departure', 'Staff depart'),
+    ('staff_arrival', 'Staff arrive', True, -210),
+    ('setup', 'Setup', True, -150),
+    ('vendor_arrival', 'Vendors arrive', False, -120),
+    ('doors_open', 'Doors open', False, -105),
+    ('guest_arrival', 'Guests arrive', True, -90),
+    ('cocktail_hour', 'Cocktail hour', True, -75),
+    ('dinner_service', 'Dinner service', True, 0),
+    ('speeches', 'Speeches / toasts', True, 90),
+    ('cake_cutting', 'Cake cutting', True, 150),
+    ('dancing', 'Dancing', False, 180),
+    ('last_call', 'Last call', True, 240),
+    ('breakdown', 'Breakdown', True, 270),
+    ('staff_departure', 'Staff depart', False, 330),
 ]
 
 
@@ -92,7 +100,6 @@ def seed_choice_defaults(org, only_if_empty=False):
         (SourceOption, SOURCE_DEFAULTS),
         (ServiceStyleOption, SERVICE_STYLE_DEFAULTS),
         (MealTypeOption, MEAL_TYPE_DEFAULTS),
-        (TimelinePresetOption, TIMELINE_PRESET_DEFAULTS),
     ):
         if only_if_empty and model.objects.filter(organisation=org).exists():
             continue
@@ -101,4 +108,17 @@ def seed_choice_defaults(org, only_if_empty=False):
                 organisation=org,
                 value=value,
                 defaults={'label': label, 'sort_order': sort_order},
+            )
+
+    # Timeline steps carry two extra columns — they double as the org's
+    # standard-day template (see TIMELINE_PRESET_DEFAULTS).
+    if not (only_if_empty and TimelinePresetOption.objects.filter(organisation=org).exists()):
+        for sort_order, (value, label, in_day, offset) in enumerate(TIMELINE_PRESET_DEFAULTS):
+            TimelinePresetOption.objects.get_or_create(
+                organisation=org,
+                value=value,
+                defaults={
+                    'label': label, 'sort_order': sort_order,
+                    'in_standard_day': in_day, 'standard_day_offset_minutes': offset,
+                },
             )

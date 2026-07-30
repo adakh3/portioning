@@ -59,18 +59,60 @@ class TimelinePresetSeedingTests(TestCase):
         # "Staff arrive" comes before "Cake cutting" in the day, though not A-Z.
         self.assertLess(labels.index('Staff arrive'), labels.index('Cake cutting'))
 
-    def test_defaults_cover_every_step_the_standard_day_prefill_seeds(self):
-        """The frontend's "+ Build a run-of-show" lays out a standard day keyed on
-        these slugs (`STANDARD_DAY` in components/BookingTimelineField.tsx). If a
-        slug is renamed or dropped here, that step silently vanishes from the
-        prefill — this pins the two together across the language boundary."""
+    def test_new_org_gets_a_usable_standard_day_template(self):
+        """The preset rows ARE the org's standard-day template, so a new org must
+        arrive with a day already laid out — otherwise "+ Build a run-of-show"
+        seeds nothing on day one."""
+        org = Organisation.objects.create(name='Template Co', slug='template-co', country='US')
+        day = list(TimelinePresetOption.objects
+                   .filter(organisation=org, in_standard_day=True)
+                   .order_by('standard_day_offset_minutes')
+                   .values_list('label', 'standard_day_offset_minutes'))
+
+        self.assertTrue(day, 'a new org should have a standard day')
+        # Every seeded step is placeable, and meal service is the anchor.
+        self.assertTrue(all(offset is not None for _label, offset in day))
+        self.assertIn(('Dinner service', 0), day)
+        # It spans the day either side of the meal, in clock order.
+        self.assertLess(day[0][1], 0)
+        self.assertGreater(day[-1][1], 0)
+
+    def test_default_offsets_sit_on_the_settings_dropdowns_grid(self):
+        """The Settings offset picker offers 15-minute steps. A default that isn't
+        on that grid has no matching option, so the select silently shows the
+        first one and saves it on the next edit — a step quietly moved by hours
+        (this happened: 'Doors open' shipped at -100)."""
         from bookings.defaults import TIMELINE_PRESET_DEFAULTS
-        prefill_slugs = {
-            'staff_arrival', 'setup', 'guest_arrival', 'cocktail_hour',
-            'dinner_service', 'speeches', 'cake_cutting', 'breakdown',
-        }
-        seeded = {value for value, _label in TIMELINE_PRESET_DEFAULTS}
-        self.assertEqual(prefill_slugs - seeded, set())
+        off_grid = [(value, offset) for value, _label, _in_day, offset
+                    in TIMELINE_PRESET_DEFAULTS if offset % 15]
+        self.assertEqual(off_grid, [])
+
+    def test_default_offsets_are_within_the_pickers_range(self):
+        from bookings.defaults import TIMELINE_PRESET_DEFAULTS
+        out_of_range = [(value, offset) for value, _label, _in_day, offset
+                        in TIMELINE_PRESET_DEFAULTS if abs(offset) > 360]
+        self.assertEqual(out_of_range, [])
+
+    def test_steps_outside_the_standard_day_are_still_offered_in_the_picker(self):
+        org = Organisation.objects.create(name='Optional Co', slug='optional-co', country='US')
+        optional = TimelinePresetOption.objects.filter(
+            organisation=org, in_standard_day=False)
+        self.assertTrue(optional.exists(), 'not every preset belongs in the default day')
+        # …but they are still active presets, so a booking can pick them by hand.
+        self.assertTrue(all(o.is_active for o in optional))
+
+    def test_defaults_cover_the_slugs_that_inherit_a_legacy_time(self):
+        """The prefill carries a booking's four legacy times onto four canonical
+        steps (`LEGACY_SLOT_BY_SLUG` in components/BookingTimelineField.tsx).
+        Rename or drop one of these slugs here and that inheritance silently stops
+        — this pins the two together across the language boundary.
+
+        Note `end_time` maps to `last_call` (the event is over), NOT `breakdown`
+        (the crew packing down afterwards)."""
+        from bookings.defaults import TIMELINE_PRESET_DEFAULTS
+        inherits_legacy = {'setup', 'guest_arrival', 'dinner_service', 'last_call'}
+        seeded = {value for value, _label, _in_day, _offset in TIMELINE_PRESET_DEFAULTS}
+        self.assertEqual(inherits_legacy - seeded, set())
 
     def test_presets_are_org_scoped(self):
         a = Organisation.objects.create(name='P Org A', slug='p-org-a', country='US')
@@ -93,6 +135,32 @@ class TimelinePresetSeedingTests(TestCase):
         TimelinePresetOption.objects.filter(organisation=org).delete()
         call_command('seed_org_choices', verbosity=0)
         self.assertTrue(TimelinePresetOption.objects.filter(organisation=org).exists())
+
+    def test_migration_backfill_gives_pre_existing_rows_a_standard_day(self):
+        """An org whose presets were created BEFORE the template columns existed
+        would otherwise have every step flagged out of the standard day, so
+        "+ Build a run-of-show" would seed nothing. `bookings/0075` backfills them
+        by slug; this pins that logic (which the test DB has already run)."""
+        import importlib
+        migration = importlib.import_module(
+            'bookings.migrations.0075_timelinepreset_standard_day')
+
+        org = Organisation.objects.create(name='Pre-Template Co', slug='pre-template-co',
+                                          country='US')
+        # Simulate the pre-migration state for this org.
+        TimelinePresetOption.objects.filter(organisation=org).update(
+            in_standard_day=False, standard_day_offset_minutes=None)
+
+        class _Apps:
+            @staticmethod
+            def get_model(app_label, model_name):
+                return TimelinePresetOption
+
+        migration.backfill_standard_day(_Apps, None)
+
+        dinner = TimelinePresetOption.objects.get(organisation=org, value='dinner_service')
+        self.assertTrue(dinner.in_standard_day)
+        self.assertEqual(dinner.standard_day_offset_minutes, 0)
 
     def test_backfill_does_not_re_add_a_preset_the_org_deleted(self):
         from django.core.management import call_command
@@ -145,6 +213,50 @@ class TimelinePresetApiTests(TestCase):
         # The generated key is stable across a rename — bookings referencing it
         # by label keep working.
         self.assertEqual(row.value, created['value'])
+
+    def test_picker_carries_the_standard_day_template(self):
+        # The prefill is built client-side from these two fields, so they have to
+        # be on the wire or "+ Build a run-of-show" has nothing to lay out.
+        rows = self.client.get('/api/bookings/timeline-presets/?page_size=all').json()
+        by_value = {r['value']: r for r in rows}
+        self.assertEqual(by_value['dinner_service']['standard_day_offset_minutes'], 0)
+        self.assertTrue(by_value['dinner_service']['in_standard_day'])
+        self.assertFalse(by_value['dancing']['in_standard_day'])
+
+    def test_admin_can_retime_a_step_in_the_standard_day(self):
+        # The point of the whole template: a lunch caterer compresses the day
+        # once in Settings and every future booking follows.
+        setup = TimelinePresetOption.objects.get(organisation=self.org, value='setup')
+        resp = self.client.patch(
+            f'/api/bookings/settings/timeline-presets/{setup.pk}/',
+            {'standard_day_offset_minutes': -45}, format='json')
+        self.assertEqual(resp.status_code, 200, resp.content)
+        setup.refresh_from_db()
+        self.assertEqual(setup.standard_day_offset_minutes, -45)
+
+    def test_admin_can_drop_a_step_from_the_standard_day_without_deleting_it(self):
+        speeches = TimelinePresetOption.objects.get(organisation=self.org, value='speeches')
+        resp = self.client.patch(
+            f'/api/bookings/settings/timeline-presets/{speeches.pk}/',
+            {'in_standard_day': False}, format='json')
+        self.assertEqual(resp.status_code, 200, resp.content)
+        speeches.refresh_from_db()
+        self.assertFalse(speeches.in_standard_day)
+        # Still a label a booking can choose by hand.
+        self.assertTrue(speeches.is_active)
+        picker = self.client.get('/api/bookings/timeline-presets/?page_size=all').json()
+        self.assertIn('Speeches / toasts', [o['label'] for o in picker])
+
+    def test_a_step_the_org_invented_can_join_the_standard_day(self):
+        created = self.client.post('/api/bookings/settings/timeline-presets/',
+                                   {'label': 'Sparkler send-off'}, format='json').json()
+        resp = self.client.patch(
+            f"/api/bookings/settings/timeline-presets/{created['id']}/",
+            {'in_standard_day': True, 'standard_day_offset_minutes': 300}, format='json')
+        self.assertEqual(resp.status_code, 200, resp.content)
+        row = TimelinePresetOption.objects.get(pk=created['id'])
+        self.assertTrue(row.in_standard_day)
+        self.assertEqual(row.standard_day_offset_minutes, 300)
 
     def test_non_admin_cannot_manage_presets(self):
         chef = User.objects.create(email='chef@timeline.test', role='chef',

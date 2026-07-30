@@ -52,3 +52,8 @@ class MealTypeOptionSerializer(ChoiceOptionSerializer):
 class TimelinePresetOptionSerializer(ChoiceOptionSerializer):
     class Meta(ChoiceOptionSerializer.Meta):
         model = TimelinePresetOption
+        # The two extra columns make these rows the org's standard-day template
+        # as well as its label vocabulary.
+        fields = ['id', 'value', 'label', 'sort_order', 'is_active',
+                  'in_standard_day', 'standard_day_offset_minutes']
+        read_only_fields = ['value']

@@ -19,6 +19,15 @@ export interface TimelineEntryValue {
   label: string;
 }
 
+/** An org's timeline step: the only labels a booking may use, and — via the last
+ * two fields — the org's own standard-day template. */
+export interface TimelinePreset {
+  value: string;
+  label: string;
+  in_standard_day?: boolean;
+  standard_day_offset_minutes?: number | null;
+}
+
 /** The booking timeline, in one of two modes.
  *
  * With NO entries the booking shows the four legacy slots (setup / guest-arrival
@@ -47,7 +56,7 @@ export default function BookingTimelineField({
   entries?: TimelineEntryValue[];
   onEntriesChange?: (entries: TimelineEntryValue[]) => void;
   /** Org timeline-step presets offered in the label picker. */
-  presets?: { value: string; label: string }[];
+  presets?: TimelinePreset[];
   /** The booking's event date ("YYYY-MM-DD"); entered legacy times are anchored to it. */
   eventDate?: string;
   disabled?: boolean;
@@ -106,28 +115,38 @@ export default function BookingTimelineField({
     onEntriesChange?.([...rows, { time: nextTime, label: "" }]);
   };
 
-  /** First click: lay out a standard catering day rather than one empty row.
+  /** First click: lay out the org's standard day rather than one empty row.
    *
    * An event day is predictable, so starting from the whole shape and deleting
-   * what doesn't apply beats building it step by step. Times hang off the
-   * booking's own meal time, and any of the four legacy slots it already has
-   * win over the computed offset — we never overwrite a time the user gave us.
+   * what doesn't apply beats building it step by step. The shape is the org's
+   * OWN — every step it ticked in Settings → Timeline Steps, at the offset it
+   * chose from meal service — so adding, removing or retiming a default step is
+   * ordinary Settings work rather than something only we can change.
    *
-   * Only steps the org still has as presets are included, so an org that curated
-   * its list doesn't get deleted steps back. With no presets at all (an org that
-   * predates them and hasn't run `seed_org_choices`) it falls back to one blank
-   * row — the button must never look broken.
+   * Times hang off the booking's meal time, and any of the four legacy slots the
+   * booking already has win over the computed offset: we never overwrite a time
+   * the user gave us. Rows come out in clock order, because a run-of-show that
+   * didn't would be wrong whatever the Settings order says.
+   *
+   * With nothing configured (an org that predates presets and hasn't run
+   * `seed_org_choices`) it falls back to one blank row — the button must never
+   * look broken.
    */
   const startRunOfShow = () => {
     const anchor = timePart(value.meal_time) || DEFAULT_ANCHOR;
-    const bySlug = new Map(presets.map((p) => [p.value, p.label]));
 
-    const seeded = STANDARD_DAY.flatMap((step) => {
-      const label = bySlug.get(step.slug);
-      if (label === undefined) return [];
-      const legacy = step.legacyField ? timePart(value[step.legacyField]) : "";
-      return [{ time: legacy || shiftTime(anchor, step.offsetMinutes), label }];
-    });
+    const seeded = presets
+      .filter((p) => p.in_standard_day && p.standard_day_offset_minutes != null)
+      .slice()
+      .sort((a, b) => a.standard_day_offset_minutes! - b.standard_day_offset_minutes!)
+      .map((p) => {
+        const legacyField = LEGACY_SLOT_BY_SLUG[p.value];
+        const legacy = legacyField ? timePart(value[legacyField]) : "";
+        return {
+          time: legacy || shiftTime(anchor, p.standard_day_offset_minutes!),
+          label: p.label,
+        };
+      });
 
     onEntriesChange?.(seeded.length ? seeded : [{ time: anchor, label: "" }]);
   };
@@ -216,30 +235,20 @@ export default function BookingTimelineField({
 /** Where a day hangs when the booking has no meal time of its own. */
 const DEFAULT_ANCHOR = "18:30";
 
-/** The shape of a standard catering day, as offsets in minutes from meal service.
+/** Which legacy column a seeded step inherits its time from, by preset slug.
  *
- * Keyed by preset SLUG (`TimelinePresetOption.value`), not label — so an org that
- * renamed "Dinner service" to "Mains out" still gets the row, under its own
- * wording, and an org that deleted a step doesn't get it back.
- *
- * These slugs must exist in `backend/bookings/defaults.py` TIMELINE_PRESET_DEFAULTS;
- * a test on each side pins that so the two can't drift apart.
+ * Stays hardcoded on purpose: the four legacy columns are a fact of the schema,
+ * not org configuration, and these four slugs are the canonical steps they mean.
+ * `end_time` maps to "Last call" — the event being over — rather than Breakdown,
+ * which is the crew packing down afterwards. An org that renamed or deleted one
+ * of these presets simply doesn't get the inheritance for it.
  */
-const STANDARD_DAY: {
-  slug: string;
-  offsetMinutes: number;
-  /** A legacy slot whose time, when set, wins over the computed offset. */
-  legacyField?: keyof BookingTimelineValue;
-}[] = [
-  { slug: "staff_arrival", offsetMinutes: -210 },
-  { slug: "setup", offsetMinutes: -150, legacyField: "setup_time" },
-  { slug: "guest_arrival", offsetMinutes: -90, legacyField: "guest_arrival_time" },
-  { slug: "cocktail_hour", offsetMinutes: -75 },
-  { slug: "dinner_service", offsetMinutes: 0, legacyField: "meal_time" },
-  { slug: "speeches", offsetMinutes: 90 },
-  { slug: "cake_cutting", offsetMinutes: 150 },
-  { slug: "breakdown", offsetMinutes: 270, legacyField: "end_time" },
-];
+const LEGACY_SLOT_BY_SLUG: Record<string, keyof BookingTimelineValue | undefined> = {
+  setup: "setup_time",
+  guest_arrival: "guest_arrival_time",
+  dinner_service: "meal_time",
+  last_call: "end_time",
+};
 
 /** Shift "HH:MM" by minutes, clamped inside the day — a run-of-show that wrapped
  * past midnight would land on the wrong date. */

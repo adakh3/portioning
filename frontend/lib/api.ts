@@ -658,6 +658,10 @@ export interface ChoiceOption {
   is_default?: boolean;
   is_won?: boolean;
   is_lost?: boolean;
+  // Timeline-step only — these two make the preset list double as the org's
+  // standard-day template ("+ Build a run-of-show" seeds from them).
+  in_standard_day?: boolean;
+  standard_day_offset_minutes?: number | null;
 }
 
 // Settings types

@@ -72,22 +72,26 @@ describe("BookingTimelineField — legacy slots", () => {
 
 // ── The run-of-show editor (AC1, AC2) ──
 const presets = [
-  { value: "cocktail_hour", label: "Cocktail hour" },
-  { value: "cake_cutting", label: "Cake cutting" },
+  { value: "cocktail_hour", label: "Cocktail hour", in_standard_day: true, standard_day_offset_minutes: -75 },
+  { value: "cake_cutting", label: "Cake cutting", in_standard_day: true, standard_day_offset_minutes: 150 },
 ];
 
-// Every slug the standard-day prefill knows about, in the order it lays them out.
-// Mirrors TIMELINE_PRESET_DEFAULTS in backend/bookings/defaults.py — a backend
-// test pins that these slugs exist there, so the two can't drift.
+// An org's Timeline Steps as the API serves them: the label vocabulary AND the
+// standard-day template. Mirrors TIMELINE_PRESET_DEFAULTS in
+// backend/bookings/defaults.py (deliberately listed here out of clock order, to
+// prove the prefill sorts by offset rather than by list position).
 const fullPresets = [
-  { value: "staff_arrival", label: "Staff arrive" },
-  { value: "setup", label: "Setup" },
-  { value: "guest_arrival", label: "Guests arrive" },
-  { value: "cocktail_hour", label: "Cocktail hour" },
-  { value: "dinner_service", label: "Dinner service" },
-  { value: "speeches", label: "Speeches / toasts" },
-  { value: "cake_cutting", label: "Cake cutting" },
-  { value: "breakdown", label: "Breakdown" },
+  { value: "staff_arrival", label: "Staff arrive", in_standard_day: true, standard_day_offset_minutes: -210 },
+  { value: "cake_cutting", label: "Cake cutting", in_standard_day: true, standard_day_offset_minutes: 150 },
+  { value: "setup", label: "Setup", in_standard_day: true, standard_day_offset_minutes: -150 },
+  { value: "guest_arrival", label: "Guests arrive", in_standard_day: true, standard_day_offset_minutes: -90 },
+  { value: "cocktail_hour", label: "Cocktail hour", in_standard_day: true, standard_day_offset_minutes: -75 },
+  { value: "dinner_service", label: "Dinner service", in_standard_day: true, standard_day_offset_minutes: 0 },
+  { value: "speeches", label: "Speeches / toasts", in_standard_day: true, standard_day_offset_minutes: 90 },
+  { value: "last_call", label: "Last call", in_standard_day: true, standard_day_offset_minutes: 240 },
+  { value: "breakdown", label: "Breakdown", in_standard_day: true, standard_day_offset_minutes: 270 },
+  // In the dropdown, but the org left it out of the standard day.
+  { value: "dancing", label: "Dancing", in_standard_day: false, standard_day_offset_minutes: 180 },
 ];
 
 function renderEntries(entries: TimelineEntryValue[], onEntriesChange = vi.fn()) {
@@ -109,6 +113,8 @@ describe("BookingTimelineField — run-of-show entries", () => {
         presets={fullPresets} eventDate="2026-08-01" />,
     );
     fireEvent.click(screen.getByText("+ Build a run-of-show"));
+    // In clock order, from the org's offsets — not the order the presets arrived
+    // in, and without the step the org left out of the standard day.
     expect(onEntriesChange).toHaveBeenCalledWith([
       { time: "15:00", label: "Staff arrive" },
       { time: "16:00", label: "Setup" },
@@ -117,8 +123,69 @@ describe("BookingTimelineField — run-of-show entries", () => {
       { time: "18:30", label: "Dinner service" },
       { time: "20:00", label: "Speeches / toasts" },
       { time: "21:00", label: "Cake cutting" },
+      { time: "22:30", label: "Last call" },
       { time: "23:00", label: "Breakdown" },
     ]);
+  });
+
+  it("seeds only the steps the org ticked into its standard day", () => {
+    const onEntriesChange = vi.fn();
+    render(
+      <BookingTimelineField value={{ ...base, meal_time: "2026-08-01T18:30" }}
+        onChange={() => {}} entries={[]} onEntriesChange={onEntriesChange}
+        presets={fullPresets} eventDate="2026-08-01" />,
+    );
+    fireEvent.click(screen.getByText("+ Build a run-of-show"));
+    const seeded = onEntriesChange.mock.calls[0][0] as { label: string }[];
+    // "Dancing" is a valid label in the dropdown but is not in the standard day.
+    expect(seeded.map((r) => r.label)).not.toContain("Dancing");
+  });
+
+  it("follows the org's retimed offset rather than any built-in default", () => {
+    // A lunch caterer compresses the day: setup 45 minutes before, not 2h30.
+    const onEntriesChange = vi.fn();
+    render(
+      <BookingTimelineField value={{ ...base, meal_time: "2026-08-01T12:00" }}
+        onChange={() => {}} entries={[]} onEntriesChange={onEntriesChange}
+        presets={[
+          { value: "setup", label: "Setup", in_standard_day: true, standard_day_offset_minutes: -45 },
+          { value: "dinner_service", label: "Lunch service", in_standard_day: true, standard_day_offset_minutes: 0 },
+        ]} eventDate="2026-08-01" />,
+    );
+    fireEvent.click(screen.getByText("+ Build a run-of-show"));
+    expect(onEntriesChange).toHaveBeenCalledWith([
+      { time: "11:15", label: "Setup" },
+      { time: "12:00", label: "Lunch service" },
+    ]);
+  });
+
+  it("seeds a step the org invented, once it's in the standard day", () => {
+    const onEntriesChange = vi.fn();
+    render(
+      <BookingTimelineField value={{ ...base, meal_time: "2026-08-01T18:30" }}
+        onChange={() => {}} entries={[]} onEntriesChange={onEntriesChange}
+        presets={[
+          { value: "dinner_service", label: "Dinner service", in_standard_day: true, standard_day_offset_minutes: 0 },
+          { value: "sparkler_send_off", label: "Sparkler send-off", in_standard_day: true, standard_day_offset_minutes: 300 },
+        ]} eventDate="2026-08-01" />,
+    );
+    fireEvent.click(screen.getByText("+ Build a run-of-show"));
+    expect(onEntriesChange).toHaveBeenCalledWith([
+      { time: "18:30", label: "Dinner service" },
+      { time: "23:30", label: "Sparkler send-off" },
+    ]);
+  });
+
+  it("ignores a step ticked into the day but given no offset", () => {
+    const onEntriesChange = vi.fn();
+    render(
+      <BookingTimelineField value={base} onChange={() => {}} entries={[]}
+        onEntriesChange={onEntriesChange}
+        presets={[{ value: "setup", label: "Setup", in_standard_day: true, standard_day_offset_minutes: null }]} />,
+    );
+    fireEvent.click(screen.getByText("+ Build a run-of-show"));
+    // Unplaceable, so nothing to seed — falls back to a blank row.
+    expect(onEntriesChange).toHaveBeenCalledWith([{ time: "18:30", label: "" }]);
   });
 
   it("anchors on 18:30 when the booking has no meal time", () => {
@@ -134,6 +201,7 @@ describe("BookingTimelineField — run-of-show entries", () => {
 
   it("never overwrites a legacy time the booking already has", () => {
     // Setup was explicitly set to 14:00 — the computed -2h30 offset must not win.
+    // (End Time maps to "Last call" — the event being over — not Breakdown.)
     const onEntriesChange = vi.fn();
     render(
       <BookingTimelineField
@@ -154,8 +222,8 @@ describe("BookingTimelineField — run-of-show entries", () => {
       <BookingTimelineField value={{ ...base, meal_time: "2026-08-01T18:30" }}
         onChange={() => {}} entries={[]} onEntriesChange={onEntriesChange}
         presets={[
-          { value: "setup", label: "Load in" },
-          { value: "dinner_service", label: "Mains out" },
+          { value: "setup", label: "Load in", in_standard_day: true, standard_day_offset_minutes: -150 },
+          { value: "dinner_service", label: "Mains out", in_standard_day: true, standard_day_offset_minutes: 0 },
         ]} eventDate="2026-08-01" />,
     );
     fireEvent.click(screen.getByText("+ Build a run-of-show"));
@@ -163,6 +231,21 @@ describe("BookingTimelineField — run-of-show entries", () => {
       { time: "16:00", label: "Load in" },
       { time: "18:30", label: "Mains out" },
     ]);
+  });
+
+  it("carries an existing End Time onto Last call, not Breakdown", () => {
+    const onEntriesChange = vi.fn();
+    render(
+      <BookingTimelineField
+        value={{ ...base, meal_time: "2026-08-01T18:30", end_time: "2026-08-01T23:00" }}
+        onChange={() => {}} entries={[]} onEntriesChange={onEntriesChange}
+        presets={fullPresets} eventDate="2026-08-01" />,
+    );
+    fireEvent.click(screen.getByText("+ Build a run-of-show"));
+    const seeded = onEntriesChange.mock.calls[0][0] as { time: string; label: string }[];
+    expect(seeded.find((r) => r.label === "Last call")!.time).toBe("23:00");
+    // Breakdown keeps its own computed offset — the crew packs down afterwards.
+    expect(seeded.find((r) => r.label === "Breakdown")!.time).toBe("23:00");
   });
 
   it("falls back to one blank row for an org with no presets yet", () => {

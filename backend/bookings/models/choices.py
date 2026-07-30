@@ -78,9 +78,26 @@ class MealTypeOption(ChoiceOptionBase):
 class TimelinePresetOption(ChoiceOptionBase):
     """A reusable label for a moment in the event-day run-of-show ("Staff arrive",
     "Cocktails", "Cake cutting"). Every caterer runs the day differently, so the
-    labels are the org's own — the picker on a booking's timeline offers these,
-    and a user can still type something one-off instead."""
+    labels are the org's own — the picker on a booking's timeline offers exactly
+    these, and nothing else.
+
+    These rows are also the org's **standard-day template**. "+ Build a
+    run-of-show" seeds one row per preset flagged `in_standard_day`, placed at
+    `standard_day_offset_minutes` from meal service. So adding, removing,
+    retiming or opting a step out of the default day is ordinary Settings work —
+    there is no separate template to keep in sync.
+    """
     objects = TenantManager()
+
+    in_standard_day = models.BooleanField(
+        default=False,
+        help_text='Seed this step when a booking builds its default run-of-show.',
+    )
+    standard_day_offset_minutes = models.IntegerField(
+        null=True, blank=True,
+        help_text='Minutes from meal service — negative is before (-150 = 2h30 '
+                  'before), 0 is meal service itself. Required to be seeded.',
+    )
 
     class Meta(ChoiceOptionBase.Meta):
         unique_together = [('organisation', 'value')]

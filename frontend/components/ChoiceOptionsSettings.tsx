@@ -19,6 +19,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
  * only on the API. Drag to reorder; rename keeps the underlying value stable. */
 export default function ChoiceOptionsSettings({
   title, base, swrKey, revalidateKey, description, addPlaceholder = "New option…",
+  renderExtra, extraHeader,
 }: {
   title: string;
   base: string;          // management endpoint, e.g. "/bookings/settings/sources/"
@@ -26,6 +27,12 @@ export default function ChoiceOptionsSettings({
   revalidateKey: string; // read-hook key to refresh dropdowns elsewhere
   description?: string;
   addPlaceholder?: string;
+  /** Extra controls for one row, for option types that carry more than a label
+   * (timeline steps carry their standard-day placement). Omitted everywhere
+   * else, so the other five lists render exactly as before. */
+  renderExtra?: (option: ChoiceOption, patch: (data: Partial<ChoiceOption>) => void) => React.ReactNode;
+  /** Column heading above the extra controls. */
+  extraHeader?: React.ReactNode;
 }) {
   const { data: options = [], mutate, isLoading } = useManagedChoices(swrKey, base);
   const [newLabel, setNewLabel] = useState("");
@@ -83,10 +90,16 @@ export default function ChoiceOptionsSettings({
           <p className="text-muted-foreground text-sm">Loading…</p>
         ) : (
           <div className="space-y-2">
+            {extraHeader && (
+              <div className="flex items-center gap-2 pl-7 pr-2 text-xs text-muted-foreground">
+                <span className="flex-1" />
+                {extraHeader}
+              </div>
+            )}
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
               <SortableContext items={ordered.map((o) => o.id)} strategy={verticalListSortingStrategy}>
                 {ordered.map((o) => (
-                  <OptionRow key={o.id} option={o} busy={busy}
+                  <OptionRow key={o.id} option={o} busy={busy} renderExtra={renderExtra}
                     onPatch={(data) => run(() => api.updateChoiceOption(base, o.id, data))}
                     onRemove={() => run(() => api.deleteChoiceOption(base, o.id))} />
                 ))}
@@ -109,11 +122,12 @@ export default function ChoiceOptionsSettings({
   );
 }
 
-function OptionRow({ option: o, busy, onPatch, onRemove }: {
+function OptionRow({ option: o, busy, onPatch, onRemove, renderExtra }: {
   option: ChoiceOption;
   busy: boolean;
   onPatch: (data: Partial<ChoiceOption>) => void;
   onRemove: () => void;
+  renderExtra?: (option: ChoiceOption, patch: (data: Partial<ChoiceOption>) => void) => React.ReactNode;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: o.id });
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.6 : 1 };
@@ -131,6 +145,7 @@ function OptionRow({ option: o, busy, onPatch, onRemove }: {
       <input defaultValue={o.label} disabled={busy}
         onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== o.label) onPatch({ label: v }); }}
         className="h-8 flex-1 min-w-[120px] rounded border border-input bg-transparent px-2 text-sm" />
+      {renderExtra?.(o, onPatch)}
       <button type="button" disabled={busy} onClick={() => onPatch({ is_active: !o.is_active })}
         className={`text-xs px-2 py-1 rounded border ${o.is_active ? "border-input text-foreground" : "bg-muted text-muted-foreground border-input"}`}>
         {o.is_active ? "Active" : "Hidden"}

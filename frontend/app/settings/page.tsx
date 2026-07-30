@@ -15,6 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import LeadStatusesSettings from "@/components/LeadStatusesSettings";
 import ChoiceOptionsSettings from "@/components/ChoiceOptionsSettings";
+import TimelineStepExtras from "@/components/TimelineStepExtras";
 import ProductLinesSettings from "@/components/ProductLinesSettings";
 import CommissionSettings from "@/components/CommissionSettings";
 import BillingPanel from "@/components/BillingPanel";
@@ -406,8 +407,10 @@ export default function SettingsPage() {
           base="/bookings/settings/timeline-presets/"
           swrKey="managed-timeline-presets"
           revalidateKey="timeline-presets"
-          description="Labels for the event-day run-of-show (e.g. Staff arrive, Cocktail hour, Cake cutting). Offered when building a booking's timeline; drag to set the order they're suggested in."
+          description="Steps for the event-day run-of-show (e.g. Staff arrive, Cocktail hour, Cake cutting). These are the only labels a booking's timeline can use — and they double as your standard day: tick a step to have &ldquo;Build a run-of-show&rdquo; seed it, and set how long before or after the meal it lands."
           addPlaceholder="New timeline step…"
+          extraHeader={<><span className="w-20 text-center">Standard day</span><span className="w-24 text-center">Offset</span></>}
+          renderExtra={(o, patch) => <TimelineStepExtras option={o} patch={patch} />}
         />
         <ChoiceOptionsSettings
           title="Lost Reasons"

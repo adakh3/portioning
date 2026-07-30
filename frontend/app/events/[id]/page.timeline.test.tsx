@@ -65,9 +65,10 @@ vi.mock("@/lib/hooks", () => ({
   useEventTypes: () => ({ data: [{ id: 1, value: "wedding", label: "Wedding" }] }),
   useServiceStyles: () => ({ data: [] }),
   useMealTypes: () => ({ data: [] }),
+  // Deliberately listed cake-first to prove the prefill sorts by offset.
   useTimelinePresets: () => ({ data: [
-    { id: 1, value: "cake_cutting", label: "Cake cutting" },
-    { id: 2, value: "staff_arrival", label: "Staff arrive" },
+    { id: 1, value: "cake_cutting", label: "Cake cutting", in_standard_day: true, standard_day_offset_minutes: 150 },
+    { id: 2, value: "staff_arrival", label: "Staff arrive", in_standard_day: true, standard_day_offset_minutes: -210 },
   ] }),
   useProductLines: () => ({ data: [{ id: 5, name: "Catering", is_active: true, colour: "#000", round_robin_index: 0 }] }),
 }));
