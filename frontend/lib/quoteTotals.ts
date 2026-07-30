@@ -3,6 +3,7 @@
 // The server (bookings/models/quotes.py: recalculate_totals + QuoteLineItem.save)
 // remains the source of truth on save.
 import { EventMealData } from "@/lib/api";
+import type { TimelineEntryValue } from "@/components/BookingTimelineField";
 import { formatCurrency } from "@/lib/utils";
 
 export interface LineItemInput {
@@ -367,6 +368,21 @@ export function buildLineItemsPayload(lineItems: LineItemInput[]) {
   }));
 }
 
+/** Serialize a booking's run-of-show for a save (quote OR event).
+ *
+ * Rows go out in the order they're shown — the backend turns that position into
+ * `sort_order`, so "the order I arranged" is what persists. Rows with no time
+ * are dropped: a step without a time isn't a step yet.
+ *
+ * An empty array is meaningful and IS sent: it clears the timeline and the
+ * booking falls back to its four legacy time fields.
+ */
+export function buildTimelineEntriesPayload(entries: TimelineEntryValue[] = []) {
+  return entries
+    .filter((e) => e.time)
+    .map((e) => ({ time: e.time.length === 5 ? `${e.time}:00` : e.time, label: e.label.trim() }));
+}
+
 /** Serialize additional meals for a booking save (quote OR event). */
 export function buildMealsPayload(meals: EventMealData[]) {
   return meals.map((m) => ({
@@ -386,6 +402,7 @@ export function buildQuoteSavePayload(
   lineItems: LineItemInput[],
   meals: EventMealData[] = [],
   segmentMeta: GuestSegmentMeta[] = [],
+  timelineEntries: TimelineEntryValue[] = [],
 ) {
   return {
     primary_contact: editData.primary_contact ? Number(editData.primary_contact) : null,
@@ -419,6 +436,7 @@ export function buildQuoteSavePayload(
     based_on_template: menuData.based_on_template,
     line_items: buildLineItemsPayload(lineItems),
     additional_meals: buildMealsPayload(meals),
+    timeline_entries: buildTimelineEntriesPayload(timelineEntries),
   };
 }
 
@@ -463,6 +481,7 @@ export interface EventSaveInput {
   based_on_template: number | null;
   line_items: LineItemInput[];
   meals: EventMealData[];
+  timeline_entries: TimelineEntryValue[];
 }
 
 export function buildEventSavePayload(v: EventSaveInput, segmentMeta: GuestSegmentMeta[] = []) {
@@ -503,5 +522,6 @@ export function buildEventSavePayload(v: EventSaveInput, segmentMeta: GuestSegme
     based_on_template: v.based_on_template,
     line_items: buildLineItemsPayload(v.line_items),
     additional_meals: buildMealsPayload(v.meals),
+    timeline_entries: buildTimelineEntriesPayload(v.timeline_entries),
   };
 }

@@ -1,7 +1,8 @@
 """Starter choice-option defaults for a new organisation.
 
 Mainstream-US catering vocabulary so a fresh org's Event Type / Source /
-Service Style / Meal Type dropdowns are usable on day one instead of empty.
+Service Style / Meal Type / Timeline dropdowns are usable on day one instead of
+empty.
 Every option is fully editable and removable in Settings → these are only a
 sensible starting point, seeded once at org creation (and backfillable for
 existing orgs via `manage.py seed_org_choices`). All seeding is idempotent:
@@ -53,6 +54,25 @@ MEAL_TYPE_DEFAULTS = [
     ('cocktail', 'Cocktail / Appetizers'),
 ]
 
+# Labels for the event-day run-of-show, in the rough order a day unfolds. The
+# order matters here (unlike the A-Z lists above) — the picker offers them in
+# `sort_order`, which is how a caterer thinks about the day.
+TIMELINE_PRESET_DEFAULTS = [
+    ('staff_arrival', 'Staff arrive'),
+    ('setup', 'Setup'),
+    ('vendor_arrival', 'Vendors arrive'),
+    ('doors_open', 'Doors open'),
+    ('guest_arrival', 'Guests arrive'),
+    ('cocktail_hour', 'Cocktail hour'),
+    ('speeches', 'Speeches / toasts'),
+    ('dinner_service', 'Dinner service'),
+    ('cake_cutting', 'Cake cutting'),
+    ('dancing', 'Dancing'),
+    ('last_call', 'Last call'),
+    ('breakdown', 'Breakdown'),
+    ('staff_departure', 'Staff depart'),
+]
+
 
 def seed_choice_defaults(org, only_if_empty=False):
     """Seed the non-workflow choice dropdowns for one org.
@@ -65,12 +85,14 @@ def seed_choice_defaults(org, only_if_empty=False):
     """
     from bookings.models.choices import (
         EventTypeOption, SourceOption, ServiceStyleOption, MealTypeOption,
+        TimelinePresetOption,
     )
     for model, rows in (
         (EventTypeOption, EVENT_TYPE_DEFAULTS),
         (SourceOption, SOURCE_DEFAULTS),
         (ServiceStyleOption, SERVICE_STYLE_DEFAULTS),
         (MealTypeOption, MEAL_TYPE_DEFAULTS),
+        (TimelinePresetOption, TIMELINE_PRESET_DEFAULTS),
     ):
         if only_if_empty and model.objects.filter(organisation=org).exists():
             continue

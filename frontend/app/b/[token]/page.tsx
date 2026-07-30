@@ -118,7 +118,12 @@ function BookingView({
               <div key={t.label} className="flex justify-between">
                 <dt className="text-neutral-500">{t.label}</dt>
                 <dd className="text-neutral-800">
-                  {t.time
+                  {/* Run-of-show entries carry a bare time the browser can't parse
+                      as a date, so the server pre-formats them; the four legacy
+                      slots have a full datetime and render as they always have. */}
+                  {t.time_display
+                    ? t.time_display
+                    : t.time
                     ? new Date(t.time).toLocaleString(undefined, {
                         day: "numeric",
                         month: "short",

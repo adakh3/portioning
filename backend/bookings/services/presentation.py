@@ -98,14 +98,24 @@ def booking_presentation(booking, signature=None):
         for li in booking.line_items.all()
     ]
 
-    # Timeline — labelled moments in the order they run.
+    # Timeline — labelled moments in the order they run. The booking's own
+    # entries when it has any, else the four legacy slots (see services/timeline).
+    # `time_display` is set only for entries: they carry a bare time, which a
+    # client can't parse as a date, so the server formats it. Legacy slots keep
+    # `time_display: None` and their full ISO datetime, so surfaces render them
+    # exactly as they always have.
+    from bookings.services.timeline import booking_timeline, format_timeline_value
     timeline = [
-        {'label': label, 'time': _iso(getattr(booking, field, None))}
-        for label, field in (
-            ('Setup', 'setup_time'), ('Guest arrival', 'guest_arrival_time'),
-            ('Meal service', 'meal_time'), ('End', 'end_time'),
-        )
-        if getattr(booking, field, None)
+        {
+            'label': label,
+            'time': _iso(value),
+            'time_display': (None if hasattr(value, 'date')
+                             else format_timeline_value(value, settings.time_format)),
+        }
+        for label, value in booking_timeline(booking, {
+            'setup_time': 'Setup', 'guest_arrival_time': 'Guest arrival',
+            'meal_time': 'Meal service', 'end_time': 'End',
+        })
     ]
 
     contact = booking.primary_contact

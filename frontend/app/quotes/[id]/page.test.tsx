@@ -41,6 +41,7 @@ vi.mock("@/lib/hooks", () => ({
   useEventTypes: () => ({ data: [{ id: 1, value: "wedding", label: "Wedding" }] }),
   useServiceStyles: () => ({ data: [] }),
   useMealTypes: () => ({ data: [] }),
+  useTimelinePresets: () => ({ data: [] }),
   useAllLeads: () => ({ data: [] }),
   useProductLines: () => ({ data: [] }),
   useUsers: () => ({ data: [] }),

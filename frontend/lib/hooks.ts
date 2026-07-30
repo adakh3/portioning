@@ -176,6 +176,13 @@ export function useMealTypes() {
   });
 }
 
+export function useTimelinePresets() {
+  return useSWR<ChoiceOption[]>("timeline-presets", () => api.getTimelinePresets(), {
+    dedupingInterval: 300000,
+    revalidateOnFocus: false,
+  });
+}
+
 
 export function useUsers() {
   return useSWR<AuthUser[]>("users", () => api.getUsers(), {

@@ -41,6 +41,17 @@ def _copy_additional_meals_to_event(quote, event):
             )
 
 
+def _copy_timeline_entries_to_event(quote, event):
+    """Copy a quote's run-of-show onto its event — the timeline the client agreed
+    to is what the ops team runs on the day."""
+    from events.models import BookingTimelineEntry
+    for entry in quote.timeline_entries.all():
+        BookingTimelineEntry.objects.create(
+            event=event, time=entry.time, label=entry.label,
+            sort_order=entry.sort_order,
+        )
+
+
 class QuoteListCreateView(generics.ListCreateAPIView):
     serializer_class = QuoteSerializer
 

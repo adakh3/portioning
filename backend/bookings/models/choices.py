@@ -74,5 +74,16 @@ class MealTypeOption(ChoiceOptionBase):
     class Meta(ChoiceOptionBase.Meta):
         unique_together = [('organisation', 'value')]
 
+
+class TimelinePresetOption(ChoiceOptionBase):
+    """A reusable label for a moment in the event-day run-of-show ("Staff arrive",
+    "Cocktails", "Cake cutting"). Every caterer runs the day differently, so the
+    labels are the org's own — the picker on a booking's timeline offers these,
+    and a user can still type something one-off instead."""
+    objects = TenantManager()
+
+    class Meta(ChoiceOptionBase.Meta):
+        unique_together = [('organisation', 'value')]
+
 # ArrangementTypeOption / BeverageTypeOption removed — superseded by the
 # AddOnProduct catalog (their data was migrated into it).

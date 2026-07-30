@@ -402,6 +402,14 @@ export default function SettingsPage() {
           addPlaceholder="New meal type…"
         />
         <ChoiceOptionsSettings
+          title="Timeline Steps"
+          base="/bookings/settings/timeline-presets/"
+          swrKey="managed-timeline-presets"
+          revalidateKey="timeline-presets"
+          description="Labels for the event-day run-of-show (e.g. Staff arrive, Cocktail hour, Cake cutting). Offered when building a booking's timeline; drag to set the order they're suggested in."
+          addPlaceholder="New timeline step…"
+        />
+        <ChoiceOptionsSettings
           title="Lost Reasons"
           base="/bookings/settings/lost-reasons/"
           swrKey="managed-lost-reasons"

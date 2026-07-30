@@ -16,6 +16,7 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 
 from bookings.models.settings import OrgSettings
 from bookings.models.choices import EventTypeOption, ServiceStyleOption, MealTypeOption
+from bookings.services.timeline import booking_timeline, format_timeline_value
 from dishes.ordering import dish_display_names_in_added_order
 
 
@@ -59,6 +60,16 @@ def _fmt(value, cs):
     a US org's PDF can never silently render pounds.
     """
     return f'{cs}{value:,.2f}'
+
+
+# The four legacy slots, worded as both PDFs have always worded them — kept
+# verbatim so a booking with no timeline entries renders unchanged.
+LEGACY_PDF_LABELS = {
+    'setup_time': 'Setup Time:',
+    'guest_arrival_time': 'Guest Arrival Time:',
+    'meal_time': 'Meal Time:',
+    'end_time': 'End Time:',
+}
 
 
 def _dt_fmt(time_format='24h'):
@@ -620,17 +631,12 @@ def generate_quote_pdf(quote, signature=None):
     elements.append(info_outer)
     elements.append(Spacer(1, 10 * mm))
 
-    # Timeline (setup / arrival / meal / end) — above the menu, mirroring the form.
-    timeline_items = [
-        ('Setup', quote.setup_time),
-        ('Guest Arrival', quote.guest_arrival_time),
-        ('Meal', quote.meal_time),
-        ('End', quote.end_time),
-    ]
+    # Timeline — above the menu, mirroring the form. The booking's own run-of-show
+    # entries when it has any, else the four legacy slots worded exactly as before.
     timeline_rows = [
-        [Paragraph(f'{label} Time:', s['info_label']),
-         Paragraph(dt.strftime(_dt_fmt(settings.time_format)), s['info_value'])]
-        for label, dt in timeline_items if dt
+        [Paragraph(label, s['info_label']),
+         Paragraph(format_timeline_value(value, settings.time_format), s['info_value'])]
+        for label, value in booking_timeline(quote, LEGACY_PDF_LABELS)
     ]
     if timeline_rows:
         elements.append(_section_header([Paragraph('TIMELINE', s['section_title'])], [CONTENT_W]))
@@ -875,15 +881,11 @@ def generate_event_pdf(event, signature=None):
     elements.append(info_block)
     elements.append(Spacer(1, 8 * mm))
 
-    # ── Timeline ──
-    timeline_items = [
-        ('Setup', event.setup_time), ('Guest Arrival', event.guest_arrival_time),
-        ('Meal', event.meal_time), ('End', event.end_time),
-    ]
+    # ── Timeline ── (entries when present, else the four legacy slots)
     timeline_rows = [
-        [Paragraph(f'{label} Time:', s['info_label']),
-         Paragraph(dt.strftime(_dt_fmt(settings.time_format)), s['info_value'])]
-        for label, dt in timeline_items if dt
+        [Paragraph(label, s['info_label']),
+         Paragraph(format_timeline_value(value, settings.time_format), s['info_value'])]
+        for label, value in booking_timeline(event, LEGACY_PDF_LABELS)
     ]
     if timeline_rows:
         elements.append(_section_header([Paragraph('TIMELINE', s['section_title'])], [CONTENT_W]))

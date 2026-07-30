@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { api, Contact, EventMealData } from "@/lib/api";
-import { useQuote, useAccounts, useContacts, useSiteSettings, useDateFormat, useEventTypes, useServiceStyles, useMealTypes, useAllLeads, useProductLines, useUsers, revalidate } from "@/lib/hooks";
+import { useQuote, useAccounts, useContacts, useSiteSettings, useDateFormat, useEventTypes, useServiceStyles, useMealTypes, useTimelinePresets, useAllLeads, useProductLines, useUsers, revalidate } from "@/lib/hooks";
 import { canWhatsApp, waLink } from "@/lib/whatsapp";
 import { MessageCircle } from "lucide-react";
 import { useAuth } from "@/lib/auth";
@@ -13,10 +13,10 @@ import { formatCurrency } from "@/lib/utils";
 import MenuBuilder from "@/components/MenuBuilder";
 import AdditionalMealsEditor from "@/components/AdditionalMealsEditor";
 import GuestCountField, { GuestCountValue } from "@/components/GuestCountField";
-import BookingTimelineField from "@/components/BookingTimelineField";
+import BookingTimelineField, { TimelineEntryValue } from "@/components/BookingTimelineField";
 import BookingDetailsForm, { BookingDetailsValue } from "@/components/BookingDetailsForm";
 import AssigneePicker from "@/components/AssigneePicker";
-import { computeQuoteTotals, buildQuoteSavePayload, buildGuestCountsPayload, bookingMealRows, hasVendorDoubleEntry, segmentFood, segmentFoodRows, LineItemInput, GuestSegmentMeta } from "@/lib/quoteTotals";
+import { computeQuoteTotals, buildQuoteSavePayload, buildTimelineEntriesPayload, buildGuestCountsPayload, bookingMealRows, hasVendorDoubleEntry, segmentFood, segmentFoodRows, LineItemInput, GuestSegmentMeta } from "@/lib/quoteTotals";
 import AddOnItemsEditor from "@/components/AddOnItemsEditor";
 import BookingTotalsCard from "@/components/BookingTotalsCard";
 import ESignPanel from "@/components/ESignPanel";
@@ -69,6 +69,7 @@ export default function QuoteDetailPage() {
   const { data: eventTypes = [] } = useEventTypes();
   const { data: serviceStyles = [] } = useServiceStyles();
   const { data: mealTypes = [] } = useMealTypes();
+  const { data: timelinePresets = [] } = useTimelinePresets();
   const { data: allLeads = [] } = useAllLeads();
   const leads = allLeads.filter((l) => !["won", "lost"].includes(l.status));
   const [saving, setSaving] = useState(false);
@@ -149,6 +150,8 @@ export default function QuoteDetailPage() {
   // Additional meals (parity with events) — committed in the same save.
   const [editMeals, setEditMeals] = useState<EventMealData[]>([]);
   const [createMeals, setCreateMeals] = useState<EventMealData[]>([]);
+  const [editTimeline, setEditTimeline] = useState<TimelineEntryValue[]>([]);
+  const [createTimeline, setCreateTimeline] = useState<TimelineEntryValue[]>([]);
   // New-quote owner (existing quotes reassign via the header's instant-save select).
   const [formAssigned, setFormAssigned] = useState<number | null>(null);
   useEffect(() => {
@@ -271,6 +274,7 @@ export default function QuoteDetailPage() {
           label: m.label, guest_count: m.guest_count, price_per_head: m.price_per_head || null,
           dish_ids: m.dishes, based_on_template: m.based_on_template, meal_time: m.meal_time || null, notes: m.notes,
         })),
+        timeline_entries: buildTimelineEntriesPayload(createTimeline),
       };
       const newQuote = await api.createQuote(data);
       revalidate("quotes");
@@ -323,6 +327,9 @@ export default function QuoteDetailPage() {
     })));
     setMenuData({ dish_ids: quote.dishes || [], based_on_template: quote.based_on_template || null });
     setEditMeals((quote.additional_meals || []).map((m) => ({ ...m })));
+    setEditTimeline((quote.timeline_entries || []).map((e) => ({
+      id: e.id, time: e.time.slice(0, 5), label: e.label,
+    })));
     setEditing(true);
   }
 
@@ -357,7 +364,7 @@ export default function QuoteDetailPage() {
     setSaving(true);
     setError("");
     try {
-      await api.updateQuote(quote.id, buildQuoteSavePayload(editData, menuData, editLineItems, editMeals, segmentMeta));
+      await api.updateQuote(quote.id, buildQuoteSavePayload(editData, menuData, editLineItems, editMeals, segmentMeta, editTimeline));
       await mutateQuote();
       setEditing(false);
     } catch (err) {
@@ -505,6 +512,9 @@ export default function QuoteDetailPage() {
                 timeFormat={timeFormat}
                 value={{ setup_time: createData.setup_time, guest_arrival_time: createData.guest_arrival_time, meal_time: createData.meal_time, end_time: createData.end_time }}
                 onChange={(patch) => setCreateData((prev) => ({ ...prev, ...patch }))}
+                entries={createTimeline}
+                onEntriesChange={setCreateTimeline}
+                presets={timelinePresets}
               />
             </CardContent>
           </Card>
@@ -985,6 +995,9 @@ export default function QuoteDetailPage() {
               timeFormat={timeFormat}
               value={{ setup_time: editData.setup_time, guest_arrival_time: editData.guest_arrival_time, meal_time: editData.meal_time, end_time: editData.end_time }}
               onChange={(patch) => setEditData((prev) => ({ ...prev, ...patch }))}
+              entries={editTimeline}
+              onEntriesChange={setEditTimeline}
+              presets={timelinePresets}
             />
           </CardContent>
         </Card>

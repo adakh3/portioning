@@ -4,7 +4,7 @@ from .leads import Lead, ProductLine
 from .quotes import Quote
 from .signatures import BookingSignature
 from .addons import AddOnProduct, AddOnVariant, BookingLineItem
-from .choices import EventTypeOption, SourceOption, ServiceStyleOption, LeadStatusOption, LostReasonOption, MealTypeOption
+from .choices import EventTypeOption, SourceOption, ServiceStyleOption, LeadStatusOption, LostReasonOption, MealTypeOption, TimelinePresetOption
 from .finance import Invoice, Payment
 from .settings import OrgSettings
 from .activity import ActivityLog
