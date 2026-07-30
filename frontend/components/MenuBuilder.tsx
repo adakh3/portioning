@@ -170,10 +170,9 @@ export default function MenuBuilder({
       setCalculatedPrice(null);
       setPriceError(null);
       onChange?.({ dish_ids: dishIds, based_on_template: tid });
-      // Carry the template's courses onto the booking (REL-417 AC6).
-      if (onLoadCourses && detail.courses?.length) {
-        onLoadCourses(detail.courses, detail.dish_courses || {});
-      }
+      // Carry the template's courses onto the booking (REL-417 AC6). Always fire —
+      // a course-less template clears any stale courses from a previously-loaded one.
+      onLoadCourses?.(detail.courses || [], detail.dish_courses || {});
     } catch (e) {
       setPriceError(errorText(e) || "Couldn't load that template.");
     }
@@ -292,6 +291,7 @@ export default function MenuBuilder({
       <div className="flex items-center gap-3 flex-wrap">
         <div className="relative">
           <select
+            aria-label="Load from template"
             value=""
             onChange={(e) => {
               if (e.target.value) handleLoadTemplate(Number(e.target.value));

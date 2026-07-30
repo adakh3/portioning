@@ -86,6 +86,28 @@ class CourseModelTests(TestCase):
         # Course order: Starter section precedes Dessert section.
         self.assertLess(text.find('Starter'), text.find('Dessert'))
 
+    def test_write_ignores_a_dish_not_on_the_booking(self):
+        # Review #2: a stale/foreign dish_id in the payload must not create a row.
+        other = self.d3  # will NOT be added to the booking's dishes
+        self.event.dishes.set([self.d1, self.d2])
+        write_booking_courses(self.event, [{'name': 'Starter', 'sort_order': 0}],
+                              {str(self.d1.id): 0, str(other.id): 0})
+        self.assertTrue(EventDishComment.objects.filter(event=self.event, dish=self.d1).exists())
+        self.assertFalse(EventDishComment.objects.filter(event=self.event, dish=other).exists())
+
+    def test_pdf_escapes_a_course_name_with_special_chars(self):
+        # Review #5: free-text course names must be XML-escaped for reportlab.
+        try:
+            from pypdf import PdfReader
+        except ImportError:
+            self.skipTest("pypdf not installed")
+        import io
+        from bookings.pdf import generate_event_pdf
+        write_booking_courses(self.event, [{'name': 'Cheese & Crackers', 'sort_order': 0}], {str(self.d1.id): 0})
+        self.event.refresh_from_db()
+        text = "\n".join(p.extract_text() for p in PdfReader(io.BytesIO(generate_event_pdf(self.event))).pages)
+        self.assertIn('Cheese & Crackers', text)  # renders (no markup crash)
+
     def test_reassign_clears_a_dropped_assignment(self):
         write_booking_courses(self.event, [{'name': 'Starter', 'sort_order': 0}], {str(self.d1.id): 0})
         self.assertEqual(EventDishComment.objects.get(event=self.event, dish=self.d1).course.name, 'Starter')
@@ -167,6 +189,17 @@ class CourseApiTests(TestCase):
         self.assertEqual([c['name'] for c in body['courses']], ['Starter', 'Dessert'])
         self.assertEqual(body['courses'][0]['service_style'], 'plated')
         self.assertEqual(body['dish_courses'], {str(self.d1.id): 0})  # d2 unassigned → absent
+
+    def test_patch_without_courses_key_preserves_courses(self):
+        # Review #6: a PATCH that omits `courses` must NOT wipe existing courses.
+        ev_id = self.client.post('/api/events/', {
+            'name': 'C', 'date': '2026-05-01', 'guest_count': 50, 'dish_ids': [self.d1.id],
+            'courses': [{'name': 'Starter', 'service_style': 'plated', 'sort_order': 0}],
+            'dish_courses': {str(self.d1.id): 0},
+        }, format='json').json()['id']
+        res = self.client.patch(f'/api/events/{ev_id}/', {'guest_count': 60}, format='json')
+        self.assertEqual(res.status_code, 200, res.content)
+        self.assertEqual([c['name'] for c in res.json()['courses']], ['Starter'])  # untouched
 
     def test_confirming_still_calculates_portions_with_course_rows_present(self):
         # The interaction fix: a course-only EventDishComment must not disable the

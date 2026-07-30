@@ -291,10 +291,11 @@ class QuoteSerializer(OrgScopedModelSerializer):
         return quote
 
     def _write_courses(self, quote):
-        """Courses + dish→course assignment from the raw payload (REL-417); absent
-        keys leave existing courses untouched."""
+        """Courses + dish→course assignment from the raw payload (REL-417). `courses`
+        is authoritative — require it so a lone `dish_courses` can't wipe existing
+        courses; absent `courses` key leaves courses untouched."""
         from events.models import write_booking_courses
-        if 'courses' in self.initial_data or 'dish_courses' in self.initial_data:
+        if 'courses' in self.initial_data:
             write_booking_courses(
                 quote, self.initial_data.get('courses'), self.initial_data.get('dish_courses'),
             )

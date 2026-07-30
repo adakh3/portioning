@@ -230,9 +230,10 @@ class EventSerializer(OrgScopedModelSerializer):
         return read_dish_courses(obj)
 
     def _write_courses(self, booking):
-        # Courses + dish→course assignment come from the raw payload (like
-        # guest_counts); absent keys leave existing courses untouched.
-        if 'courses' in self.initial_data or 'dish_courses' in self.initial_data:
+        # `courses` is the authoritative list; require it before touching courses so a
+        # lone `dish_courses` (or its absence) can't wipe existing courses. Absent
+        # `courses` key → leave courses untouched.
+        if 'courses' in self.initial_data:
             write_booking_courses(
                 booking, self.initial_data.get('courses'), self.initial_data.get('dish_courses'),
             )

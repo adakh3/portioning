@@ -15,12 +15,15 @@ test.describe("Courses survive save + reload end-to-end", () => {
 
   test("a course + a dish assignment persist across reload", async ({ page }) => {
     await page.goto("/events/new");
+    await page.waitForLoadState("networkidle");
     await page.getByLabel("Customer", { exact: false }).selectOption({ label: "Aisha Khan" });
     await page.getByLabel("Guest Count").fill("50");
 
     // Populate the menu from a template so there are dishes to assign.
-    await page.getByRole("combobox", { name: /load from template/i }).selectOption({ index: 1 });
-    await expect(page.getByLabel(/^Course for/).first()).toBeVisible({ timeout: 10_000 });
+    const tpl = page.getByLabel("Load from template");
+    await tpl.waitFor({ state: "visible" });
+    await tpl.selectOption({ index: 1 });
+    await expect(page.getByText(/Menu \(\d+ dishes\)/)).toBeVisible({ timeout: 10_000 });
 
     // Add a course, name it, assign the first dish to it.
     await page.getByRole("button", { name: "+ Add course" }).click();
@@ -32,9 +35,8 @@ test.describe("Courses survive save + reload end-to-end", () => {
     await page.waitForURL(/\/events\/\d+$/, { timeout: 15_000 });
 
     // View mode after a hard reload — the course + its assigned dish persisted.
+    // The Courses section renders the course with its dish ("Starter: <dish>").
     await page.reload();
-    const starter = page.getByText(/^Starter/);
-    await expect(starter).toBeVisible();
-    await expect(starter).toContainText(":"); // "Starter — …: <dish>" (has an assigned dish)
+    await expect(page.getByText(/Starter:\s*\S/)).toBeVisible(); // course + at least one assigned dish
   });
 });

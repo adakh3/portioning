@@ -234,11 +234,16 @@ def write_booking_courses(booking, courses_data, dish_courses):
             sort_order=c.get('sort_order', i), **parent,
         ))
     # Assign dishes to their course; clear the course on any row not re-listed.
+    # Only dishes actually on the booking are assignable — a stale/foreign/removed
+    # dish_id in the raw payload is ignored (never creates a stray or cross-org row).
+    valid_dish_ids = set(booking.dishes.values_list('id', flat=True))
     assigned = {}
     for dish_id, idx in (dish_courses or {}).items():
         if idx is None or idx < 0 or idx >= len(created):
             continue
-        assigned[int(dish_id)] = created[idx]
+        did = int(dish_id)
+        if did in valid_dish_ids:
+            assigned[did] = created[idx]
     for dish_id, course in assigned.items():
         Model.objects.update_or_create(dish_id=dish_id, defaults={'course': course}, **parent)
     Model.objects.filter(**parent).exclude(dish_id__in=assigned.keys()).update(course=None)

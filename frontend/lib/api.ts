@@ -1240,6 +1240,7 @@ export interface PublicBooking {
   service_style_label: string;
   timeline: { label: string; time: string | null }[];
   menu: { category: string; items: string[] }[];
+  menu_courses: { name: string; service_style: string; items: string[] }[] | null; // REL-417
   additional_meals: { label: string; guest_count: number; price_per_head: string | null; items: string[] }[];
   line_items: { description: string; category: string; quantity: string; unit: string; line_total: string }[];
   price_per_head: string | null;

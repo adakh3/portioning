@@ -429,6 +429,7 @@ def _menu_flowables(menu_courses, dish_names, s):
     flat fallback."""
     if not menu_courses:
         return [_dish_table(dish_names, s)]
+    from xml.sax.saxutils import escape
     out = []
     for g in menu_courses:
         if not g['items']:
@@ -436,7 +437,8 @@ def _menu_flowables(menu_courses, dish_names, s):
         head = g['name'] or 'Additional dishes'
         if g['service_style']:
             head += f" — {g['service_style']}"
-        out.append(Paragraph(f'<b>{head}</b>', s['body']))
+        # Course name is free user text — escape for reportlab's mini-markup parser.
+        out.append(Paragraph(f'<b>{escape(head)}</b>', s['body']))
         out.append(Spacer(1, 1 * mm))
         out.append(_dish_table(g['items'], s))
         out.append(Spacer(1, 3 * mm))
