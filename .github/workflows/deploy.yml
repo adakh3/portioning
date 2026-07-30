@@ -1,0 +1,46 @@
+name: deploy
+
+# Intentional, tag-triggered production deploys to DigitalOcean App Platform.
+#
+# DO "Autodeploy code changes" is turned OFF in the DO console, so merging PRs to
+# main no longer deploys — main just batches CI-passed changes. A release happens
+# only when you push a version tag:
+#
+#     git tag v1.4.0 && git push origin v1.4.0
+#
+# ...or by running this workflow manually (Actions → deploy → Run workflow), which
+# deploys whatever App Platform is pointed at (main).
+#
+# Requires (GitHub → repo Settings):
+#   - secret   DIGITALOCEAN_ACCESS_TOKEN   DO API token with write scope
+#   - variable DO_APP_ID                   App Platform app id (`doctl apps list`)
+#
+# After a successful deploy, the post-deploy-smoke workflow runs automatically
+# (it triggers on this workflow completing) and probes the live app.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch: {}
+
+# Never run two production deploys at once; let an in-flight one finish.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to App Platform
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install doctl
+        uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+      - name: Trigger deployment and wait for it to finish
+        run: |
+          if [ -z "${{ vars.DO_APP_ID }}" ]; then
+            echo "::error::DO_APP_ID repository variable is not set (Settings → Secrets and variables → Actions → Variables). Find it with: doctl apps list"
+            exit 1
+          fi
+          doctl apps create-deployment "${{ vars.DO_APP_ID }}" --wait

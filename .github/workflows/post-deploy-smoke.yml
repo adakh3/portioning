@@ -1,16 +1,18 @@
 name: post-deploy-smoke
 
-# After a push to main, DigitalOcean auto-deploys with no verification of its
-# own. This probes the LIVE app once the deploy has had time to roll out:
+# Probes the LIVE app after a production deploy has rolled out:
 #   - GET /api/health/  -> 200 {"status": "ok"}  (backend process is up)
 #   - GET /login        -> 200 + brand marker     (frontend is serving)
 #
-# A failed run IS the alert — the owner watches the Actions failure email.
-# Deliberately minimal; richer alerting can come later. See REL-360.
+# Runs automatically after the `deploy` workflow succeeds (deploys are now
+# tag-triggered, not on every merge — see .github/workflows/deploy.yml), and can
+# be run manually any time to check prod. A failed run IS the alert — the owner
+# watches the Actions failure email. Deliberately minimal. See REL-360 / REL-420.
 
 on:
-  push:
-    branches: [main]
+  workflow_run:
+    workflows: ["deploy"]
+    types: [completed]
   workflow_dispatch: {}
 
 # Only the newest deploy matters — cancel an older probe still retrying.
@@ -21,6 +23,8 @@ concurrency:
 jobs:
   probe:
     name: Probe production
+    # Only after a successful deploy (or a manual run) — skip if the deploy failed.
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - name: Probe /api/health/ and /login (retry while the deploy rolls out)
