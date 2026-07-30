@@ -3,6 +3,7 @@ from rest_framework import serializers
 from bookings.models import Quote, BookingLineItem
 from bookings.serializers.leads import _get_event_type_labels
 from bookings.serializers.meals import BookingMealSerializer, replace_meals
+from bookings.serializers.courses import read_courses, read_dish_courses
 from dishes.models import Dish
 from dishes.ordering import dish_ids_in_added_order, dish_names_in_added_order
 from users.mixins import get_request_org
@@ -55,6 +56,10 @@ class QuoteSerializer(OrgScopedModelSerializer):
     # Per-segment guest breakdown (read); the write side is handled from the raw
     # payload in create/update (mirrors the event serializer).
     guest_counts = serializers.SerializerMethodField()
+    # Courses + each dish's course (by index into `courses`); written from the raw
+    # payload in create/update (mirrors the event serializer).
+    courses = serializers.SerializerMethodField()
+    dish_courses = serializers.SerializerMethodField()
 
     # E-signature status (for the staff-side "send for signature" flow)
     public_token = serializers.CharField(read_only=True)
@@ -98,6 +103,7 @@ class QuoteSerializer(OrgScopedModelSerializer):
             'service_charge_pct', 'service_charge_taxable', 'service_charge',
             'gratuity_pct', 'gratuity',
             'dishes', 'dish_ids', 'dish_names', 'based_on_template',
+            'courses', 'dish_courses',
             'additional_meals',
             'notes', 'internal_notes',
             'sent_at', 'accepted_at',
@@ -142,6 +148,12 @@ class QuoteSerializer(OrgScopedModelSerializer):
 
     def get_account_name(self, obj):
         return obj.account.name if obj.account_id else None
+
+    def get_courses(self, obj):
+        return read_courses(obj)
+
+    def get_dish_courses(self, obj):
+        return read_dish_courses(obj)
 
     def get_guest_counts(self, obj):
         # ``.all()`` (not select_related) so the list view's
@@ -254,6 +266,7 @@ class QuoteSerializer(OrgScopedModelSerializer):
         self._write_guest_counts(quote)
         if dishes:
             quote.dishes.set(dishes)
+        self._write_courses(quote)  # after dishes so course rows attach
         if line_items_data:
             self._save_line_items(quote, line_items_data)
         if meals_data is not None:
@@ -269,12 +282,22 @@ class QuoteSerializer(OrgScopedModelSerializer):
         self._write_guest_counts(quote)
         if dishes is not None:
             quote.dishes.set(dishes)
+        self._write_courses(quote)  # after dishes so course rows attach
         if line_items_data is not None:
             self._save_line_items(quote, line_items_data)
         if meals_data is not None:
             replace_meals('quote', quote, meals_data)
         quote.recalculate_totals()
         return quote
+
+    def _write_courses(self, quote):
+        """Courses + dish→course assignment from the raw payload (REL-417); absent
+        keys leave existing courses untouched."""
+        from events.models import write_booking_courses
+        if 'courses' in self.initial_data or 'dish_courses' in self.initial_data:
+            write_booking_courses(
+                quote, self.initial_data.get('courses'), self.initial_data.get('dish_courses'),
+            )
 
     def _write_guest_counts(self, quote):
         """Dual-write the quote's guest breakdown into BookingGuestCount rows
@@ -293,7 +316,7 @@ class QuoteSerializer(OrgScopedModelSerializer):
 
 # signature does a per-row query (latest_signature); it's a detail-view concern.
 QUOTE_LIST_EXCLUDE = {'line_items', 'dishes', 'dish_ids', 'dish_names', 'additional_meals',
-                      'signature', 'public_token'}
+                      'courses', 'dish_courses', 'signature', 'public_token'}
 
 
 class QuoteListSerializer(QuoteSerializer):
