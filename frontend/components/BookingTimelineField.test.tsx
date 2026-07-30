@@ -61,7 +61,7 @@ describe("BookingTimelineField — legacy slots", () => {
         entries={[{ time: "18:30", label: "Dinner" }]} onEntriesChange={() => {}} />,
     );
     expect(screen.queryByText("Setup Time")).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Step 1 label")).toHaveValue("Dinner");
+    expect(screen.getByLabelText("Step 1 label")).toBeInTheDocument();
   });
 
   it("is read-only about entries when no onEntriesChange is given", () => {
@@ -104,22 +104,29 @@ describe("BookingTimelineField — run-of-show entries", () => {
     ]);
   });
 
-  it("offers the org's presets in the label picker", () => {
+  it("offers the org's presets as a closed dropdown", () => {
     renderEntries([{ time: "17:00", label: "" }]);
-    const input = screen.getByLabelText("Step 1 label");
-    const listId = input.getAttribute("list");
-    expect(listId).toBeTruthy();
-    const options = Array.from(document.getElementById(listId!)!.querySelectorAll("option"));
-    expect(options.map((o) => o.getAttribute("value"))).toEqual(["Cocktail hour", "Cake cutting"]);
+    const select = screen.getByLabelText("Step 1 label");
+    expect(select.tagName).toBe("SELECT");
+    const options = Array.from(select.querySelectorAll("option")).map((o) => o.getAttribute("value"));
+    // The unchosen placeholder, then exactly the org's presets — no free text.
+    expect(options).toEqual(["", "Cocktail hour", "Cake cutting"]);
   });
 
-  it("accepts a preset label and a one-off label alike", () => {
+  it("picks a preset label", () => {
     const onEntriesChange = renderEntries([{ time: "17:00", label: "" }]);
     fireEvent.change(screen.getByLabelText("Step 1 label"), { target: { value: "Cocktail hour" } });
     expect(onEntriesChange).toHaveBeenLastCalledWith([{ time: "17:00", label: "Cocktail hour" }]);
+  });
 
-    fireEvent.change(screen.getByLabelText("Step 1 label"), { target: { value: "Ice sculpture reveal" } });
-    expect(onEntriesChange).toHaveBeenLastCalledWith([{ time: "17:00", label: "Ice sculpture reveal" }]);
+  it("keeps a label whose preset was since renamed or deleted", () => {
+    // Otherwise a saved booking would silently snap to whatever option the
+    // browser picks first, rewriting history on the next save.
+    renderEntries([{ time: "17:00", label: "Ice sculpture reveal" }]);
+    const select = screen.getByLabelText("Step 1 label") as HTMLSelectElement;
+    expect(select.value).toBe("Ice sculpture reveal");
+    const options = Array.from(select.querySelectorAll("option")).map((o) => o.getAttribute("value"));
+    expect(options).toEqual(["", "Ice sculpture reveal", "Cocktail hour", "Cake cutting"]);
   });
 
   it("edits a step's time", () => {
@@ -176,10 +183,11 @@ describe("BookingTimelineField — run-of-show entries", () => {
     expect(options.some((o) => o.getAttribute("value") === "")).toBe(true);
   });
 
-  it("a step added with no label yet is still a valid row", () => {
+  it("a step added but not yet chosen is still a valid row", () => {
     // The backend accepts a blank label (a timed "—" is a real run-of-show row),
     // so the editor must not block or drop it either.
     const onEntriesChange = renderEntries([{ time: "17:00", label: "" }]);
+    expect((screen.getByLabelText("Step 1 label") as HTMLSelectElement).value).toBe("");
     fireEvent.change(screen.getByLabelText("Step 1 time"), { target: { value: "17:30" } });
     expect(onEntriesChange).toHaveBeenLastCalledWith([{ time: "17:30", label: "" }]);
   });

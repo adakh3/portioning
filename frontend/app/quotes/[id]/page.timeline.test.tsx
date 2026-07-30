@@ -47,7 +47,10 @@ vi.mock("@/lib/hooks", () => ({
   useEventTypes: () => ({ data: [{ id: 1, value: "wedding", label: "Wedding" }] }),
   useServiceStyles: () => ({ data: [] }),
   useMealTypes: () => ({ data: [] }),
-  useTimelinePresets: () => ({ data: [{ id: 1, value: "cocktail_hour", label: "Cocktail hour" }] }),
+  useTimelinePresets: () => ({ data: [
+    { id: 1, value: "cocktail_hour", label: "Cocktail hour" },
+    { id: 2, value: "dinner_service", label: "Dinner service" },
+  ] }),
   useAllLeads: () => ({ data: [] }),
   useProductLines: () => ({ data: [{ id: 5, name: "Catering", is_active: true, colour: "#000", round_robin_index: 0 }] }),
   useUsers: () => ({ data: [] }),

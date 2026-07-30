@@ -1,9 +1,7 @@
 "use client";
 
-import { useId } from "react";
 import TimeField from "@/components/TimeField";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { todayISO } from "@/lib/dateFormat";
 
 export interface BookingTimelineValue {
@@ -56,7 +54,6 @@ export default function BookingTimelineField({
   /** Org time-entry preference ("12h"/"24h"). */
   timeFormat?: "12h" | "24h";
 }) {
-  const presetListId = useId();
   const rows = entries ?? [];
   const editable = !!onEntriesChange;
 
@@ -134,12 +131,6 @@ export default function BookingTimelineField({
 
   return (
     <div className="space-y-2">
-      <datalist id={presetListId}>
-        {presets.map((p) => (
-          <option key={p.value} value={p.label} />
-        ))}
-      </datalist>
-
       {rows.map((row, i) => (
         <div key={row.id ?? `new-${i}`} className="flex items-center gap-2">
           <div className="w-32 shrink-0">
@@ -155,15 +146,22 @@ export default function BookingTimelineField({
               onChange={(t) => patchRow(i, { time: t })}
             />
           </div>
-          <Input
+          {/* A closed list, not free text: an event day is predictable enough
+              that picking beats typing, and it keeps labels consistent across
+              bookings (which is what makes them worth reporting on later). New
+              wording goes in Settings → Timeline Steps, once, for everyone. */}
+          <select
             aria-label={`Step ${i + 1} label`}
-            list={presetListId}
-            placeholder="What happens…"
             value={row.label}
             disabled={disabled}
             onChange={(e) => patchRow(i, { label: e.target.value })}
-            className="h-9"
-          />
+            className="flex h-9 w-full rounded-md border border-input bg-transparent px-2 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50"
+          >
+            <option value="">— Choose a step —</option>
+            {labelOptions(presets, row.label).map((label) => (
+              <option key={label} value={label}>{label}</option>
+            ))}
+          </select>
           <Button type="button" size="sm" variant="ghost" aria-label={`Move step ${i + 1} up`}
             disabled={disabled || i === 0} onClick={() => moveRow(i, -1)}>
             ↑
@@ -186,6 +184,18 @@ export default function BookingTimelineField({
       )}
     </div>
   );
+}
+
+/** The labels a step may take: the org's presets, plus the row's own label when
+ * that isn't one of them.
+ *
+ * That second part matters — a booking saved under a preset that was later
+ * renamed or deleted must keep showing its label, not silently snap to the first
+ * option in the list. Same guard `TimeField` applies to an off-slot time.
+ */
+function labelOptions(presets: { value: string; label: string }[], current: string): string[] {
+  const labels = presets.map((p) => p.label);
+  return current && !labels.includes(current) ? [current, ...labels] : labels;
 }
 
 /** "17:00" → "18:00", clamped to the last slot of the day so it never wraps

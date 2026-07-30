@@ -46,17 +46,18 @@ test.describe("Booking timeline persists end-to-end", () => {
 
     // Build three steps, deliberately entered out of clock order so the assertion
     // proves the SAVED order is the one on screen, not a re-sort by time.
+    // Labels are a closed dropdown of the org's Timeline Steps presets.
     await page.getByRole("button", { name: "+ Build a run-of-show" }).click();
     await page.getByLabel("Step 1 time").selectOption("17:00");
-    await page.getByLabel("Step 1 label").fill("Cocktail hour");
+    await page.getByLabel("Step 1 label").selectOption("Cocktail hour");
 
     await page.getByRole("button", { name: "+ Add step" }).click();
     await page.getByLabel("Step 2 time").selectOption("21:00");
-    await page.getByLabel("Step 2 label").fill("Cake cutting");
+    await page.getByLabel("Step 2 label").selectOption("Cake cutting");
 
     await page.getByRole("button", { name: "+ Add step" }).click();
     await page.getByLabel("Step 3 time").selectOption("18:30");
-    await page.getByLabel("Step 3 label").fill("Dinner service");
+    await page.getByLabel("Step 3 label").selectOption("Dinner service");
 
     await page.getByRole("button", { name: "Create Quote" }).click();
     await page.waitForURL(/\/quotes\/\d+$/, { timeout: 15_000 });
