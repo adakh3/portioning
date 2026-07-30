@@ -12,7 +12,7 @@ from decimal import Decimal
 from django.core.management.base import BaseCommand, CommandError
 
 from users.models import Organisation
-from dishes.models import DishCategory, Dish
+from dishes.models import DietaryTag, DishCategory, Dish
 from menus.models import MenuTemplate, MenuDishPortion, MenuTemplatePriceTier
 from bookings.models.addons import AddOnProduct
 from bookings.models.choices import (
@@ -110,31 +110,34 @@ class Command(BaseCommand):
             cats[name] = cat
         return cats
 
-    # ── Dishes ── (name, category, protein, portion_g, cost_per_gram, is_veg)
+    # ── Dishes ── (name, category, protein, portion_g, cost_per_gram, is_veg, tags)
+    # `tags` are DietaryTag slugs — the dietary/allergen labels US clients ask
+    # about. Only a starting point: every org edits its own dishes afterwards.
     def _dishes(self, cats):
         data = [
-            ('Bruschetta',                 'appetizers', 'none',    60, 0.006, True),
-            ('Stuffed Mushrooms',          'appetizers', 'none',    60, 0.008, True),
-            ('Shrimp Cocktail',            'appetizers', 'seafood', 70, 0.020, False),
-            ('Grilled Chicken Breast',     'entrees', 'chicken',   180, 0.012, False),
-            ('Roast Beef',                 'entrees', 'beef',      180, 0.018, False),
-            ('Baked Salmon',               'entrees', 'fish',      170, 0.022, False),
-            ('Roast Turkey',               'entrees', 'turkey',    180, 0.011, False),
-            ('Vegetable Lasagna',          'entrees', 'none',      200, 0.008, True),
-            ('Mashed Potatoes',            'sides', 'none',        110, 0.004, True),
-            ('Roasted Seasonal Vegetables','sides', 'none',        110, 0.006, True),
-            ('Rice Pilaf',                 'sides', 'none',        110, 0.004, True),
-            ('Mac & Cheese',               'sides', 'none',        110, 0.006, True),
-            ('Caesar Salad',               'salads', 'none',        85, 0.005, True),
-            ('Garden Salad',               'salads', 'none',        85, 0.004, True),
-            ('Dinner Rolls',               'breads', 'none',         1, 0.000, True),
-            ('Chocolate Brownies',         'desserts', 'none',      80, 0.008, True),
-            ('New York Cheesecake',        'desserts', 'none',      90, 0.010, True),
-            ('Fresh Fruit Platter',        'desserts', 'none',      90, 0.007, True),
+            ('Bruschetta',                 'appetizers', 'none',    60, 0.006, True,  ['vegetarian', 'wheat']),
+            ('Stuffed Mushrooms',          'appetizers', 'none',    60, 0.008, True,  ['vegetarian', 'gluten_free', 'milk']),
+            ('Shrimp Cocktail',            'appetizers', 'seafood', 70, 0.020, False, ['gluten_free', 'dairy_free', 'shellfish']),
+            ('Grilled Chicken Breast',     'entrees', 'chicken',   180, 0.012, False, ['gluten_free', 'dairy_free']),
+            ('Roast Beef',                 'entrees', 'beef',      180, 0.018, False, ['gluten_free', 'dairy_free']),
+            ('Baked Salmon',               'entrees', 'fish',      170, 0.022, False, ['gluten_free', 'dairy_free', 'fish']),
+            ('Roast Turkey',               'entrees', 'turkey',    180, 0.011, False, ['gluten_free', 'dairy_free']),
+            ('Vegetable Lasagna',          'entrees', 'none',      200, 0.008, True,  ['vegetarian', 'milk', 'eggs', 'wheat']),
+            ('Mashed Potatoes',            'sides', 'none',        110, 0.004, True,  ['vegetarian', 'gluten_free', 'milk']),
+            ('Roasted Seasonal Vegetables','sides', 'none',        110, 0.006, True,  ['vegan', 'gluten_free', 'dairy_free']),
+            ('Rice Pilaf',                 'sides', 'none',        110, 0.004, True,  ['vegetarian', 'gluten_free', 'milk']),
+            ('Mac & Cheese',               'sides', 'none',        110, 0.006, True,  ['vegetarian', 'milk', 'wheat']),
+            ('Caesar Salad',               'salads', 'none',        85, 0.005, True,  ['vegetarian', 'milk', 'eggs', 'wheat', 'fish']),
+            ('Garden Salad',               'salads', 'none',        85, 0.004, True,  ['vegan', 'gluten_free', 'dairy_free']),
+            ('Dinner Rolls',               'breads', 'none',         1, 0.000, True,  ['vegetarian', 'wheat', 'milk']),
+            ('Chocolate Brownies',         'desserts', 'none',      80, 0.008, True,  ['vegetarian', 'milk', 'eggs', 'wheat']),
+            ('New York Cheesecake',        'desserts', 'none',      90, 0.010, True,  ['vegetarian', 'milk', 'eggs', 'wheat']),
+            ('Fresh Fruit Platter',        'desserts', 'none',      90, 0.007, True,  ['vegan', 'gluten_free', 'dairy_free']),
         ]
+        tags_by_slug = {t.slug: t for t in DietaryTag.objects.all()}
         dishes = {}
-        for name, cat, protein, portion, cpg, veg in data:
-            dish, _ = Dish.objects.get_or_create(
+        for name, cat, protein, portion, cpg, veg, tag_slugs in data:
+            dish, created = Dish.objects.get_or_create(
                 organisation=self.org, name=name,
                 defaults={
                     'category': cats[cat], 'protein_type': protein,
@@ -142,6 +145,12 @@ class Command(BaseCommand):
                     'cost_per_gram': Decimal(str(cpg)), 'is_vegetarian': veg,
                 },
             )
+            # Only tag dishes this run created — re-seeding must never clobber
+            # tags an org has since curated.
+            if created:
+                tags = [tags_by_slug[s] for s in tag_slugs if s in tags_by_slug]
+                if tags:
+                    dish.dietary_tags.set(tags)
             dishes[name] = dish
         return dishes
 

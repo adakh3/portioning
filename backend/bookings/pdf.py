@@ -16,7 +16,7 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 
 from bookings.models.settings import OrgSettings
 from bookings.models.choices import EventTypeOption, ServiceStyleOption, MealTypeOption
-from dishes.ordering import dish_names_in_added_order
+from dishes.ordering import dish_display_names_in_added_order
 
 
 # ── Colour palette ──
@@ -428,7 +428,7 @@ def _meal_flowables(booking, cs, s, time_format='24h'):
     out = []
     for m in meals:
         line = meal_line_text(m, cs, time_format)
-        dishes = dish_names_in_added_order(m)
+        dishes = dish_display_names_in_added_order(m)
         if not line and not dishes:
             continue
         if line:
@@ -898,7 +898,7 @@ def generate_event_pdf(event, signature=None):
         elements.append(Spacer(1, 6 * mm))
 
     # ── Menu items + main food line ──
-    dish_names = dish_names_in_added_order(event)
+    dish_names = dish_display_names_in_added_order(event)
     if dish_names:
         elements.append(_section_header([Paragraph('MENU ITEMS', s['section_title'])], [CONTENT_W]))
         elements.append(_dish_table(dish_names, s))

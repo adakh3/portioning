@@ -159,6 +159,14 @@ export interface DishCategory {
   removal_discount: string;
 }
 
+export interface DietaryTag {
+  id: number;
+  slug: string;
+  label: string;
+  short_label: string;
+  kind: "dietary" | "allergen";
+}
+
 export interface Dish {
   id: number;
   name: string;
@@ -172,6 +180,8 @@ export interface Dish {
   selling_price_override: boolean;
   margin_percent: number | null;
   is_vegetarian: boolean;
+  /** Dietary/allergen labels; a dish with none is simply untagged. Edited in Django admin. */
+  dietary_tags?: DietaryTag[];
   notes: string;
 }
 
