@@ -127,6 +127,13 @@ class DishTaggingTests(TestCase):
         self.assertNotIn('dietary_tag_ids', DishSerializer().fields)
         self.assertTrue(DishSerializer().fields['dietary_tags'].read_only)
 
+    def test_serializer_lists_dietary_tags_before_allergens(self):
+        # A dish reads as what it IS first, then what it contains. Alphabetical
+        # ordering on `kind` would put 'allergen' first, which reads backwards.
+        self.dish.dietary_tags.set([tag('milk'), tag('gluten_free'), tag('wheat')])
+        kinds = [t['kind'] for t in DishSerializer(self.dish).data['dietary_tags']]
+        self.assertEqual(kinds, ['dietary', 'allergen', 'allergen'])
+
     def test_untagged_dish_serializes_to_an_empty_list(self):
         # AC4 at the serializer: additive, so an untagged dish gains a field but
         # never any content.

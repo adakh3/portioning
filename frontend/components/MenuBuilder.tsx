@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo, useRef } from "react";
 import { api, collectErrorMessages, MenuTemplateDetail, PriceTier, PriceCheckResult, PriceCheckBreakdownItem, PriceEstimateResult } from "@/lib/api";
 import { useDishes, useCategories, useMenus } from "@/lib/hooks";
 import { formatCurrency } from "@/lib/utils";
+import DietaryTagPills from "@/components/DietaryTagPills";
 
 interface CalculatedPrice {
   price: number;
@@ -347,9 +348,12 @@ export default function MenuBuilder({
                 className="inline-flex items-center gap-1.5 bg-primary/10 text-primary border border-primary/20 px-2.5 py-1 rounded-full text-sm"
               >
                 {dish.name}
-                {dish.is_vegetarian && (
+                {/* The legacy flag only shows for dishes with no dietary tags —
+                    otherwise the pills already say it, and say it better. */}
+                {dish.is_vegetarian && !dish.dietary_tags?.length && (
                   <span className="text-success text-xs">V</span>
                 )}
+                <DietaryTagPills tags={dish.dietary_tags} />
                 {!disabled && (
                   <button
                     type="button"
@@ -575,9 +579,10 @@ export default function MenuBuilder({
                           }`}
                         >
                           {dish.name}
-                          {dish.is_vegetarian && (
+                          {dish.is_vegetarian && !dish.dietary_tags?.length && (
                             <span className="ml-1 text-success text-xs">V</span>
                           )}
+                          <DietaryTagPills tags={dish.dietary_tags} className="ml-1" />
                         </button>
                       );
                     })}

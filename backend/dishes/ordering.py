@@ -75,7 +75,7 @@ def tags_for_dish_ids(dish_ids):
     links = (
         link_model.objects.filter(dish_id__in=dish_ids)
         .select_related('dietarytag')
-        .order_by('dietarytag__kind', 'dietarytag__sort_order', 'dietarytag__slug')
+        .order_by('-dietarytag__kind', 'dietarytag__sort_order', 'dietarytag__slug')
     )
     out = {}
     for link in links:

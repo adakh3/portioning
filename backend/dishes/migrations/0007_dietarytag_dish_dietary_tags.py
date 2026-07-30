@@ -62,7 +62,7 @@ class Migration(migrations.Migration):
                 ('sort_order', models.IntegerField(default=0)),
             ],
             options={
-                'ordering': ['kind', 'sort_order', 'slug'],
+                'ordering': ['-kind', 'sort_order', 'slug'],
             },
         ),
         migrations.AddField(

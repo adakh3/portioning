@@ -128,7 +128,10 @@ class DietaryTag(models.Model):
     sort_order = models.IntegerField(default=0)
 
     class Meta:
-        ordering = ['kind', 'sort_order', 'slug']
+        # DESCENDING on kind so 'dietary' sorts before 'allergen' — a dish reads
+        # as what it IS first ("GF, DF"), then what it contains. Alphabetical
+        # would put the allergens first, which reads backwards.
+        ordering = ['-kind', 'sort_order', 'slug']
 
     def __str__(self):
         return self.label
