@@ -24,7 +24,7 @@ Required sections (adapt headings as needed):
    - `git fetch origin` first — compare against **origin/main**, local main may be stale;
    - known gotchas (migration-number collisions with exact renumbering, conflict
      hot-spots, hook behaviour);
-   - **ask the owner before pushing** (prod auto-deploys from main).
+   - **ask the owner before pushing/merging** (main is PR-only; merges no longer deploy — deploys are tag-triggered, see CLAUDE.md Deployment).
 3. **Steps** — concrete and ordered. Name files, commands, and exact migration numbers.
 4. **Verify** — how to prove it worked (tests, e2e, manual checks, invariants like
    "existing-org output byte-identical").

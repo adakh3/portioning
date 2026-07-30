@@ -64,8 +64,9 @@ to the planning session afterwards, so the ticket is also the **report channel**
      **`avoid-n-plus-one-queries`** skill's checklist to it;
    - diff changes **money/total math** (the totals trio, quote/event PDFs) → flag it in
      your report and **recommend the owner trigger `/code-review ultra`** on the PR.
-8. **Ask the owner before any push** (prod auto-deploys from main). Then PR → merge
-   per their instruction.
+8. **Ask the owner before any push/merge** (main is PR-only; merges no longer deploy —
+   deploys are tag-triggered, see CLAUDE.md Deployment). Then PR → merge per their
+   instruction.
 9. **Report back on the ticket** (`save_comment` + `save_issue`) — **keep the body the
    living spec**:
    - **Any deviation that changes the agreed spec** (a step done differently, an AC

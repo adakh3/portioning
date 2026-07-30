@@ -88,9 +88,20 @@ npm test                                 # watch mode
 
 ### End-to-end smoke tests (pre-push, real browser — `frontend/e2e/`)
 - The vitest integration tests **mock the API and run in jsdom**, so they prove *our wiring* but are blind to real-browser/persistence behaviour. A green mocked test is **not** proof for **native form controls (date/time/file/select), browser-specific `onChange` quirks, or "does it survive a save + reload"** — that's exactly the class that let the timeline-not-saving bug (Safari didn't fire `onChange` for `<input type="time">`) pass with green tests.
-- For that class, verify against the **real running app** with Playwright: `cd frontend && npm run e2e` (needs the dev servers up + `seed_demo` data). Nothing is mocked — headless Chromium → `:3000` → `:8000` → sqlite. **Run before pushing** such changes; it is **not** in the pre-commit hook or CI. Recipe + when-to-add in `frontend/e2e/README.md`; example `frontend/e2e/booking-timeline.spec.ts`.
+- For that class, verify against the **real running app** with Playwright: `cd frontend && npm run e2e` (needs the dev servers up + `seed_demo` data). Nothing is mocked — headless Chromium → `:3000` → `:8000` → sqlite. **Run before pushing** such changes for fast local feedback; it **also runs in CI on every PR** (the required *End-to-end (Playwright)* check, which boots its own stack) but is **not** in the pre-commit hook. Recipe + when-to-add in `frontend/e2e/README.md`; example `frontend/e2e/booking-timeline.spec.ts`.
 
 ## Git
 - Remote: https://github.com/adakh3/portioning.git
 - Branch: main
 - Don't commit `venv/`, `node_modules/`, `__pycache__/`, `.env`, `db.sqlite3`
+- **`main` is branch-protected / PR-only.** Direct pushes are blocked; land changes via PR. Required status checks (must be green to merge): **Backend tests (Django)**, **Frontend tests (Vitest)**, **Migration safety (Django)**, **End-to-end (Playwright)**. `strict` (branch must be up-to-date before merge) is on; admins can override in an emergency.
+
+## Deployment
+- Hosted on **DigitalOcean App Platform**. **Deploys are tag-triggered, NOT on merge** — DO "Autodeploy code changes" is OFF (changed 2026-07-30; REL-360/REL-420 follow-up). Merging PRs to `main` runs CI but does **not** deploy; `main` just batches CI-passed changes.
+- **To release** (this is the only thing that ships to prod): push a version tag —
+  ```bash
+  git tag v1.4.0 && git push origin v1.4.0
+  ```
+  — which runs `.github/workflows/deploy.yml` (`doctl apps create-deployment --wait`). Or trigger it manually: **Actions → deploy → Run workflow** (deploys current `main`). **Never cut a release without the owner's explicit OK.**
+- Every deploy auto-runs `.github/workflows/post-deploy-smoke.yml` (via `workflow_run`), probing prod `/api/health/` + `/login`; a failed probe emails the owner.
+- Requires (GitHub → repo Settings): secret `DIGITALOCEAN_ACCESS_TOKEN` (DO API token, write) + variable `DO_APP_ID` (`doctl apps list`).

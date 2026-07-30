@@ -62,7 +62,7 @@ tweaks with no new visible surface. It is **in addition to** the Playwright e2e
    one-line caption of what it shows.
 
 7. **Report** what you exercised and what you visually confirmed, then **ask before
-   pushing** (prod auto-deploys from main — this skill never pushes on its own).
+   pushing** (main is PR-only; deploys are tag-triggered, not on merge — this skill never pushes on its own).
 
 ## Gotchas (learned the hard way)
 
