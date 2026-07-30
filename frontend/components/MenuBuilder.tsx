@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo, useRef } from "react";
-import { api, collectErrorMessages, MenuTemplateDetail, PriceTier, PriceCheckResult, PriceCheckBreakdownItem, PriceEstimateResult } from "@/lib/api";
+import { api, collectErrorMessages, MenuTemplateDetail, CourseData, PriceTier, PriceCheckResult, PriceCheckBreakdownItem, PriceEstimateResult } from "@/lib/api";
 import { useDishes, useCategories, useMenus } from "@/lib/hooks";
 import { formatCurrency } from "@/lib/utils";
 
@@ -32,6 +32,9 @@ interface Props {
   guestCount?: number;
   onSave?: (data: { dish_ids: number[]; based_on_template: number | null }) => Promise<void>;
   onChange?: (data: { dish_ids: number[]; based_on_template: number | null }) => void;
+  /** REL-417: when a template with courses is loaded, its course structure is
+   * surfaced so the booking can carry it over (AC6). */
+  onLoadCourses?: (courses: CourseData[], dishCourses: Record<string, number>) => void;
   pricePerHead?: string;
   onPricePerHeadChange?: (value: string) => void;
   currencySymbol?: string;
@@ -45,6 +48,7 @@ export default function MenuBuilder({
   guestCount,
   onSave,
   onChange,
+  onLoadCourses,
   pricePerHead,
   onPricePerHeadChange,
   currencySymbol = "",
@@ -166,6 +170,10 @@ export default function MenuBuilder({
       setCalculatedPrice(null);
       setPriceError(null);
       onChange?.({ dish_ids: dishIds, based_on_template: tid });
+      // Carry the template's courses onto the booking (REL-417 AC6).
+      if (onLoadCourses && detail.courses?.length) {
+        onLoadCourses(detail.courses, detail.dish_courses || {});
+      }
     } catch (e) {
       setPriceError(errorText(e) || "Couldn't load that template.");
     }

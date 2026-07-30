@@ -7,6 +7,7 @@ import {
   api,
   EventData,
   EventMealData,
+  CourseData,
   Contact,
 } from "@/lib/api";
 import {
@@ -32,6 +33,7 @@ import BookingTotalsCard from "@/components/BookingTotalsCard";
 import AddOnItemsEditor from "@/components/AddOnItemsEditor";
 import MenuBuilder from "@/components/MenuBuilder";
 import AdditionalMealsEditor from "@/components/AdditionalMealsEditor";
+import CoursesEditor from "@/components/CoursesEditor";
 import GuestCountField, { GuestCountValue } from "@/components/GuestCountField";
 import BookingTimelineField from "@/components/BookingTimelineField";
 import BookingDetailsForm, { BookingDetailsValue } from "@/components/BookingDetailsForm";
@@ -117,6 +119,9 @@ export default function EventDetailPage() {
     dish_ids: number[];
     based_on_template: number | null;
   }>({ dish_ids: [], based_on_template: null });
+  // Courses (Starter/Entrée/Dessert + service style) + dish→course map (REL-417).
+  const [formCourses, setFormCourses] = useState<CourseData[]>([]);
+  const [formDishCourses, setFormDishCourses] = useState<Record<string, number>>({});
 
 
   // Form fields (used in edit mode)
@@ -251,6 +256,8 @@ export default function EventDetailPage() {
     setFormServiceChargeTaxable(data.service_charge_taxable ?? true);
     setFormGratuityPct(data.gratuity_pct ?? "0");
     setFormAdditionalMeals(data.additional_meals || []);
+    setFormCourses(data.courses || []);
+    setFormDishCourses(data.dish_courses || {});
   }, []);
 
   useEffect(() => {
@@ -337,7 +344,7 @@ export default function EventDetailPage() {
       based_on_template: menuData.based_on_template,
       line_items: formLineItems,
       meals: formAdditionalMeals,
-    }, segmentMeta);
+    }, segmentMeta, formCourses, formDishCourses);
     try {
       if (isNew) {
         const created = await api.createEvent({ ...payload, status: formStatus, assigned_to: formAssigned });
@@ -836,6 +843,7 @@ export default function EventDetailPage() {
                       selectedDishIds={menuData.dish_ids}
                       basedOnTemplate={menuData.based_on_template}
                       onChange={setMenuData}
+                      onLoadCourses={(courses, dishCourses) => { setFormCourses(courses); setFormDishCourses(dishCourses); }}
                       pricePerHead={formPricePerHead}
                       onPricePerHeadChange={setFormPricePerHead}
                       guestCount={totalGuests}
@@ -846,6 +854,7 @@ export default function EventDetailPage() {
                       selectedDishIds={event!.dishes}
                       basedOnTemplate={event!.based_on_template}
                       onSave={handleMenuSave}
+                      onLoadCourses={(courses, dishCourses) => { setFormCourses(courses); setFormDishCourses(dishCourses); }}
                       pricePerHead={formPricePerHead}
                       onPricePerHeadChange={setFormPricePerHead}
                       guestCount={totalGuests}
@@ -886,6 +895,18 @@ export default function EventDetailPage() {
             )}
         </CardContent>
       </Card>
+
+      {/* Courses (Starter/Entrée/Dessert + service style) — groups the main menu */}
+      {(editing || formCourses.length > 0) && (
+        <CoursesEditor
+          courses={formCourses}
+          dishCourses={formDishCourses}
+          onChange={({ courses, dishCourses }) => { setFormCourses(courses); setFormDishCourses(dishCourses); }}
+          selectedDishIds={editing ? menuData.dish_ids : (event?.dishes || [])}
+          serviceStyles={serviceStylesData}
+          editing={editing}
+        />
+      )}
 
       {/* Additional Meals Section */}
       <AdditionalMealsEditor

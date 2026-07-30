@@ -156,6 +156,18 @@ class CourseApiTests(TestCase):
         self.assertEqual(by_name['Starter'], ('plated', [self.d1.id]))
         self.assertEqual(by_name['Entrée'], ('buffet', [self.d2.id]))
 
+    def test_template_detail_exposes_its_courses_and_dish_assignment(self):  # AC6
+        from menus.models import MenuTemplate, MenuDishPortion, MenuCourse
+        tpl = MenuTemplate.objects.create(organisation=self.org, name='Plated Dinner')
+        starter = MenuCourse.objects.create(menu=tpl, name='Starter', service_style='plated', sort_order=0)
+        MenuCourse.objects.create(menu=tpl, name='Dessert', service_style='buffet', sort_order=1)
+        MenuDishPortion.objects.create(menu=tpl, dish=self.d1, portion_grams=100, course=starter)
+        MenuDishPortion.objects.create(menu=tpl, dish=self.d2, portion_grams=80)  # unassigned
+        body = self.client.get(f'/api/menus/{tpl.id}/').json()
+        self.assertEqual([c['name'] for c in body['courses']], ['Starter', 'Dessert'])
+        self.assertEqual(body['courses'][0]['service_style'], 'plated')
+        self.assertEqual(body['dish_courses'], {str(self.d1.id): 0})  # d2 unassigned → absent
+
     def test_confirming_still_calculates_portions_with_course_rows_present(self):
         # The interaction fix: a course-only EventDishComment must not disable the
         # confirm-time portion auto-calc, and the calc must upsert (not collide).

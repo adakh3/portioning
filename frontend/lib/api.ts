@@ -159,6 +159,13 @@ export interface DishCategory {
   removal_discount: string;
 }
 
+/** A booking's course (REL-417): Starter/Entrée/Dessert + a service style. */
+export interface CourseData {
+  name: string;
+  service_style: string;
+  sort_order: number;
+}
+
 export interface Dish {
   id: number;
   name: string;
@@ -203,6 +210,8 @@ export interface MenuDishPortion {
 
 export interface MenuTemplateDetail extends MenuTemplate {
   portions: MenuDishPortion[];
+  courses: CourseData[];                     // REL-417 — carried onto a booking on apply
+  dish_courses: Record<string, number>;      // {dish_id: course index}
   suggested_price_per_head: number | null;
   has_unpriced_dishes: boolean;
 }
@@ -452,6 +461,8 @@ export interface Quote {
   total: string;
   dishes: number[];
   dish_names: string[];
+  courses: CourseData[];
+  dish_courses: Record<string, number>;
   based_on_template: number | null;
   notes: string;
   internal_notes: string;
@@ -728,6 +739,8 @@ export interface EventData {
   big_eaters: boolean;
   big_eaters_percentage: number;
   dishes: number[];
+  courses: CourseData[];
+  dish_courses: Record<string, number>;
   based_on_template: number | null;
   notes: string;
   kitchen_instructions: string;

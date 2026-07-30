@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { api, Contact, EventMealData } from "@/lib/api";
+import { api, Contact, EventMealData, CourseData } from "@/lib/api";
 import { useQuote, useAccounts, useContacts, useSiteSettings, useDateFormat, useEventTypes, useServiceStyles, useMealTypes, useAllLeads, useProductLines, useUsers, revalidate } from "@/lib/hooks";
 import { canWhatsApp, waLink } from "@/lib/whatsapp";
 import { MessageCircle } from "lucide-react";
@@ -12,6 +12,7 @@ import { formatDate, todayISO } from "@/lib/dateFormat";
 import { formatCurrency } from "@/lib/utils";
 import MenuBuilder from "@/components/MenuBuilder";
 import AdditionalMealsEditor from "@/components/AdditionalMealsEditor";
+import CoursesEditor from "@/components/CoursesEditor";
 import GuestCountField, { GuestCountValue } from "@/components/GuestCountField";
 import BookingTimelineField from "@/components/BookingTimelineField";
 import BookingDetailsForm, { BookingDetailsValue } from "@/components/BookingDetailsForm";
@@ -149,6 +150,11 @@ export default function QuoteDetailPage() {
   // Additional meals (parity with events) — committed in the same save.
   const [editMeals, setEditMeals] = useState<EventMealData[]>([]);
   const [createMeals, setCreateMeals] = useState<EventMealData[]>([]);
+  // Courses (Starter/Entrée/Dessert + service style) + dish→course map (REL-417).
+  const [editCourses, setEditCourses] = useState<CourseData[]>([]);
+  const [editDishCourses, setEditDishCourses] = useState<Record<string, number>>({});
+  const [createCourses, setCreateCourses] = useState<CourseData[]>([]);
+  const [createDishCourses, setCreateDishCourses] = useState<Record<string, number>>({});
   // New-quote owner (existing quotes reassign via the header's instant-save select).
   const [formAssigned, setFormAssigned] = useState<number | null>(null);
   useEffect(() => {
@@ -266,6 +272,8 @@ export default function QuoteDetailPage() {
         internal_notes: createData.internal_notes,
         dish_ids: menuData.dish_ids,
         based_on_template: menuData.based_on_template,
+        courses: createCourses,
+        dish_courses: createDishCourses,
         line_items: createLineItems,
         additional_meals: createMeals.map((m) => ({
           label: m.label, guest_count: m.guest_count, price_per_head: m.price_per_head || null,
@@ -323,6 +331,8 @@ export default function QuoteDetailPage() {
     })));
     setMenuData({ dish_ids: quote.dishes || [], based_on_template: quote.based_on_template || null });
     setEditMeals((quote.additional_meals || []).map((m) => ({ ...m })));
+    setEditCourses(quote.courses || []);
+    setEditDishCourses(quote.dish_courses || {});
     setEditing(true);
   }
 
@@ -357,7 +367,7 @@ export default function QuoteDetailPage() {
     setSaving(true);
     setError("");
     try {
-      await api.updateQuote(quote.id, buildQuoteSavePayload(editData, menuData, editLineItems, editMeals, segmentMeta));
+      await api.updateQuote(quote.id, buildQuoteSavePayload(editData, menuData, editLineItems, editMeals, segmentMeta, editCourses, editDishCourses));
       await mutateQuote();
       setEditing(false);
     } catch (err) {
@@ -531,6 +541,7 @@ export default function QuoteDetailPage() {
                 basedOnTemplate={menuData.based_on_template}
                 guestCount={createData.guest_count || undefined}
                 onChange={setMenuData}
+                onLoadCourses={(courses, dishCourses) => { setCreateCourses(courses); setCreateDishCourses(dishCourses); }}
                 pricePerHead={createData.price_per_head}
                 onPricePerHeadChange={(val) => setCreateData((prev) => ({ ...prev, price_per_head: val }))}
                 currencySymbol={cs}
@@ -550,6 +561,16 @@ export default function QuoteDetailPage() {
             defaultGuestCount={createData.guest_count}
             eventDate={createData.event_date}
             timeFormat={timeFormat}
+          />
+
+          {/* Courses — groups the main menu */}
+          <CoursesEditor
+            courses={createCourses}
+            dishCourses={createDishCourses}
+            onChange={({ courses, dishCourses }) => { setCreateCourses(courses); setCreateDishCourses(dishCourses); }}
+            selectedDishIds={menuData.dish_ids}
+            serviceStyles={serviceStyles}
+            editing
           />
 
           {/* Additional Items */}
@@ -1014,6 +1035,7 @@ export default function QuoteDetailPage() {
                 basedOnTemplate={menuData.based_on_template}
                 guestCount={editGuestCount}
                 onChange={setMenuData}
+                onLoadCourses={(courses, dishCourses) => { setEditCourses(courses); setEditDishCourses(dishCourses); }}
                 pricePerHead={editData.price_per_head}
                 onPricePerHeadChange={(val) => setEditData((prev) => ({ ...prev, price_per_head: val }))}
                 currencySymbol={cs}
@@ -1072,6 +1094,18 @@ export default function QuoteDetailPage() {
           defaultGuestCount={editData.guest_count}
           eventDate={editData.event_date}
           timeFormat={timeFormat}
+        />
+      )}
+
+      {/* Courses — groups the main menu */}
+      {(editing || (q.courses || []).length > 0) && (
+        <CoursesEditor
+          courses={editing ? editCourses : (q.courses || [])}
+          dishCourses={editing ? editDishCourses : (q.dish_courses || {})}
+          onChange={({ courses, dishCourses }) => { setEditCourses(courses); setEditDishCourses(dishCourses); }}
+          selectedDishIds={editing ? menuData.dish_ids : (q.dishes || [])}
+          serviceStyles={serviceStyles}
+          editing={editing}
         />
       )}
 

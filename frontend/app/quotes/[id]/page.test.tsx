@@ -40,6 +40,7 @@ vi.mock("@/lib/hooks", () => ({
   useDateFormat: () => "DD/MM/YYYY",
   useEventTypes: () => ({ data: [{ id: 1, value: "wedding", label: "Wedding" }] }),
   useServiceStyles: () => ({ data: [] }),
+  useDishes: () => ({ data: [] }),
   useMealTypes: () => ({ data: [] }),
   useAllLeads: () => ({ data: [] }),
   useProductLines: () => ({ data: [] }),
