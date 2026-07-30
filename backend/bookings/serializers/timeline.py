@@ -15,7 +15,10 @@ class BookingTimelineEntrySerializer(serializers.ModelSerializer):
         # `sort_order` is assigned from the payload's order on save, never sent by
         # the client — so what you see in the editor is what persists.
         read_only_fields = ['id', 'sort_order']
-        extra_kwargs = {'label': {'max_length': 100}}
+        # A blank label is a legitimate row: "18:30 —" is a real thing to pencil
+        # into a run-of-show. Rejecting it would 400 the very first click on
+        # "+ Build a run-of-show", blocking the whole save.
+        extra_kwargs = {'label': {'max_length': 100, 'allow_blank': True}}
 
 
 def replace_timeline_entries(parent_field, parent_obj, entries_data):

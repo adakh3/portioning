@@ -26,12 +26,16 @@ export default function TimeField({
   ariaLabel,
   disabled = false,
   format = "24h",
+  allowEmpty = true,
 }: {
   value: string;
   onChange: (v: string) => void;
   ariaLabel: string;
   disabled?: boolean;
   format?: "12h" | "24h";
+  /** Offer "— Not set —". Off where an empty time would destroy the row it
+   * belongs to (a run-of-show step is nothing without its time). */
+  allowEmpty?: boolean;
 }) {
   const options = value && !SLOTS.includes(value) ? [value, ...SLOTS] : SLOTS;
   return (
@@ -42,7 +46,7 @@ export default function TimeField({
       onChange={(e) => onChange(e.target.value)}
       className={selectClass}
     >
-      <option value="">— Not set —</option>
+      {allowEmpty && <option value="">— Not set —</option>}
       {options.map((s) => (
         <option key={s} value={s}>{formatTime(s, format)}</option>
       ))}

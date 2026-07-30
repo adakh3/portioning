@@ -243,6 +243,23 @@ class TimelineEntryApiTests(TestCase):
         self.assertEqual(
             self.client.get(f'/api/bookings/quotes/{quote_id}/').json()['timeline_entries'], [])
 
+    def test_a_step_with_no_label_yet_saves(self):
+        # Regression: `label` inherited allow_blank=False, so the very first click
+        # on "+ Build a run-of-show" (which creates a blank-label row) 400'd the
+        # WHOLE save — menu, totals and all — with an unattributed
+        # "This field may not be blank."
+        resp = self._create_quote([{'time': '17:00', 'label': ''}])
+        self.assertEqual(resp.status_code, 201, resp.content)
+        entry = BookingTimelineEntry.objects.get(quote_id=resp.json()['id'])
+        self.assertEqual(entry.label, '')
+        self.assertEqual(entry.time, datetime.time(17, 0))
+
+    def test_a_step_with_no_label_saves_on_an_event_too(self):
+        resp = self._create_event([{'time': '17:00', 'label': ''}])
+        self.assertEqual(resp.status_code, 201, resp.content)
+        self.assertEqual(
+            BookingTimelineEntry.objects.get(event_id=resp.json()['id']).label, '')
+
     def test_omitting_the_field_leaves_existing_entries_alone(self):
         # A partial save from a screen that doesn't own the timeline must not
         # silently wipe it.
@@ -391,7 +408,18 @@ class TimelineRenderTests(TestCase):
         BookingTimelineEntry.objects.create(quote=self.quote, time=datetime.time(18, 30),
                                             label='Dinner', sort_order=0)
         pres = booking_presentation(self.quote)
-        self.assertEqual(pres['timeline'][0]['time_display'], '06:30 PM')
+        # Unpadded hour, matching the frontend's formatTime — otherwise the sign
+        # page would say "06:30 PM" for the entry the app shows as "6:30 PM".
+        self.assertEqual(pres['timeline'][0]['time_display'], '6:30 PM')
+
+    def test_morning_entry_times_are_not_zero_padded_in_12h(self):
+        st = OrgSettings.for_org(self.org)
+        st.time_format = '12h'
+        st.save()
+        BookingTimelineEntry.objects.create(quote=self.quote, time=datetime.time(9, 0),
+                                            label='Load in', sort_order=0)
+        self.assertEqual(booking_presentation(self.quote)['timeline'][0]['time_display'],
+                         '9:00 AM')
 
     def test_sign_page_payload_shows_entries(self):
         from bookings.views.public_sign import serialize_public_booking

@@ -121,18 +121,11 @@ class DishTaggingTests(TestCase):
         self.assertEqual(by_slug['gluten_free']['kind'], 'dietary')
         self.assertEqual(by_slug['milk']['kind'], 'allergen')
 
-    def test_serializer_writes_tags_by_id(self):
-        s = DishSerializer(
-            self.dish,
-            data={'dietary_tag_ids': [tag('vegan').pk, tag('soy').pk]},
-            partial=True,
-        )
-        self.assertTrue(s.is_valid(), s.errors)
-        s.save()
-        self.assertEqual(
-            set(self.dish.dietary_tags.values_list('slug', flat=True)),
-            {'vegan', 'soy'},
-        )
+    def test_tags_are_read_only_over_the_api(self):
+        # Tags are curated in Django admin (AC2); `dishes/urls.py` exposes only a
+        # list endpoint, so the serializer deliberately offers no write path.
+        self.assertNotIn('dietary_tag_ids', DishSerializer().fields)
+        self.assertTrue(DishSerializer().fields['dietary_tags'].read_only)
 
     def test_untagged_dish_serializes_to_an_empty_list(self):
         # AC4 at the serializer: additive, so an untagged dish gains a field but

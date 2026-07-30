@@ -110,6 +110,20 @@ describe("Quote form — the run-of-show reaches the payload", () => {
     expect(payload.setup_time).toMatch(/T10:00$/);
   });
 
+  it("CREATE: a step added but not labelled still reaches the payload", async () => {
+    // Regression: the first click on "+ Build a run-of-show" makes a blank-label
+    // row. It must save, not 400 the whole quote.
+    render(<QuotePage />);
+
+    fireEvent.change(screen.getByLabelText("Guest Count"), { target: { value: "40" } });
+    fireEvent.click(screen.getByText("+ Build a run-of-show"));
+    fireEvent.click(screen.getByText("Create Quote"));
+
+    await waitFor(() => expect(h.createQuote).toHaveBeenCalledTimes(1));
+    const payload = h.createQuote.mock.calls[0][0] as Record<string, unknown>;
+    expect(payload.timeline_entries).toEqual([{ time: "17:00:00", label: "" }]);
+  });
+
   it("EDIT: existing entries hydrate, and a reorder is what gets saved", async () => {
     h.id = "7";
     render(<QuotePage />);

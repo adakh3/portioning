@@ -143,11 +143,15 @@ export default function BookingTimelineField({
       {rows.map((row, i) => (
         <div key={row.id ?? `new-${i}`} className="flex items-center gap-2">
           <div className="w-32 shrink-0">
+            {/* No "— Not set —" here: a step with no time is dropped on save,
+                which would silently delete the row and its label. Removing a
+                step is what the ✕ is for. */}
             <TimeField
               ariaLabel={`Step ${i + 1} time`}
               value={row.time}
               disabled={disabled}
               format={timeFormat}
+              allowEmpty={false}
               onChange={(t) => patchRow(i, { time: t })}
             />
           </div>
@@ -184,9 +188,13 @@ export default function BookingTimelineField({
   );
 }
 
-/** "17:00" → "18:00", clamped at the end of the day. */
+/** "17:00" → "18:00", clamped to the last slot of the day so it never wraps
+ * past midnight onto the wrong day. */
 function bumpHour(time: string): string {
   const [h, m] = (time || "17:00").split(":");
-  const next = Math.min(23, (parseInt(h, 10) || 0) + 1);
-  return `${String(next).padStart(2, "0")}:${m ?? "00"}`;
+  const minutes = (parseInt(h, 10) || 0) * 60 + (parseInt(m, 10) || 0) + 60;
+  const clamped = Math.min(minutes, 23 * 60 + 30);
+  const hh = Math.floor(clamped / 60);
+  const mm = clamped % 60;
+  return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
 }

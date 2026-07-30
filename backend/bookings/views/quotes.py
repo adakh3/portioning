@@ -196,7 +196,7 @@ class QuotePDFView(APIView):
                 'account', 'venue', 'primary_contact', 'based_on_template',
                 'created_by', 'created_by__organisation',
                 'lead', 'lead__assigned_to', 'lead__assigned_to__organisation',
-            ).prefetch_related('line_items', 'dishes'),
+            ).prefetch_related('line_items', 'dishes', 'timeline_entries'),
             request, pk=pk,
         )
         # Once the client has signed, the staff copy shows the acceptance block too.

@@ -159,6 +159,40 @@ describe("BookingTimelineField — run-of-show entries", () => {
     expect(screen.getByLabelText("Move step 2 down")).toBeDisabled();
   });
 
+  it("offers no '— Not set —' on a step's time", () => {
+    // Regression: an empty time drops the row from the save payload, and the
+    // backend's delete-all+recreate then destroys it — silently losing the
+    // label the user typed. Removing a step is the ✕ button's job.
+    renderEntries([{ time: "17:00", label: "Cocktails" }]);
+    const options = Array.from(screen.getByLabelText("Step 1 time").querySelectorAll("option"));
+    expect(options.some((o) => o.getAttribute("value") === "")).toBe(false);
+    // …while the legacy slots keep it — those are genuinely optional.
+    expect(screen.queryByText("— Not set —")).not.toBeInTheDocument();
+  });
+
+  it("legacy slots still offer '— Not set —'", () => {
+    render(<BookingTimelineField value={base} onChange={() => {}} entries={[]} onEntriesChange={vi.fn()} />);
+    const options = Array.from(screen.getByLabelText("Setup Time").querySelectorAll("option"));
+    expect(options.some((o) => o.getAttribute("value") === "")).toBe(true);
+  });
+
+  it("a step added with no label yet is still a valid row", () => {
+    // The backend accepts a blank label (a timed "—" is a real run-of-show row),
+    // so the editor must not block or drop it either.
+    const onEntriesChange = renderEntries([{ time: "17:00", label: "" }]);
+    fireEvent.change(screen.getByLabelText("Step 1 time"), { target: { value: "17:30" } });
+    expect(onEntriesChange).toHaveBeenLastCalledWith([{ time: "17:30", label: "" }]);
+  });
+
+  it("never bumps a new step past the end of the day", () => {
+    const onEntriesChange = renderEntries([{ time: "23:30", label: "Last call" }]);
+    fireEvent.click(screen.getByText("+ Add step"));
+    expect(onEntriesChange).toHaveBeenCalledWith([
+      { time: "23:30", label: "Last call" },
+      { time: "23:30", label: "" },
+    ]);
+  });
+
   it("labels times in the org's 12h preference while storing 24h", () => {
     const onEntriesChange = vi.fn();
     render(

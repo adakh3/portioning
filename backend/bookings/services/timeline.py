@@ -48,4 +48,8 @@ def format_timeline_value(value, time_format='24h'):
     twelve = time_format == '12h'
     if hasattr(value, 'date'):  # datetime — a legacy slot
         return value.strftime('%d %b %Y, %I:%M %p' if twelve else '%d %b %Y, %H:%M')
-    return value.strftime('%I:%M %p' if twelve else '%H:%M')
+    if not twelve:
+        return value.strftime('%H:%M')
+    # Unpadded hour ("5:00 PM", not "05:00 PM") to match how the frontend's
+    # formatTime writes the same entry in-app — the sign page shows this string.
+    return value.strftime('%I:%M %p').lstrip('0')

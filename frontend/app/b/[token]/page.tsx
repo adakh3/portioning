@@ -114,8 +114,10 @@ function BookingView({
         <section className="mt-4 rounded-xl border border-neutral-200 bg-white p-5">
           <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-neutral-400">Timeline</h2>
           <dl className="space-y-1 text-sm">
-            {booking.timeline.map((t) => (
-              <div key={t.label} className="flex justify-between">
+            {/* Keyed by position: entry labels are free text, so two steps can
+                share a label and a label-only key would collide. */}
+            {booking.timeline.map((t, i) => (
+              <div key={`${i}-${t.label}`} className="flex justify-between">
                 <dt className="text-neutral-500">{t.label}</dt>
                 <dd className="text-neutral-800">
                   {/* Run-of-show entries carry a bare time the browser can't parse
