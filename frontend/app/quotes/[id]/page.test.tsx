@@ -9,7 +9,11 @@ const h = vi.hoisted(() => ({
     id: 1, is_b2b: false, account: null, account_name: null, status: "draft", version: 1,
     event_date: "2026-09-01", guest_count: 100, gents: 50, ladies: 50,
     big_eaters: false, big_eaters_percentage: 0,
-    setup_time: null, guest_arrival_time: null, meal_time: null, end_time: null,
+    // An existing booking that stored its day in the four legacy columns —
+    // the only state in which they still render (a new booking gets the
+    // run-of-show instead).
+    setup_time: "2026-09-01T08:00", guest_arrival_time: null,
+    meal_time: "2026-09-01T18:30", end_time: null,
     event_type: "wedding",
     meal_type: "", service_style: "", booking_date: "",
     venue: null, venue_name: null, venue_address: "",

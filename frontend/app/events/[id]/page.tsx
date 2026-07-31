@@ -816,13 +816,18 @@ export default function EventDetailPage() {
                     value={entry.label} />
                 ))}
               </dl>
-            ) : (
+            ) : (event!.setup_time || event!.guest_arrival_time || event!.meal_time || event!.end_time) ? (
+              /* The four legacy slots show only on a booking that actually has
+                 them — they're how old bookings stored their times, not an empty
+                 shape every new event should carry. */
               <dl className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <InfoRow label="Setup Time" value={formatDateTime(event!.setup_time)} />
                 <InfoRow label="Guest Arrival" value={formatDateTime(event!.guest_arrival_time)} />
                 <InfoRow label="Meal Time" value={formatDateTime(event!.meal_time)} />
                 <InfoRow label="End Time" value={formatDateTime(event!.end_time)} />
               </dl>
+            ) : (
+              <p className="text-sm text-muted-foreground">No timeline set.</p>
             )}
         </CardContent>
       </Card>

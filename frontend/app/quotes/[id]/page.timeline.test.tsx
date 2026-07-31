@@ -101,17 +101,17 @@ describe("Quote form — the run-of-show reaches the payload", () => {
     ]);
   });
 
-  it("CREATE: no run-of-show ⇒ an empty list, and the legacy slot still saves", async () => {
+  it("CREATE: no run-of-show ⇒ an empty list, and the meal-time anchor still saves", async () => {
     render(<QuotePage />);
 
     fireEvent.change(screen.getByLabelText("Guest Count"), { target: { value: "40" } });
-    fireEvent.change(screen.getByLabelText("Setup Time"), { target: { value: "10:00" } });
+    fireEvent.change(screen.getByLabelText("Meal Time"), { target: { value: "10:00" } });
     fireEvent.click(screen.getByText("Create Quote"));
 
     await waitFor(() => expect(h.createQuote).toHaveBeenCalledTimes(1));
     const payload = h.createQuote.mock.calls[0][0] as Record<string, unknown>;
     expect(payload.timeline_entries).toEqual([]);
-    expect(payload.setup_time).toMatch(/T10:00$/);
+    expect(payload.meal_time).toMatch(/T10:00$/);
   });
 
   it("CREATE: a step added but not yet chosen still reaches the payload", async () => {

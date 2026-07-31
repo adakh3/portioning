@@ -5,37 +5,70 @@ import BookingTimelineField, { BookingTimelineValue, TimelineEntryValue } from "
 
 const base: BookingTimelineValue = { setup_time: "", guest_arrival_time: "", meal_time: "", end_time: "" };
 
+// An OLD booking: the four legacy columns hold times. This is the only state in
+// which they render — they are how such bookings stored their day, not a shape
+// every new booking should carry.
+const legacy: BookingTimelineValue = {
+  setup_time: "2026-08-01T15:00", guest_arrival_time: "2026-08-01T17:00",
+  meal_time: "2026-08-01T18:30", end_time: "2026-08-01T23:00",
+};
+
 // ── The legacy four slots: unchanged behaviour (REL-418 AC3) ──
 describe("BookingTimelineField — legacy slots", () => {
-  it("renders the four timeline fields", () => {
-    render(<BookingTimelineField value={base} onChange={() => {}} eventDate="2026-08-01" />);
+  it("renders the four fields for a booking that has them", () => {
+    render(<BookingTimelineField value={legacy} onChange={() => {}} eventDate="2026-08-01" />);
     for (const label of ["Setup Time", "Guest Arrival", "Meal Time", "End Time"]) {
       expect(screen.getByText(label)).toBeInTheDocument();
     }
   });
 
+  it("hides the four fields on a booking that has none of them", () => {
+    // The regression this exists for: a NEW quote showed four empty legacy slots
+    // AND the run-of-show button — two ways to say the same thing, on a booking
+    // with no legacy data to preserve.
+    render(
+      <BookingTimelineField value={base} onChange={() => {}} entries={[]}
+        onEntriesChange={() => {}} eventDate="2026-08-01" />,
+    );
+    for (const label of ["Setup Time", "Guest Arrival", "End Time"]) {
+      expect(screen.queryByText(label)).not.toBeInTheDocument();
+    }
+    // Meal Time survives as the anchor the built day hangs off.
+    expect(screen.getByLabelText("Meal Time")).toBeInTheDocument();
+    expect(screen.getByText("+ Build a run-of-show")).toBeInTheDocument();
+  });
+
   it("anchors a chosen slot to the event date", () => {
     const onChange = vi.fn();
-    render(<BookingTimelineField value={base} onChange={onChange} eventDate="2026-08-01" />);
+    render(
+      <BookingTimelineField value={base} onChange={onChange} entries={[]}
+        onEntriesChange={() => {}} eventDate="2026-08-01" />,
+    );
     fireEvent.change(screen.getByLabelText("Meal Time"), { target: { value: "20:00" } });
     expect(onChange).toHaveBeenLastCalledWith({ meal_time: "2026-08-01T20:00" });
   });
 
+  it("says so plainly on a read-only booking with no timeline at all", () => {
+    render(<BookingTimelineField value={base} onChange={() => {}} />);
+    expect(screen.getByText("No timeline set.")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Setup Time")).not.toBeInTheDocument();
+  });
+
   it("shows the stored time in the dropdown", () => {
-    render(<BookingTimelineField value={{ ...base, setup_time: "2026-08-01T10:30" }} onChange={() => {}} eventDate="2026-08-01" />);
+    render(<BookingTimelineField value={{ ...legacy, setup_time: "2026-08-01T10:30" }} onChange={() => {}} eventDate="2026-08-01" />);
     expect(screen.getByLabelText("Setup Time")).toHaveValue("10:30");
   });
 
   it("clears the field via the — Not set — option", () => {
     const onChange = vi.fn();
-    render(<BookingTimelineField value={{ ...base, setup_time: "2026-08-01T10:30" }} onChange={onChange} eventDate="2026-08-01" />);
+    render(<BookingTimelineField value={{ ...legacy, setup_time: "2026-08-01T10:30" }} onChange={onChange} eventDate="2026-08-01" />);
     fireEvent.change(screen.getByLabelText("Setup Time"), { target: { value: "" } });
     expect(onChange).toHaveBeenCalledWith({ setup_time: "" });
   });
 
   it("stays enabled without an event date and anchors the time to today", () => {
     const onChange = vi.fn();
-    render(<BookingTimelineField value={base} onChange={onChange} />);
+    render(<BookingTimelineField value={{ ...legacy, setup_time: "" }} onChange={onChange} />);
     const setup = screen.getByLabelText("Setup Time");
     expect(setup).not.toBeDisabled();
     fireEvent.change(setup, { target: { value: "20:00" } });
@@ -43,21 +76,21 @@ describe("BookingTimelineField — legacy slots", () => {
   });
 
   it("empty fields show — Not set —; a stored field shows its value", () => {
-    const { rerender } = render(<BookingTimelineField value={base} onChange={() => {}} eventDate="2026-08-01" />);
+    const { rerender } = render(<BookingTimelineField value={{ ...legacy, setup_time: "" }} onChange={() => {}} eventDate="2026-08-01" />);
     expect(screen.getByLabelText("Setup Time")).toHaveValue("");
-    rerender(<BookingTimelineField value={{ ...base, setup_time: "2026-08-01T09:30" }} onChange={() => {}} eventDate="2026-08-01" />);
+    rerender(<BookingTimelineField value={{ ...legacy, setup_time: "2026-08-01T09:30" }} onChange={() => {}} eventDate="2026-08-01" />);
     expect(screen.getByLabelText("Setup Time")).toHaveValue("09:30");
   });
 
   it("shows the legacy slots only when there are no entries", () => {
     const { rerender } = render(
-      <BookingTimelineField value={base} onChange={() => {}} entries={[]} onEntriesChange={() => {}} />,
+      <BookingTimelineField value={legacy} onChange={() => {}} entries={[]} onEntriesChange={() => {}} />,
     );
     expect(screen.getByText("Setup Time")).toBeInTheDocument();
 
     // AC4 — one entry and the four slots are replaced, not shown alongside.
     rerender(
-      <BookingTimelineField value={base} onChange={() => {}}
+      <BookingTimelineField value={legacy} onChange={() => {}}
         entries={[{ time: "18:30", label: "Dinner" }]} onEntriesChange={() => {}} />,
     );
     expect(screen.queryByText("Setup Time")).not.toBeInTheDocument();
@@ -65,7 +98,7 @@ describe("BookingTimelineField — legacy slots", () => {
   });
 
   it("is read-only about entries when no onEntriesChange is given", () => {
-    render(<BookingTimelineField value={base} onChange={() => {}} />);
+    render(<BookingTimelineField value={legacy} onChange={() => {}} />);
     expect(screen.queryByText("+ Build a run-of-show")).not.toBeInTheDocument();
   });
 });
@@ -379,7 +412,7 @@ describe("BookingTimelineField — run-of-show entries", () => {
   });
 
   it("legacy slots still offer '— Not set —'", () => {
-    render(<BookingTimelineField value={base} onChange={() => {}} entries={[]} onEntriesChange={vi.fn()} />);
+    render(<BookingTimelineField value={legacy} onChange={() => {}} entries={[]} onEntriesChange={vi.fn()} />);
     const options = Array.from(screen.getByLabelText("Setup Time").querySelectorAll("option"));
     expect(options.some((o) => o.getAttribute("value") === "")).toBe(true);
   });

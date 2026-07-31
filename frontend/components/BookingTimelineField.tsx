@@ -155,7 +155,13 @@ export default function BookingTimelineField({
     onEntriesChange?.(seeded.length ? seeded : [{ time: anchor, label: "" }]);
   };
 
-  if (rows.length === 0) {
+  // The four legacy slots are how OLD bookings stored their times — not a mode to
+  // choose. They appear only on a booking that actually has one set, where they
+  // are also the thing "+ Build a run-of-show" converts from. A booking without
+  // them never sees them.
+  const hasLegacyTimes = LEGACY_FIELDS.some((key) => !!value[key]);
+
+  if (rows.length === 0 && hasLegacyTimes) {
     return (
       <div className="space-y-3">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -170,11 +176,37 @@ export default function BookingTimelineField({
               + Build a run-of-show
             </Button>
             <p className="mt-1 text-xs text-muted-foreground">
-              Lays out a standard day from your Timeline Steps, timed off the meal
-              time — delete what doesn&apos;t apply. Replaces the four slots above.
+              Carries these times into a full day built from your Timeline Steps,
+              and replaces the four slots above.
             </p>
           </div>
         )}
+      </div>
+    );
+  }
+
+  if (rows.length === 0) {
+    if (!editable) {
+      return <p className="text-sm text-muted-foreground">No timeline set.</p>;
+    }
+    return (
+      <div className="space-y-2">
+        {/* Meal time is the anchor the whole day hangs off, so it's asked for
+            here rather than left as one of four look-alike slots. It still
+            writes the same `meal_time` column. */}
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="w-36">{field("meal_time", "Meal Time")}</div>
+          <Button type="button" size="sm" variant="outline" disabled={disabled} onClick={startRunOfShow}>
+            + Build a run-of-show
+          </Button>
+          <Button type="button" size="sm" variant="ghost" disabled={disabled} onClick={addRow}>
+            + Add step
+          </Button>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Builds a standard day from your Timeline Steps around the meal time —
+          delete what doesn&apos;t apply. Or add steps one at a time.
+        </p>
       </div>
     );
   }
@@ -238,6 +270,11 @@ export default function BookingTimelineField({
 
 /** Where a day hangs when the booking has no meal time of its own. */
 const DEFAULT_ANCHOR = "18:30";
+
+/** The four legacy time columns, in the order a day runs. */
+const LEGACY_FIELDS: (keyof BookingTimelineValue)[] = [
+  "setup_time", "guest_arrival_time", "meal_time", "end_time",
+];
 
 /** Which legacy column a seeded step inherits its time from, by preset slug.
  *

@@ -60,8 +60,8 @@ describe("Quote create — guest split, timeline, meals reach the payload", () =
     // 1) Guest count is the number; the split stays unspecified unless opened.
     fireEvent.change(screen.getByLabelText("Guest Count"), { target: { value: "40" } });
 
-    // 2) A timeline time → anchored to the (defaulted-to-today) event date.
-    fireEvent.change(screen.getByLabelText("Setup Time"), { target: { value: "10:00" } });
+    // 2) The meal time → anchored to the (defaulted-to-today) event date.
+    fireEvent.change(screen.getByLabelText("Meal Time"), { target: { value: "10:00" } });
 
     // 3) An additional meal with a blank label + its own time.
     fireEvent.click(screen.getByText("+ Add Meal"));
@@ -77,8 +77,11 @@ describe("Quote create — guest split, timeline, meals reach the payload", () =
     expect(payload.guest_counts).toEqual([]);
     // Event date defaults to today (not empty → no "wrong format")
     expect(payload.event_date).toBe(today);
-    // Timeline time anchored to the event date
-    expect(payload.setup_time).toBe(`${today}T10:00`);
+    // Meal time anchored to the event date
+    // A new booking has no legacy slots any more; Meal Time is the run-of-show
+    // anchor and the one legacy column a new quote still writes.
+    expect(payload.meal_time).toBe(`${today}T10:00`);
+    expect(payload.setup_time).toBeNull();
     // Product defaults to the org's first active line
     expect(payload.product).toBe(5);
     // Meal: inherits total guests, blank label allowed, time anchored

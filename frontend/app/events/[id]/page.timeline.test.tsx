@@ -109,18 +109,18 @@ describe("Event form — the run-of-show reaches the payload", () => {
     ]);
   });
 
-  it("CREATE: no run-of-show ⇒ an empty list, and the legacy slot still saves", async () => {
+  it("CREATE: no run-of-show ⇒ an empty list, and the meal-time anchor still saves", async () => {
     render(<EventPage />);
 
     fireEvent.click(screen.getByText("select-customer"));
     fireEvent.change(screen.getByLabelText("Guest Count"), { target: { value: "50" } });
-    fireEvent.change(screen.getByLabelText("Setup Time"), { target: { value: "10:00" } });
+    fireEvent.change(screen.getByLabelText("Meal Time"), { target: { value: "10:00" } });
     fireEvent.click(screen.getByText("Create Event"));
 
     await waitFor(() => expect(h.createEvent).toHaveBeenCalledTimes(1));
     const payload = h.createEvent.mock.calls[0][0] as Record<string, unknown>;
     expect(payload.timeline_entries).toEqual([]);
-    expect(payload.setup_time).toMatch(/T10:00$/);
+    expect(payload.meal_time).toMatch(/T10:00$/);
   });
 
   it("READ-ONLY: entries render instead of the four legacy rows (AC4)", async () => {

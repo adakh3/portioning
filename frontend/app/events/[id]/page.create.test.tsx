@@ -60,7 +60,7 @@ describe("Event create — guest split + anchored timeline reach the payload", (
 
     fireEvent.click(screen.getByText("select-customer"));  // event save requires a customer
     fireEvent.change(screen.getByLabelText("Guest Count"), { target: { value: "40" } });
-    fireEvent.change(screen.getByLabelText("Setup Time"), { target: { value: "10:00" } });
+    fireEvent.change(screen.getByLabelText("Meal Time"), { target: { value: "10:00" } });
 
     fireEvent.click(screen.getByText("Create Event"));
 
@@ -69,7 +69,8 @@ describe("Event create — guest split + anchored timeline reach the payload", (
     expect(payload.guest_count).toBe(40);
     expect(payload.guest_counts).toEqual([]);      // no breakdown entered — never invented
     expect(payload.date).toBe(today);              // defaults to today
-    expect(payload.setup_time).toBe(`${today}T10:00`);
+    expect(payload.meal_time).toBe(`${today}T10:00`);
+    expect(payload.setup_time).toBeNull();
     expect(payload.assigned_to).toBe(7);           // defaults to the current user
     expect(payload.product).toBe(5);               // defaults to the org's first active product
   });

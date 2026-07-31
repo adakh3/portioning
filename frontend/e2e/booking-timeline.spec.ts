@@ -13,7 +13,7 @@ test.describe("Booking timeline persists end-to-end", () => {
     await login(page);
   });
 
-  test("new quote: setup time set via dropdowns survives a reload", async ({ page }) => {
+  test("new quote: meal time set via dropdown survives a reload", async ({ page }) => {
     await page.goto("/quotes/new");
 
     // A customer is required to save.
@@ -21,15 +21,17 @@ test.describe("Booking timeline persists end-to-end", () => {
 
     await page.getByLabel("Guest Count").fill("30");
 
-    // The timeline field is a single 30-min-slot dropdown.
-    await page.getByLabel("Setup Time").selectOption("14:30");
+    // Meal Time is the run-of-show anchor, and the one legacy column a new
+    // booking still writes — the four slots only render on a booking that
+    // already has them. Same 30-min-slot dropdown, same persistence bug class.
+    await page.getByLabel("Meal Time").selectOption("14:30");
 
     await page.getByRole("button", { name: "Create Quote" }).click();
     await page.waitForURL(/\/quotes\/\d+$/, { timeout: 15_000 });
 
     // Reopen the editor — the time must still be there (the bug saved it as null).
     await page.getByRole("button", { name: "Edit Quote" }).click();
-    await expect(page.getByLabel("Setup Time")).toHaveValue("14:30");
+    await expect(page.getByLabel("Meal Time")).toHaveValue("14:30");
   });
 
   /**
@@ -89,7 +91,8 @@ test.describe("Booking timeline persists end-to-end", () => {
     await expect(page.getByLabel("Step 2 label")).toHaveValue("Dinner service");
     await expect(page.getByLabel("Step 3 label")).toHaveValue("Cake cutting");
 
-    // Remove every step and the booking falls back to the legacy slots (AC3).
+    // Remove every step and the booking is back to an empty timeline, offering
+    // the meal-time anchor and the build button again (AC3).
     while ((await page.getByLabel(/^Remove step /).count()) > 0) {
       await page.getByLabel("Remove step 1").click();
     }
@@ -97,6 +100,6 @@ test.describe("Booking timeline persists end-to-end", () => {
     await page.waitForTimeout(1000);
     await page.reload();
     await page.getByRole("button", { name: "Edit Quote" }).click();
-    await expect(page.getByLabel("Setup Time")).toBeVisible();
+    await expect(page.getByRole("button", { name: "+ Build a run-of-show" })).toBeVisible();
   });
 });
