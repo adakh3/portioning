@@ -137,8 +137,6 @@ export default function BookingTimelineField({
 
     const seeded = presets
       .filter((p) => p.in_standard_day && p.standard_day_offset_minutes != null)
-      .slice()
-      .sort((a, b) => a.standard_day_offset_minutes! - b.standard_day_offset_minutes!)
       .map((p) => {
         const legacyField = LEGACY_SLOT_BY_SLUG[p.value];
         const legacy = legacyField ? timePart(value[legacyField]) : "";
@@ -146,7 +144,13 @@ export default function BookingTimelineField({
           time: legacy || shiftTime(anchor, p.standard_day_offset_minutes!),
           label: p.label,
         };
-      });
+      })
+      // Sorted on the FINAL time, not the offset. An inherited legacy time can
+      // contradict its step's offset — the four legacy columns were never
+      // validated against each other, so real bookings have e.g. Setup 18:00
+      // with Meal 08:00 — and ordering by offset would then emit a run-of-show
+      // that jumps backwards. "HH:MM" sorts chronologically as a string.
+      .sort((a, b) => a.time.localeCompare(b.time));
 
     onEntriesChange?.(seeded.length ? seeded : [{ time: anchor, label: "" }]);
   };

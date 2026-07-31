@@ -233,6 +233,29 @@ describe("BookingTimelineField — run-of-show entries", () => {
     ]);
   });
 
+  it("stays in clock order even when the legacy times disagree with the offsets", () => {
+    // A real existing booking, from dev: Setup 18:00 but Meal 08:00 — the four
+    // legacy columns were never validated against each other, so plenty of them
+    // are incoherent. Sorting by OFFSET and then substituting the legacy time
+    // produced a run-of-show that jumped 04:30 → 18:00 → 07:30. Order has to be
+    // decided on the final times.
+    const onEntriesChange = vi.fn();
+    render(
+      <BookingTimelineField
+        value={{
+          setup_time: "2026-12-23T18:00",
+          guest_arrival_time: "2026-12-23T07:30",
+          meal_time: "2026-12-23T08:00",
+          end_time: "2026-12-23T10:00",
+        }}
+        onChange={() => {}} entries={[]} onEntriesChange={onEntriesChange}
+        presets={fullPresets} eventDate="2026-12-23" />,
+    );
+    fireEvent.click(screen.getByText("+ Build a run-of-show"));
+    const times = (onEntriesChange.mock.calls[0][0] as { time: string }[]).map((r) => r.time);
+    expect(times).toEqual([...times].sort());
+  });
+
   it("carries an existing End Time onto Last call, not Breakdown", () => {
     const onEntriesChange = vi.fn();
     render(
