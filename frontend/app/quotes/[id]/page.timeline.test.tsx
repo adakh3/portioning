@@ -44,6 +44,7 @@ vi.mock("@/lib/hooks", () => ({
   useVenues: () => ({ data: [] }),
   useSiteSettings: () => ({ data: { currency_symbol: "$", currency_code: "USD", date_format: "DD/MM/YYYY", price_rounding_step: "50", default_tax_rate: "0.2000", service_charge_default_pct: "0", service_charge_taxable_default: true, gratuity_default_pct: "0.00" } }),
   useDateFormat: () => "DD/MM/YYYY",
+  useFormatDateTime: () => (v: string | null) => v ?? "-",
   useEventTypes: () => ({ data: [{ id: 1, value: "wedding", label: "Wedding" }] }),
   useServiceStyles: () => ({ data: [] }),
   useMealTypes: () => ({ data: [] }),
