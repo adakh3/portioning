@@ -182,6 +182,51 @@ def resolve_booking_segments(booking):
     )
 
 
+class MealAudience(models.TextChoices):
+    CUSTOM = 'custom', 'Custom number'      # a hand-typed count (today's behaviour)
+    EVERYONE = 'everyone', 'Everyone'       # every cover: guests + extra covers
+    GUESTS = 'guests', 'Guests only'        # in-count segments only (no vendors/crew)
+    SEGMENT = 'segment', 'Single segment'   # one org segment (``audience_segment``)
+
+
+def derive_meal_guest_count(meal, segments):
+    """The guest count an additional meal serves, derived from the booking's resolved
+    ``segments`` (as returned by ``resolve_booking_segments``) by the meal's
+    ``audience``:
+
+    * ``everyone`` — every cover (all segments: guests + extra covers)
+    * ``guests``   — in-count segments only (``counts_toward_total``)
+    * ``segment``  — the single ``audience_segment`` (0 when it isn't in the mix)
+    * ``custom``   — ``None`` (keep the hand-typed ``guest_count``)
+    """
+    audience = meal.audience
+    if audience == MealAudience.EVERYONE:
+        return sum(s['count'] for s in segments)
+    if audience == MealAudience.GUESTS:
+        return sum(s['count'] for s in segments if s['counts_toward_total'])
+    if audience == MealAudience.SEGMENT:
+        if meal.audience_segment_id is None:
+            return 0
+        name = meal.audience_segment.name
+        return sum(s['count'] for s in segments if s['name'] == name)
+    return None
+
+
+def sync_audience_meal_counts(booking):
+    """Dual-write each audience-scoped meal's ``guest_count`` from the booking's
+    current segments, so every downstream consumer (totals, PDFs, sign page,
+    serializers) keeps reading the stored ``guest_count`` unchanged. ``custom`` meals
+    are left exactly as typed. Idempotent — writes only when the number changes.
+    Called from ``recalculate_totals`` so meal counts stay correct whenever the
+    booking's guests change (including at finals time)."""
+    segments = resolve_booking_segments(booking)
+    for meal in booking.additional_meals.all():
+        derived = derive_meal_guest_count(meal, segments)
+        if derived is not None and meal.guest_count != derived:
+            meal.guest_count = derived
+            meal.save(update_fields=['guest_count'])
+
+
 class EventStatus(models.TextChoices):
     TENTATIVE = 'tentative', 'Tentative'
     CONFIRMED = 'confirmed', 'Confirmed'
@@ -364,6 +409,8 @@ class Event(OrgScopedModel, models.Model):
         # stored subtotal would silently drop them.
         for rel in ('line_items', 'additional_meals'):
             getattr(self, '_prefetched_objects_cache', {}).pop(rel, None)
+        # Keep audience-scoped meal counts current before pricing (dual-write).
+        sync_audience_meal_counts(self)
         totals = compute_booking_totals(
             self.food_total, self.line_items.all(), rate,
             service_charge_pct=self.service_charge_pct,
@@ -444,6 +491,16 @@ class BookingMeal(models.Model):
         on_delete=models.CASCADE, related_name='additional_meals',
     )
     label = models.CharField(max_length=100)
+    # Who this meal serves. ``custom`` keeps guest_count as typed; the other audiences
+    # derive it from the booking's segments (see derive_meal_guest_count) and it is
+    # dual-written on save so downstream consumers keep reading guest_count.
+    audience = models.CharField(
+        max_length=20, choices=MealAudience.choices, default=MealAudience.CUSTOM,
+    )
+    audience_segment = models.ForeignKey(
+        'rules.GuestSegment', null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='+', help_text='The single segment served when audience=segment.',
+    )
     guest_count = models.IntegerField(default=0, validators=[MinValueValidator(0), MaxValueValidator(50000)])
     price_per_head = models.DecimalField(
         max_digits=10, decimal_places=2, null=True, blank=True,

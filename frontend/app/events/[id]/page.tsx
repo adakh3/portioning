@@ -28,7 +28,7 @@ import DealWonDialog from "@/components/DealWonDialog";
 import EventPaymentsCard from "@/components/EventPaymentsCard";
 import { useAuth } from "@/lib/auth";
 import { formatDate, formatDateTime as sharedFormatDateTime, formatTime, todayISO } from "@/lib/dateFormat";
-import { LineItemInput, lineItemTotal, computeBookingTotals, buildEventSavePayload, segmentFood, segmentFoodRows, defaultSegmentRemainder, hasVendorDoubleEntry, GuestSegmentMeta , timelineMealRows} from "@/lib/quoteTotals";
+import { LineItemInput, lineItemTotal, computeBookingTotals, buildEventSavePayload, segmentFood, segmentFoodRows, defaultSegmentRemainder, hasVendorDoubleEntry, mealsFood, bookingMealRows, timelineMealRows, GuestSegmentMeta } from "@/lib/quoteTotals";
 import BookingTotalsCard from "@/components/BookingTotalsCard";
 import AddOnItemsEditor from "@/components/AddOnItemsEditor";
 import MenuBuilder from "@/components/MenuBuilder";
@@ -833,80 +833,82 @@ export default function EventDetailPage() {
         </CardContent>
       </Card>
 
-      {/* Main Meal Section */}
+      {/* Guests — entered once; every meal draws from this */}
+      <Card>
+        <CardContent className="p-6">
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Guests</h2>
+          {editing ? (
+            <>
+              <GuestCountField
+                value={{ guest_count: formGuestCount, segment_counts: formSegmentCounts, segment_prices: formSegmentPrices, big_eaters: formBigEaters, big_eaters_percentage: formBigEatersPercent }}
+                onChange={applyGuestPatch}
+                pricePerHead={formPricePerHead}
+              />
+              {hasVendorDoubleEntry(formSegmentCounts, formAdditionalMeals, segmentMeta) && (
+                <div role="alert" className="mt-2 flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
+                  <span aria-hidden="true" className="text-sm leading-none">⚠️</span>
+                  <span>Possible double-count: you have <strong>vendor covers</strong> and a <strong>vendor-labelled meal</strong>. Vendors should be counted one way or the other, not both.</span>
+                </div>
+              )}
+              {/* Guaranteed Count / Final Count / Final Count Due are hidden until
+                  they actually drive money + the finals lifecycle (REL-419). The
+                  form state + save payload are kept so nothing is lost; REL-419
+                  re-surfaces them in the "Record final numbers" panel. */}
+            </>
+          ) : (
+            <dl className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              <InfoRow label="Guest Count" value={event!.guest_count} />
+              {(event!.gents > 0 || event!.ladies > 0) && <InfoRow label="Gents" value={event!.gents} />}
+              {(event!.gents > 0 || event!.ladies > 0) && <InfoRow label="Ladies" value={event!.ladies} />}
+              {event!.big_eaters && <InfoRow label="Hearty eaters" value={`+${event!.big_eaters_percentage}%`} />}
+              {event!.guaranteed_count != null && <InfoRow label="Guaranteed Count" value={event!.guaranteed_count} />}
+              {event!.final_count != null && <InfoRow label="Final Count" value={event!.final_count} />}
+              {event!.final_count_due && <InfoRow label="Final Count Due" value={formatDate(event!.final_count_due, dateFormat)} />}
+            </dl>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Main Meal Section — menu + pricing (serves everyone) */}
       <Card>
         <CardContent className="p-6">
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Main Meal</h2>
             {editing ? (
-              <div className="space-y-4">
-                <GuestCountField
-                  value={{ guest_count: formGuestCount, segment_counts: formSegmentCounts, segment_prices: formSegmentPrices, big_eaters: formBigEaters, big_eaters_percentage: formBigEatersPercent }}
-                  onChange={applyGuestPatch}
+              isNew ? (
+                <MenuBuilder
+                  selectedDishIds={menuData.dish_ids}
+                  basedOnTemplate={menuData.based_on_template}
+                  onChange={setMenuData}
                   pricePerHead={formPricePerHead}
+                  onPricePerHeadChange={setFormPricePerHead}
+                  guestCount={totalGuests}
+                  currencySymbol={settings.currency_symbol}
                 />
-                {hasVendorDoubleEntry(formSegmentCounts, formAdditionalMeals, segmentMeta) && (
-                  <div role="alert" className="mb-2 flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
-                    <span aria-hidden="true" className="text-sm leading-none">⚠️</span>
-                    <span>Possible double-count: you have <strong>vendor covers</strong> and a <strong>vendor-labelled meal</strong>. Vendors should be counted one way or the other, not both.</span>
-                  </div>
-                )}
-                {/* Guaranteed Count / Final Count / Final Count Due are hidden until
-                    they actually drive money + the finals lifecycle (REL-419). The
-                    form state + save payload are kept so nothing is lost; REL-419
-                    re-surfaces them in the "Record final numbers" panel. */}
-                <div className="border-t border-border pt-4">
-                  {isNew ? (
-                    <MenuBuilder
-                      selectedDishIds={menuData.dish_ids}
-                      basedOnTemplate={menuData.based_on_template}
-                      onChange={setMenuData}
-                      pricePerHead={formPricePerHead}
-                      onPricePerHeadChange={setFormPricePerHead}
-                      guestCount={totalGuests}
-                      currencySymbol={settings.currency_symbol}
-                    />
-                  ) : (
-                    <MenuBuilder
-                      selectedDishIds={event!.dishes}
-                      basedOnTemplate={event!.based_on_template}
-                      onSave={handleMenuSave}
-                      pricePerHead={formPricePerHead}
-                      onPricePerHeadChange={setFormPricePerHead}
-                      guestCount={totalGuests}
-                      currencySymbol={settings.currency_symbol}
-                      disabled={false}
-                    />
-                  )}
-                </div>
-              </div>
+              ) : (
+                <MenuBuilder
+                  selectedDishIds={event!.dishes}
+                  basedOnTemplate={event!.based_on_template}
+                  onSave={handleMenuSave}
+                  pricePerHead={formPricePerHead}
+                  onPricePerHeadChange={setFormPricePerHead}
+                  guestCount={totalGuests}
+                  currencySymbol={settings.currency_symbol}
+                  disabled={false}
+                />
+              )
+            ) : event!.dishes.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No menu selected.</p>
             ) : (
-              <div className="space-y-4">
-                <dl className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  <InfoRow label="Guest Count" value={event!.guest_count} />
-                  {(event!.gents > 0 || event!.ladies > 0) && <InfoRow label="Gents" value={event!.gents} />}
-                  {(event!.gents > 0 || event!.ladies > 0) && <InfoRow label="Ladies" value={event!.ladies} />}
-                  {event!.big_eaters && <InfoRow label="Hearty eaters" value={`+${event!.big_eaters_percentage}%`} />}
-                  {event!.guaranteed_count != null && <InfoRow label="Guaranteed Count" value={event!.guaranteed_count} />}
-                  {event!.final_count != null && <InfoRow label="Final Count" value={event!.final_count} />}
-                  {event!.final_count_due && <InfoRow label="Final Count Due" value={formatDate(event!.final_count_due, dateFormat)} />}
-                </dl>
-                <div className="border-t border-border pt-4">
-                  {event!.dishes.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No menu selected.</p>
-                  ) : (
-                    <MenuBuilder
-                      selectedDishIds={event!.dishes}
-                      basedOnTemplate={event!.based_on_template}
-                      onSave={handleMenuSave}
-                      pricePerHead={formPricePerHead}
-                      onPricePerHeadChange={undefined}
-                      guestCount={event!.guest_count}
-                      currencySymbol={settings.currency_symbol}
-                      disabled={true}
-                    />
-                  )}
-                </div>
-              </div>
+              <MenuBuilder
+                selectedDishIds={event!.dishes}
+                basedOnTemplate={event!.based_on_template}
+                onSave={handleMenuSave}
+                pricePerHead={formPricePerHead}
+                onPricePerHeadChange={undefined}
+                guestCount={event!.guest_count}
+                currencySymbol={settings.currency_symbol}
+                disabled={true}
+              />
             )}
         </CardContent>
       </Card>
@@ -921,6 +923,9 @@ export default function EventDetailPage() {
         defaultGuestCount={totalGuests}
         eventDate={formDate}
         timeFormat={timeFormat}
+        guestCount={editing ? formGuestCount : (event!.guest_count || 0)}
+        segmentCounts={editing ? formSegmentCounts : Object.fromEntries((event!.guest_counts ?? []).map((r) => [r.segment, r.count]))}
+        segmentMeta={segmentMeta}
       />
 
       {/* Add-on items (arrangements, beverages, rentals, custom) */}
@@ -963,14 +968,9 @@ export default function EventDetailPage() {
         const segPrices = editing ? formSegmentPrices : viewSegmentPrices;
         const foodTotal = segmentFood(pph, guests, segCounts, segmentMeta, segPrices);
         const meals = editing ? formAdditionalMeals : (event?.additional_meals || []);
-        const mealsTotal = meals.reduce((sum, m) => sum + m.guest_count * (parseFloat(m.price_per_head || "0") || 0), 0);
-        const mealRows = meals
-          .map((m) => ({ m, total: m.guest_count * (parseFloat(m.price_per_head || "0") || 0) }))
-          .filter((r) => r.total > 0 || (parseFloat(r.m.price_per_head || "0") || 0) > 0)
-          .map((r) => ({
-            label: `${r.m.label || "Additional Meal"} (${formatCurrency(r.m.price_per_head || "0", settings.currency_symbol)}/head × ${r.m.guest_count})`,
-            total: r.total,
-          }));
+        // Audience-scoped meals price by their derived count (mirror of the backend).
+        const mealsTotal = mealsFood(meals, guests, segCounts, segmentMeta);
+        const mealRows = bookingMealRows(meals, settings.currency_symbol, guests, segCounts, segmentMeta);
         const liItems = editing ? formLineItems : (event?.line_items || []);
         const addOnsTotal = liItems.reduce((sum, li) => sum + lineItemTotal(li, guests), 0);
         const taxable = editing ? formIsTaxable : (event?.is_taxable || false);

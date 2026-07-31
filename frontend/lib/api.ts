@@ -832,6 +832,10 @@ export interface EventData {
 export interface EventMealData {
   id?: number;
   label: string;
+  /** Who the meal serves (REL-426): custom | everyone | guests | segment. */
+  audience?: string;
+  /** Segment NAME served when audience==="segment". */
+  audience_segment?: string | null;
   guest_count: number;
   price_per_head: string | null;
   dishes: number[];

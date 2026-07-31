@@ -9,15 +9,22 @@ vi.mock("@/lib/dateFormat", () => ({ formatDateTime: (s: string) => `fmt(${s})`,
 
 import AdditionalMealsEditor from "./AdditionalMealsEditor";
 import { EventMealData } from "@/lib/api";
+import { GuestSegmentMeta } from "@/lib/quoteTotals";
 
 const meal = (over: Partial<EventMealData> = {}): EventMealData => ({
   label: "Welcome drinks", guest_count: 20, price_per_head: "15.00", dishes: [],
   based_on_template: null, meal_time: null, notes: "", ...over,
 });
 
-function setup(meals: EventMealData[], editing = true) {
+const SEG_META: GuestSegmentMeta[] = [
+  { name: "Adults", is_default: true, counts_toward_total: true, price_multiplier: "1.0000", sort_order: 0 },
+  { name: "Kids", is_default: false, counts_toward_total: true, price_multiplier: "0.5000", sort_order: 1 },
+  { name: "Vendors", is_default: false, counts_toward_total: false, price_multiplier: "0.5000", sort_order: 2 },
+];
+
+function setup(meals: EventMealData[], editing = true, extra: Partial<React.ComponentProps<typeof AdditionalMealsEditor>> = {}) {
   const onChange = vi.fn();
-  render(<AdditionalMealsEditor meals={meals} onChange={onChange} editing={editing} currencySymbol="£" dateFormat="DD/MM/YYYY" />);
+  render(<AdditionalMealsEditor meals={meals} onChange={onChange} editing={editing} currencySymbol="£" dateFormat="DD/MM/YYYY" {...extra} />);
   return onChange;
 }
 
@@ -53,5 +60,48 @@ describe("AdditionalMealsEditor", () => {
     expect(screen.queryByText("+ Add Meal")).not.toBeInTheDocument();
     expect(screen.queryByText("Remove")).not.toBeInTheDocument();
     expect(screen.getByText("Dinner")).toBeInTheDocument();
+  });
+
+  // REL-426 — "Serves" audience selection + derived count.
+  it("hides zero-count segments: a booking with no breakdown shows only Everyone/Guests/Custom", () => {
+    setup([meal({ audience: "everyone" })], true, { segmentMeta: SEG_META, guestCount: 150 });
+    const serves = screen.getByLabelText("Serves") as HTMLSelectElement;
+    expect(Array.from(serves.options).map((o) => o.textContent)).toEqual(["Everyone", "Guests only", "Custom number"]);
+  });
+
+  it("lists only the segments used on this booking (data-driven), incl. the derived default", () => {
+    // Kids 12 + Vendors 8 entered → Adults (default) becomes a real bucket too.
+    setup([meal({ audience: "everyone" })], true,
+      { segmentMeta: SEG_META, guestCount: 150, segmentCounts: { Kids: 12, Vendors: 8 } });
+    const serves = screen.getByLabelText("Serves") as HTMLSelectElement;
+    expect(Array.from(serves.options).map((o) => o.textContent))
+      .toEqual(["Everyone", "Guests only", "Adults", "Kids", "Vendors", "Custom number"]);
+  });
+
+  it("keeps a meal's own selected segment listed even if its count drops to 0", () => {
+    setup([meal({ audience: "segment", audience_segment: "Vendors" })], true,
+      { segmentMeta: SEG_META, guestCount: 150, segmentCounts: {} }); // no Vendors count entered
+    const serves = screen.getByLabelText("Serves") as HTMLSelectElement;
+    expect(Array.from(serves.options).map((o) => o.textContent)).toContain("Vendors");
+    expect(serves.value).toBe("seg:Vendors"); // control keeps its value
+  });
+
+  it("a derived audience shows a read-only count; Custom shows an editable input", () => {
+    // everyone with 150 guests + 8 vendors = 158.
+    const onChange = setup([meal({ audience: "everyone", guest_count: 0 })], true,
+      { segmentMeta: SEG_META, guestCount: 150, segmentCounts: { Vendors: 8 } });
+    expect(screen.getByText("158 — from Everyone")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Guest count")).not.toBeInTheDocument();
+    // Switch to Custom → the editable number input appears.
+    fireEvent.change(screen.getByLabelText("Serves"), { target: { value: "custom" } });
+    expect(onChange).toHaveBeenCalledWith([expect.objectContaining({ audience: "custom", audience_segment: null })]);
+  });
+
+  it("selecting a segment patches audience + audience_segment", () => {
+    // Vendors has a count on the booking, so it's an available "Serves" option.
+    const onChange = setup([meal({ audience: "everyone" })], true,
+      { segmentMeta: SEG_META, guestCount: 150, segmentCounts: { Vendors: 8 } });
+    fireEvent.change(screen.getByLabelText("Serves"), { target: { value: "seg:Vendors" } });
+    expect(onChange).toHaveBeenCalledWith([expect.objectContaining({ audience: "segment", audience_segment: "Vendors" })]);
   });
 });

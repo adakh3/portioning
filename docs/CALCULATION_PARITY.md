@@ -69,6 +69,12 @@ each case lists `food_total`, line items (precomputed signed `line_total`),
 - The **frontend** runs the *same file* through `computeBookingTotals` —
   `lib/quoteTotals.test.ts` → `describe("golden-case parity with the backend engine")`.
 
+The file carries two more shared sections, mirrored the same way:
+`segment_food_cases` (per-segment food, REL-415) and `meal_audience_cases` — an
+additional meal's guest count derived from its audience (everyone / guests only /
+a single segment), run through `derive_meal_guest_count` on the backend and
+`deriveMealCountFromRows` on the frontend (REL-426).
+
 Because both engines are pinned to the same expected numbers, you cannot change
 the rule on one side without that side's test failing against the shared spec.
 

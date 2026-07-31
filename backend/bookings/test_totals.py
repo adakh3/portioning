@@ -61,6 +61,23 @@ class TestGoldenCaseParity(TestCase):
             food = segment_food_total(Decimal(case["price_per_head"]), case["segments"])
             self.assertEqual(food, Decimal(case["expected_food"]), case["name"])
 
+    def test_backend_matches_meal_audience_cases(self):
+        """An additional meal's derived guest count from its audience — the same
+        shared spec the frontend deriveMealCount test runs (REL-426)."""
+        from types import SimpleNamespace
+        from events.models import derive_meal_guest_count
+        with open(GOLDEN_CASES_PATH) as f:
+            data = json.load(f)
+        for case in data.get("meal_audience_cases", []):
+            seg_name = case["audience_segment"]
+            meal = SimpleNamespace(
+                audience=case["audience"],
+                audience_segment=SimpleNamespace(name=seg_name) if seg_name else None,
+                audience_segment_id=1 if seg_name else None,
+            )
+            got = derive_meal_guest_count(meal, case["segments"])
+            self.assertEqual(got, case["expected"], case["name"])
+
 
 class TestComputeBookingTotals(TestCase):
     def test_food_only_with_tax(self):

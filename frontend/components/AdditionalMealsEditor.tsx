@@ -2,6 +2,7 @@
 
 import { EventMealData } from "@/lib/api";
 import { formatDateTime, todayISO } from "@/lib/dateFormat";
+import { deriveMealCount, GuestSegmentMeta } from "@/lib/quoteTotals";
 import MenuBuilder from "@/components/MenuBuilder";
 import TimeField from "@/components/TimeField";
 import { Button } from "@/components/ui/button";
@@ -22,6 +23,9 @@ export default function AdditionalMealsEditor({
   defaultGuestCount = 0,
   eventDate,
   timeFormat = "24h",
+  guestCount = 0,
+  segmentCounts = {},
+  segmentMeta = [],
 }: {
   meals: EventMealData[];
   onChange: (meals: EventMealData[]) => void;
@@ -35,9 +39,53 @@ export default function AdditionalMealsEditor({
   eventDate?: string;
   /** Org time-entry preference ("12h"/"24h"). */
   timeFormat?: "12h" | "24h";
+  /** The booking's canonical guest count — audience meals derive from it. */
+  guestCount?: number;
+  /** Explicit per-segment counts entered on the Guests section (default derived). */
+  segmentCounts?: Record<string, number>;
+  /** The org's guest segments — populate the "Serves" selector (data-driven). */
+  segmentMeta?: GuestSegmentMeta[];
 }) {
   const patch = (idx: number, fields: Partial<EventMealData>) =>
     onChange(meals.map((m, i) => (i === idx ? { ...m, ...fields } : m)));
+
+  // "Serves" options: Everyone / Guests only / Custom, plus one per segment that is
+  // actually USED on this booking — so an org that has segments but isn't splitting
+  // this booking sees a clean list, not zero-count segments. A segment counts as used
+  // if it has an entered count; the default (Adults) shows only once a breakdown
+  // exists. Data-driven, so a Gents/Ladies org sees its own segments.
+  const splitting = segmentMeta.some((m) => m.counts_toward_total && !m.is_default && (segmentCounts[m.name] || 0) > 0);
+  const usedSegmentNames = new Set(
+    segmentMeta
+      .filter((s) => (s.is_default && s.counts_toward_total ? splitting : (segmentCounts[s.name] || 0) > 0))
+      .map((s) => s.name),
+  );
+  const audienceOptionsFor = (m: EventMealData) => {
+    const names = new Set(usedSegmentNames);
+    // Always keep this meal's own segment selectable, even if its count dropped to 0,
+    // so the control never loses its current value.
+    if ((m.audience || "") === "segment" && m.audience_segment) names.add(m.audience_segment);
+    const segs = [...segmentMeta].sort((a, b) => a.sort_order - b.sort_order).filter((s) => names.has(s.name));
+    return [
+      { value: "everyone", label: "Everyone" },
+      { value: "guests", label: "Guests only" },
+      ...segs.map((s) => ({ value: `seg:${s.name}`, label: s.name })),
+      { value: "custom", label: "Custom number" },
+    ];
+  };
+  const servesValue = (m: EventMealData) =>
+    (m.audience || "custom") === "segment" ? `seg:${m.audience_segment ?? ""}` : (m.audience || "custom");
+  const onServes = (idx: number, value: string) => {
+    if (value.startsWith("seg:")) patch(idx, { audience: "segment", audience_segment: value.slice(4) });
+    else patch(idx, { audience: value, audience_segment: null });
+  };
+  const servedByLabel = (m: EventMealData) => {
+    const a = m.audience || "custom";
+    if (a === "everyone") return "Everyone";
+    if (a === "guests") return "Guests only";
+    if (a === "segment") return m.audience_segment || "—";
+    return "Custom";
+  };
 
   return (
     <Card>
@@ -50,7 +98,8 @@ export default function AdditionalMealsEditor({
               variant="outline"
               size="sm"
               onClick={() => onChange([...meals, {
-                label: "", guest_count: defaultGuestCount, price_per_head: null, dishes: [],
+                label: "", audience: "everyone", audience_segment: null,
+                guest_count: defaultGuestCount, price_per_head: null, dishes: [],
                 based_on_template: null, meal_time: null, notes: "",
               }])}
             >
@@ -90,16 +139,42 @@ export default function AdditionalMealsEditor({
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Guest Count</label>
+                  <label className="block text-sm font-medium text-foreground mb-1">Serves</label>
                   {editing ? (
-                    <ValidatedInput
-                      type="number"
-                      min={0}
-                      value={meal.guest_count}
-                      onChange={(e) => patch(idx, { guest_count: parseInt(e.target.value) || 0 })}
-                    />
+                    <>
+                      <select
+                        aria-label="Serves"
+                        value={servesValue(meal)}
+                        onChange={(e) => onServes(idx, e.target.value)}
+                        className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      >
+                        {audienceOptionsFor(meal).map((o) => (
+                          <option key={o.value} value={o.value}>{o.label}</option>
+                        ))}
+                      </select>
+                      {(meal.audience || "custom") === "custom" ? (
+                        <div className="mt-2">
+                          <ValidatedInput
+                            aria-label="Guest count"
+                            type="number"
+                            min={0}
+                            value={meal.guest_count}
+                            onChange={(e) => patch(idx, { guest_count: parseInt(e.target.value) || 0 })}
+                          />
+                        </div>
+                      ) : (
+                        <p className="mt-2 text-sm text-muted-foreground">
+                          {deriveMealCount(meal, guestCount, segmentCounts, segmentMeta)} — from {servedByLabel(meal)}
+                        </p>
+                      )}
+                    </>
                   ) : (
-                    <span className="text-sm">{meal.guest_count}</span>
+                    <span className="text-sm">
+                      {deriveMealCount(meal, guestCount, segmentCounts, segmentMeta)}
+                      {(meal.audience || "custom") !== "custom" && (
+                        <span className="text-muted-foreground"> — {servedByLabel(meal)}</span>
+                      )}
+                    </span>
                   )}
                 </div>
                 <div>
@@ -144,7 +219,7 @@ export default function AdditionalMealsEditor({
                 onChange={(data) => patch(idx, { dishes: data.dish_ids, based_on_template: data.based_on_template })}
                 pricePerHead={meal.price_per_head || ""}
                 onPricePerHeadChange={editing ? (val) => patch(idx, { price_per_head: val || null }) : undefined}
-                guestCount={meal.guest_count}
+                guestCount={deriveMealCount(meal, guestCount, segmentCounts, segmentMeta)}
                 currencySymbol={currencySymbol}
                 priceRoundingStep={priceRoundingStep}
                 disabled={!editing}
