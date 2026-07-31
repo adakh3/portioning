@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 
-import DietaryTagPills from "./DietaryTagPills";
+import DietaryTagPills, { dietaryTagsDescription } from "./DietaryTagPills";
 import DishSelector from "./DishSelector";
 import { DietaryTag, Dish, DishCategory } from "@/lib/api";
 
@@ -51,7 +51,38 @@ const dish = (over: Partial<Dish>): Dish => ({
   margin_percent: null, is_vegetarian: false, notes: "", ...over,
 });
 
+describe("dietaryTagsDescription", () => {
+  it("spells the tags out for a screen reader", () => {
+    expect(dietaryTagsDescription([gf, milk])).toBe("gluten-free; contains milk");
+  });
+
+  it("is empty for an untagged dish", () => {
+    expect(dietaryTagsDescription([])).toBe("");
+    expect(dietaryTagsDescription()).toBe("");
+  });
+});
+
 describe("DishSelector dietary tags", () => {
+  it("keeps the dish name findable by role, tags spelled out not abbreviated", () => {
+    // Regression: the pills render INSIDE the dish button, so its accessible
+    // name became "Grilled Chicken Breast GF MLK" and an exact-name lookup
+    // stopped matching (caught by e2e/calculate.spec.ts). The pills are now
+    // aria-hidden visual shorthand and the button says it properly.
+    render(
+      <DishSelector
+        dishes={[dish({ name: "Grilled Chicken Breast", dietary_tags: [gf, milk] })]}
+        categories={[category]}
+        selectedIds={new Set()}
+        onToggle={() => {}}
+      />,
+    );
+    expect(
+      screen.getByRole("button", { name: "Grilled Chicken Breast — gluten-free; contains milk" }),
+    ).toBeInTheDocument();
+    // The abbreviations stay visible, but out of the accessibility tree.
+    expect(screen.getByText("GF")).toHaveAttribute("title", "Gluten-free");
+  });
+
   it("shows a tagged dish's pills", () => {
     render(
       <DishSelector

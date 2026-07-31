@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo, useRef } from "react";
 import { api, collectErrorMessages, MenuTemplateDetail, PriceTier, PriceCheckResult, PriceCheckBreakdownItem, PriceEstimateResult } from "@/lib/api";
 import { useDishes, useCategories, useMenus } from "@/lib/hooks";
 import { formatCurrency } from "@/lib/utils";
-import DietaryTagPills from "@/components/DietaryTagPills";
+import DietaryTagPills, { dietaryTagsDescription } from "@/components/DietaryTagPills";
 
 interface CalculatedPrice {
   price: number;
@@ -571,6 +571,8 @@ export default function MenuBuilder({
                         <button
                           type="button"
                           key={dish.id}
+                          aria-label={[dish.name, dietaryTagsDescription(dish.dietary_tags)]
+                            .filter(Boolean).join(" — ")}
                           onClick={() => toggleDish(dish.id)}
                           className={`text-left text-sm px-2.5 py-1.5 rounded transition-colors ${
                             isSelected

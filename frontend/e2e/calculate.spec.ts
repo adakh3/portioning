@@ -24,7 +24,11 @@ test("calculator produces portions for a guest count and dish", async ({ page })
 
   // Narrow the dish list and select a known seeded dish.
   await page.getByPlaceholder("Search dishes...").fill("Grilled Chicken Breast");
-  await page.getByRole("button", { name: "Grilled Chicken Breast", exact: true }).click();
+  // Prefix match, not exact: a dish button's accessible name now carries its
+  // dietary/allergen tags spelled out ("Grilled Chicken Breast — gluten-free,
+  // dairy-free"), because the visible pills are abbreviations that read as
+  // gibberish aloud (REL-416).
+  await page.getByRole("button", { name: /^Grilled Chicken Breast/ }).click();
 
   // The portions view renders with the engine's per-person food total.
   await expect(page.getByText("Food per Person")).toBeVisible();

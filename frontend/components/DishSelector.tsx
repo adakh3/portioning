@@ -3,7 +3,7 @@
 import { Dish, DishCategory } from "@/lib/api";
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
-import DietaryTagPills from "@/components/DietaryTagPills";
+import DietaryTagPills, { dietaryTagsDescription } from "@/components/DietaryTagPills";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -57,6 +57,11 @@ export default function DishSelector({ dishes, categories, selectedIds, onToggle
                   return (
                     <button
                       key={dish.id}
+                      // The pills are aria-hidden shorthand, so the button says
+                      // it properly — and its name stays predictable for tests
+                      // that target a dish by name.
+                      aria-label={[dish.name, dietaryTagsDescription(dish.dietary_tags)]
+                        .filter(Boolean).join(" — ")}
                       onClick={() => onToggle(dish.id)}
                       className={cn(
                         "text-left text-sm px-3 py-2 rounded-md transition-colors border",
