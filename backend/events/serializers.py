@@ -6,12 +6,16 @@ from .models import (
 )
 from dishes.models import Dish
 from dishes.ordering import dish_ids_in_added_order
+from rules.models import GuestSegment
 from staff.serializers import ShiftSerializer
 from equipment.serializers import EquipmentReservationSerializer
 from bookings.serializers.finance import InvoiceSerializer
 from bookings.serializers.quotes import BookingLineItemSerializer
 from bookings.serializers.meals import BookingMealSerializer, replace_meals
 from bookings.serializers.courses import read_courses, read_dish_courses
+from bookings.serializers.timeline import (
+    BookingTimelineEntrySerializer, replace_timeline_entries,
+)
 from bookings.models import BookingLineItem
 from users.mixins import get_request_org
 from users.serializer_mixins import OrgScopedModelSerializer
@@ -67,6 +71,9 @@ class EventSerializer(OrgScopedModelSerializer):
     dish_comments = EventDishCommentSerializer(many=True, required=False)
     line_items = BookingLineItemSerializer(many=True, required=False)
     additional_meals = BookingMealSerializer(many=True, required=False)
+    # Event-day run-of-show. Optional: with none, the four legacy time fields
+    # still render exactly as they always have.
+    timeline_entries = BookingTimelineEntrySerializer(many=True, required=False)
 
     # Read-only computed fields
     account_name = serializers.CharField(source='account.name', read_only=True, default=None)
@@ -112,7 +119,11 @@ class EventSerializer(OrgScopedModelSerializer):
             else:
                 dish_qs = Dish.objects.all()
             self.fields['dish_ids'].child_relation.queryset = dish_qs
-            self.fields['additional_meals'].child.fields['dish_ids'].child_relation.queryset = dish_qs
+            meal_fields = self.fields['additional_meals'].child.fields
+            meal_fields['dish_ids'].child_relation.queryset = dish_qs
+            meal_fields['audience_segment'].queryset = (
+                org.guest_segments.all() if org else GuestSegment.objects.none()
+            )
 
     def validate(self, attrs):
         attrs = super().validate(attrs)
@@ -196,7 +207,7 @@ class EventSerializer(OrgScopedModelSerializer):
                   # Guest counts
                   'guaranteed_count', 'final_count', 'final_count_due',
                   # Nested
-                  'additional_meals',
+                  'additional_meals', 'timeline_entries',
                   'public_token', 'signature',
                   'source_quote_id', 'shifts', 'equipment_reservations', 'invoices',
                   # Client payments
@@ -244,6 +255,7 @@ class EventSerializer(OrgScopedModelSerializer):
         dish_comments_data = validated_data.pop('dish_comments', [])
         line_items_data = validated_data.pop('line_items', [])
         meals_data = validated_data.pop('additional_meals', [])
+        timeline_data = validated_data.pop('timeline_entries', None)
         # Snapshot the org's pricing defaults (tax rate + service charge / gratuity)
         # onto the event when the payload omits them, so a taxable event taxes
         # consistently with quotes / the rest of the app.
@@ -271,6 +283,8 @@ class EventSerializer(OrgScopedModelSerializer):
         self._write_courses(event)  # after dishes/dish_comments so course rows attach
         self._save_line_items(event, line_items_data)
         replace_meals('event', event, meals_data)
+        if timeline_data is not None:
+            replace_timeline_entries('event', event, timeline_data)
         event.recalculate_totals()  # food + meals + line items + tax (shared engine)
         return event
 
@@ -280,6 +294,7 @@ class EventSerializer(OrgScopedModelSerializer):
         dish_comments_data = validated_data.pop('dish_comments', None)
         line_items_data = validated_data.pop('line_items', None)
         meals_data = validated_data.pop('additional_meals', None)
+        timeline_data = validated_data.pop('timeline_entries', None)
 
         old_status = instance.status
         for attr, value in validated_data.items():
@@ -310,6 +325,9 @@ class EventSerializer(OrgScopedModelSerializer):
 
         if meals_data is not None:
             replace_meals('event', instance, meals_data)
+
+        if timeline_data is not None:
+            replace_timeline_entries('event', instance, timeline_data)
 
         # Auto-calculate portions when status changes to confirmed and the event has
         # dishes but no PORTIONED dish_comments yet. Course assignments (REL-417) also
@@ -348,7 +366,7 @@ class EventSerializer(OrgScopedModelSerializer):
 EVENT_LIST_EXCLUDE = {
     'shifts', 'equipment_reservations', 'invoices',
     'dish_comments', 'constraint_override',
-    'dish_ids', 'line_items', 'additional_meals',
+    'dish_ids', 'line_items', 'additional_meals', 'timeline_entries',
     # payment detail + balance read event.payments per row — detail-view only
     'payments', 'amount_paid', 'balance_due', 'payment_status',
     # signature is a per-row query + a method the list serializer doesn't define

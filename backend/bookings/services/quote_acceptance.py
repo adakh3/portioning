@@ -23,7 +23,10 @@ def accept_quote(quote, user=None):
 
     from events.models import Event, EventDishComment
     from calculator.engine.calculator import calculate_portions
-    from bookings.views.quotes import _copy_line_items_to_event, _copy_additional_meals_to_event
+    from bookings.views.quotes import (
+        _copy_line_items_to_event, _copy_additional_meals_to_event,
+        _copy_timeline_entries_to_event,
+    )
 
     who = quote.account.name if quote.account_id else (
         quote.primary_contact.name if quote.primary_contact_id else 'Event')
@@ -72,6 +75,17 @@ def accept_quote(quote, user=None):
         organisation=quote.organisation,
     )
 
+    # Carry the per-segment guest breakdown (Adults/Kids/Vendors, or gents/ladies)
+    # BEFORE portioning and totals: kitchen portions, segment-priced food, and any
+    # audience-scoped additional meals all resolve from these rows. Without them a
+    # segmented quote would collapse to the default segment on its event — silently
+    # re-pricing the food and zeroing a vendor/kids meal (REL-426).
+    from events.models import BookingGuestCount
+    for r in quote.guest_counts.all():
+        BookingGuestCount.objects.create(
+            event=event, segment=r.segment, count=r.count, price_per_head=r.price_per_head,
+        )
+
     # Copy menu (dishes) from quote to event + auto-calculate kitchen portions
     if quote.dishes.exists():
         event.dishes.set(quote.dishes.all())
@@ -95,10 +109,12 @@ def accept_quote(quote, user=None):
     if course_data:
         write_booking_courses(event, course_data, read_dish_courses(quote))
 
-    # Carry the add-on line items and additional meals across, then recompute via
-    # the shared engine so the event total matches the quote (food-only included).
+    # Carry the add-on line items, additional meals and timeline across, then
+    # recompute via the shared engine so the event total matches the quote
+    # (food-only included).
     _copy_line_items_to_event(quote, event)
     _copy_additional_meals_to_event(quote, event)
+    _copy_timeline_entries_to_event(quote, event)
     event.recalculate_totals()
 
     quote.event = event

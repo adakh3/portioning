@@ -31,6 +31,7 @@ def _copy_additional_meals_to_event(quote, event):
     for meal in quote.additional_meals.all():
         copy = BookingMeal.objects.create(
             event=event, label=meal.label, guest_count=meal.guest_count,
+            audience=meal.audience, audience_segment=meal.audience_segment,
             price_per_head=meal.price_per_head, based_on_template=meal.based_on_template,
             meal_time=meal.meal_time, notes=meal.notes,
         )
@@ -39,6 +40,17 @@ def _copy_additional_meals_to_event(quote, event):
             BookingMealDishComment.objects.create(
                 meal=copy, dish=dc.dish, comment=dc.comment, portion_grams=dc.portion_grams,
             )
+
+
+def _copy_timeline_entries_to_event(quote, event):
+    """Copy a quote's run-of-show onto its event — the timeline the client agreed
+    to is what the ops team runs on the day."""
+    from events.models import BookingTimelineEntry
+    for entry in quote.timeline_entries.all():
+        BookingTimelineEntry.objects.create(
+            event=event, time=entry.time, label=entry.label,
+            sort_order=entry.sort_order,
+        )
 
 
 class QuoteListCreateView(generics.ListCreateAPIView):
@@ -185,7 +197,7 @@ class QuotePDFView(APIView):
                 'account', 'venue', 'primary_contact', 'based_on_template',
                 'created_by', 'created_by__organisation',
                 'lead', 'lead__assigned_to', 'lead__assigned_to__organisation',
-            ).prefetch_related('line_items', 'dishes'),
+            ).prefetch_related('line_items', 'dishes', 'timeline_entries'),
             request, pk=pk,
         )
         # Once the client has signed, the staff copy shows the acceptance block too.

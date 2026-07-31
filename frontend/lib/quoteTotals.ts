@@ -3,6 +3,7 @@
 // The server (bookings/models/quotes.py: recalculate_totals + QuoteLineItem.save)
 // remains the source of truth on save.
 import { EventMealData, CourseData } from "@/lib/api";
+import type { TimelineEntryValue } from "@/components/BookingTimelineField";
 import { formatCurrency } from "@/lib/utils";
 
 export interface LineItemInput {
@@ -85,12 +86,88 @@ export function computeBookingTotals(
  * Quote convenience wrapper over {@link computeBookingTotals}: food = price/head
  * × guests (quotes have no additional meals). `taxRate` is a decimal fraction.
  */
-/** Food cost of additional meals: each meal's price_per_head × its own guests. */
-export function mealsFood(meals: { guest_count: number; price_per_head: string | null }[] | undefined): number {
+/** A meal for count derivation — its audience picks who it serves (REL-426). */
+export interface MealAudienceInput {
+  guest_count: number;
+  audience?: string;               // custom | everyone | guests | segment (default custom)
+  audience_segment?: string | null; // segment NAME when audience=segment
+}
+
+/**
+ * The guest count a meal serves — mirror of the backend `derive_meal_guest_count`.
+ * ``custom`` (or a meal with no audience) keeps its typed ``guest_count``; the others
+ * derive it from the booking's resolved segments (the same rows the save writes).
+ */
+export function deriveMealCount(
+  meal: MealAudienceInput,
+  guestCount: number,
+  segmentCounts: Record<string, number>,
+  meta: GuestSegmentMeta[],
+): number {
+  const audience = meal.audience || "custom";
+  if (audience === "custom") return meal.guest_count || 0;
+  return deriveMealCountFromRows(audience, meal.audience_segment, resolvedSegmentRows(guestCount, segmentCounts, meta));
+}
+
+/** The derived-audience core over already-resolved segment rows — the exact mirror of
+ * the backend `derive_meal_guest_count` (both run the shared `meal_audience_cases`).
+ * ``custom`` has no row-derived value (the caller keeps the typed count). */
+export function deriveMealCountFromRows(
+  audience: string,
+  audienceSegment: string | null | undefined,
+  rows: { name: string; count: number; counts: boolean }[],
+): number {
+  if (audience === "everyone") return rows.reduce((t, r) => t + r.count, 0);
+  if (audience === "guests") return rows.reduce((t, r) => t + (r.counts ? r.count : 0), 0);
+  if (audience === "segment") {
+    if (!audienceSegment) return 0;
+    return rows.filter((r) => r.name === audienceSegment).reduce((t, r) => t + r.count, 0);
+  }
+  return 0;
+}
+
+/** The segment rows a save would write — mirror of the backend `resolve_booking_segments`:
+ * the explicit in-count segments + the derived default remainder + additional covers,
+ * or (no breakdown) the whole count under the default segment. */
+function resolvedSegmentRows(
+  guestCount: number,
+  explicit: Record<string, number>,
+  meta: GuestSegmentMeta[],
+): { name: string; count: number; counts: boolean }[] {
+  const byName: Record<string, GuestSegmentMeta> = Object.fromEntries(meta.map((m) => [m.name, m]));
+  const built = buildGuestCountsPayload(guestCount, explicit, meta);
+  if (built.length === 0) {
+    const def = meta.find((m) => m.is_default && m.counts_toward_total);
+    return (guestCount || 0) > 0 ? [{ name: def?.name ?? "", count: guestCount, counts: true }] : [];
+  }
+  return built.map((r) => ({ name: r.segment, count: r.count, counts: !!byName[r.segment]?.counts_toward_total }));
+}
+
+/** The effective guest count of a meal (derived for audience meals, typed for custom). */
+function effectiveMealCount(
+  meal: MealAudienceInput,
+  guestCount?: number,
+  segmentCounts?: Record<string, number>,
+  meta?: GuestSegmentMeta[],
+): number {
+  if (meta && guestCount != null) return deriveMealCount(meal, guestCount, segmentCounts || {}, meta);
+  return meal.guest_count || 0;
+}
+
+/** Food cost of additional meals: each meal's price_per_head × its (effective) guests.
+ * Pass the booking's segment context to price audience-scoped meals by their derived
+ * count; without it, each meal's own `guest_count` is used (back-compat). */
+export function mealsFood(
+  meals: (MealAudienceInput & { price_per_head: string | null })[] | undefined,
+  guestCount?: number,
+  segmentCounts?: Record<string, number>,
+  meta?: GuestSegmentMeta[],
+): number {
   let total = 0;
   for (const m of meals || []) {
     const price = Number(m.price_per_head) || 0;
-    if (price > 0 && m.guest_count) total += round2(price * m.guest_count);
+    const count = effectiveMealCount(m, guestCount, segmentCounts, meta);
+    if (price > 0 && count) total += round2(price * count);
   }
   return round2(total);
 }
@@ -98,14 +175,20 @@ export function mealsFood(meals: { guest_count: number; price_per_head: string |
 /** One labelled totals row per priced additional meal — shown in the breakdown on
  * both editors (and mirrored in the PDF) so each meal is a visible line. */
 export function bookingMealRows(
-  meals: { label?: string; guest_count: number; price_per_head: string | null }[] | undefined,
+  meals: (MealAudienceInput & { label?: string; price_per_head: string | null })[] | undefined,
   currencySymbol: string,
+  guestCount?: number,
+  segmentCounts?: Record<string, number>,
+  meta?: GuestSegmentMeta[],
 ): { label: string; total: number }[] {
   return (meals || [])
-    .map((m) => ({ m, total: round2((Number(m.price_per_head) || 0) * (m.guest_count || 0)) }))
+    .map((m) => {
+      const count = effectiveMealCount(m, guestCount, segmentCounts, meta);
+      return { m, count, total: round2((Number(m.price_per_head) || 0) * count) };
+    })
     .filter((r) => r.total > 0 || (Number(r.m.price_per_head) || 0) > 0)
     .map((r) => ({
-      label: `${r.m.label || "Additional Meal"} (${formatCurrency(r.m.price_per_head || "0", currencySymbol)}/head × ${r.m.guest_count})`,
+      label: `${r.m.label || "Additional Meal"} (${formatCurrency(r.m.price_per_head || "0", currencySymbol)}/head × ${r.count})`,
       total: r.total,
     }));
 }
@@ -131,7 +214,7 @@ export function computeQuoteTotals(
   const menuFood = segmentMeta.length
     ? segmentFood(price, guests, segmentCounts, segmentMeta, segmentPrices)
     : (price > 0 ? round2(price * guests) : 0);
-  const food = round2(menuFood + mealsFood(meals));
+  const food = round2(menuFood + mealsFood(meals, guests, segmentCounts, segmentMeta));
   return computeBookingTotals(
     food, lineItems, guests, Number(taxRate) || 0,
     Number(serviceChargePct) || 0, serviceChargeTaxable, Number(gratuityPct) || 0,
@@ -367,17 +450,69 @@ export function buildLineItemsPayload(lineItems: LineItemInput[]) {
   }));
 }
 
-/** Serialize additional meals for a booking save (quote OR event). */
-export function buildMealsPayload(meals: EventMealData[]) {
-  return meals.map((m) => ({
-    label: m.label,
-    guest_count: m.guest_count,
-    price_per_head: m.price_per_head || null,
-    dish_ids: m.dishes,
-    based_on_template: m.based_on_template,
-    meal_time: m.meal_time || null,
-    notes: m.notes,
-  }));
+/** A booking's additional meals as read-only timeline rows.
+ *
+ * Derived on every render rather than copied into entries: the meal owns its
+ * time (along with its price and menu), so moving the meal moves the row and the
+ * two can never disagree. Untimed meals are left out — they aren't a moment yet.
+ */
+export function timelineMealRows(
+  meals: { label?: string; meal_time?: string | null }[] | undefined,
+): { label: string; time: string }[] {
+  return (meals || [])
+    .filter((m) => m.meal_time)
+    .map((m) => ({
+      label: m.label?.trim() || "Additional meal",
+      time: m.meal_time!.includes("T") ? m.meal_time!.slice(11, 16) : m.meal_time!.slice(0, 5),
+    }))
+    .sort((a, b) => a.time.localeCompare(b.time));
+}
+
+/** Serialize a booking's run-of-show for a save (quote OR event).
+ *
+ * Rows go out in the order they're shown — the backend turns that position into
+ * `sort_order`, so "the order I arranged" is what persists. Rows with no time
+ * are dropped: a step without a time isn't a step yet.
+ *
+ * An empty array is meaningful and IS sent: it clears the timeline and the
+ * booking falls back to its four legacy time fields.
+ */
+export function buildTimelineEntriesPayload(entries: TimelineEntryValue[] = []) {
+  return entries
+    .filter((e) => e.time)
+    .map((e) => ({
+      time: e.time.length === 5 ? `${e.time}:00` : e.time,
+      label: e.label.trim(),
+      // null, not omitted: a row moved back onto the event day has to clear the
+      // date it used to carry.
+      date: e.date || null,
+    }));
+}
+
+/** Serialize additional meals for a booking save (quote OR event). Sends the meal's
+ * audience; ``guest_count`` is the effective count (derived for audience meals, typed
+ * for custom) — the backend re-derives and dual-writes it, this keeps the payload
+ * consistent for a stale-count-free save. */
+export function buildMealsPayload(
+  meals: EventMealData[],
+  guestCount?: number,
+  segmentCounts?: Record<string, number>,
+  meta?: GuestSegmentMeta[],
+) {
+  return meals.map((m) => {
+    const audience = m.audience || "custom";
+    return {
+      label: m.label,
+      audience,
+      audience_segment: audience === "segment" ? (m.audience_segment ?? null) : null,
+      guest_count: effectiveMealCount(m, guestCount, segmentCounts, meta),
+      price_per_head: m.price_per_head || null,
+      dish_ids: m.dishes,
+      based_on_template: m.based_on_template,
+      meal_time: m.meal_time || null,
+      notes: m.notes,
+    };
+  });
 }
 
 export function buildQuoteSavePayload(
@@ -386,6 +521,7 @@ export function buildQuoteSavePayload(
   lineItems: LineItemInput[],
   meals: EventMealData[] = [],
   segmentMeta: GuestSegmentMeta[] = [],
+  timelineEntries: TimelineEntryValue[] = [],
   courses: CourseData[] = [],
   dishCourses: Record<string, number> = {},
 ) {
@@ -422,7 +558,8 @@ export function buildQuoteSavePayload(
     courses,
     dish_courses: dishCourses,
     line_items: buildLineItemsPayload(lineItems),
-    additional_meals: buildMealsPayload(meals),
+    additional_meals: buildMealsPayload(meals, editData.guest_count, editData.segment_counts, segmentMeta),
+    timeline_entries: buildTimelineEntriesPayload(timelineEntries),
   };
 }
 
@@ -467,6 +604,7 @@ export interface EventSaveInput {
   based_on_template: number | null;
   line_items: LineItemInput[];
   meals: EventMealData[];
+  timeline_entries: TimelineEntryValue[];
 }
 
 export function buildEventSavePayload(
@@ -513,6 +651,7 @@ export function buildEventSavePayload(
     dish_ids: v.dish_ids,
     based_on_template: v.based_on_template,
     line_items: buildLineItemsPayload(v.line_items),
-    additional_meals: buildMealsPayload(v.meals),
+    additional_meals: buildMealsPayload(v.meals, v.guest_count, v.segment_counts, segmentMeta),
+    timeline_entries: buildTimelineEntriesPayload(v.timeline_entries),
   };
 }

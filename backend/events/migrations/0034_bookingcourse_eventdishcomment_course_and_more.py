@@ -9,7 +9,7 @@ class Migration(migrations.Migration):
     dependencies = [
         ('bookings', '0073_orgsettings_gratuity_default_pct_and_more'),
         ('dishes', '0006_alter_dish_protein_type_alter_dishcategory_name_and_more'),
-        ('events', '0030_bookingguestcount_price_per_head'),
+        ('events', '0033_bookingmeal_audience_bookingmeal_audience_segment'),
     ]
 
     operations = [

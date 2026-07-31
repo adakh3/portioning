@@ -27,10 +27,12 @@ vi.mock("@/lib/hooks", () => ({
   useVenues: () => ({ data: [] }),
   useSiteSettings: () => ({ data: { currency_symbol: "£", currency_code: "GBP", date_format: "DD/MM/YYYY", price_rounding_step: "50", default_tax_rate: "0.2000", service_charge_default_pct: "20.00", service_charge_taxable_default: false, gratuity_default_pct: "0.00" } }),
   useDateFormat: () => "DD/MM/YYYY",
+  useFormatDateTime: () => (v: string | null) => v ?? "-",
   useEventTypes: () => ({ data: [{ id: 1, value: "wedding", label: "Wedding" }] }),
   useServiceStyles: () => ({ data: [] }),
   useDishes: () => ({ data: [] }),
   useMealTypes: () => ({ data: [] }),
+  useTimelinePresets: () => ({ data: [] }),
   useAllLeads: () => ({ data: [] }),
   useProductLines: () => ({ data: [{ id: 5, name: "Catering", is_active: true, colour: "#000", round_robin_index: 0 }] }),
   useUsers: () => ({ data: [] }),
@@ -60,8 +62,8 @@ describe("Quote create — guest split, timeline, meals reach the payload", () =
     // 1) Guest count is the number; the split stays unspecified unless opened.
     fireEvent.change(screen.getByLabelText("Guest Count"), { target: { value: "40" } });
 
-    // 2) A timeline time → anchored to the (defaulted-to-today) event date.
-    fireEvent.change(screen.getByLabelText("Setup Time"), { target: { value: "10:00" } });
+    // 2) The meal time → anchored to the (defaulted-to-today) event date.
+    fireEvent.change(screen.getByLabelText("Meal Time"), { target: { value: "10:00" } });
 
     // 3) An additional meal with a blank label + its own time.
     fireEvent.click(screen.getByText("+ Add Meal"));
@@ -77,8 +79,11 @@ describe("Quote create — guest split, timeline, meals reach the payload", () =
     expect(payload.guest_counts).toEqual([]);
     // Event date defaults to today (not empty → no "wrong format")
     expect(payload.event_date).toBe(today);
-    // Timeline time anchored to the event date
-    expect(payload.setup_time).toBe(`${today}T10:00`);
+    // Meal time anchored to the event date
+    // A new booking has no legacy slots any more; Meal Time is the run-of-show
+    // anchor and the one legacy column a new quote still writes.
+    expect(payload.meal_time).toBe(`${today}T10:00`);
+    expect(payload.setup_time).toBeNull();
     // Product defaults to the org's first active line
     expect(payload.product).toBe(5);
     // Meal: inherits total guests, blank label allowed, time anchored

@@ -248,6 +248,51 @@ def write_booking_courses(booking, courses_data, dish_courses):
     Model.objects.filter(**parent).exclude(dish_id__in=assigned.keys()).update(course=None)
 
 
+class MealAudience(models.TextChoices):
+    CUSTOM = 'custom', 'Custom number'      # a hand-typed count (today's behaviour)
+    EVERYONE = 'everyone', 'Everyone'       # every cover: guests + extra covers
+    GUESTS = 'guests', 'Guests only'        # in-count segments only (no vendors/crew)
+    SEGMENT = 'segment', 'Single segment'   # one org segment (``audience_segment``)
+
+
+def derive_meal_guest_count(meal, segments):
+    """The guest count an additional meal serves, derived from the booking's resolved
+    ``segments`` (as returned by ``resolve_booking_segments``) by the meal's
+    ``audience``:
+
+    * ``everyone`` — every cover (all segments: guests + extra covers)
+    * ``guests``   — in-count segments only (``counts_toward_total``)
+    * ``segment``  — the single ``audience_segment`` (0 when it isn't in the mix)
+    * ``custom``   — ``None`` (keep the hand-typed ``guest_count``)
+    """
+    audience = meal.audience
+    if audience == MealAudience.EVERYONE:
+        return sum(s['count'] for s in segments)
+    if audience == MealAudience.GUESTS:
+        return sum(s['count'] for s in segments if s['counts_toward_total'])
+    if audience == MealAudience.SEGMENT:
+        if meal.audience_segment_id is None:
+            return 0
+        name = meal.audience_segment.name
+        return sum(s['count'] for s in segments if s['name'] == name)
+    return None
+
+
+def sync_audience_meal_counts(booking):
+    """Dual-write each audience-scoped meal's ``guest_count`` from the booking's
+    current segments, so every downstream consumer (totals, PDFs, sign page,
+    serializers) keeps reading the stored ``guest_count`` unchanged. ``custom`` meals
+    are left exactly as typed. Idempotent — writes only when the number changes.
+    Called from ``recalculate_totals`` so meal counts stay correct whenever the
+    booking's guests change (including at finals time)."""
+    segments = resolve_booking_segments(booking)
+    for meal in booking.additional_meals.all():
+        derived = derive_meal_guest_count(meal, segments)
+        if derived is not None and meal.guest_count != derived:
+            meal.guest_count = derived
+            meal.save(update_fields=['guest_count'])
+
+
 class EventStatus(models.TextChoices):
     TENTATIVE = 'tentative', 'Tentative'
     CONFIRMED = 'confirmed', 'Confirmed'
@@ -430,6 +475,8 @@ class Event(OrgScopedModel, models.Model):
         # stored subtotal would silently drop them.
         for rel in ('line_items', 'additional_meals'):
             getattr(self, '_prefetched_objects_cache', {}).pop(rel, None)
+        # Keep audience-scoped meal counts current before pricing (dual-write).
+        sync_audience_meal_counts(self)
         totals = compute_booking_totals(
             self.food_total, self.line_items.all(), rate,
             service_charge_pct=self.service_charge_pct,
@@ -565,6 +612,16 @@ class BookingMeal(models.Model):
         on_delete=models.CASCADE, related_name='additional_meals',
     )
     label = models.CharField(max_length=100)
+    # Who this meal serves. ``custom`` keeps guest_count as typed; the other audiences
+    # derive it from the booking's segments (see derive_meal_guest_count) and it is
+    # dual-written on save so downstream consumers keep reading guest_count.
+    audience = models.CharField(
+        max_length=20, choices=MealAudience.choices, default=MealAudience.CUSTOM,
+    )
+    audience_segment = models.ForeignKey(
+        'rules.GuestSegment', null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='+', help_text='The single segment served when audience=segment.',
+    )
     guest_count = models.IntegerField(default=0, validators=[MinValueValidator(0), MaxValueValidator(50000)])
     price_per_head = models.DecimalField(
         max_digits=10, decimal_places=2, null=True, blank=True,
@@ -591,6 +648,60 @@ class BookingMeal(models.Model):
 
     def __str__(self):
         return f"{self.label} for {self.event or self.quote}"
+
+
+class BookingTimelineEntry(models.Model):
+    """One moment in a booking's run-of-show — a time and a label ("18:30 Dinner
+    service"). Belongs to a quote XOR an event, mirroring ``BookingMeal``, so it
+    survives the quote→event conversion as a copy.
+
+    Purely additive. The four legacy time fields (`setup_time`,
+    `guest_arrival_time`, `meal_time`, `end_time`) stay on the booking and remain
+    the fallback: a booking with **no** entries renders those exactly as it always
+    did, and existing bookings are never auto-migrated into entries. Once a
+    booking has at least one entry, the entries are what render.
+
+    A plain ``TimeField``, not a datetime: a run-of-show is times on the event
+    day, and storing only the time keeps it free of the UTC-offset drift the
+    legacy datetime columns carry.
+    """
+    quote = models.ForeignKey(
+        'bookings.Quote', null=True, blank=True,
+        on_delete=models.CASCADE, related_name='timeline_entries',
+    )
+    event = models.ForeignKey(
+        Event, null=True, blank=True,
+        on_delete=models.CASCADE, related_name='timeline_entries',
+    )
+    time = models.TimeField()
+    date = models.DateField(
+        null=True, blank=True,
+        help_text="The day this step happens on. Null means the booking's event "
+                  "date, which is almost every step — set it only for the ones "
+                  "that aren't, like a load-in the afternoon before.",
+    )
+    label = models.CharField(max_length=100)
+    sort_order = models.IntegerField(
+        default=0,
+        help_text='Explicit run-of-show order — authoritative, so a caterer can '
+                  'place a row where they want it rather than by the clock.',
+    )
+
+    class Meta:
+        ordering = ['sort_order', 'time', 'id']
+        verbose_name_plural = 'booking timeline entries'
+        constraints = [
+            models.CheckConstraint(
+                name='timelineentry_exactly_one_parent',
+                condition=(
+                    models.Q(quote__isnull=False, event__isnull=True)
+                    | models.Q(quote__isnull=True, event__isnull=False)
+                ),
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.time:%H:%M} {self.label}"
 
 
 class BookingMealDishComment(models.Model):

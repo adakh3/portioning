@@ -5,13 +5,14 @@ from users.mixins import OrgQuerySetMixin, get_request_org
 from bookings.models import Lead
 from bookings.models.choices import (
     EventTypeOption, SourceOption, ServiceStyleOption, LeadStatusOption,
-    LostReasonOption, MealTypeOption,
+    LostReasonOption, MealTypeOption, TimelinePresetOption,
 )
 from bookings.permissions import IsAdminOrOwner
 from bookings.serializers.choices import (
     EventTypeOptionSerializer, SourceOptionSerializer,
     ServiceStyleOptionSerializer, LeadStatusOptionSerializer,
     LostReasonOptionSerializer, MealTypeOptionSerializer,
+    TimelinePresetOptionSerializer,
 )
 
 
@@ -112,6 +113,13 @@ class MealTypeOptionListView(OrgQuerySetMixin, generics.ListAPIView):
     serializer_class = MealTypeOptionSerializer
 
 
+class TimelinePresetOptionListView(OrgQuerySetMixin, generics.ListAPIView):
+    # Run-of-show order (sort_order), not A-Z: presets are offered in roughly the
+    # order a day unfolds, so the picker matches how the user thinks.
+    queryset = TimelinePresetOption.objects.filter(is_active=True)
+    serializer_class = TimelinePresetOptionSerializer
+
+
 # --- Simple choice-option management (Settings, manager/owner) ---
 
 def make_choice_manage_views(model, serializer_cls, fallback):
@@ -150,3 +158,5 @@ MealTypeManageListCreateView, MealTypeManageDetailView = make_choice_manage_view
     MealTypeOption, MealTypeOptionSerializer, 'meal_type')
 LostReasonManageListCreateView, LostReasonManageDetailView = make_choice_manage_views(
     LostReasonOption, LostReasonOptionSerializer, 'reason')
+TimelinePresetManageListCreateView, TimelinePresetManageDetailView = make_choice_manage_views(
+    TimelinePresetOption, TimelinePresetOptionSerializer, 'timeline_step')

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import { resolve } from "path";
-import { computeQuoteTotals, computeBookingTotals, buildQuoteSavePayload, buildEventSavePayload, EventSaveInput, lineItemTotal, LineItemInput, segmentFood, segmentFoodFromRows, segmentFoodRows, segmentEffectiveRate, buildGuestCountsPayload, hasVendorDoubleEntry, GuestSegmentMeta } from "./quoteTotals";
+import { computeQuoteTotals, computeBookingTotals, buildQuoteSavePayload, buildEventSavePayload, EventSaveInput, lineItemTotal, LineItemInput, segmentFood, segmentFoodFromRows, segmentFoodRows, segmentEffectiveRate, buildGuestCountsPayload, hasVendorDoubleEntry, deriveMealCount, deriveMealCountFromRows, mealsFood, buildMealsPayload, GuestSegmentMeta } from "./quoteTotals";
 
 // Adults(default)/Kids(0.5)/Vendors(0.5, additional covers) — mirrors the backend
 // segment_food_total fixture in bookings/test_segment_pricing.py (AC10/AC11).
@@ -10,6 +10,46 @@ const SEG_META: GuestSegmentMeta[] = [
   { name: "Kids", is_default: false, counts_toward_total: true, price_multiplier: "0.5000", sort_order: 1 },
   { name: "Vendors", is_default: false, counts_toward_total: false, price_multiplier: "0.5000", sort_order: 2 },
 ];
+
+describe("deriveMealCount (mirror of backend derive_meal_guest_count) — REL-426", () => {
+  // 138 Adults (default remainder) + 12 Kids (=150 guests) + 8 Vendors = 158 covers.
+  const counts = { Kids: 12, Vendors: 8 };
+  const meal = (audience: string, seg?: string | null, guest_count = 0) =>
+    ({ audience, audience_segment: seg ?? null, guest_count });
+
+  it("everyone = guests + extra covers", () => {
+    expect(deriveMealCount(meal("everyone"), 150, counts, SEG_META)).toBe(158);
+  });
+  it("guests only excludes extra covers", () => {
+    expect(deriveMealCount(meal("guests"), 150, counts, SEG_META)).toBe(150);
+  });
+  it("a single segment is that segment's count (incl. the derived default remainder)", () => {
+    expect(deriveMealCount(meal("segment", "Vendors"), 150, counts, SEG_META)).toBe(8);
+    expect(deriveMealCount(meal("segment", "Adults"), 150, counts, SEG_META)).toBe(138);
+    expect(deriveMealCount(meal("segment", "Kids"), 150, counts, SEG_META)).toBe(12);
+  });
+  it("a segment not in the mix serves zero", () => {
+    expect(deriveMealCount(meal("segment", "Vendors"), 150, {}, SEG_META)).toBe(0);
+  });
+  it("custom keeps the typed count", () => {
+    expect(deriveMealCount(meal("custom", null, 42), 150, counts, SEG_META)).toBe(42);
+  });
+  it("no breakdown: everyone reduces to the bare guest count", () => {
+    expect(deriveMealCount(meal("everyone"), 150, {}, SEG_META)).toBe(150);
+  });
+
+  it("mealsFood + buildMealsPayload price and serialize by the derived count", () => {
+    const meals = [
+      { label: "Dinner", audience: "everyone", audience_segment: null, guest_count: 0, price_per_head: "20", dishes: [] },
+      { label: "Crew", audience: "segment", audience_segment: "Vendors", guest_count: 0, price_per_head: "5", dishes: [] },
+    ];
+    // 20×158 + 5×8 = 3160 + 40.
+    expect(mealsFood(meals, 150, counts, SEG_META)).toBe(3200);
+    const payload = buildMealsPayload(meals as never, 150, counts, SEG_META);
+    expect(payload[0]).toMatchObject({ label: "Dinner", audience: "everyone", audience_segment: null, guest_count: 158 });
+    expect(payload[1]).toMatchObject({ label: "Crew", audience: "segment", audience_segment: "Vendors", guest_count: 8 });
+  });
+});
 
 describe("segmentFood (mirror of backend segment_food_total)", () => {
   it("no breakdown reduces to price × guest_count", () => {
@@ -180,6 +220,13 @@ const golden = JSON.parse(
     segments: { count: number; price_multiplier: string }[];
     expected_food: string;
   }[];
+  meal_audience_cases: {
+    name: string;
+    segments: { name: string; count: number; counts_toward_total: boolean }[];
+    audience: string;
+    audience_segment: string | null;
+    expected: number;
+  }[];
 };
 
 describe("golden-case parity with the backend engine", () => {
@@ -217,6 +264,15 @@ describe("golden-case parity with the backend engine", () => {
       // EXACT (not toBeCloseTo) — a ±0.005 tolerance would mask a 1¢ half-cent
       // rounding-mode divergence, which is exactly the class this locks.
       expect(segmentFoodFromRows(c.price_per_head, c.segments)).toBe(Number(c.expected_food));
+    });
+  }
+
+  // Meal audience derivation parity — the SAME shared cases the backend
+  // test_backend_matches_meal_audience_cases runs (REL-426).
+  for (const c of golden.meal_audience_cases) {
+    it(`meal audience: ${c.name}`, () => {
+      const rows = c.segments.map((s) => ({ name: s.name, count: s.count, counts: s.counts_toward_total }));
+      expect(deriveMealCountFromRows(c.audience, c.audience_segment, rows)).toBe(c.expected);
     });
   }
 });
@@ -302,6 +358,7 @@ describe("buildEventSavePayload", () => {
     is_taxable: true, service_charge_pct: "0", service_charge_taxable: true, gratuity_pct: "0",
     dish_ids: [1, 2], based_on_template: null,
     line_items: [{ id: 7, category: "rental", description: "Chairs", quantity: 2, unit: "each", unit_price: 100 }],
+    timeline_entries: [],
     meals: [{ label: "Tea", guest_count: 40, price_per_head: "15.00", dishes: [3], based_on_template: null, meal_time: null, notes: "" }],
   };
 
@@ -349,7 +406,7 @@ describe("buildEventSavePayload", () => {
   it("serializes meals with dish_ids (not the read-only dishes) — shared with quotes", () => {
     const p = buildEventSavePayload(base);
     expect(p.additional_meals).toEqual([
-      { label: "Tea", guest_count: 40, price_per_head: "15.00", dish_ids: [3], based_on_template: null, meal_time: null, notes: "" },
+      { label: "Tea", audience: "custom", audience_segment: null, guest_count: 40, price_per_head: "15.00", dish_ids: [3], based_on_template: null, meal_time: null, notes: "" },
     ]);
   });
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { ActivityLogEntry } from "@/lib/api";
-import { useLeadActivity, useDateFormat } from "@/lib/hooks";
+import { useLeadActivity, useDateFormat, useFormatDateTime } from "@/lib/hooks";
 import { formatDate, formatDateTime } from "@/lib/dateFormat";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -39,6 +39,7 @@ function timeAgo(dateStr: string, dateFormat: string): string {
 
 export default function ActivityTimeline({ leadId }: { leadId: number }) {
   const dateFormat = useDateFormat();
+  const formatDateTime = useFormatDateTime();
   const { data: activities, isLoading } = useLeadActivity(leadId);
 
   if (isLoading) {
@@ -69,7 +70,7 @@ export default function ActivityTimeline({ leadId }: { leadId: number }) {
               <p className="text-sm text-foreground">{entry.description}</p>
               <p className="text-xs text-muted-foreground">
                 {entry.user_name && <span>{entry.user_name} &middot; </span>}
-                <span title={formatDateTime(entry.created_at, dateFormat)}>
+                <span title={formatDateTime(entry.created_at)}>
                   {timeAgo(entry.created_at, dateFormat)}
                 </span>
               </p>

@@ -3,6 +3,7 @@
 import { Dish, DishCategory } from "@/lib/api";
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
+import DietaryTagPills, { dietaryTagsDescription } from "@/components/DietaryTagPills";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -56,6 +57,11 @@ export default function DishSelector({ dishes, categories, selectedIds, onToggle
                   return (
                     <button
                       key={dish.id}
+                      // The pills are aria-hidden shorthand, so the button says
+                      // it properly — and its name stays predictable for tests
+                      // that target a dish by name.
+                      aria-label={[dish.name, dietaryTagsDescription(dish.dietary_tags)]
+                        .filter(Boolean).join(" — ")}
                       onClick={() => onToggle(dish.id)}
                       className={cn(
                         "text-left text-sm px-3 py-2 rounded-md transition-colors border",
@@ -65,9 +71,13 @@ export default function DishSelector({ dishes, categories, selectedIds, onToggle
                       )}
                     >
                       <span>{dish.name}</span>
-                      {dish.is_vegetarian && (
+                      {/* The legacy `is_vegetarian` flag only shows for dishes with
+                          no dietary tags — otherwise the pills already say it, and
+                          better. Untagged dishes look exactly as they always did. */}
+                      {dish.is_vegetarian && !dish.dietary_tags?.length && (
                         <span className="ml-1 text-success text-xs">V</span>
                       )}
+                      <DietaryTagPills tags={dish.dietary_tags} className="ml-1" />
                     </button>
                   );
                 })}

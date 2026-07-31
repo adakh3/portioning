@@ -45,6 +45,29 @@ class StarterCatalogTests(TestCase):
         call_command('seed_starter_catalog', '--org', 'Repeat Co', verbosity=0)
         self.assertEqual(Dish.objects.filter(organisation=org).count(), 18)  # no dupes
 
+    def test_starter_dishes_arrive_tagged(self):
+        # A new US org's catalog answers "what's gluten-free / nut-free?" on day
+        # one instead of shipping 18 untagged dishes.
+        org = seed('Tagged Co')
+        salmon = Dish.objects.get(organisation=org, name='Baked Salmon')
+        self.assertEqual(
+            set(salmon.dietary_tags.values_list('slug', flat=True)),
+            {'gluten_free', 'dairy_free', 'fish'},
+        )
+        untagged = [d.name for d in Dish.objects.filter(organisation=org)
+                    if not d.dietary_tags.exists()]
+        self.assertEqual(untagged, [])
+
+    def test_reseeding_never_clobbers_curated_tags(self):
+        # An org that corrected a dish's tags must keep that correction when the
+        # catalog seeder runs again.
+        org = seed('Curated Co')
+        salmon = Dish.objects.get(organisation=org, name='Baked Salmon')
+        salmon.dietary_tags.set(salmon.dietary_tags.exclude(slug='dairy_free'))
+        call_command('seed_starter_catalog', '--org', 'Curated Co', verbosity=0)
+        self.assertNotIn('dairy_free',
+                         set(salmon.dietary_tags.values_list('slug', flat=True)))
+
     def test_calculator_works_on_a_starter_menu(self):
         org = seed('Calc Co')
         menu = MenuTemplate.objects.filter(organisation=org, name='Corporate Lunch Buffet').first()

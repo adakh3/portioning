@@ -24,7 +24,8 @@ class EventPDFView(APIView):
     def get(self, request, pk):
         event = get_org_object_or_404(
             Event.objects.select_related('account', 'venue', 'primary_contact')
-            .prefetch_related('line_items', 'dishes', 'additional_meals'),
+            .prefetch_related('line_items', 'dishes', 'additional_meals',
+                              'timeline_entries'),
             request, pk=pk,
         )
         pdf_bytes = generate_event_pdf(event)

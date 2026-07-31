@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { api, Lead, Account, AuthUser, ProductLine, Reminder, WhatsAppMessage, FollowUpDraft } from "@/lib/api";
-import { useLead, useSiteSettings, useDateFormat, useProductLines, useUsers, useSources, useEventTypes, useServiceStyles, useMealTypes, useLeadStatuses, useLostReasons, useLeadReminders, useLeadWhatsAppMessages, useLeadFollowUpDrafts, revalidate } from "@/lib/hooks";
+import { useLead, useSiteSettings, useDateFormat, useFormatDateTime, useProductLines, useUsers, useSources, useEventTypes, useServiceStyles, useMealTypes, useLeadStatuses, useLostReasons, useLeadReminders, useLeadWhatsAppMessages, useLeadFollowUpDrafts, revalidate } from "@/lib/hooks";
 import { formatDate, formatDateTime } from "@/lib/dateFormat";
 import { formatCurrency } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -187,6 +187,7 @@ export default function LeadDetailPage() {
   const { data: rawSettings } = useSiteSettings();
   const settings = rawSettings || { currency_symbol: "", currency_code: "", date_format: "MM/DD/YYYY", default_price_per_head: "0.00", target_food_cost_percentage: "30.00", price_rounding_step: "50" };
   const dateFormat = useDateFormat();
+  const formatDateTime = useFormatDateTime();
   const { data: productLines = [] } = useProductLines();
   const { data: users = [] } = useUsers();
   const { data: sources = [] } = useSources();
@@ -725,12 +726,12 @@ export default function LeadDetailPage() {
         <CardContent className="p-6">
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Timeline</h2>
           <div className="text-sm text-muted-foreground space-y-1">
-            <div>Created: {formatDateTime(l.created_at, dateFormat)}</div>
-            {l.contacted_at && <div>Contacted: {formatDateTime(l.contacted_at, dateFormat)}</div>}
-            {l.qualified_at && <div>Qualified: {formatDateTime(l.qualified_at, dateFormat)}</div>}
-            {l.proposal_sent_at && <div>Proposal Sent: {formatDateTime(l.proposal_sent_at, dateFormat)}</div>}
-            {l.won_at && <div>Won: {formatDateTime(l.won_at, dateFormat)}</div>}
-            {l.lost_at && <div>Lost: {formatDateTime(l.lost_at, dateFormat)}</div>}
+            <div>Created: {formatDateTime(l.created_at)}</div>
+            {l.contacted_at && <div>Contacted: {formatDateTime(l.contacted_at)}</div>}
+            {l.qualified_at && <div>Qualified: {formatDateTime(l.qualified_at)}</div>}
+            {l.proposal_sent_at && <div>Proposal Sent: {formatDateTime(l.proposal_sent_at)}</div>}
+            {l.won_at && <div>Won: {formatDateTime(l.won_at)}</div>}
+            {l.lost_at && <div>Lost: {formatDateTime(l.lost_at)}</div>}
           </div>
         </CardContent>
       </Card>
@@ -906,6 +907,7 @@ function addDays(days: number): string {
 
 function LeadReminders({ leadId }: { leadId: number }) {
   const dateFormat = useDateFormat();
+  const formatDateTime = useFormatDateTime();
   const { data: reminders = [], mutate } = useLeadReminders(leadId);
   const [showForm, setShowForm] = useState(false);
   const [note, setNote] = useState("");
@@ -1017,8 +1019,8 @@ function LeadReminders({ leadId }: { leadId: number }) {
                       {isOverdue && <Badge variant="destructive">Overdue</Badge>}
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Due: {formatDateTime(r.due_at, dateFormat)}
-                      {r.completed_at && ` | Completed: ${formatDateTime(r.completed_at, dateFormat)}`}
+                      Due: {formatDateTime(r.due_at)}
+                      {r.completed_at && ` | Completed: ${formatDateTime(r.completed_at)}`}
                     </p>
                   </div>
                   {r.status === "pending" && (
@@ -1188,6 +1190,7 @@ function LeadWhatsApp({ leadId, contactPhone, contactName, eventType, eventDate 
   eventDate: string | null;
 }) {
   const dateFormat = useDateFormat();
+  const formatDateTime = useFormatDateTime();
   const { data: messages = [], mutate } = useLeadWhatsAppMessages(leadId);
   const [showForm, setShowForm] = useState(false);
   const [body, setBody] = useState("");
@@ -1307,7 +1310,7 @@ function LeadWhatsApp({ leadId, contactPhone, contactName, eventType, eventDate 
                 </div>
                 <div className="flex items-center gap-3 mt-1">
                   <span className="text-xs text-muted-foreground">
-                    {formatDateTime(m.created_at, dateFormat)}
+                    {formatDateTime(m.created_at)}
                   </span>
                   {m.sent_by_name && (
                     <span className="text-xs text-muted-foreground">by {m.sent_by_name}</span>

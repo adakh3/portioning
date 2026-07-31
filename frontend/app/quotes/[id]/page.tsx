@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { api, Contact, EventMealData, CourseData } from "@/lib/api";
-import { useQuote, useAccounts, useContacts, useSiteSettings, useDateFormat, useEventTypes, useServiceStyles, useMealTypes, useAllLeads, useProductLines, useUsers, revalidate } from "@/lib/hooks";
+import { useQuote, useAccounts, useContacts, useSiteSettings, useDateFormat, useEventTypes, useServiceStyles, useMealTypes, useTimelinePresets, useAllLeads, useProductLines, useUsers, revalidate } from "@/lib/hooks";
 import { canWhatsApp, waLink } from "@/lib/whatsapp";
 import { MessageCircle } from "lucide-react";
 import { useAuth } from "@/lib/auth";
@@ -14,10 +14,10 @@ import MenuBuilder from "@/components/MenuBuilder";
 import AdditionalMealsEditor from "@/components/AdditionalMealsEditor";
 import CoursesEditor from "@/components/CoursesEditor";
 import GuestCountField, { GuestCountValue } from "@/components/GuestCountField";
-import BookingTimelineField from "@/components/BookingTimelineField";
+import BookingTimelineField, { TimelineEntryValue } from "@/components/BookingTimelineField";
 import BookingDetailsForm, { BookingDetailsValue } from "@/components/BookingDetailsForm";
 import AssigneePicker from "@/components/AssigneePicker";
-import { computeQuoteTotals, buildQuoteSavePayload, buildGuestCountsPayload, bookingMealRows, hasVendorDoubleEntry, segmentFood, segmentFoodRows, LineItemInput, GuestSegmentMeta } from "@/lib/quoteTotals";
+import { computeQuoteTotals, buildQuoteSavePayload, buildTimelineEntriesPayload, buildGuestCountsPayload, buildMealsPayload, bookingMealRows, timelineMealRows, hasVendorDoubleEntry, segmentFood, segmentFoodRows, LineItemInput, GuestSegmentMeta } from "@/lib/quoteTotals";
 import AddOnItemsEditor from "@/components/AddOnItemsEditor";
 import BookingTotalsCard from "@/components/BookingTotalsCard";
 import ESignPanel from "@/components/ESignPanel";
@@ -70,6 +70,7 @@ export default function QuoteDetailPage() {
   const { data: eventTypes = [] } = useEventTypes();
   const { data: serviceStyles = [] } = useServiceStyles();
   const { data: mealTypes = [] } = useMealTypes();
+  const { data: timelinePresets = [] } = useTimelinePresets();
   const { data: allLeads = [] } = useAllLeads();
   const leads = allLeads.filter((l) => !["won", "lost"].includes(l.status));
   const [saving, setSaving] = useState(false);
@@ -150,11 +151,13 @@ export default function QuoteDetailPage() {
   // Additional meals (parity with events) — committed in the same save.
   const [editMeals, setEditMeals] = useState<EventMealData[]>([]);
   const [createMeals, setCreateMeals] = useState<EventMealData[]>([]);
-  // Courses (Starter/Entrée/Dessert + service style) + dish→course map (REL-417).
+  // Courses (Starter/Entrée/Dessert) + dish→course map (REL-417).
   const [editCourses, setEditCourses] = useState<CourseData[]>([]);
   const [editDishCourses, setEditDishCourses] = useState<Record<string, number>>({});
   const [createCourses, setCreateCourses] = useState<CourseData[]>([]);
   const [createDishCourses, setCreateDishCourses] = useState<Record<string, number>>({});
+  const [editTimeline, setEditTimeline] = useState<TimelineEntryValue[]>([]);
+  const [createTimeline, setCreateTimeline] = useState<TimelineEntryValue[]>([]);
   // New-quote owner (existing quotes reassign via the header's instant-save select).
   const [formAssigned, setFormAssigned] = useState<number | null>(null);
   useEffect(() => {
@@ -275,10 +278,8 @@ export default function QuoteDetailPage() {
         courses: createCourses,
         dish_courses: createDishCourses,
         line_items: createLineItems,
-        additional_meals: createMeals.map((m) => ({
-          label: m.label, guest_count: m.guest_count, price_per_head: m.price_per_head || null,
-          dish_ids: m.dishes, based_on_template: m.based_on_template, meal_time: m.meal_time || null, notes: m.notes,
-        })),
+        additional_meals: buildMealsPayload(createMeals, createData.guest_count, createData.segment_counts, segmentMeta),
+        timeline_entries: buildTimelineEntriesPayload(createTimeline),
       };
       const newQuote = await api.createQuote(data);
       revalidate("quotes");
@@ -333,6 +334,9 @@ export default function QuoteDetailPage() {
     setEditMeals((quote.additional_meals || []).map((m) => ({ ...m })));
     setEditCourses(quote.courses || []);
     setEditDishCourses(quote.dish_courses || {});
+    setEditTimeline((quote.timeline_entries || []).map((e) => ({
+      id: e.id, time: e.time.slice(0, 5), label: e.label, date: e.date || "",
+    })));
     setEditing(true);
   }
 
@@ -367,7 +371,7 @@ export default function QuoteDetailPage() {
     setSaving(true);
     setError("");
     try {
-      await api.updateQuote(quote.id, buildQuoteSavePayload(editData, menuData, editLineItems, editMeals, segmentMeta, editCourses, editDishCourses));
+      await api.updateQuote(quote.id, buildQuoteSavePayload(editData, menuData, editLineItems, editMeals, segmentMeta, editTimeline, editCourses, editDishCourses));
       await mutateQuote();
       setEditing(false);
     } catch (err) {
@@ -515,27 +519,36 @@ export default function QuoteDetailPage() {
                 timeFormat={timeFormat}
                 value={{ setup_time: createData.setup_time, guest_arrival_time: createData.guest_arrival_time, meal_time: createData.meal_time, end_time: createData.end_time }}
                 onChange={(patch) => setCreateData((prev) => ({ ...prev, ...patch }))}
+                entries={createTimeline}
+                onEntriesChange={setCreateTimeline}
+                presets={timelinePresets}
+                meals={timelineMealRows(createMeals)}
               />
             </CardContent>
           </Card>
 
-          {/* Menu & Pricing */}
+          {/* Guests — entered once; every meal draws from this */}
+          <Card>
+            <CardContent className="p-6">
+              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Guests</h2>
+              <GuestCountField
+                value={{ guest_count: createData.guest_count, segment_counts: createData.segment_counts, segment_prices: createData.segment_prices, big_eaters: createData.big_eaters, big_eaters_percentage: createData.big_eaters_percentage }}
+                onChange={(patch) => setCreateData((prev) => ({ ...prev, ...patch }))}
+                pricePerHead={createData.price_per_head}
+              />
+              {hasVendorDoubleEntry(createData.segment_counts, createMeals, segmentMeta) && (
+                <div role="alert" className="mt-2 flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
+                  <span aria-hidden="true" className="text-sm leading-none">⚠️</span>
+                  <span>Possible double-count: you have <strong>vendor covers</strong> and a <strong>vendor-labelled meal</strong>. Vendors should be counted one way or the other, not both.</span>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Menu & Pricing — the main meal (serves everyone) */}
           <Card>
             <CardContent className="p-6">
               <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Menu &amp; Pricing</h2>
-              <div className="mb-4">
-                <GuestCountField
-                  value={{ guest_count: createData.guest_count, segment_counts: createData.segment_counts, segment_prices: createData.segment_prices, big_eaters: createData.big_eaters, big_eaters_percentage: createData.big_eaters_percentage }}
-                  onChange={(patch) => setCreateData((prev) => ({ ...prev, ...patch }))}
-                  pricePerHead={createData.price_per_head}
-                />
-                {hasVendorDoubleEntry(createData.segment_counts, createMeals, segmentMeta) && (
-                  <div role="alert" className="mt-2 flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
-                    <span aria-hidden="true" className="text-sm leading-none">⚠️</span>
-                    <span>Possible double-count: you have <strong>vendor covers</strong> and a <strong>vendor-labelled meal</strong>. Vendors should be counted one way or the other, not both.</span>
-                  </div>
-                )}
-              </div>
               <MenuBuilder
                 selectedDishIds={menuData.dish_ids}
                 basedOnTemplate={menuData.based_on_template}
@@ -561,6 +574,9 @@ export default function QuoteDetailPage() {
             defaultGuestCount={createData.guest_count}
             eventDate={createData.event_date}
             timeFormat={timeFormat}
+            guestCount={createData.guest_count}
+            segmentCounts={createData.segment_counts}
+            segmentMeta={segmentMeta}
           />
 
           {/* Courses — groups the main menu */}
@@ -592,7 +608,7 @@ export default function QuoteDetailPage() {
             foodTotal={segmentFood(createData.price_per_head, createData.guest_count, createData.segment_counts, segmentMeta, createData.segment_prices)}
             foodRows={segmentFoodRows(createData.price_per_head, createData.guest_count, createData.segment_counts, segmentMeta, createData.segment_prices)}
             foodLabel={`Food / Menu (${formatCurrency(createData.price_per_head || 0, cs)}/head × ${createData.guest_count} guests)`}
-            meals={bookingMealRows(createMeals, cs)}
+            meals={bookingMealRows(createMeals, cs, createData.guest_count, createData.segment_counts, segmentMeta)}
             addOnsTotal={Math.round((createTotals.subtotal - createTotals.food_total) * 100) / 100}
             subtotal={createTotals.subtotal}
             serviceCharge={createTotals.service_charge}
@@ -1005,7 +1021,31 @@ export default function QuoteDetailPage() {
               timeFormat={timeFormat}
               value={{ setup_time: editData.setup_time, guest_arrival_time: editData.guest_arrival_time, meal_time: editData.meal_time, end_time: editData.end_time }}
               onChange={(patch) => setEditData((prev) => ({ ...prev, ...patch }))}
+              entries={editTimeline}
+              onEntriesChange={setEditTimeline}
+              presets={timelinePresets}
+              meals={timelineMealRows(editMeals)}
             />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Guests — entered once; every meal draws from this */}
+      {editing && (
+        <Card>
+          <CardContent className="p-6">
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Guests</h2>
+            <GuestCountField
+              value={{ guest_count: editData.guest_count, segment_counts: editData.segment_counts, segment_prices: editData.segment_prices, big_eaters: editData.big_eaters, big_eaters_percentage: editData.big_eaters_percentage }}
+              onChange={(patch) => setEditData((prev) => ({ ...prev, ...patch }))}
+              pricePerHead={editData.price_per_head}
+            />
+            {hasVendorDoubleEntry(editData.segment_counts, editMeals, segmentMeta) && (
+              <div role="alert" className="mt-2 flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
+                <span aria-hidden="true" className="text-sm leading-none">⚠️</span>
+                <span>Possible double-count: you have <strong>vendor covers</strong> and a <strong>vendor-labelled meal</strong>. Vendors should be counted one way or the other, not both.</span>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
@@ -1015,32 +1055,17 @@ export default function QuoteDetailPage() {
         <CardContent className="p-6">
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">{editing ? "Menu & Pricing" : "Menu"}</h2>
           {editing ? (
-            <>
-              <div className="mb-4">
-                <GuestCountField
-                  value={{ guest_count: editData.guest_count, segment_counts: editData.segment_counts, segment_prices: editData.segment_prices, big_eaters: editData.big_eaters, big_eaters_percentage: editData.big_eaters_percentage }}
-                  onChange={(patch) => setEditData((prev) => ({ ...prev, ...patch }))}
-                  pricePerHead={editData.price_per_head}
-                />
-                {hasVendorDoubleEntry(editData.segment_counts, editMeals, segmentMeta) && (
-                  <div role="alert" className="mt-2 flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
-                    <span aria-hidden="true" className="text-sm leading-none">⚠️</span>
-                    <span>Possible double-count: you have <strong>vendor covers</strong> and a <strong>vendor-labelled meal</strong>. Vendors should be counted one way or the other, not both.</span>
-                  </div>
-                )}
-              </div>
-              <MenuBuilder
-                selectedDishIds={menuData.dish_ids}
-                basedOnTemplate={menuData.based_on_template}
-                guestCount={editGuestCount}
-                onChange={setMenuData}
-                onLoadCourses={(courses, dishCourses) => { setEditCourses(courses); setEditDishCourses(dishCourses); }}
-                pricePerHead={editData.price_per_head}
-                onPricePerHeadChange={(val) => setEditData((prev) => ({ ...prev, price_per_head: val }))}
-                currencySymbol={cs}
-                priceRoundingStep={Number(settings.price_rounding_step) || 50}
-              />
-            </>
+            <MenuBuilder
+              selectedDishIds={menuData.dish_ids}
+              basedOnTemplate={menuData.based_on_template}
+              guestCount={editGuestCount}
+              onChange={setMenuData}
+              onLoadCourses={(courses, dishCourses) => { setEditCourses(courses); setEditDishCourses(dishCourses); }}
+              pricePerHead={editData.price_per_head}
+              onPricePerHeadChange={(val) => setEditData((prev) => ({ ...prev, price_per_head: val }))}
+              currencySymbol={cs}
+              priceRoundingStep={Number(settings.price_rounding_step) || 50}
+            />
           ) : (
             <MenuBuilder
               selectedDishIds={q.dishes || []}
@@ -1093,6 +1118,9 @@ export default function QuoteDetailPage() {
           defaultGuestCount={editData.guest_count}
           eventDate={editData.event_date}
           timeFormat={timeFormat}
+          guestCount={editing ? editData.guest_count : q.guest_count}
+          segmentCounts={editing ? editData.segment_counts : Object.fromEntries((q.guest_counts ?? []).map((r) => [r.segment, r.count]))}
+          segmentMeta={segmentMeta}
         />
       )}
 
@@ -1172,7 +1200,7 @@ export default function QuoteDetailPage() {
         foodTotal={mainFood}
         foodRows={segmentFoodRows(pph, guests, segCounts, segmentMeta, segPrices)}
         foodLabel={`Food / Menu (${formatCurrency(editing ? editData.price_per_head : (q.price_per_head ?? 0), cs)}/head × ${editing ? editGuestCount : q.guest_count} guests)`}
-        meals={bookingMealRows(mealsList, cs)}
+        meals={bookingMealRows(mealsList, cs, guests, segCounts, segmentMeta)}
         addOnsTotal={Math.round((subtotal - fullFood) * 100) / 100}
         subtotal={subtotal}
         serviceCharge={editing ? liveTotals.service_charge : parseFloat(q.service_charge || "0")}

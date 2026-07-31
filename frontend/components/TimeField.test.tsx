@@ -25,10 +25,18 @@ describe("TimeField", () => {
     expect(screen.getByRole("option", { name: "12:30 AM" })).toBeInTheDocument();
   });
 
-  it("keeps an off-grid stored time (07:15) as a selectable option", () => {
-    render(<TimeField value="07:15" onChange={() => {}} ariaLabel="Setup Time" />);
-    expect(screen.getByLabelText("Setup Time")).toHaveValue("07:15");
-    expect(screen.getByRole("option", { name: "07:15" })).toBeInTheDocument();
+  it("offers quarter-hours, not just half-hours", () => {
+    // A real run-of-show is full of them — "3:45 chill the champagne",
+    // "6:15 begin dinner service". A half-hour grid can't express those at all.
+    render(<TimeField value="" onChange={() => {}} ariaLabel="Setup Time" />);
+    expect(screen.getByRole("option", { name: "15:45" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "18:15" })).toBeInTheDocument();
+  });
+
+  it("keeps an off-grid stored time (07:05) as a selectable option", () => {
+    render(<TimeField value="07:05" onChange={() => {}} ariaLabel="Setup Time" />);
+    expect(screen.getByLabelText("Setup Time")).toHaveValue("07:05");
+    expect(screen.getByRole("option", { name: "07:05" })).toBeInTheDocument();
   });
 
   it("clears via the — Not set — option", () => {

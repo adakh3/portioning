@@ -300,5 +300,102 @@
       ],
       "expected_food": "0.51"
     }
+  ],
+  "meal_audience_cases": [
+    {
+      "name": "everyone_is_guests_plus_extra_covers",
+      "segments": [
+        {
+          "name": "Adults",
+          "count": 138,
+          "counts_toward_total": true
+        },
+        {
+          "name": "Kids",
+          "count": 12,
+          "counts_toward_total": true
+        },
+        {
+          "name": "Vendors",
+          "count": 8,
+          "counts_toward_total": false
+        }
+      ],
+      "audience": "everyone",
+      "audience_segment": null,
+      "expected": 158
+    },
+    {
+      "name": "guests_only_excludes_extra_covers",
+      "segments": [
+        {
+          "name": "Adults",
+          "count": 138,
+          "counts_toward_total": true
+        },
+        {
+          "name": "Kids",
+          "count": 12,
+          "counts_toward_total": true
+        },
+        {
+          "name": "Vendors",
+          "count": 8,
+          "counts_toward_total": false
+        }
+      ],
+      "audience": "guests",
+      "audience_segment": null,
+      "expected": 150
+    },
+    {
+      "name": "single_segment_is_that_count",
+      "segments": [
+        {
+          "name": "Adults",
+          "count": 138,
+          "counts_toward_total": true
+        },
+        {
+          "name": "Kids",
+          "count": 12,
+          "counts_toward_total": true
+        },
+        {
+          "name": "Vendors",
+          "count": 8,
+          "counts_toward_total": false
+        }
+      ],
+      "audience": "segment",
+      "audience_segment": "Vendors",
+      "expected": 8
+    },
+    {
+      "name": "segment_absent_serves_zero",
+      "segments": [
+        {
+          "name": "Adults",
+          "count": 150,
+          "counts_toward_total": true
+        }
+      ],
+      "audience": "segment",
+      "audience_segment": "Vendors",
+      "expected": 0
+    },
+    {
+      "name": "no_breakdown_everyone_is_bare_count",
+      "segments": [
+        {
+          "name": "Adults",
+          "count": 150,
+          "counts_toward_total": true
+        }
+      ],
+      "audience": "everyone",
+      "audience_segment": null,
+      "expected": 150
+    }
   ]
 }

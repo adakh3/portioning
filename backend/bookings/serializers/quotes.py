@@ -4,8 +4,12 @@ from bookings.models import Quote, BookingLineItem
 from bookings.serializers.leads import _get_event_type_labels
 from bookings.serializers.meals import BookingMealSerializer, replace_meals
 from bookings.serializers.courses import read_courses, read_dish_courses
+from bookings.serializers.timeline import (
+    BookingTimelineEntrySerializer, replace_timeline_entries,
+)
 from dishes.models import Dish
 from dishes.ordering import dish_ids_in_added_order, dish_names_in_added_order
+from rules.models import GuestSegment
 from users.mixins import get_request_org
 from users.serializer_mixins import OrgScopedModelSerializer
 
@@ -73,6 +77,9 @@ class QuoteSerializer(OrgScopedModelSerializer):
     dish_names = serializers.SerializerMethodField()
     # Additional meals — same shared booking field as events.
     additional_meals = BookingMealSerializer(many=True, required=False)
+    # Event-day run-of-show. Optional: with none, the four legacy time fields
+    # below still render exactly as they always have.
+    timeline_entries = BookingTimelineEntrySerializer(many=True, required=False)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -82,7 +89,11 @@ class QuoteSerializer(OrgScopedModelSerializer):
             dish_qs = Dish.objects.filter(organisation=org) if org else Dish.objects.none()
             self.fields['dish_ids'].child_relation.queryset = dish_qs
             if 'additional_meals' in self.fields:
-                self.fields['additional_meals'].child.fields['dish_ids'].child_relation.queryset = dish_qs
+                meal_fields = self.fields['additional_meals'].child.fields
+                meal_fields['dish_ids'].child_relation.queryset = dish_qs
+                meal_fields['audience_segment'].queryset = (
+                    org.guest_segments.all() if org else GuestSegment.objects.none()
+                )
 
     class Meta:
         model = Quote
@@ -104,7 +115,7 @@ class QuoteSerializer(OrgScopedModelSerializer):
             'gratuity_pct', 'gratuity',
             'dishes', 'dish_ids', 'dish_names', 'based_on_template',
             'courses', 'dish_courses',
-            'additional_meals',
+            'additional_meals', 'timeline_entries',
             'notes', 'internal_notes',
             'sent_at', 'accepted_at',
             'public_token', 'signature',
@@ -251,6 +262,7 @@ class QuoteSerializer(OrgScopedModelSerializer):
         dishes = validated_data.pop('dishes', [])
         line_items_data = validated_data.pop('line_items', None)
         meals_data = validated_data.pop('additional_meals', None)
+        timeline_data = validated_data.pop('timeline_entries', None)
         # Snapshot the org's pricing defaults (tax rate + service charge / gratuity)
         # when the payload omits them. Fixes the asymmetry where only events copied
         # tax_rate from OrgSettings — quotes relied on the model's UK-flavoured
@@ -271,6 +283,8 @@ class QuoteSerializer(OrgScopedModelSerializer):
             self._save_line_items(quote, line_items_data)
         if meals_data is not None:
             replace_meals('quote', quote, meals_data)
+        if timeline_data is not None:
+            replace_timeline_entries('quote', quote, timeline_data)
         quote.recalculate_totals()
         return quote
 
@@ -278,6 +292,7 @@ class QuoteSerializer(OrgScopedModelSerializer):
         dishes = validated_data.pop('dishes', None)
         line_items_data = validated_data.pop('line_items', None)
         meals_data = validated_data.pop('additional_meals', None)
+        timeline_data = validated_data.pop('timeline_entries', None)
         quote = super().update(instance, validated_data)
         self._write_guest_counts(quote)
         if dishes is not None:
@@ -287,6 +302,8 @@ class QuoteSerializer(OrgScopedModelSerializer):
             self._save_line_items(quote, line_items_data)
         if meals_data is not None:
             replace_meals('quote', quote, meals_data)
+        if timeline_data is not None:
+            replace_timeline_entries('quote', quote, timeline_data)
         quote.recalculate_totals()
         return quote
 
@@ -317,7 +334,8 @@ class QuoteSerializer(OrgScopedModelSerializer):
 
 # signature does a per-row query (latest_signature); it's a detail-view concern.
 QUOTE_LIST_EXCLUDE = {'line_items', 'dishes', 'dish_ids', 'dish_names', 'additional_meals',
-                      'courses', 'dish_courses', 'signature', 'public_token'}
+                      'courses', 'dish_courses', 'timeline_entries',
+                      'signature', 'public_token'}
 
 
 class QuoteListSerializer(QuoteSerializer):

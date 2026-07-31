@@ -36,10 +36,12 @@ vi.mock("@/lib/hooks", () => ({
   useUsers: () => ({ data: [] }),
   useSiteSettings: () => ({ data: { currency_symbol: "£", currency_code: "GBP", date_format: "DD/MM/YYYY", price_rounding_step: "50", default_tax_rate: "0.2000", service_charge_default_pct: "20.00", service_charge_taxable_default: false, gratuity_default_pct: "0.00", guest_segments: [{ name: "Gents", is_default: true, counts_toward_total: true, price_multiplier: "1.0000", sort_order: 0 }, { name: "Ladies", is_default: false, counts_toward_total: true, price_multiplier: "1.0000", sort_order: 1 }] } }),
   useDateFormat: () => "DD/MM/YYYY",
+  useFormatDateTime: () => (v: string | null) => v ?? "-",
   useEventTypes: () => ({ data: [{ id: 1, value: "wedding", label: "Wedding" }] }),
   useServiceStyles: () => ({ data: [] }),
   useDishes: () => ({ data: [] }),
   useMealTypes: () => ({ data: [] }),
+  useTimelinePresets: () => ({ data: [] }),
   useProductLines: () => ({ data: [{ id: 5, name: "Catering", is_active: true, colour: "#000", round_robin_index: 0 }] }),
 }));
 
@@ -76,7 +78,7 @@ describe("Event create — guest split + anchored timeline reach the payload", (
 
     fireEvent.click(screen.getByText("select-customer"));  // event save requires a customer
     fireEvent.change(screen.getByLabelText("Guest Count"), { target: { value: "40" } });
-    fireEvent.change(screen.getByLabelText("Setup Time"), { target: { value: "10:00" } });
+    fireEvent.change(screen.getByLabelText("Meal Time"), { target: { value: "10:00" } });
 
     fireEvent.click(screen.getByText("Create Event"));
 
@@ -85,7 +87,8 @@ describe("Event create — guest split + anchored timeline reach the payload", (
     expect(payload.guest_count).toBe(40);
     expect(payload.guest_counts).toEqual([]);      // no breakdown entered — never invented
     expect(payload.date).toBe(today);              // defaults to today
-    expect(payload.setup_time).toBe(`${today}T10:00`);
+    expect(payload.meal_time).toBe(`${today}T10:00`);
+    expect(payload.setup_time).toBeNull();
     expect(payload.assigned_to).toBe(7);           // defaults to the current user
     expect(payload.product).toBe(5);               // defaults to the org's first active product
   });
@@ -107,6 +110,28 @@ describe("Event create — guest split + anchored timeline reach the payload", (
       { segment: "Ladies", count: 15 },
       { segment: "Gents", count: 25 }, // derived remainder
     ]);
+  });
+
+  it("an additional meal's Serves selection reaches the payload with a derived count (REL-426)", async () => {
+    render(<EventCreatePage />);
+
+    fireEvent.click(screen.getByText("select-customer"));
+    fireEvent.change(screen.getByLabelText("Guest Count"), { target: { value: "40" } });
+    fireEvent.change(screen.getByLabelText("Ladies"), { target: { value: "15" } });  // Gents 25 derived
+
+    fireEvent.click(screen.getByText("+ Add Meal"));
+    fireEvent.change(screen.getByPlaceholderText("Meal label"), { target: { value: "Ladies lunch" } });
+    // "Serves" the Ladies segment → its count (15) is derived, read-only.
+    fireEvent.change(screen.getByLabelText("Serves"), { target: { value: "seg:Ladies" } });
+    expect(screen.getByText("15 — from Ladies")).toBeTruthy();
+
+    fireEvent.click(screen.getByText("Create Event"));
+
+    await waitFor(() => expect(h.createEvent).toHaveBeenCalledTimes(1));
+    const payload = h.createEvent.mock.calls[0][0] as { additional_meals: Record<string, unknown>[] };
+    expect(payload.additional_meals[0]).toMatchObject({
+      label: "Ladies lunch", audience: "segment", audience_segment: "Ladies", guest_count: 15,
+    });
   });
 
   it("seeds the org's default service charge into a new event's payload", async () => {

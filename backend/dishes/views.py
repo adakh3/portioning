@@ -5,7 +5,10 @@ from .serializers import DishSerializer, DishCategorySerializer
 
 
 class DishListView(OrgQuerySetMixin, generics.ListAPIView):
-    queryset = Dish.objects.filter(is_active=True).select_related('category')
+    # prefetch the tags — DishSerializer nests them, so without this the list is
+    # one extra query per dish.
+    queryset = (Dish.objects.filter(is_active=True)
+                .select_related('category').prefetch_related('dietary_tags'))
     serializer_class = DishSerializer
 
 
