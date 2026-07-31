@@ -29,21 +29,17 @@ def _iso(dt):
 
 
 def booking_menu_courses(booking):
-    """Course-grouped menu with resolved service-style labels — a list of
-    ``{'name','service_style','items'}`` in course order (a trailing ``name=''`` group
-    holds unassigned dishes), or ``None`` when the booking defines no courses (surfaces
-    then fall back to the flat/category menu, course-less byte-identical). Shared by the
-    presentation dict AND the event PDF (which bypasses presentation)."""
-    from bookings.models.choices import ServiceStyleOption
+    """Course-grouped menu — a list of ``{'name','items'}`` in course order (a trailing
+    ``name=''`` group holds unassigned dishes), or ``None`` when the booking defines no
+    courses (surfaces then fall back to the flat/category menu, course-less byte-
+    identical). Shared by the presentation dict AND the event PDF (which bypasses
+    presentation). Service style is booking-level, not per-course (REL-417)."""
     from events.models import resolve_booking_menu
     groups = resolve_booking_menu(booking)
     if not groups:
         return None
-    org = booking.organisation
     return [
-        {'name': g['course'].name if g['course'] else '',
-         'service_style': _choice_label(ServiceStyleOption, g['course'].service_style, org) if g['course'] else '',
-         'items': g['dish_names']}
+        {'name': g['course'].name if g['course'] else '', 'items': g['dish_names']}
         for g in groups
     ]
 

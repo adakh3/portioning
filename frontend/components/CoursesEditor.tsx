@@ -5,28 +5,26 @@ import { useDishes } from "@/lib/hooks";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
-/** Courses (Starter/Entrée/Dessert + service style) and the dish→course assignment
- * for a booking (REL-417). Shared by the quote and event editors. Controlled: the
- * page holds `courses` + `dishCourses` ({dishId -> course index}) and this component
- * keeps the index references consistent when courses are reordered or removed. */
+/** Courses (Starter/Entrée/Dessert) and the dish→course assignment for a booking
+ * (REL-417). Courses are grouping only — service style is booking-level, not
+ * per-course. Shared by the quote and event editors. Controlled: the page holds
+ * `courses` + `dishCourses` ({dishId -> course index}) and this component keeps the
+ * index references consistent when courses are reordered or removed. */
 export default function CoursesEditor({
   courses,
   dishCourses,
   onChange,
   selectedDishIds,
-  serviceStyles,
   editing,
 }: {
   courses: CourseData[];
   dishCourses: Record<string, number>;
   onChange: (v: { courses: CourseData[]; dishCourses: Record<string, number> }) => void;
   selectedDishIds: number[];
-  serviceStyles: { value: string; label: string }[];
   editing: boolean;
 }) {
   const { data: dishes = [] } = useDishes();
   const nameById: Record<number, string> = Object.fromEntries(dishes.map((d) => [d.id, d.name]));
-  const styleLabel = (value: string) => serviceStyles.find((s) => s.value === value)?.label || value;
 
   // Always emit courses with sort_order == array position (0..n-1).
   const emit = (nextCourses: CourseData[], nextDishCourses: Record<string, number>) =>
@@ -36,7 +34,7 @@ export default function CoursesEditor({
     });
 
   const addCourse = () =>
-    emit([...courses, { name: "", service_style: "", sort_order: courses.length }], dishCourses);
+    emit([...courses, { name: "", sort_order: courses.length }], dishCourses);
 
   const patchCourse = (idx: number, fields: Partial<CourseData>) =>
     emit(courses.map((c, i) => (i === idx ? { ...c, ...fields } : c)), dishCourses);
@@ -99,17 +97,6 @@ export default function CoursesEditor({
                     onChange={(e) => patchCourse(idx, { name: e.target.value })}
                     className="flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring flex-1"
                   />
-                  <select
-                    aria-label={`Course ${idx + 1} service style`}
-                    value={c.service_style}
-                    onChange={(e) => patchCourse(idx, { service_style: e.target.value })}
-                    className="flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  >
-                    <option value="">Service style…</option>
-                    {serviceStyles.map((st) => (
-                      <option key={st.value} value={st.value}>{st.label}</option>
-                    ))}
-                  </select>
                   <Button type="button" variant="ghost" size="sm" aria-label={`Move course ${idx + 1} up`} disabled={idx === 0} onClick={() => move(idx, -1)}>↑</Button>
                   <Button type="button" variant="ghost" size="sm" aria-label={`Move course ${idx + 1} down`} disabled={idx === courses.length - 1} onClick={() => move(idx, 1)}>↓</Button>
                   <Button type="button" variant="ghost" size="sm" className="text-destructive" onClick={() => removeCourse(idx)}>Remove</Button>
@@ -117,7 +104,6 @@ export default function CoursesEditor({
               ) : (
                 <div key={idx} className="text-sm">
                   <span className="font-medium">{c.name || "Untitled course"}</span>
-                  {c.service_style && <span className="text-muted-foreground"> — {styleLabel(c.service_style)}</span>}
                   {(() => {
                     const dishesHere = assignableDishes.filter((id) => dishCourses[id] === idx);
                     return dishesHere.length > 0 ? (

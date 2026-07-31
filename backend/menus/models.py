@@ -35,12 +35,11 @@ class MenuTemplate(models.Model):
 
 
 class MenuCourse(models.Model):
-    """An ordered course on a menu template (Starter / Entrée / Dessert) with a
-    service style — carried onto a booking's courses when the template is applied
-    (REL-417). Additive: a template with no courses applies exactly as before."""
+    """An ordered course on a menu template (Starter / Entrée / Dessert) — carried
+    onto a booking's courses when the template is applied (REL-417). Additive: a
+    template with no courses applies exactly as before."""
     menu = models.ForeignKey(MenuTemplate, on_delete=models.CASCADE, related_name='courses')
     name = models.CharField(max_length=100)
-    service_style = models.CharField(max_length=50, blank=True)
     sort_order = models.IntegerField(default=0)
 
     class Meta:

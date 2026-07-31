@@ -230,8 +230,7 @@ def write_booking_courses(booking, courses_data, dish_courses):
     created = []
     for i, c in enumerate(courses_data or []):
         created.append(BookingCourse.objects.create(
-            name=(c.get('name') or '').strip(), service_style=c.get('service_style') or '',
-            sort_order=c.get('sort_order', i), **parent,
+            name=(c.get('name') or '').strip(), sort_order=c.get('sort_order', i), **parent,
         ))
     # Assign dishes to their course; clear the course on any row not re-listed.
     # Only dishes actually on the booking are assignable — a stale/foreign/removed
@@ -498,9 +497,6 @@ class BookingCourse(models.Model):
         on_delete=models.CASCADE, related_name='courses',
     )
     name = models.CharField(max_length=100)
-    # ServiceStyleOption value for this course (buffet/plated/…); reuses the org's
-    # existing service-style vocabulary, distinct from the booking-level default.
-    service_style = models.CharField(max_length=50, blank=True)
     sort_order = models.IntegerField(default=0)
 
     class Meta:

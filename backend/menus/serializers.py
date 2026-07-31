@@ -7,7 +7,7 @@ from .models import MenuTemplate, MenuDishPortion, MenuTemplatePriceTier, MenuCo
 class MenuCourseSerializer(serializers.ModelSerializer):
     class Meta:
         model = MenuCourse
-        fields = ['name', 'service_style', 'sort_order']
+        fields = ['name', 'sort_order']
 
 
 class MenuDishPortionSerializer(serializers.ModelSerializer):

@@ -10,7 +10,7 @@ from events.models import BookingCourse
 class BookingCourseSerializer(serializers.ModelSerializer):
     class Meta:
         model = BookingCourse
-        fields = ['name', 'service_style', 'sort_order']
+        fields = ['name', 'sort_order']
 
 
 def read_courses(booking):

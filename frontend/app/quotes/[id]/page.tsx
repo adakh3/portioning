@@ -569,7 +569,6 @@ export default function QuoteDetailPage() {
             dishCourses={createDishCourses}
             onChange={({ courses, dishCourses }) => { setCreateCourses(courses); setCreateDishCourses(dishCourses); }}
             selectedDishIds={menuData.dish_ids}
-            serviceStyles={serviceStyles}
             editing
           />
 
@@ -1104,7 +1103,6 @@ export default function QuoteDetailPage() {
           dishCourses={editing ? editDishCourses : (q.dish_courses || {})}
           onChange={({ courses, dishCourses }) => { setEditCourses(courses); setEditDishCourses(dishCourses); }}
           selectedDishIds={editing ? menuData.dish_ids : (q.dishes || [])}
-          serviceStyles={serviceStyles}
           editing={editing}
         />
       )}

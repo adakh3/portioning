@@ -159,10 +159,10 @@ export interface DishCategory {
   removal_discount: string;
 }
 
-/** A booking's course (REL-417): Starter/Entrée/Dessert + a service style. */
+/** A booking's course (REL-417): Starter/Entrée/Dessert. Service style is
+ * booking-level, not per-course. */
 export interface CourseData {
   name: string;
-  service_style: string;
   sort_order: number;
 }
 
@@ -1240,7 +1240,7 @@ export interface PublicBooking {
   service_style_label: string;
   timeline: { label: string; time: string | null }[];
   menu: { category: string; items: string[] }[];
-  menu_courses: { name: string; service_style: string; items: string[] }[] | null; // REL-417
+  menu_courses: { name: string; items: string[] }[] | null; // REL-417
   additional_meals: { label: string; guest_count: number; price_per_head: string | null; items: string[] }[];
   line_items: { description: string; category: string; quantity: string; unit: string; line_total: string }[];
   price_per_head: string | null;

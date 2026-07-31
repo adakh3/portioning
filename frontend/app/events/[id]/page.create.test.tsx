@@ -66,7 +66,7 @@ describe("Event create — guest split + anchored timeline reach the payload", (
 
     await waitFor(() => expect(h.createEvent).toHaveBeenCalledTimes(1));
     const payload = h.createEvent.mock.calls[0][0] as Record<string, unknown>;
-    expect(payload.courses).toEqual([{ name: "Starter", service_style: "", sort_order: 0 }]);
+    expect(payload.courses).toEqual([{ name: "Starter", sort_order: 0 }]);
     expect(payload.dish_courses).toEqual({});
   });
 

@@ -145,7 +145,6 @@ function BookingView({
                   <div key={i}>
                     <h3 className="text-sm font-semibold text-neutral-700">
                       {course.name || "Additional dishes"}
-                      {course.service_style && <span className="font-normal text-neutral-500"> — {course.service_style}</span>}
                     </h3>
                     <ul className="mt-1 text-sm text-neutral-600">
                       {course.items.map((item) => (

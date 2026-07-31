@@ -435,8 +435,6 @@ def _menu_flowables(menu_courses, dish_names, s):
         if not g['items']:
             continue
         head = g['name'] or 'Additional dishes'
-        if g['service_style']:
-            head += f" — {g['service_style']}"
         # Course name is free user text — escape for reportlab's mini-markup parser.
         out.append(Paragraph(f'<b>{escape(head)}</b>', s['body']))
         out.append(Spacer(1, 1 * mm))

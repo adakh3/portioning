@@ -33,14 +33,12 @@ class CourseModelTests(TestCase):
     def test_course_less_menu_resolves_to_none(self):  # AC4
         self.assertIsNone(resolve_booking_menu(self.event))
 
-    def test_write_courses_persists_order_and_style(self):  # AC1
+    def test_write_courses_persists_order(self):  # AC1
         write_booking_courses(self.event, [
-            {'name': 'Starter', 'service_style': 'plated', 'sort_order': 0},
-            {'name': 'Entrée', 'service_style': 'buffet', 'sort_order': 1},
+            {'name': 'Starter', 'sort_order': 0},
+            {'name': 'Entrée', 'sort_order': 1},
         ], {})
-        courses = list(self.event.courses.all())
-        self.assertEqual([(c.name, c.service_style) for c in courses],
-                         [('Starter', 'plated'), ('Entrée', 'buffet')])
+        self.assertEqual([c.name for c in self.event.courses.all()], ['Starter', 'Entrée'])
 
     def test_assigns_dishes_and_groups_them(self):  # AC2
         write_booking_courses(self.event, [
@@ -71,17 +69,13 @@ class CourseModelTests(TestCase):
             self.skipTest("pypdf not installed")
         import io
         from bookings.pdf import generate_event_pdf
-        from bookings.models.choices import ServiceStyleOption
-        ServiceStyleOption.objects.get_or_create(
-            organisation=self.org, value='plated', defaults={'label': 'Plated'})
         write_booking_courses(self.event, [
-            {'name': 'Starter', 'service_style': 'plated', 'sort_order': 0},
-            {'name': 'Dessert', 'service_style': '', 'sort_order': 1},
+            {'name': 'Starter', 'sort_order': 0},
+            {'name': 'Dessert', 'sort_order': 1},
         ], {str(self.d1.id): 0, str(self.d3.id): 1})
         self.event.refresh_from_db()  # get a real date object for the PDF renderer
         text = "\n".join(p.extract_text() for p in PdfReader(io.BytesIO(generate_event_pdf(self.event))).pages)
         self.assertIn('Starter', text)
-        self.assertIn('Plated', text)          # resolved service-style label
         self.assertIn('Dessert', text)
         # Course order: Starter section precedes Dessert section.
         self.assertLess(text.find('Starter'), text.find('Dessert'))
@@ -133,8 +127,8 @@ class CourseApiTests(TestCase):
         payload = {
             'name': 'Gala', 'date': '2026-05-01', 'guest_count': 50,
             'dish_ids': [self.d1.id, self.d2.id],
-            'courses': [{'name': 'Starter', 'service_style': 'plated', 'sort_order': 0},
-                        {'name': 'Entrée', 'service_style': 'buffet', 'sort_order': 1}],
+            'courses': [{'name': 'Starter', 'sort_order': 0},
+                        {'name': 'Entrée', 'sort_order': 1}],
             'dish_courses': {str(self.d1.id): 0, str(self.d2.id): 1},
         }
         res = self.client.post('/api/events/', payload, format='json')
@@ -151,7 +145,7 @@ class CourseApiTests(TestCase):
         payload = {
             'primary_contact': contact.id, 'event_date': '2026-05-01', 'guest_count': 50,
             'dish_ids': [self.d1.id],
-            'courses': [{'name': 'Dessert', 'service_style': 'plated', 'sort_order': 0}],
+            'courses': [{'name': 'Dessert', 'sort_order': 0}],
             'dish_courses': {str(self.d1.id): 0},
         }
         res = self.client.post('/api/bookings/quotes/', payload, format='json')
@@ -167,34 +161,33 @@ class CourseApiTests(TestCase):
                                      event_date='2026-05-01', guest_count=50)
         quote.dishes.set([self.d1, self.d2])
         write_booking_courses(quote, [
-            {'name': 'Starter', 'service_style': 'plated', 'sort_order': 0},
-            {'name': 'Entrée', 'service_style': 'buffet', 'sort_order': 1},
+            {'name': 'Starter', 'sort_order': 0},
+            {'name': 'Entrée', 'sort_order': 1},
         ], {str(self.d1.id): 0, str(self.d2.id): 1})
 
         event = accept_quote(quote)
 
         groups = resolve_booking_menu(event)
-        by_name = {g['course'].name: (g['course'].service_style, g['dish_ids']) for g in groups if g['course']}
-        self.assertEqual(by_name['Starter'], ('plated', [self.d1.id]))
-        self.assertEqual(by_name['Entrée'], ('buffet', [self.d2.id]))
+        by_name = {g['course'].name: g['dish_ids'] for g in groups if g['course']}
+        self.assertEqual(by_name['Starter'], [self.d1.id])
+        self.assertEqual(by_name['Entrée'], [self.d2.id])
 
     def test_template_detail_exposes_its_courses_and_dish_assignment(self):  # AC6
         from menus.models import MenuTemplate, MenuDishPortion, MenuCourse
         tpl = MenuTemplate.objects.create(organisation=self.org, name='Plated Dinner')
-        starter = MenuCourse.objects.create(menu=tpl, name='Starter', service_style='plated', sort_order=0)
-        MenuCourse.objects.create(menu=tpl, name='Dessert', service_style='buffet', sort_order=1)
+        starter = MenuCourse.objects.create(menu=tpl, name='Starter', sort_order=0)
+        MenuCourse.objects.create(menu=tpl, name='Dessert', sort_order=1)
         MenuDishPortion.objects.create(menu=tpl, dish=self.d1, portion_grams=100, course=starter)
         MenuDishPortion.objects.create(menu=tpl, dish=self.d2, portion_grams=80)  # unassigned
         body = self.client.get(f'/api/menus/{tpl.id}/').json()
         self.assertEqual([c['name'] for c in body['courses']], ['Starter', 'Dessert'])
-        self.assertEqual(body['courses'][0]['service_style'], 'plated')
         self.assertEqual(body['dish_courses'], {str(self.d1.id): 0})  # d2 unassigned → absent
 
     def test_patch_without_courses_key_preserves_courses(self):
         # Review #6: a PATCH that omits `courses` must NOT wipe existing courses.
         ev_id = self.client.post('/api/events/', {
             'name': 'C', 'date': '2026-05-01', 'guest_count': 50, 'dish_ids': [self.d1.id],
-            'courses': [{'name': 'Starter', 'service_style': 'plated', 'sort_order': 0}],
+            'courses': [{'name': 'Starter', 'sort_order': 0}],
             'dish_courses': {str(self.d1.id): 0},
         }, format='json').json()['id']
         res = self.client.patch(f'/api/events/{ev_id}/', {'guest_count': 60}, format='json')

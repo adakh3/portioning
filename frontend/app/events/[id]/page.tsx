@@ -903,7 +903,6 @@ export default function EventDetailPage() {
           dishCourses={formDishCourses}
           onChange={({ courses, dishCourses }) => { setFormCourses(courses); setFormDishCourses(dishCourses); }}
           selectedDishIds={editing ? menuData.dish_ids : (event?.dishes || [])}
-          serviceStyles={serviceStylesData}
           editing={editing}
         />
       )}

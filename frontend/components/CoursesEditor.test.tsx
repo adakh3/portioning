@@ -9,8 +9,6 @@ vi.mock("@/lib/hooks", () => ({
 import CoursesEditor from "./CoursesEditor";
 import { CourseData } from "@/lib/api";
 
-const STYLES = [{ value: "plated", label: "Plated" }, { value: "buffet", label: "Buffet" }];
-
 /** Controlled harness so multi-step edits (add course, then assign a dish) persist. */
 function Harness({ initCourses = [], initDish = {} }: { initCourses?: CourseData[]; initDish?: Record<string, number> }) {
   const [courses, setCourses] = useState<CourseData[]>(initCourses);
@@ -22,7 +20,6 @@ function Harness({ initCourses = [], initDish = {} }: { initCourses?: CourseData
         dishCourses={dishCourses}
         onChange={({ courses, dishCourses }) => { setCourses(courses); setDishCourses(dishCourses); }}
         selectedDishIds={[1, 2, 3]}
-        serviceStyles={STYLES}
         editing
       />
       <div data-testid="state">{JSON.stringify({ courses, dishCourses })}</div>
@@ -37,22 +34,21 @@ describe("CoursesEditor", () => {
     fireEvent.click(screen.getByText("+ Add course"));
     fireEvent.click(screen.getByText("+ Add course"));
     expect(state().courses).toEqual([
-      { name: "", service_style: "", sort_order: 0 },
-      { name: "", service_style: "", sort_order: 1 },
+      { name: "", sort_order: 0 },
+      { name: "", sort_order: 1 },
     ]);
   });
 
-  it("names a course, sets its style, and assigns a dish to it", () => {
-    render(<Harness initCourses={[{ name: "Starter", service_style: "", sort_order: 0 }]} />);
-    fireEvent.change(screen.getByLabelText("Course 1 service style"), { target: { value: "plated" } });
+  it("names a course and assigns a dish to it", () => {
+    render(<Harness initCourses={[{ name: "Starter", sort_order: 0 }]} />);
     fireEvent.change(screen.getByLabelText("Course for Steak"), { target: { value: "0" } });
-    expect(state().courses[0]).toEqual({ name: "Starter", service_style: "plated", sort_order: 0 });
+    expect(state().courses[0]).toEqual({ name: "Starter", sort_order: 0 });
     expect(state().dishCourses).toEqual({ "2": 0 });
   });
 
   it("reordering courses remaps the dish→course indices so assignments follow", () => {
     render(<Harness
-      initCourses={[{ name: "A", service_style: "", sort_order: 0 }, { name: "B", service_style: "", sort_order: 1 }]}
+      initCourses={[{ name: "A", sort_order: 0 }, { name: "B", sort_order: 1 }]}
       initDish={{ "1": 0, "2": 1 }}
     />);
     fireEvent.click(screen.getByLabelText("Move course 1 down")); // A(0)<->B(1)
@@ -64,21 +60,20 @@ describe("CoursesEditor", () => {
   it("view mode lists each course with its assigned dishes", () => {
     render(
       <CoursesEditor
-        courses={[{ name: "Starter", service_style: "plated", sort_order: 0 }]}
+        courses={[{ name: "Starter", sort_order: 0 }]}
         dishCourses={{ "1": 0, "2": 0 }}
         onChange={() => {}}
         selectedDishIds={[1, 2, 3]}
-        serviceStyles={STYLES}
         editing={false}
       />,
     );
-    expect(screen.getByText(/Starter/).closest("div")).toHaveTextContent("Starter — Plated: Soup, Steak");
+    expect(screen.getByText(/Starter/).closest("div")).toHaveTextContent("Starter: Soup, Steak");
     expect(screen.queryByText("+ Add course")).not.toBeInTheDocument(); // read-only
   });
 
   it("removing a course unassigns its dishes and shifts higher indices down", () => {
     render(<Harness
-      initCourses={[{ name: "A", service_style: "", sort_order: 0 }, { name: "B", service_style: "", sort_order: 1 }, { name: "C", service_style: "", sort_order: 2 }]}
+      initCourses={[{ name: "A", sort_order: 0 }, { name: "B", sort_order: 1 }, { name: "C", sort_order: 2 }]}
       initDish={{ "1": 0, "2": 1, "3": 2 }}
     />);
     fireEvent.click(screen.getAllByText("Remove")[1]); // remove B (index 1)
