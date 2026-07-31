@@ -11,3 +11,6 @@ build/
 .DS_Store
 =4.0
 .claude/worktrees/
+
+# venv is an env, never tracked — a bare 'venv' symlink slipped past 'venv/' before
+/venv

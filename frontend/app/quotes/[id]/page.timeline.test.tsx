@@ -48,6 +48,8 @@ vi.mock("@/lib/hooks", () => ({
   useEventTypes: () => ({ data: [{ id: 1, value: "wedding", label: "Wedding" }] }),
   useServiceStyles: () => ({ data: [] }),
   useMealTypes: () => ({ data: [] }),
+  // The page renders CoursesEditor (REL-417), which reads the dish catalogue.
+  useDishes: () => ({ data: [] }),
   // The org's Timeline Steps double as its standard-day template.
   useTimelinePresets: () => ({ data: [
     { id: 1, value: "cocktail_hour", label: "Cocktail hour", in_standard_day: true, standard_day_offset_minutes: -75 },

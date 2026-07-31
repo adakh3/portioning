@@ -66,6 +66,8 @@ vi.mock("@/lib/hooks", () => ({
   useEventTypes: () => ({ data: [{ id: 1, value: "wedding", label: "Wedding" }] }),
   useServiceStyles: () => ({ data: [] }),
   useMealTypes: () => ({ data: [] }),
+  // The page renders CoursesEditor (REL-417), which reads the dish catalogue.
+  useDishes: () => ({ data: [] }),
   // Deliberately listed cake-first to prove the prefill sorts by offset.
   useTimelinePresets: () => ({ data: [
     { id: 1, value: "cake_cutting", label: "Cake cutting", in_standard_day: true, standard_day_offset_minutes: 150 },

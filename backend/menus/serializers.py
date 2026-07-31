@@ -1,7 +1,13 @@
 from decimal import Decimal
 
 from rest_framework import serializers
-from .models import MenuTemplate, MenuDishPortion, MenuTemplatePriceTier
+from .models import MenuTemplate, MenuDishPortion, MenuTemplatePriceTier, MenuCourse
+
+
+class MenuCourseSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = MenuCourse
+        fields = ['name', 'sort_order']
 
 
 class MenuDishPortionSerializer(serializers.ModelSerializer):
@@ -64,11 +70,16 @@ class MenuTemplateDetailSerializer(serializers.ModelSerializer):
     suggested_price_per_head = serializers.SerializerMethodField()
     has_unpriced_dishes = serializers.SerializerMethodField()
     price_tiers = PriceTierSerializer(many=True, read_only=True)
+    # Courses (REL-417) — carried onto a booking when the template is applied. Shape
+    # mirrors the booking API: an ordered `courses` list + `dish_courses` {dish_id: index}.
+    courses = MenuCourseSerializer(many=True, read_only=True)
+    dish_courses = serializers.SerializerMethodField()
 
     class Meta:
         model = MenuTemplate
         fields = ['id', 'name', 'description', 'menu_type', 'default_gents', 'default_ladies',
-                  'portions', 'suggested_price_per_head', 'has_unpriced_dishes',
+                  'portions', 'courses', 'dish_courses',
+                  'suggested_price_per_head', 'has_unpriced_dishes',
                   'price_tiers', 'created_at']
 
     def get_suggested_price_per_head(self, obj):
@@ -76,3 +87,8 @@ class MenuTemplateDetailSerializer(serializers.ModelSerializer):
 
     def get_has_unpriced_dishes(self, obj):
         return _has_unpriced_dishes(obj.portions.all())
+
+    def get_dish_courses(self, obj):
+        index_by_id = {c.id: i for i, c in enumerate(obj.courses.all())}
+        return {str(p.dish_id): index_by_id[p.course_id]
+                for p in obj.portions.all() if p.course_id in index_by_id}

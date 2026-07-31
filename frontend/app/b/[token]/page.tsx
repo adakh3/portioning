@@ -145,16 +145,31 @@ function BookingView({
         <section className="mt-4 rounded-xl border border-neutral-200 bg-white p-5">
           <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-neutral-400">Menu</h2>
           <div className="space-y-3">
-            {booking.menu.map((group) => (
-              <div key={group.category}>
-                <h3 className="text-sm font-semibold text-neutral-700">{group.category}</h3>
-                <ul className="mt-1 text-sm text-neutral-600">
-                  {group.items.map((item) => (
-                    <li key={item}>{item}</li>
-                  ))}
-                </ul>
-              </div>
-            ))}
+            {/* Grouped by course (Starter/Entrée/Dessert + service style) when the
+                booking defines courses; else the category grouping, unchanged (REL-417). */}
+            {booking.menu_courses && booking.menu_courses.length > 0
+              ? booking.menu_courses.map((course, i) => (
+                  <div key={i}>
+                    <h3 className="text-sm font-semibold text-neutral-700">
+                      {course.name || "Additional dishes"}
+                    </h3>
+                    <ul className="mt-1 text-sm text-neutral-600">
+                      {course.items.map((item) => (
+                        <li key={item}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ))
+              : booking.menu.map((group) => (
+                  <div key={group.category}>
+                    <h3 className="text-sm font-semibold text-neutral-700">{group.category}</h3>
+                    <ul className="mt-1 text-sm text-neutral-600">
+                      {group.items.map((item) => (
+                        <li key={item}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
           </div>
         </section>
       )}

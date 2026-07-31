@@ -159,6 +159,13 @@ export interface DishCategory {
   removal_discount: string;
 }
 
+/** A booking's course (REL-417): Starter/Entrée/Dessert. Service style is
+ * booking-level, not per-course. */
+export interface CourseData {
+  name: string;
+  sort_order: number;
+}
+
 /** One row of a booking's event-day run-of-show. `time` is 24h "HH:MM:SS" as the
  * API stores it; a booking with no entries falls back to its four legacy time
  * fields. */
@@ -226,6 +233,8 @@ export interface MenuDishPortion {
 
 export interface MenuTemplateDetail extends MenuTemplate {
   portions: MenuDishPortion[];
+  courses: CourseData[];                     // REL-417 — carried onto a booking on apply
+  dish_courses: Record<string, number>;      // {dish_id: course index}
   suggested_price_per_head: number | null;
   has_unpriced_dishes: boolean;
 }
@@ -477,6 +486,8 @@ export interface Quote {
   total: string;
   dishes: number[];
   dish_names: string[];
+  courses: CourseData[];
+  dish_courses: Record<string, number>;
   based_on_template: number | null;
   notes: string;
   internal_notes: string;
@@ -757,6 +768,8 @@ export interface EventData {
   big_eaters: boolean;
   big_eaters_percentage: number;
   dishes: number[];
+  courses: CourseData[];
+  dish_courses: Record<string, number>;
   based_on_template: number | null;
   notes: string;
   kitchen_instructions: string;
@@ -1264,6 +1277,9 @@ export interface PublicBooking {
    * can't parse); legacy slots leave it null and carry a full ISO datetime. */
   timeline: { label: string; time: string | null; time_display?: string | null }[];
   menu: { category: string; items: string[] }[];
+  // Absent/null on a course-less booking, which renders the flat menu unchanged
+  // (REL-417 AC4) — the sign page guards on it, so it is optional here too.
+  menu_courses?: { name: string; items: string[] }[] | null; // REL-417
   additional_meals: { label: string; guest_count: number; price_per_head: string | null; items: string[] }[];
   line_items: { description: string; category: string; quantity: string; unit: string; line_total: string }[];
   price_per_head: string | null;

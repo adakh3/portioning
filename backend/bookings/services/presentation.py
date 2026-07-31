@@ -28,6 +28,22 @@ def _iso(dt):
     return dt.isoformat() if dt else None
 
 
+def booking_menu_courses(booking):
+    """Course-grouped menu — a list of ``{'name','items'}`` in course order (a trailing
+    ``name=''`` group holds unassigned dishes), or ``None`` when the booking defines no
+    courses (surfaces then fall back to the flat/category menu, course-less byte-
+    identical). Shared by the presentation dict AND the event PDF (which bypasses
+    presentation). Service style is booking-level, not per-course (REL-417)."""
+    from events.models import resolve_booking_menu
+    groups = resolve_booking_menu(booking)
+    if not groups:
+        return None
+    return [
+        {'name': g['course'].name if g['course'] else '', 'items': g['dish_names']}
+        for g in groups
+    ]
+
+
 def booking_presentation(booking, signature=None):
     from bookings.models import OrgSettings
     from bookings.models.choices import EventTypeOption, ServiceStyleOption, MealTypeOption
@@ -74,6 +90,11 @@ def booking_presentation(booking, signature=None):
         groups.setdefault((cat.display_order, cat.display_name), []).append(_display(dish))
     menu = [{'category': name, 'items': sorted(items)} for (_o, name), items in sorted(groups.items())]
     menu_flat = dish_display_names_in_added_order(booking)
+
+    # Menu grouped by COURSE (Starter/Entrée/Dessert + service style) when the booking
+    # defines courses; None otherwise so surfaces fall back to the flat/category menu
+    # exactly as before (REL-417 AC4). Dishes keep add-order within a course.
+    menu_courses = booking_menu_courses(booking)
 
     additional_meals = [
         {
@@ -172,6 +193,7 @@ def booking_presentation(booking, signature=None):
         # Food
         'menu': menu,
         'menu_flat': menu_flat,
+        'menu_courses': menu_courses,  # course-grouped (REL-417) or None
         'additional_meals': additional_meals,
         'line_items': line_items,
         'price_per_head': str(booking.price_per_head) if booking.price_per_head else None,

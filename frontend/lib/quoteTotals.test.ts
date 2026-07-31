@@ -14,7 +14,7 @@ const SEG_META: GuestSegmentMeta[] = [
 describe("deriveMealCount (mirror of backend derive_meal_guest_count) — REL-426", () => {
   // 138 Adults (default remainder) + 12 Kids (=150 guests) + 8 Vendors = 158 covers.
   const counts = { Kids: 12, Vendors: 8 };
-  const meal = (audience: string, seg?: string, guest_count = 0) =>
+  const meal = (audience: string, seg?: string | null, guest_count = 0) =>
     ({ audience, audience_segment: seg ?? null, guest_count });
 
   it("everyone = guests + extra covers", () => {

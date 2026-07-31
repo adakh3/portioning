@@ -432,6 +432,28 @@ def _dish_table(dish_names, s):
     return t
 
 
+def _menu_flowables(menu_courses, dish_names, s):
+    """The MENU ITEMS body: grouped by course (a bold "Course — Service style" header
+    over that course's dish table) when the booking defines courses, else the flat
+    2-column dish table (course-less byte-identical, REL-417 AC4). ``menu_courses`` is
+    the resolved list from ``booking_menu_courses`` (or None); ``dish_names`` is the
+    flat fallback."""
+    if not menu_courses:
+        return [_dish_table(dish_names, s)]
+    from xml.sax.saxutils import escape
+    out = []
+    for g in menu_courses:
+        if not g['items']:
+            continue
+        head = g['name'] or 'Additional dishes'
+        # Course name is free user text — escape for reportlab's mini-markup parser.
+        out.append(Paragraph(f'<b>{escape(head)}</b>', s['body']))
+        out.append(Spacer(1, 1 * mm))
+        out.append(_dish_table(g['items'], s))
+        out.append(Spacer(1, 3 * mm))
+    return out
+
+
 def _meal_flowables(booking, cs, s, time_format='24h'):
     """Additional-meals section: a summary line per priced meal, plus that meal's
     own dish menu as a table when it has dishes. Shared by both PDFs."""
@@ -658,7 +680,7 @@ def generate_quote_pdf(quote, signature=None):
 
     if dish_names:
         elements.append(_section_header([Paragraph('MENU ITEMS', s['section_title'])], [CONTENT_W]))
-        elements.append(_dish_table(dish_names, s))
+        elements.extend(_menu_flowables(pres.get('menu_courses'), dish_names, s))
         if not has_food_total:
             elements.append(Spacer(1, 6 * mm))
 
@@ -902,8 +924,9 @@ def generate_event_pdf(event, signature=None):
     # ── Menu items + main food line ──
     dish_names = dish_display_names_in_added_order(event)
     if dish_names:
+        from bookings.services.presentation import booking_menu_courses
         elements.append(_section_header([Paragraph('MENU ITEMS', s['section_title'])], [CONTENT_W]))
-        elements.append(_dish_table(dish_names, s))
+        elements.extend(_menu_flowables(booking_menu_courses(event), dish_names, s))
         elements.append(Spacer(1, 3 * mm))
 
     # Itemized per segment when multi-rate (see the quote path); segment-priced so it

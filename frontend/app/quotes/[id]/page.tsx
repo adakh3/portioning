@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { api, Contact, EventMealData } from "@/lib/api";
+import { api, Contact, EventMealData, CourseData } from "@/lib/api";
 import { useQuote, useAccounts, useContacts, useSiteSettings, useDateFormat, useEventTypes, useServiceStyles, useMealTypes, useTimelinePresets, useAllLeads, useProductLines, useUsers, revalidate } from "@/lib/hooks";
 import { canWhatsApp, waLink } from "@/lib/whatsapp";
 import { MessageCircle } from "lucide-react";
@@ -12,6 +12,7 @@ import { formatDate, todayISO } from "@/lib/dateFormat";
 import { formatCurrency } from "@/lib/utils";
 import MenuBuilder from "@/components/MenuBuilder";
 import AdditionalMealsEditor from "@/components/AdditionalMealsEditor";
+import CoursesEditor from "@/components/CoursesEditor";
 import GuestCountField, { GuestCountValue } from "@/components/GuestCountField";
 import BookingTimelineField, { TimelineEntryValue } from "@/components/BookingTimelineField";
 import BookingDetailsForm, { BookingDetailsValue } from "@/components/BookingDetailsForm";
@@ -150,6 +151,11 @@ export default function QuoteDetailPage() {
   // Additional meals (parity with events) — committed in the same save.
   const [editMeals, setEditMeals] = useState<EventMealData[]>([]);
   const [createMeals, setCreateMeals] = useState<EventMealData[]>([]);
+  // Courses (Starter/Entrée/Dessert) + dish→course map (REL-417).
+  const [editCourses, setEditCourses] = useState<CourseData[]>([]);
+  const [editDishCourses, setEditDishCourses] = useState<Record<string, number>>({});
+  const [createCourses, setCreateCourses] = useState<CourseData[]>([]);
+  const [createDishCourses, setCreateDishCourses] = useState<Record<string, number>>({});
   const [editTimeline, setEditTimeline] = useState<TimelineEntryValue[]>([]);
   const [createTimeline, setCreateTimeline] = useState<TimelineEntryValue[]>([]);
   // New-quote owner (existing quotes reassign via the header's instant-save select).
@@ -269,6 +275,8 @@ export default function QuoteDetailPage() {
         internal_notes: createData.internal_notes,
         dish_ids: menuData.dish_ids,
         based_on_template: menuData.based_on_template,
+        courses: createCourses,
+        dish_courses: createDishCourses,
         line_items: createLineItems,
         additional_meals: buildMealsPayload(createMeals, createData.guest_count, createData.segment_counts, segmentMeta),
         timeline_entries: buildTimelineEntriesPayload(createTimeline),
@@ -324,6 +332,8 @@ export default function QuoteDetailPage() {
     })));
     setMenuData({ dish_ids: quote.dishes || [], based_on_template: quote.based_on_template || null });
     setEditMeals((quote.additional_meals || []).map((m) => ({ ...m })));
+    setEditCourses(quote.courses || []);
+    setEditDishCourses(quote.dish_courses || {});
     setEditTimeline((quote.timeline_entries || []).map((e) => ({
       id: e.id, time: e.time.slice(0, 5), label: e.label, date: e.date || "",
     })));
@@ -361,7 +371,7 @@ export default function QuoteDetailPage() {
     setSaving(true);
     setError("");
     try {
-      await api.updateQuote(quote.id, buildQuoteSavePayload(editData, menuData, editLineItems, editMeals, segmentMeta, editTimeline));
+      await api.updateQuote(quote.id, buildQuoteSavePayload(editData, menuData, editLineItems, editMeals, segmentMeta, editTimeline, editCourses, editDishCourses));
       await mutateQuote();
       setEditing(false);
     } catch (err) {
@@ -544,6 +554,7 @@ export default function QuoteDetailPage() {
                 basedOnTemplate={menuData.based_on_template}
                 guestCount={createData.guest_count || undefined}
                 onChange={setMenuData}
+                onLoadCourses={(courses, dishCourses) => { setCreateCourses(courses); setCreateDishCourses(dishCourses); }}
                 pricePerHead={createData.price_per_head}
                 onPricePerHeadChange={(val) => setCreateData((prev) => ({ ...prev, price_per_head: val }))}
                 currencySymbol={cs}
@@ -566,6 +577,15 @@ export default function QuoteDetailPage() {
             guestCount={createData.guest_count}
             segmentCounts={createData.segment_counts}
             segmentMeta={segmentMeta}
+          />
+
+          {/* Courses — groups the main menu */}
+          <CoursesEditor
+            courses={createCourses}
+            dishCourses={createDishCourses}
+            onChange={({ courses, dishCourses }) => { setCreateCourses(courses); setCreateDishCourses(dishCourses); }}
+            selectedDishIds={menuData.dish_ids}
+            editing
           />
 
           {/* Additional Items */}
@@ -1040,6 +1060,7 @@ export default function QuoteDetailPage() {
               basedOnTemplate={menuData.based_on_template}
               guestCount={editGuestCount}
               onChange={setMenuData}
+              onLoadCourses={(courses, dishCourses) => { setEditCourses(courses); setEditDishCourses(dishCourses); }}
               pricePerHead={editData.price_per_head}
               onPricePerHeadChange={(val) => setEditData((prev) => ({ ...prev, price_per_head: val }))}
               currencySymbol={cs}
@@ -1100,6 +1121,17 @@ export default function QuoteDetailPage() {
           guestCount={editing ? editData.guest_count : q.guest_count}
           segmentCounts={editing ? editData.segment_counts : Object.fromEntries((q.guest_counts ?? []).map((r) => [r.segment, r.count]))}
           segmentMeta={segmentMeta}
+        />
+      )}
+
+      {/* Courses — groups the main menu */}
+      {(editing || (q.courses || []).length > 0) && (
+        <CoursesEditor
+          courses={editing ? editCourses : (q.courses || [])}
+          dishCourses={editing ? editDishCourses : (q.dish_courses || {})}
+          onChange={({ courses, dishCourses }) => { setEditCourses(courses); setEditDishCourses(dishCourses); }}
+          selectedDishIds={editing ? menuData.dish_ids : (q.dishes || [])}
+          editing={editing}
         />
       )}
 

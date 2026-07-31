@@ -2,6 +2,7 @@ from rest_framework import serializers
 from .models import (
     Event, EventConstraintOverride, EventDishComment, EventPayment,
     sync_legacy_guest_counts, write_booking_segments, guest_counts_error,
+    write_booking_courses,
 )
 from dishes.models import Dish
 from dishes.ordering import dish_ids_in_added_order
@@ -11,6 +12,7 @@ from equipment.serializers import EquipmentReservationSerializer
 from bookings.serializers.finance import InvoiceSerializer
 from bookings.serializers.quotes import BookingLineItemSerializer
 from bookings.serializers.meals import BookingMealSerializer, replace_meals
+from bookings.serializers.courses import read_courses, read_dish_courses
 from bookings.serializers.timeline import (
     BookingTimelineEntrySerializer, replace_timeline_entries,
 )
@@ -85,6 +87,10 @@ class EventSerializer(OrgScopedModelSerializer):
     # Per-segment guest breakdown (additive, read-only for now; the frontend
     # still writes gents/ladies, which dual-write mirrors into these rows).
     guest_counts = serializers.SerializerMethodField()
+    # Courses (Starter/Entrée/Dessert + service style) and each dish's course
+    # (by index into `courses`); written from the raw payload in create/update.
+    courses = serializers.SerializerMethodField()
+    dish_courses = serializers.SerializerMethodField()
 
     # Contact phone (enables the WhatsApp send shortcut on the detail page)
     contact_phone = serializers.CharField(source='primary_contact.phone', read_only=True, default=None)
@@ -180,6 +186,7 @@ class EventSerializer(OrgScopedModelSerializer):
                   'guest_counts',
                   'big_eaters', 'big_eaters_percentage',
                   'dishes', 'dish_ids', 'based_on_template', 'notes',
+                  'courses', 'dish_courses',
                   'kitchen_instructions', 'banquet_instructions', 'setup_instructions',
                   'constraint_override', 'dish_comments', 'line_items', 'created_at',
                   # Booking fields
@@ -227,6 +234,21 @@ class EventSerializer(OrgScopedModelSerializer):
             data['dishes'] = dish_ids_in_added_order(instance)
         return data
 
+    def get_courses(self, obj):
+        return read_courses(obj)
+
+    def get_dish_courses(self, obj):
+        return read_dish_courses(obj)
+
+    def _write_courses(self, booking):
+        # `courses` is the authoritative list; require it before touching courses so a
+        # lone `dish_courses` (or its absence) can't wipe existing courses. Absent
+        # `courses` key → leave courses untouched.
+        if 'courses' in self.initial_data:
+            write_booking_courses(
+                booking, self.initial_data.get('courses'), self.initial_data.get('dish_courses'),
+            )
+
     def create(self, validated_data):
         override_data = validated_data.pop('constraint_override', None)
         dishes = validated_data.pop('dishes', [])
@@ -258,6 +280,7 @@ class EventSerializer(OrgScopedModelSerializer):
             EventConstraintOverride.objects.create(event=event, **override_data)
         for dc in dish_comments_data:
             EventDishComment.objects.create(event=event, **dc)
+        self._write_courses(event)  # after dishes/dish_comments so course rows attach
         self._save_line_items(event, line_items_data)
         replace_meals('event', event, meals_data)
         if timeline_data is not None:
@@ -292,10 +315,11 @@ class EventSerializer(OrgScopedModelSerializer):
                 event=instance, defaults=override_data
             )
         if dish_comments_data is not None:
-            # Replace all dish comments
+            # Replace all dish comments (keep course assignments below re-applying).
             instance.dish_comments.all().delete()
             for dc in dish_comments_data:
                 EventDishComment.objects.create(event=instance, **dc)
+        self._write_courses(instance)  # after dish_comments so course rows attach
         if line_items_data is not None:
             self._save_line_items(instance, line_items_data)
 
@@ -305,12 +329,14 @@ class EventSerializer(OrgScopedModelSerializer):
         if timeline_data is not None:
             replace_timeline_entries('event', instance, timeline_data)
 
-        # Auto-calculate portions when status changes to confirmed
-        # and event has dishes but no existing dish_comments
+        # Auto-calculate portions when status changes to confirmed and the event has
+        # dishes but no PORTIONED dish_comments yet. Course assignments (REL-417) also
+        # live on EventDishComment, so guard on portion_grams — not row existence — and
+        # upsert so a course-only row gains its portion instead of colliding.
         new_status = instance.status
         if (new_status == 'confirmed' and old_status != 'confirmed'
                 and instance.dishes.exists()
-                and not instance.dish_comments.exists()
+                and not instance.dish_comments.filter(portion_grams__isnull=False).exists()
                 and dish_comments_data is None):
             from calculator.engine.calculator import calculate_portions
             result = calculate_portions(
@@ -319,10 +345,9 @@ class EventSerializer(OrgScopedModelSerializer):
                 org=instance.organisation,
             )
             for p in result['portions']:
-                EventDishComment.objects.create(
-                    event=instance,
-                    dish_id=p['dish_id'],
-                    portion_grams=p['grams_per_person'],
+                EventDishComment.objects.update_or_create(
+                    event=instance, dish_id=p['dish_id'],
+                    defaults={'portion_grams': p['grams_per_person']},
                 )
 
         instance.recalculate_totals()  # food + meals + line items + tax (shared engine)
@@ -348,6 +373,8 @@ EVENT_LIST_EXCLUDE = {
     'signature', 'public_token', 'contact_phone',
     # per-segment guest breakdown is a per-row query — detail-view only
     'guest_counts',
+    # courses + dish→course map are per-row queries — detail-view only
+    'courses', 'dish_courses',
 }
 
 

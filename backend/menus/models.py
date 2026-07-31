@@ -34,11 +34,30 @@ class MenuTemplate(models.Model):
         return self.name
 
 
+class MenuCourse(models.Model):
+    """An ordered course on a menu template (Starter / Entrée / Dessert) — carried
+    onto a booking's courses when the template is applied (REL-417). Additive: a
+    template with no courses applies exactly as before."""
+    menu = models.ForeignKey(MenuTemplate, on_delete=models.CASCADE, related_name='courses')
+    name = models.CharField(max_length=100)
+    sort_order = models.IntegerField(default=0)
+
+    class Meta:
+        ordering = ['sort_order', 'id']
+
+    def __str__(self):
+        return f"{self.name} in {self.menu.name}"
+
+
 class MenuDishPortion(models.Model):
     """Snapshot: pre-calculated portion for a dish in a template."""
     menu = models.ForeignKey(MenuTemplate, on_delete=models.CASCADE, related_name='portions')
     dish = models.ForeignKey('dishes.Dish', on_delete=models.CASCADE)
     portion_grams = models.FloatField(help_text="Stored snapshot per-person portion in grams")
+    # Course this dish belongs to on the template (REL-417); null = unassigned.
+    course = models.ForeignKey(
+        MenuCourse, null=True, blank=True, on_delete=models.SET_NULL, related_name='+',
+    )
 
     class Meta:
         unique_together = ['menu', 'dish']

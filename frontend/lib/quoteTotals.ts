@@ -2,7 +2,7 @@
 // previewed live while editing, and so the whole quote saves in one PATCH.
 // The server (bookings/models/quotes.py: recalculate_totals + QuoteLineItem.save)
 // remains the source of truth on save.
-import { EventMealData } from "@/lib/api";
+import { EventMealData, CourseData } from "@/lib/api";
 import type { TimelineEntryValue } from "@/components/BookingTimelineField";
 import { formatCurrency } from "@/lib/utils";
 
@@ -522,6 +522,8 @@ export function buildQuoteSavePayload(
   meals: EventMealData[] = [],
   segmentMeta: GuestSegmentMeta[] = [],
   timelineEntries: TimelineEntryValue[] = [],
+  courses: CourseData[] = [],
+  dishCourses: Record<string, number> = {},
 ) {
   return {
     primary_contact: editData.primary_contact ? Number(editData.primary_contact) : null,
@@ -553,6 +555,8 @@ export function buildQuoteSavePayload(
     internal_notes: editData.internal_notes,
     dish_ids: menuData.dish_ids,
     based_on_template: menuData.based_on_template,
+    courses,
+    dish_courses: dishCourses,
     line_items: buildLineItemsPayload(lineItems),
     additional_meals: buildMealsPayload(meals, editData.guest_count, editData.segment_counts, segmentMeta),
     timeline_entries: buildTimelineEntriesPayload(timelineEntries),
@@ -603,10 +607,17 @@ export interface EventSaveInput {
   timeline_entries: TimelineEntryValue[];
 }
 
-export function buildEventSavePayload(v: EventSaveInput, segmentMeta: GuestSegmentMeta[] = []) {
+export function buildEventSavePayload(
+  v: EventSaveInput,
+  segmentMeta: GuestSegmentMeta[] = [],
+  courses: CourseData[] = [],
+  dishCourses: Record<string, number> = {},
+) {
   return {
     name: v.name,
     date: v.date,
+    courses,
+    dish_courses: dishCourses,
     is_b2b: v.is_b2b,
     account: v.is_b2b ? v.account : null,
     primary_contact: v.primary_contact,

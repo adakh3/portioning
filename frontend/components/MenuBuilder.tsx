@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo, useRef } from "react";
-import { api, collectErrorMessages, MenuTemplateDetail, PriceTier, PriceCheckResult, PriceCheckBreakdownItem, PriceEstimateResult } from "@/lib/api";
+import { api, collectErrorMessages, MenuTemplateDetail, CourseData, PriceTier, PriceCheckResult, PriceCheckBreakdownItem, PriceEstimateResult } from "@/lib/api";
 import { useDishes, useCategories, useMenus } from "@/lib/hooks";
 import { formatCurrency } from "@/lib/utils";
 import DietaryTagPills, { dietaryTagsDescription } from "@/components/DietaryTagPills";
@@ -33,6 +33,9 @@ interface Props {
   guestCount?: number;
   onSave?: (data: { dish_ids: number[]; based_on_template: number | null }) => Promise<void>;
   onChange?: (data: { dish_ids: number[]; based_on_template: number | null }) => void;
+  /** REL-417: when a template with courses is loaded, its course structure is
+   * surfaced so the booking can carry it over (AC6). */
+  onLoadCourses?: (courses: CourseData[], dishCourses: Record<string, number>) => void;
   pricePerHead?: string;
   onPricePerHeadChange?: (value: string) => void;
   currencySymbol?: string;
@@ -46,6 +49,7 @@ export default function MenuBuilder({
   guestCount,
   onSave,
   onChange,
+  onLoadCourses,
   pricePerHead,
   onPricePerHeadChange,
   currencySymbol = "",
@@ -167,6 +171,9 @@ export default function MenuBuilder({
       setCalculatedPrice(null);
       setPriceError(null);
       onChange?.({ dish_ids: dishIds, based_on_template: tid });
+      // Carry the template's courses onto the booking (REL-417 AC6). Always fire —
+      // a course-less template clears any stale courses from a previously-loaded one.
+      onLoadCourses?.(detail.courses || [], detail.dish_courses || {});
     } catch (e) {
       setPriceError(errorText(e) || "Couldn't load that template.");
     }
@@ -285,6 +292,7 @@ export default function MenuBuilder({
       <div className="flex items-center gap-3 flex-wrap">
         <div className="relative">
           <select
+            aria-label="Load from template"
             value=""
             onChange={(e) => {
               if (e.target.value) handleLoadTemplate(Number(e.target.value));

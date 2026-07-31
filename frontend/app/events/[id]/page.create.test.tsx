@@ -39,6 +39,7 @@ vi.mock("@/lib/hooks", () => ({
   useFormatDateTime: () => (v: string | null) => v ?? "-",
   useEventTypes: () => ({ data: [{ id: 1, value: "wedding", label: "Wedding" }] }),
   useServiceStyles: () => ({ data: [] }),
+  useDishes: () => ({ data: [] }),
   useMealTypes: () => ({ data: [] }),
   useTimelinePresets: () => ({ data: [] }),
   useProductLines: () => ({ data: [{ id: 5, name: "Catering", is_active: true, colour: "#000", round_robin_index: 0 }] }),
@@ -54,6 +55,22 @@ import EventCreatePage from "./page";
 
 describe("Event create — guest split + anchored timeline reach the payload", () => {
   beforeEach(() => { h.createEvent.mockClear(); h.push.mockClear(); });
+
+  it("a course added on the form reaches the payload (REL-417)", async () => {
+    render(<EventCreatePage />);
+    fireEvent.click(screen.getByText("select-customer"));
+    fireEvent.change(screen.getByLabelText("Guest Count"), { target: { value: "40" } });
+
+    fireEvent.click(screen.getByText("+ Add course"));
+    fireEvent.change(screen.getByLabelText("Course 1 name"), { target: { value: "Starter" } });
+
+    fireEvent.click(screen.getByText("Create Event"));
+
+    await waitFor(() => expect(h.createEvent).toHaveBeenCalledTimes(1));
+    const payload = h.createEvent.mock.calls[0][0] as Record<string, unknown>;
+    expect(payload.courses).toEqual([{ name: "Starter", sort_order: 0 }]);
+    expect(payload.dish_courses).toEqual({});
+  });
 
   it("sends the guest count with no fabricated split, and an anchored timeline time", async () => {
     const today = todayISO();

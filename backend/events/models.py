@@ -182,6 +182,72 @@ def resolve_booking_segments(booking):
     )
 
 
+def dish_comment_model(booking):
+    """The per-dish side table for this booking kind — EventDishComment for an
+    event, QuoteDishComment for a quote. Both carry the dish→course link."""
+    return EventDishComment if isinstance(booking, Event) else QuoteDishComment
+
+
+def resolve_booking_menu(booking):
+    """The booking's menu grouped by course, for display (quote XOR event).
+
+    Returns ``None`` when the booking defines no courses — the caller then renders
+    the flat menu exactly as today (course-less byte-identical, REL-417 AC4).
+    Otherwise returns an ordered list of ``{'course', 'dish_ids', 'dish_names'}``:
+    the booking's courses in ``sort_order``, then a trailing unassigned group
+    (``course=None``) for any dishes not assigned to a course (AC5). Dish order
+    within a group follows add-order.
+    """
+    from dishes.ordering import dish_ids_in_added_order
+    courses = list(booking.courses.all())
+    if not courses:
+        return None
+    course_by_dish = {r.dish_id: r.course_id for r in booking.dish_comments.all() if r.course_id}
+    ordered_ids = dish_ids_in_added_order(booking)
+    names = dict(booking.dishes.values_list('id', 'name'))
+    groups = []
+    for course in courses:
+        ids = [d for d in ordered_ids if course_by_dish.get(d) == course.id]
+        groups.append({'course': course, 'dish_ids': ids, 'dish_names': [names.get(d, '') for d in ids]})
+    unassigned = [d for d in ordered_ids if course_by_dish.get(d) is None]
+    if unassigned:
+        groups.append({'course': None, 'dish_ids': unassigned, 'dish_names': [names.get(d, '') for d in unassigned]})
+    return groups
+
+
+def write_booking_courses(booking, courses_data, dish_courses):
+    """Replace a booking's courses and (re)assign dishes to them.
+
+    ``courses_data`` is an ordered list of ``{'name','service_style','sort_order'}``;
+    ``dish_courses`` maps ``dish_id -> course index`` (into ``courses_data``). Courses
+    are replaced wholesale; each listed dish's per-dish row is upserted with its
+    course (preserving any ``comment``/``portion_grams``); dishes not listed are
+    unassigned. Idempotent given the same input. Never a batch over other bookings.
+    """
+    parent = {'event': booking} if isinstance(booking, Event) else {'quote': booking}
+    Model = dish_comment_model(booking)
+    booking.courses.all().delete()  # cascades cleared FKs to None via SET_NULL
+    created = []
+    for i, c in enumerate(courses_data or []):
+        created.append(BookingCourse.objects.create(
+            name=(c.get('name') or '').strip(), sort_order=c.get('sort_order', i), **parent,
+        ))
+    # Assign dishes to their course; clear the course on any row not re-listed.
+    # Only dishes actually on the booking are assignable — a stale/foreign/removed
+    # dish_id in the raw payload is ignored (never creates a stray or cross-org row).
+    valid_dish_ids = set(booking.dishes.values_list('id', flat=True))
+    assigned = {}
+    for dish_id, idx in (dish_courses or {}).items():
+        if idx is None or idx < 0 or idx >= len(created):
+            continue
+        did = int(dish_id)
+        if did in valid_dish_ids:
+            assigned[did] = created[idx]
+    for dish_id, course in assigned.items():
+        Model.objects.update_or_create(dish_id=dish_id, defaults={'course': course}, **parent)
+    Model.objects.filter(**parent).exclude(dish_id__in=assigned.keys()).update(course=None)
+
+
 class MealAudience(models.TextChoices):
     CUSTOM = 'custom', 'Custom number'      # a hand-typed count (today's behaviour)
     EVERYONE = 'everyone', 'Everyone'       # every cover: guests + extra covers
@@ -464,17 +530,72 @@ class EventConstraintOverride(models.Model):
 # (bookings/models/addons.py), which attaches priced add-ons to an event or a quote.
 
 
+class BookingCourse(models.Model):
+    """An ordered course on a quote OR an event (exactly one) — Starter / Entrée /
+    Dessert — each with its own service style. Dishes are assigned to a course via
+    the per-dish rows (EventDishComment / QuoteDishComment). Additive & optional: a
+    booking with no courses renders exactly as before (implicit single course)."""
+    quote = models.ForeignKey(
+        'bookings.Quote', null=True, blank=True,
+        on_delete=models.CASCADE, related_name='courses',
+    )
+    event = models.ForeignKey(
+        Event, null=True, blank=True,
+        on_delete=models.CASCADE, related_name='courses',
+    )
+    name = models.CharField(max_length=100)
+    sort_order = models.IntegerField(default=0)
+
+    class Meta:
+        ordering = ['sort_order', 'id']
+        constraints = [
+            models.CheckConstraint(
+                name='bookingcourse_exactly_one_parent',
+                condition=(
+                    models.Q(quote__isnull=False, event__isnull=True)
+                    | models.Q(quote__isnull=True, event__isnull=False)
+                ),
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.name} for {self.event or self.quote}"
+
+
 class EventDishComment(models.Model):
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='dish_comments')
     dish = models.ForeignKey('dishes.Dish', on_delete=models.CASCADE)
     comment = models.TextField(blank=True)
     portion_grams = models.FloatField(null=True, blank=True)
+    # Course this dish belongs to (REL-417); null = unassigned (renders as today).
+    course = models.ForeignKey(
+        'events.BookingCourse', null=True, blank=True, on_delete=models.SET_NULL, related_name='+',
+    )
 
     class Meta:
         unique_together = ('event', 'dish')
 
     def __str__(self):
         return f"{self.event.name} - {self.dish.name}"
+
+
+class QuoteDishComment(models.Model):
+    """Per-dish record for a quote — the mirror of EventDishComment (quotes had no
+    per-dish table before REL-417). Carries the dish's course assignment plus an
+    optional comment / portion, so course grouping works identically on quotes."""
+    quote = models.ForeignKey('bookings.Quote', on_delete=models.CASCADE, related_name='dish_comments')
+    dish = models.ForeignKey('dishes.Dish', on_delete=models.CASCADE)
+    comment = models.TextField(blank=True)
+    portion_grams = models.FloatField(null=True, blank=True)
+    course = models.ForeignKey(
+        'events.BookingCourse', null=True, blank=True, on_delete=models.SET_NULL, related_name='+',
+    )
+
+    class Meta:
+        unique_together = ('quote', 'dish')
+
+    def __str__(self):
+        return f"{self.quote} - {self.dish.name}"
 
 
 class BookingMeal(models.Model):

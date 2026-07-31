@@ -101,6 +101,14 @@ def accept_quote(quote, user=None):
                 portion_grams=p['grams_per_person'],
             )
 
+    # Carry the quote's courses + dish→course assignments onto the event (REL-417),
+    # after the portion rows exist so write_booking_courses upserts course onto them.
+    from bookings.serializers.courses import read_courses, read_dish_courses
+    from events.models import write_booking_courses
+    course_data = read_courses(quote)
+    if course_data:
+        write_booking_courses(event, course_data, read_dish_courses(quote))
+
     # Carry the add-on line items, additional meals and timeline across, then
     # recompute via the shared engine so the event total matches the quote
     # (food-only included).
