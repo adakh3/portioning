@@ -38,6 +38,25 @@ describe("BookingTimelineField — legacy slots", () => {
     expect(screen.getByText("+ Build a run-of-show")).toBeInTheDocument();
   });
 
+  it("setting the meal time does NOT make the other three slots appear", () => {
+    // Regression: `meal_time` counted as a "this is an old booking" marker, so
+    // picking the anchor on a new booking made Setup / Guest Arrival / End spring
+    // into view — the exact confusion this change removes.
+    const { rerender } = render(
+      <BookingTimelineField value={base} onChange={() => {}} entries={[]}
+        onEntriesChange={() => {}} eventDate="2026-08-01" />,
+    );
+    rerender(
+      <BookingTimelineField value={{ ...base, meal_time: "2026-08-01T18:30" }}
+        onChange={() => {}} entries={[]} onEntriesChange={() => {}} eventDate="2026-08-01" />,
+    );
+    expect(screen.getByLabelText("Meal Time")).toHaveValue("18:30");
+    for (const label of ["Setup Time", "Guest Arrival", "End Time"]) {
+      expect(screen.queryByText(label)).not.toBeInTheDocument();
+    }
+    expect(screen.getByText("+ Build a run-of-show")).toBeInTheDocument();
+  });
+
   it("anchors a chosen slot to the event date", () => {
     const onChange = vi.fn();
     render(

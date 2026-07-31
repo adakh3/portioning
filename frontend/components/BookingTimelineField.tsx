@@ -159,7 +159,7 @@ export default function BookingTimelineField({
   // choose. They appear only on a booking that actually has one set, where they
   // are also the thing "+ Build a run-of-show" converts from. A booking without
   // them never sees them.
-  const hasLegacyTimes = LEGACY_FIELDS.some((key) => !!value[key]);
+  const hasLegacyTimes = LEGACY_ONLY_FIELDS.some((key) => !!value[key]);
 
   if (rows.length === 0 && hasLegacyTimes) {
     return (
@@ -271,9 +271,15 @@ export default function BookingTimelineField({
 /** Where a day hangs when the booking has no meal time of its own. */
 const DEFAULT_ANCHOR = "18:30";
 
-/** The four legacy time columns, in the order a day runs. */
-const LEGACY_FIELDS: (keyof BookingTimelineValue)[] = [
-  "setup_time", "guest_arrival_time", "meal_time", "end_time",
+/** The legacy columns that mark a booking as one that stored its day the OLD way.
+ *
+ * `meal_time` is deliberately NOT in this list. It is the anchor a NEW booking
+ * writes through the picker in the empty state, so treating it as a legacy
+ * marker made the other three slots spring into view the instant you set a meal
+ * time — which is exactly the confusion this whole change removes.
+ */
+const LEGACY_ONLY_FIELDS: (keyof BookingTimelineValue)[] = [
+  "setup_time", "guest_arrival_time", "end_time",
 ];
 
 /** Which legacy column a seeded step inherits its time from, by preset slug.
