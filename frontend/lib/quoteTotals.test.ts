@@ -302,6 +302,7 @@ describe("buildEventSavePayload", () => {
     is_taxable: true, service_charge_pct: "0", service_charge_taxable: true, gratuity_pct: "0",
     dish_ids: [1, 2], based_on_template: null,
     line_items: [{ id: 7, category: "rental", description: "Chairs", quantity: 2, unit: "each", unit_price: 100 }],
+    timeline_entries: [],
     meals: [{ label: "Tea", guest_count: 40, price_per_head: "15.00", dishes: [3], based_on_template: null, meal_time: null, notes: "" }],
   };
 

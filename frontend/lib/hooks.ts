@@ -42,6 +42,7 @@ import {
   Subscription,
   Plan,
 } from "./api";
+import { formatDateTime } from "./dateFormat";
 
 // ── Revalidation helper ──
 
@@ -60,6 +61,26 @@ export function revalidatePrefix(prefix: string) {
 export function useDateFormat(): string {
   const { data } = useSiteSettings();
   return data?.date_format || "MM/DD/YYYY";
+}
+
+/** The org's 12h/24h preference for entering and displaying times. */
+export function useTimeFormat(): "12h" | "24h" {
+  const { data } = useSiteSettings();
+  return (data as { time_format?: string } | undefined)?.time_format === "12h" ? "12h" : "24h";
+}
+
+/** A date-time formatter already bound to BOTH org preferences.
+ *
+ * Prefer this to calling `formatDateTime` directly. That function's `timeFormat`
+ * argument defaults to "24h", so a caller who forgets it silently shows 24-hour
+ * times to a 12-hour org — which is how the app ended up printing "18:00" on
+ * lead timestamps and "6:00 PM" on bookings for the same organisation. There is
+ * nothing to forget here.
+ */
+export function useFormatDateTime(): (value: string | null | undefined) => string {
+  const dateFormat = useDateFormat();
+  const timeFormat = useTimeFormat();
+  return (value) => (value ? formatDateTime(value, dateFormat, timeFormat) : "-");
 }
 
 // ── Billing ──
@@ -171,6 +192,13 @@ export function useLostReasons() {
 
 export function useMealTypes() {
   return useSWR<ChoiceOption[]>("meal-types", () => api.getMealTypes(), {
+    dedupingInterval: 300000,
+    revalidateOnFocus: false,
+  });
+}
+
+export function useTimelinePresets() {
+  return useSWR<ChoiceOption[]>("timeline-presets", () => api.getTimelinePresets(), {
     dedupingInterval: 300000,
     revalidateOnFocus: false,
   });

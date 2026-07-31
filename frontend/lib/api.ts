@@ -159,6 +159,27 @@ export interface DishCategory {
   removal_discount: string;
 }
 
+/** One row of a booking's event-day run-of-show. `time` is 24h "HH:MM:SS" as the
+ * API stores it; a booking with no entries falls back to its four legacy time
+ * fields. */
+export interface TimelineEntry {
+  id: number;
+  time: string;
+  label: string;
+  /** "YYYY-MM-DD" when the step is on a different day from the booking's event
+   * date (a load-in the afternoon before); null when it's on the day itself. */
+  date: string | null;
+  sort_order: number;
+}
+
+export interface DietaryTag {
+  id: number;
+  slug: string;
+  label: string;
+  short_label: string;
+  kind: "dietary" | "allergen";
+}
+
 export interface Dish {
   id: number;
   name: string;
@@ -172,6 +193,8 @@ export interface Dish {
   selling_price_override: boolean;
   margin_percent: number | null;
   is_vegetarian: boolean;
+  /** Dietary/allergen labels; a dish with none is simply untagged. Edited in Django admin. */
+  dietary_tags?: DietaryTag[];
   notes: string;
 }
 
@@ -434,6 +457,8 @@ export interface Quote {
   guest_arrival_time: string | null;
   meal_time: string | null;
   end_time: string | null;
+  /** The booking's own run-of-show; empty ⇒ the four fields above render instead. */
+  timeline_entries?: TimelineEntry[];
   price_per_head: string | null;
   food_total: string;
   event_type: string;
@@ -636,6 +661,10 @@ export interface ChoiceOption {
   is_default?: boolean;
   is_won?: boolean;
   is_lost?: boolean;
+  // Timeline-step only — these two make the preset list double as the org's
+  // standard-day template ("+ Build a run-of-show" seeds from them).
+  in_standard_day?: boolean;
+  standard_day_offset_minutes?: number | null;
 }
 
 // Settings types
@@ -777,6 +806,8 @@ export interface EventData {
   guest_arrival_time: string | null;
   meal_time: string | null;
   end_time: string | null;
+  /** The booking's own run-of-show; empty ⇒ the four fields above render instead. */
+  timeline_entries?: TimelineEntry[];
   // Guest counts
   guaranteed_count: number | null;
   final_count: number | null;
@@ -1225,7 +1256,9 @@ export interface PublicBooking {
   meal_type_label: string;
   service_style: string;
   service_style_label: string;
-  timeline: { label: string; time: string | null }[];
+  /** `time_display` is set for run-of-show entries (a bare time the client
+   * can't parse); legacy slots leave it null and carry a full ISO datetime. */
+  timeline: { label: string; time: string | null; time_display?: string | null }[];
   menu: { category: string; items: string[] }[];
   additional_meals: { label: string; guest_count: number; price_per_head: string | null; items: string[] }[];
   line_items: { description: string; category: string; quantity: string; unit: string; line_total: string }[];
@@ -1330,13 +1363,13 @@ export const api = {
     const qs = searchParams.toString();
     return fetchList<EventData>(`/events/${qs ? `?${qs}` : ""}`);
   },
-  createEvent: (data: Omit<Partial<EventData>, "line_items" | "additional_meals" | "guest_counts"> & { dish_ids?: number[]; dish_comments?: EventDishComment[]; line_items?: unknown[]; additional_meals?: unknown[]; guest_counts?: { segment: string; count: number; price_per_head?: string | null }[] }) =>
+  createEvent: (data: Omit<Partial<EventData>, "line_items" | "additional_meals" | "guest_counts" | "timeline_entries"> & { dish_ids?: number[]; dish_comments?: EventDishComment[]; line_items?: unknown[]; additional_meals?: unknown[]; timeline_entries?: unknown[]; guest_counts?: { segment: string; count: number; price_per_head?: string | null }[] }) =>
     fetchApi<EventData>("/events/", {
       method: "POST",
       body: JSON.stringify(data),
     }),
   getEvent: (id: number) => fetchApi<EventData>(`/events/${id}/`),
-  updateEvent: (id: number, data: Omit<Partial<EventData>, "line_items" | "additional_meals" | "guest_counts"> & { dish_ids?: number[]; dish_comments?: EventDishComment[]; line_items?: unknown[]; additional_meals?: unknown[]; guest_counts?: { segment: string; count: number; price_per_head?: string | null }[] }) =>
+  updateEvent: (id: number, data: Omit<Partial<EventData>, "line_items" | "additional_meals" | "guest_counts" | "timeline_entries"> & { dish_ids?: number[]; dish_comments?: EventDishComment[]; line_items?: unknown[]; additional_meals?: unknown[]; timeline_entries?: unknown[]; guest_counts?: { segment: string; count: number; price_per_head?: string | null }[] }) =>
     fetchApi<EventData>(`/events/${id}/`, {
       method: "PATCH",
       body: JSON.stringify(data),
@@ -1531,9 +1564,9 @@ export const api = {
     return fetchList<Quote>(`/bookings/quotes/${qs ? `?${qs}` : ""}`);
   },
   getQuote: (id: number) => fetchApi<Quote>(`/bookings/quotes/${id}/`),
-  createQuote: (data: Omit<Partial<Quote>, "line_items" | "additional_meals" | "guest_counts"> & { dish_ids?: number[]; line_items?: unknown[]; additional_meals?: unknown[]; guest_counts?: { segment: string; count: number; price_per_head?: string | null }[] }) =>
+  createQuote: (data: Omit<Partial<Quote>, "line_items" | "additional_meals" | "guest_counts" | "timeline_entries"> & { dish_ids?: number[]; line_items?: unknown[]; additional_meals?: unknown[]; timeline_entries?: unknown[]; guest_counts?: { segment: string; count: number; price_per_head?: string | null }[] }) =>
     fetchApi<Quote>("/bookings/quotes/", { method: "POST", body: JSON.stringify(data) }),
-  updateQuote: (id: number, data: Omit<Partial<Quote>, "line_items" | "additional_meals" | "guest_counts"> & { dish_ids?: number[]; line_items?: unknown[]; additional_meals?: unknown[]; guest_counts?: { segment: string; count: number; price_per_head?: string | null }[] }) =>
+  updateQuote: (id: number, data: Omit<Partial<Quote>, "line_items" | "additional_meals" | "guest_counts" | "timeline_entries"> & { dish_ids?: number[]; line_items?: unknown[]; additional_meals?: unknown[]; timeline_entries?: unknown[]; guest_counts?: { segment: string; count: number; price_per_head?: string | null }[] }) =>
     fetchApi<Quote>(`/bookings/quotes/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
   deleteQuote: (id: number) =>
     fetchApi<void>(`/bookings/quotes/${id}/`, { method: "DELETE" }),
@@ -1707,6 +1740,7 @@ export const api = {
     fetchApi<void>(`${base}${id}/`, { method: "DELETE" }),
   getLostReasons: () => fetchList<ChoiceOption>("/bookings/lost-reasons/?page_size=all"),
   getMealTypes: () => fetchList<ChoiceOption>("/bookings/meal-types/?page_size=all"),
+  getTimelinePresets: () => fetchList<ChoiceOption>("/bookings/timeline-presets/?page_size=all"),
 
   // Settings
   getSiteSettings: () => fetchApi<SiteSettingsData>("/bookings/settings/"),

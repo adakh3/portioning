@@ -312,6 +312,171 @@
   }
 },
 {
+  "model": "dishes.dietarytag",
+  "pk": 1,
+  "fields": {
+    "slug": "vegetarian",
+    "label": "Vegetarian",
+    "short_label": "V",
+    "kind": "dietary",
+    "sort_order": 0
+  }
+},
+{
+  "model": "dishes.dietarytag",
+  "pk": 2,
+  "fields": {
+    "slug": "vegan",
+    "label": "Vegan",
+    "short_label": "VG",
+    "kind": "dietary",
+    "sort_order": 1
+  }
+},
+{
+  "model": "dishes.dietarytag",
+  "pk": 3,
+  "fields": {
+    "slug": "gluten_free",
+    "label": "Gluten-free",
+    "short_label": "GF",
+    "kind": "dietary",
+    "sort_order": 2
+  }
+},
+{
+  "model": "dishes.dietarytag",
+  "pk": 4,
+  "fields": {
+    "slug": "dairy_free",
+    "label": "Dairy-free",
+    "short_label": "DF",
+    "kind": "dietary",
+    "sort_order": 3
+  }
+},
+{
+  "model": "dishes.dietarytag",
+  "pk": 5,
+  "fields": {
+    "slug": "halal",
+    "label": "Halal",
+    "short_label": "HAL",
+    "kind": "dietary",
+    "sort_order": 4
+  }
+},
+{
+  "model": "dishes.dietarytag",
+  "pk": 6,
+  "fields": {
+    "slug": "kosher",
+    "label": "Kosher",
+    "short_label": "K",
+    "kind": "dietary",
+    "sort_order": 5
+  }
+},
+{
+  "model": "dishes.dietarytag",
+  "pk": 7,
+  "fields": {
+    "slug": "milk",
+    "label": "Milk",
+    "short_label": "MLK",
+    "kind": "allergen",
+    "sort_order": 0
+  }
+},
+{
+  "model": "dishes.dietarytag",
+  "pk": 8,
+  "fields": {
+    "slug": "eggs",
+    "label": "Eggs",
+    "short_label": "EGG",
+    "kind": "allergen",
+    "sort_order": 1
+  }
+},
+{
+  "model": "dishes.dietarytag",
+  "pk": 9,
+  "fields": {
+    "slug": "fish",
+    "label": "Fish",
+    "short_label": "FSH",
+    "kind": "allergen",
+    "sort_order": 2
+  }
+},
+{
+  "model": "dishes.dietarytag",
+  "pk": 10,
+  "fields": {
+    "slug": "shellfish",
+    "label": "Shellfish",
+    "short_label": "SHL",
+    "kind": "allergen",
+    "sort_order": 3
+  }
+},
+{
+  "model": "dishes.dietarytag",
+  "pk": 11,
+  "fields": {
+    "slug": "tree_nuts",
+    "label": "Tree nuts",
+    "short_label": "NUT",
+    "kind": "allergen",
+    "sort_order": 4
+  }
+},
+{
+  "model": "dishes.dietarytag",
+  "pk": 12,
+  "fields": {
+    "slug": "peanuts",
+    "label": "Peanuts",
+    "short_label": "PNT",
+    "kind": "allergen",
+    "sort_order": 5
+  }
+},
+{
+  "model": "dishes.dietarytag",
+  "pk": 13,
+  "fields": {
+    "slug": "wheat",
+    "label": "Wheat",
+    "short_label": "WHT",
+    "kind": "allergen",
+    "sort_order": 6
+  }
+},
+{
+  "model": "dishes.dietarytag",
+  "pk": 14,
+  "fields": {
+    "slug": "soy",
+    "label": "Soy",
+    "short_label": "SOY",
+    "kind": "allergen",
+    "sort_order": 7
+  }
+},
+{
+  "model": "dishes.dietarytag",
+  "pk": 15,
+  "fields": {
+    "slug": "sesame",
+    "label": "Sesame",
+    "short_label": "SES",
+    "kind": "allergen",
+    "sort_order": 8
+  }
+},
+{
   "model": "dishes.dish",
   "pk": 903,
   "fields": {
@@ -331,7 +496,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.223Z",
-    "updated_at": "2026-03-01T20:05:45.802Z"
+    "updated_at": "2026-03-01T20:05:45.802Z",
+    "dietary_tags": []
   }
 },
 {
@@ -354,7 +520,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.224Z",
-    "updated_at": "2026-03-01T20:05:45.055Z"
+    "updated_at": "2026-03-01T20:05:45.055Z",
+    "dietary_tags": []
   }
 },
 {
@@ -377,7 +544,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.225Z",
-    "updated_at": "2026-03-01T20:05:46.577Z"
+    "updated_at": "2026-03-01T20:05:46.577Z",
+    "dietary_tags": []
   }
 },
 {
@@ -400,7 +568,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.226Z",
-    "updated_at": "2026-03-01T20:05:45.429Z"
+    "updated_at": "2026-03-01T20:05:45.429Z",
+    "dietary_tags": []
   }
 },
 {
@@ -423,7 +592,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.227Z",
-    "updated_at": "2026-03-01T20:05:45.611Z"
+    "updated_at": "2026-03-01T20:05:45.611Z",
+    "dietary_tags": []
   }
 },
 {
@@ -446,7 +616,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.227Z",
-    "updated_at": "2026-03-01T20:05:45.987Z"
+    "updated_at": "2026-03-01T20:05:45.987Z",
+    "dietary_tags": []
   }
 },
 {
@@ -469,7 +640,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.228Z",
-    "updated_at": "2026-03-01T20:05:45.234Z"
+    "updated_at": "2026-03-01T20:05:45.234Z",
+    "dietary_tags": []
   }
 },
 {
@@ -492,7 +664,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.229Z",
-    "updated_at": "2026-03-01T20:05:46.365Z"
+    "updated_at": "2026-03-01T20:05:46.365Z",
+    "dietary_tags": []
   }
 },
 {
@@ -515,7 +688,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.230Z",
-    "updated_at": "2026-03-01T20:05:44.870Z"
+    "updated_at": "2026-03-01T20:05:44.870Z",
+    "dietary_tags": []
   }
 },
 {
@@ -538,7 +712,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.231Z",
-    "updated_at": "2026-03-01T20:05:51.861Z"
+    "updated_at": "2026-03-01T20:05:51.861Z",
+    "dietary_tags": []
   }
 },
 {
@@ -561,7 +736,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.232Z",
-    "updated_at": "2026-03-01T20:05:43.927Z"
+    "updated_at": "2026-03-01T20:05:43.927Z",
+    "dietary_tags": []
   }
 },
 {
@@ -584,7 +760,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.233Z",
-    "updated_at": "2026-03-01T20:05:42.617Z"
+    "updated_at": "2026-03-01T20:05:42.617Z",
+    "dietary_tags": []
   }
 },
 {
@@ -607,7 +784,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.234Z",
-    "updated_at": "2026-03-01T20:05:42.988Z"
+    "updated_at": "2026-03-01T20:05:42.988Z",
+    "dietary_tags": []
   }
 },
 {
@@ -630,7 +808,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.235Z",
-    "updated_at": "2026-03-01T20:05:42.219Z"
+    "updated_at": "2026-03-01T20:05:42.219Z",
+    "dietary_tags": []
   }
 },
 {
@@ -653,7 +832,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.235Z",
-    "updated_at": "2026-03-01T20:05:42.804Z"
+    "updated_at": "2026-03-01T20:05:42.804Z",
+    "dietary_tags": []
   }
 },
 {
@@ -676,7 +856,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.236Z",
-    "updated_at": "2026-03-01T20:05:46.789Z"
+    "updated_at": "2026-03-01T20:05:46.789Z",
+    "dietary_tags": []
   }
 },
 {
@@ -699,7 +880,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.237Z",
-    "updated_at": "2026-03-01T20:05:51.670Z"
+    "updated_at": "2026-03-01T20:05:51.670Z",
+    "dietary_tags": []
   }
 },
 {
@@ -722,7 +904,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.238Z",
-    "updated_at": "2026-03-01T20:05:44.688Z"
+    "updated_at": "2026-03-01T20:05:44.688Z",
+    "dietary_tags": []
   }
 },
 {
@@ -745,7 +928,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.239Z",
-    "updated_at": "2026-03-01T20:05:43.359Z"
+    "updated_at": "2026-03-01T20:05:43.359Z",
+    "dietary_tags": []
   }
 },
 {
@@ -768,7 +952,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.240Z",
-    "updated_at": "2026-03-01T20:05:43.173Z"
+    "updated_at": "2026-03-01T20:05:43.173Z",
+    "dietary_tags": []
   }
 },
 {
@@ -791,7 +976,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.241Z",
-    "updated_at": "2026-03-01T20:05:42.416Z"
+    "updated_at": "2026-03-01T20:05:42.416Z",
+    "dietary_tags": []
   }
 },
 {
@@ -814,7 +1000,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.242Z",
-    "updated_at": "2026-03-01T20:05:50.517Z"
+    "updated_at": "2026-03-01T20:05:50.517Z",
+    "dietary_tags": []
   }
 },
 {
@@ -837,7 +1024,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.243Z",
-    "updated_at": "2026-03-01T20:05:50.709Z"
+    "updated_at": "2026-03-01T20:05:50.709Z",
+    "dietary_tags": []
   }
 },
 {
@@ -860,7 +1048,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.244Z",
-    "updated_at": "2026-03-01T20:05:51.084Z"
+    "updated_at": "2026-03-01T20:05:51.084Z",
+    "dietary_tags": []
   }
 },
 {
@@ -883,7 +1072,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.245Z",
-    "updated_at": "2026-03-01T20:05:44.495Z"
+    "updated_at": "2026-03-01T20:05:44.495Z",
+    "dietary_tags": []
   }
 },
 {
@@ -906,7 +1096,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.246Z",
-    "updated_at": "2026-03-01T20:05:50.140Z"
+    "updated_at": "2026-03-01T20:05:50.140Z",
+    "dietary_tags": []
   }
 },
 {
@@ -929,7 +1120,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.247Z",
-    "updated_at": "2026-03-01T20:05:50.889Z"
+    "updated_at": "2026-03-01T20:05:50.889Z",
+    "dietary_tags": []
   }
 },
 {
@@ -952,7 +1144,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.248Z",
-    "updated_at": "2026-03-01T20:05:43.544Z"
+    "updated_at": "2026-03-01T20:05:43.544Z",
+    "dietary_tags": []
   }
 },
 {
@@ -975,7 +1168,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.249Z",
-    "updated_at": "2026-03-01T20:05:47.348Z"
+    "updated_at": "2026-03-01T20:05:47.348Z",
+    "dietary_tags": []
   }
 },
 {
@@ -998,7 +1192,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.250Z",
-    "updated_at": "2026-03-01T20:05:47.901Z"
+    "updated_at": "2026-03-01T20:05:47.901Z",
+    "dietary_tags": []
   }
 },
 {
@@ -1021,7 +1216,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.251Z",
-    "updated_at": "2026-03-01T20:05:49.583Z"
+    "updated_at": "2026-03-01T20:05:49.583Z",
+    "dietary_tags": []
   }
 },
 {
@@ -1044,7 +1240,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.252Z",
-    "updated_at": "2026-03-01T20:05:48.290Z"
+    "updated_at": "2026-03-01T20:05:48.290Z",
+    "dietary_tags": []
   }
 },
 {
@@ -1067,7 +1264,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.253Z",
-    "updated_at": "2026-03-01T20:05:47.719Z"
+    "updated_at": "2026-03-01T20:05:47.719Z",
+    "dietary_tags": []
   }
 },
 {
@@ -1090,7 +1288,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.254Z",
-    "updated_at": "2026-03-01T20:05:48.665Z"
+    "updated_at": "2026-03-01T20:05:48.665Z",
+    "dietary_tags": []
   }
 },
 {
@@ -1113,7 +1312,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.255Z",
-    "updated_at": "2026-03-01T20:05:48.478Z"
+    "updated_at": "2026-03-01T20:05:48.478Z",
+    "dietary_tags": []
   }
 },
 {
@@ -1136,7 +1336,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.255Z",
-    "updated_at": "2026-03-01T20:05:49.398Z"
+    "updated_at": "2026-03-01T20:05:49.398Z",
+    "dietary_tags": []
   }
 },
 {
@@ -1159,7 +1360,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.256Z",
-    "updated_at": "2026-03-01T20:05:48.845Z"
+    "updated_at": "2026-03-01T20:05:48.845Z",
+    "dietary_tags": []
   }
 },
 {
@@ -1182,7 +1384,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.258Z",
-    "updated_at": "2026-03-01T20:05:47.166Z"
+    "updated_at": "2026-03-01T20:05:47.166Z",
+    "dietary_tags": []
   }
 },
 {
@@ -1205,7 +1408,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.259Z",
-    "updated_at": "2026-03-01T20:05:49.958Z"
+    "updated_at": "2026-03-01T20:05:49.958Z",
+    "dietary_tags": []
   }
 },
 {
@@ -1228,7 +1432,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.260Z",
-    "updated_at": "2026-03-01T20:05:49.037Z"
+    "updated_at": "2026-03-01T20:05:49.037Z",
+    "dietary_tags": []
   }
 },
 {
@@ -1251,7 +1456,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.260Z",
-    "updated_at": "2026-03-01T20:05:46.978Z"
+    "updated_at": "2026-03-01T20:05:46.978Z",
+    "dietary_tags": []
   }
 },
 {
@@ -1274,7 +1480,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.261Z",
-    "updated_at": "2026-03-01T20:05:49.775Z"
+    "updated_at": "2026-03-01T20:05:49.775Z",
+    "dietary_tags": []
   }
 },
 {
@@ -1297,7 +1504,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.262Z",
-    "updated_at": "2026-03-01T20:05:48.081Z"
+    "updated_at": "2026-03-01T20:05:48.081Z",
+    "dietary_tags": []
   }
 },
 {
@@ -1320,7 +1528,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.263Z",
-    "updated_at": "2026-03-01T20:05:47.532Z"
+    "updated_at": "2026-03-01T20:05:47.532Z",
+    "dietary_tags": []
   }
 },
 {
@@ -1343,7 +1552,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.264Z",
-    "updated_at": "2026-03-01T20:05:49.214Z"
+    "updated_at": "2026-03-01T20:05:49.214Z",
+    "dietary_tags": []
   }
 },
 {
@@ -1366,7 +1576,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.265Z",
-    "updated_at": "2026-03-01T20:05:42.032Z"
+    "updated_at": "2026-03-01T20:05:42.032Z",
+    "dietary_tags": []
   }
 },
 {
@@ -1389,7 +1600,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.266Z",
-    "updated_at": "2026-03-01T20:05:41.845Z"
+    "updated_at": "2026-03-01T20:05:41.845Z",
+    "dietary_tags": []
   }
 },
 {
@@ -1412,7 +1624,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.267Z",
-    "updated_at": "2026-03-01T20:05:39.277Z"
+    "updated_at": "2026-03-01T20:05:39.277Z",
+    "dietary_tags": []
   }
 },
 {
@@ -1435,7 +1648,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.268Z",
-    "updated_at": "2026-03-01T20:05:39.463Z"
+    "updated_at": "2026-03-01T20:05:39.463Z",
+    "dietary_tags": []
   }
 },
 {
@@ -1458,7 +1672,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.269Z",
-    "updated_at": "2026-03-01T20:05:41.358Z"
+    "updated_at": "2026-03-01T20:05:41.358Z",
+    "dietary_tags": []
   }
 },
 {
@@ -1481,7 +1696,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.270Z",
-    "updated_at": "2026-03-01T20:05:37.762Z"
+    "updated_at": "2026-03-01T20:05:37.762Z",
+    "dietary_tags": []
   }
 },
 {
@@ -1504,7 +1720,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.271Z",
-    "updated_at": "2026-03-01T20:05:40.563Z"
+    "updated_at": "2026-03-01T20:05:40.563Z",
+    "dietary_tags": []
   }
 },
 {
@@ -1527,7 +1744,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.272Z",
-    "updated_at": "2026-03-01T20:05:41.658Z"
+    "updated_at": "2026-03-01T20:05:41.658Z",
+    "dietary_tags": []
   }
 },
 {
@@ -1550,7 +1768,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.272Z",
-    "updated_at": "2026-03-01T20:05:38.546Z"
+    "updated_at": "2026-03-01T20:05:38.546Z",
+    "dietary_tags": []
   }
 },
 {
@@ -1573,7 +1792,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.273Z",
-    "updated_at": "2026-03-01T20:05:37.947Z"
+    "updated_at": "2026-03-01T20:05:37.947Z",
+    "dietary_tags": []
   }
 },
 {
@@ -1596,7 +1816,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.274Z",
-    "updated_at": "2026-03-01T20:05:40.751Z"
+    "updated_at": "2026-03-01T20:05:40.751Z",
+    "dietary_tags": []
   }
 },
 {
@@ -1619,7 +1840,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.275Z",
-    "updated_at": "2026-03-01T20:05:36.281Z"
+    "updated_at": "2026-03-01T20:05:36.281Z",
+    "dietary_tags": []
   }
 },
 {
@@ -1642,7 +1864,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.276Z",
-    "updated_at": "2026-03-01T20:05:40.012Z"
+    "updated_at": "2026-03-01T20:05:40.012Z",
+    "dietary_tags": []
   }
 },
 {
@@ -1665,7 +1888,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.277Z",
-    "updated_at": "2026-03-01T20:05:39.093Z"
+    "updated_at": "2026-03-01T20:05:39.093Z",
+    "dietary_tags": []
   }
 },
 {
@@ -1688,7 +1912,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.278Z",
-    "updated_at": "2026-03-01T20:05:40.381Z"
+    "updated_at": "2026-03-01T20:05:40.381Z",
+    "dietary_tags": []
   }
 },
 {
@@ -1711,7 +1936,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.279Z",
-    "updated_at": "2026-03-01T20:05:37.201Z"
+    "updated_at": "2026-03-01T20:05:37.201Z",
+    "dietary_tags": []
   }
 },
 {
@@ -1734,7 +1960,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.280Z",
-    "updated_at": "2026-03-01T20:05:39.644Z"
+    "updated_at": "2026-03-01T20:05:39.644Z",
+    "dietary_tags": []
   }
 },
 {
@@ -1757,7 +1984,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.281Z",
-    "updated_at": "2026-03-01T20:05:37.579Z"
+    "updated_at": "2026-03-01T20:05:37.579Z",
+    "dietary_tags": []
   }
 },
 {
@@ -1780,7 +2008,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.282Z",
-    "updated_at": "2026-03-01T20:05:41.120Z"
+    "updated_at": "2026-03-01T20:05:41.120Z",
+    "dietary_tags": []
   }
 },
 {
@@ -1803,7 +2032,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.283Z",
-    "updated_at": "2026-03-01T20:05:38.727Z"
+    "updated_at": "2026-03-01T20:05:38.727Z",
+    "dietary_tags": []
   }
 },
 {
@@ -1826,7 +2056,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.284Z",
-    "updated_at": "2026-03-01T20:05:40.197Z"
+    "updated_at": "2026-03-01T20:05:40.197Z",
+    "dietary_tags": []
   }
 },
 {
@@ -1849,7 +2080,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.285Z",
-    "updated_at": "2026-03-01T20:05:35.901Z"
+    "updated_at": "2026-03-01T20:05:35.901Z",
+    "dietary_tags": []
   }
 },
 {
@@ -1872,7 +2104,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.285Z",
-    "updated_at": "2026-03-01T20:05:56.199Z"
+    "updated_at": "2026-03-01T20:05:56.199Z",
+    "dietary_tags": []
   }
 },
 {
@@ -1895,7 +2128,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.286Z",
-    "updated_at": "2026-03-01T20:05:56.012Z"
+    "updated_at": "2026-03-01T20:05:56.012Z",
+    "dietary_tags": []
   }
 },
 {
@@ -1918,7 +2152,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.287Z",
-    "updated_at": "2026-03-01T20:05:54.125Z"
+    "updated_at": "2026-03-01T20:05:54.125Z",
+    "dietary_tags": []
   }
 },
 {
@@ -1941,7 +2176,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.288Z",
-    "updated_at": "2026-03-01T20:05:55.828Z"
+    "updated_at": "2026-03-01T20:05:55.828Z",
+    "dietary_tags": []
   }
 },
 {
@@ -1964,7 +2200,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.289Z",
-    "updated_at": "2026-03-01T20:05:55.454Z"
+    "updated_at": "2026-03-01T20:05:55.454Z",
+    "dietary_tags": []
   }
 },
 {
@@ -1987,7 +2224,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.290Z",
-    "updated_at": "2026-03-01T20:05:53.547Z"
+    "updated_at": "2026-03-01T20:05:53.547Z",
+    "dietary_tags": []
   }
 },
 {
@@ -2010,7 +2248,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.291Z",
-    "updated_at": "2026-03-01T20:05:55.636Z"
+    "updated_at": "2026-03-01T20:05:55.636Z",
+    "dietary_tags": []
   }
 },
 {
@@ -2033,7 +2272,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.292Z",
-    "updated_at": "2026-03-01T20:05:54.707Z"
+    "updated_at": "2026-03-01T20:05:54.707Z",
+    "dietary_tags": []
   }
 },
 {
@@ -2056,7 +2296,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.293Z",
-    "updated_at": "2026-03-01T20:05:54.328Z"
+    "updated_at": "2026-03-01T20:05:54.328Z",
+    "dietary_tags": []
   }
 },
 {
@@ -2079,7 +2320,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.294Z",
-    "updated_at": "2026-03-01T20:05:54.517Z"
+    "updated_at": "2026-03-01T20:05:54.517Z",
+    "dietary_tags": []
   }
 },
 {
@@ -2102,7 +2344,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.294Z",
-    "updated_at": "2026-03-01T20:05:54.889Z"
+    "updated_at": "2026-03-01T20:05:54.889Z",
+    "dietary_tags": []
   }
 },
 {
@@ -2125,7 +2368,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.295Z",
-    "updated_at": "2026-03-01T20:05:53.752Z"
+    "updated_at": "2026-03-01T20:05:53.752Z",
+    "dietary_tags": []
   }
 },
 {
@@ -2148,7 +2392,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.296Z",
-    "updated_at": "2026-03-01T20:05:52.968Z"
+    "updated_at": "2026-03-01T20:05:52.968Z",
+    "dietary_tags": []
   }
 },
 {
@@ -2171,7 +2416,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.297Z",
-    "updated_at": "2026-03-01T20:05:53.163Z"
+    "updated_at": "2026-03-01T20:05:53.163Z",
+    "dietary_tags": []
   }
 },
 {
@@ -2194,7 +2440,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.297Z",
-    "updated_at": "2026-03-01T20:05:52.231Z"
+    "updated_at": "2026-03-01T20:05:52.231Z",
+    "dietary_tags": []
   }
 },
 {
@@ -2217,7 +2464,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.299Z",
-    "updated_at": "2026-03-01T20:05:52.415Z"
+    "updated_at": "2026-03-01T20:05:52.415Z",
+    "dietary_tags": []
   }
 },
 {
@@ -2240,7 +2488,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.300Z",
-    "updated_at": "2026-03-01T20:05:52.782Z"
+    "updated_at": "2026-03-01T20:05:52.782Z",
+    "dietary_tags": []
   }
 },
 {
@@ -2263,7 +2512,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.301Z",
-    "updated_at": "2026-03-01T20:05:52.604Z"
+    "updated_at": "2026-03-01T20:05:52.604Z",
+    "dietary_tags": []
   }
 },
 {
@@ -2286,7 +2536,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.302Z",
-    "updated_at": "2026-03-01T20:05:52.043Z"
+    "updated_at": "2026-03-01T20:05:52.043Z",
+    "dietary_tags": []
   }
 },
 {
@@ -2309,7 +2560,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.303Z",
-    "updated_at": "2026-03-01T20:05:57.003Z"
+    "updated_at": "2026-03-01T20:05:57.003Z",
+    "dietary_tags": []
   }
 },
 {
@@ -2332,7 +2584,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.304Z",
-    "updated_at": "2026-03-01T20:05:57.388Z"
+    "updated_at": "2026-03-01T20:05:57.388Z",
+    "dietary_tags": []
   }
 },
 {
@@ -2355,7 +2608,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.305Z",
-    "updated_at": "2026-03-01T20:05:57.187Z"
+    "updated_at": "2026-03-01T20:05:57.187Z",
+    "dietary_tags": []
   }
 },
 {
@@ -2378,7 +2632,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.306Z",
-    "updated_at": "2026-03-01T20:05:56.819Z"
+    "updated_at": "2026-03-01T20:05:56.819Z",
+    "dietary_tags": []
   }
 },
 {
@@ -2401,7 +2656,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.307Z",
-    "updated_at": "2026-03-01T20:05:57.576Z"
+    "updated_at": "2026-03-01T20:05:57.576Z",
+    "dietary_tags": []
   }
 },
 {
@@ -2424,7 +2680,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.309Z",
-    "updated_at": "2026-03-01T20:05:57.943Z"
+    "updated_at": "2026-03-01T20:05:57.943Z",
+    "dietary_tags": []
   }
 },
 {
@@ -2447,7 +2704,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.310Z",
-    "updated_at": "2026-03-01T20:05:56.626Z"
+    "updated_at": "2026-03-01T20:05:56.626Z",
+    "dietary_tags": []
   }
 },
 {
@@ -2470,7 +2728,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.311Z",
-    "updated_at": "2026-03-01T20:05:58.545Z"
+    "updated_at": "2026-03-01T20:05:58.545Z",
+    "dietary_tags": []
   }
 },
 {
@@ -2493,7 +2752,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.312Z",
-    "updated_at": "2026-03-01T20:05:58.934Z"
+    "updated_at": "2026-03-01T20:05:58.934Z",
+    "dietary_tags": []
   }
 },
 {
@@ -2516,7 +2776,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.313Z",
-    "updated_at": "2026-03-01T20:05:59.133Z"
+    "updated_at": "2026-03-01T20:05:59.133Z",
+    "dietary_tags": []
   }
 },
 {
@@ -2539,7 +2800,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-02-02T15:59:31.314Z",
-    "updated_at": "2026-03-01T20:05:59.502Z"
+    "updated_at": "2026-03-01T20:05:59.502Z",
+    "dietary_tags": []
   }
 },
 {
@@ -2562,7 +2824,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-01T09:45:37.882Z",
-    "updated_at": "2026-03-01T20:05:39.827Z"
+    "updated_at": "2026-03-01T20:05:39.827Z",
+    "dietary_tags": []
   }
 },
 {
@@ -2585,7 +2848,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-01T09:45:38.284Z",
-    "updated_at": "2026-03-01T20:05:36.827Z"
+    "updated_at": "2026-03-01T20:05:36.827Z",
+    "dietary_tags": []
   }
 },
 {
@@ -2608,7 +2872,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-01T09:45:38.638Z",
-    "updated_at": "2026-03-01T20:05:37.396Z"
+    "updated_at": "2026-03-01T20:05:37.396Z",
+    "dietary_tags": []
   }
 },
 {
@@ -2631,7 +2896,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-01T09:45:39.001Z",
-    "updated_at": "2026-03-01T20:05:38.912Z"
+    "updated_at": "2026-03-01T20:05:38.912Z",
+    "dietary_tags": []
   }
 },
 {
@@ -2654,7 +2920,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-01T09:45:39.369Z",
-    "updated_at": "2026-03-01T20:05:38.340Z"
+    "updated_at": "2026-03-01T20:05:38.340Z",
+    "dietary_tags": []
   }
 },
 {
@@ -2677,7 +2944,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-01T09:45:39.737Z",
-    "updated_at": "2026-03-01T20:05:38.147Z"
+    "updated_at": "2026-03-01T20:05:38.147Z",
+    "dietary_tags": []
   }
 },
 {
@@ -2700,7 +2968,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-01T09:45:40.105Z",
-    "updated_at": "2026-03-01T20:05:36.644Z"
+    "updated_at": "2026-03-01T20:05:36.644Z",
+    "dietary_tags": []
   }
 },
 {
@@ -2723,7 +2992,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-01T09:45:40.476Z",
-    "updated_at": "2026-03-01T20:05:36.087Z"
+    "updated_at": "2026-03-01T20:05:36.087Z",
+    "dietary_tags": []
   }
 },
 {
@@ -2746,7 +3016,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-01T09:45:40.846Z",
-    "updated_at": "2026-03-01T20:05:40.934Z"
+    "updated_at": "2026-03-01T20:05:40.934Z",
+    "dietary_tags": []
   }
 },
 {
@@ -2769,7 +3040,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-01T09:45:41.224Z",
-    "updated_at": "2026-03-01T20:05:37.023Z"
+    "updated_at": "2026-03-01T20:05:37.023Z",
+    "dietary_tags": []
   }
 },
 {
@@ -2792,7 +3064,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-01T09:45:41.594Z",
-    "updated_at": "2026-03-01T20:05:36.465Z"
+    "updated_at": "2026-03-01T20:05:36.465Z",
+    "dietary_tags": []
   }
 },
 {
@@ -2815,7 +3088,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-01T09:45:42.073Z",
-    "updated_at": "2026-03-01T20:05:44.120Z"
+    "updated_at": "2026-03-01T20:05:44.120Z",
+    "dietary_tags": []
   }
 },
 {
@@ -2838,7 +3112,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-01T09:45:42.441Z",
-    "updated_at": "2026-03-01T20:05:46.174Z"
+    "updated_at": "2026-03-01T20:05:46.174Z",
+    "dietary_tags": []
   }
 },
 {
@@ -2861,7 +3136,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-01T09:45:42.815Z",
-    "updated_at": "2026-03-01T20:05:43.740Z"
+    "updated_at": "2026-03-01T20:05:43.740Z",
+    "dietary_tags": []
   }
 },
 {
@@ -2884,7 +3160,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-01T09:45:43.183Z",
-    "updated_at": "2026-03-01T20:05:44.303Z"
+    "updated_at": "2026-03-01T20:05:44.303Z",
+    "dietary_tags": []
   }
 },
 {
@@ -2907,7 +3184,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-01T09:45:43.638Z",
-    "updated_at": "2026-03-01T20:05:51.462Z"
+    "updated_at": "2026-03-01T20:05:51.462Z",
+    "dietary_tags": []
   }
 },
 {
@@ -2930,7 +3208,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-01T09:45:44.026Z",
-    "updated_at": "2026-03-01T20:05:51.264Z"
+    "updated_at": "2026-03-01T20:05:51.264Z",
+    "dietary_tags": []
   }
 },
 {
@@ -2953,7 +3232,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-01T09:45:44.385Z",
-    "updated_at": "2026-03-01T20:05:50.335Z"
+    "updated_at": "2026-03-01T20:05:50.335Z",
+    "dietary_tags": []
   }
 },
 {
@@ -2976,7 +3256,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-01T09:45:44.871Z",
-    "updated_at": "2026-03-01T20:05:57.762Z"
+    "updated_at": "2026-03-01T20:05:57.762Z",
+    "dietary_tags": []
   }
 },
 {
@@ -2999,7 +3280,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-01T09:45:45.235Z",
-    "updated_at": "2026-03-01T20:05:56.421Z"
+    "updated_at": "2026-03-01T20:05:56.421Z",
+    "dietary_tags": []
   }
 },
 {
@@ -3022,7 +3304,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-01T09:45:45.688Z",
-    "updated_at": "2026-03-01T20:05:58.330Z"
+    "updated_at": "2026-03-01T20:05:58.330Z",
+    "dietary_tags": []
   }
 },
 {
@@ -3045,7 +3328,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-01T09:45:46.051Z",
-    "updated_at": "2026-03-01T20:05:58.745Z"
+    "updated_at": "2026-03-01T20:05:58.745Z",
+    "dietary_tags": []
   }
 },
 {
@@ -3068,7 +3352,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-01T09:45:46.420Z",
-    "updated_at": "2026-03-01T20:05:58.134Z"
+    "updated_at": "2026-03-01T20:05:58.134Z",
+    "dietary_tags": []
   }
 },
 {
@@ -3091,7 +3376,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-01T09:45:46.863Z",
-    "updated_at": "2026-03-01T20:05:59.315Z"
+    "updated_at": "2026-03-01T20:05:59.315Z",
+    "dietary_tags": []
   }
 },
 {
@@ -3114,7 +3400,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-01T09:45:47.320Z",
-    "updated_at": "2026-03-01T20:05:55.267Z"
+    "updated_at": "2026-03-01T20:05:55.267Z",
+    "dietary_tags": []
   }
 },
 {
@@ -3137,7 +3424,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-01T09:45:47.703Z",
-    "updated_at": "2026-03-01T20:05:55.074Z"
+    "updated_at": "2026-03-01T20:05:55.074Z",
+    "dietary_tags": []
   }
 },
 {
@@ -3160,7 +3448,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-01T09:45:48.059Z",
-    "updated_at": "2026-03-01T20:05:53.348Z"
+    "updated_at": "2026-03-01T20:05:53.348Z",
+    "dietary_tags": []
   }
 },
 {
@@ -3183,7 +3472,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-01T09:45:48.422Z",
-    "updated_at": "2026-03-01T20:05:53.934Z"
+    "updated_at": "2026-03-01T20:05:53.934Z",
+    "dietary_tags": []
   }
 },
 {
@@ -3206,7 +3496,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -3229,7 +3520,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -3252,7 +3544,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -3275,7 +3568,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -3298,7 +3592,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -3321,7 +3616,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -3344,7 +3640,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -3367,7 +3664,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -3390,7 +3688,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -3413,7 +3712,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -3436,7 +3736,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -3459,7 +3760,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -3482,7 +3784,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -3505,7 +3808,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -3528,7 +3832,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -3551,7 +3856,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -3574,7 +3880,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -3597,7 +3904,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -3620,7 +3928,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -3643,7 +3952,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -3666,7 +3976,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -3689,7 +4000,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -3712,7 +4024,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -3735,7 +4048,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -3758,7 +4072,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -3781,7 +4096,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -3804,7 +4120,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -3827,7 +4144,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -3850,7 +4168,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -3873,7 +4192,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -3896,7 +4216,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -3919,7 +4240,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -3942,7 +4264,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -3965,7 +4288,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -3988,7 +4312,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -4011,7 +4336,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -4034,7 +4360,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -4057,7 +4384,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -4080,7 +4408,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -4103,7 +4432,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -4126,7 +4456,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -4149,7 +4480,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -4172,7 +4504,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -4195,7 +4528,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -4218,7 +4552,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -4241,7 +4576,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -4264,7 +4600,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -4287,7 +4624,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -4310,7 +4648,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -4333,7 +4672,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -4356,7 +4696,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -4379,7 +4720,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -4402,7 +4744,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -4425,7 +4768,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -4448,7 +4792,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -4471,7 +4816,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -4494,7 +4840,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -4517,7 +4864,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -4540,7 +4888,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -4563,7 +4912,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -4586,7 +4936,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -4609,7 +4960,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -4632,7 +4984,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -4655,7 +5008,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -4678,7 +5032,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -4701,7 +5056,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -4724,7 +5080,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -4747,7 +5104,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -4770,7 +5128,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -4793,7 +5152,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -4816,7 +5176,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -4839,7 +5200,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -4862,7 +5224,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -4885,7 +5248,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -4908,7 +5272,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -4931,7 +5296,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -4954,7 +5320,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -4977,7 +5344,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -5000,7 +5368,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -5023,7 +5392,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -5046,7 +5416,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -5069,7 +5440,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -5092,7 +5464,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -5115,7 +5488,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -5138,7 +5512,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -5161,7 +5536,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -5184,7 +5560,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -5207,7 +5584,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -5230,7 +5608,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -5253,7 +5632,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -5276,7 +5656,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -5299,7 +5680,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -5322,7 +5704,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -5345,7 +5728,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -5368,7 +5752,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -5391,7 +5776,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -5414,7 +5800,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -5437,7 +5824,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -5460,7 +5848,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -5483,7 +5872,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -5506,7 +5896,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -5529,7 +5920,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -5552,7 +5944,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -5575,7 +5968,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -5598,7 +5992,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -5621,7 +6016,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -5644,7 +6040,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -5667,7 +6064,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -5690,7 +6088,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -5713,7 +6112,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -5736,7 +6136,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -5759,7 +6160,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -5782,7 +6184,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -5805,7 +6208,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -5828,7 +6232,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -5851,7 +6256,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -5874,7 +6280,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -5897,7 +6304,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -5920,7 +6328,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -5943,7 +6352,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -5966,7 +6376,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -5989,7 +6400,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -6012,7 +6424,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -6035,7 +6448,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -6058,7 +6472,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -6081,7 +6496,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -6104,7 +6520,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -6127,7 +6544,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -6150,7 +6568,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -6173,7 +6592,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -6196,7 +6616,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -6219,7 +6640,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -6242,7 +6664,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -6265,7 +6688,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -6288,7 +6712,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -6311,7 +6736,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -6334,7 +6760,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -6357,7 +6784,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -6380,7 +6808,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -6403,7 +6832,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -6426,7 +6856,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -6449,7 +6880,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -6472,7 +6904,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -6495,7 +6928,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -6518,7 +6952,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -6541,7 +6976,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -6564,7 +7000,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -6587,7 +7024,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -6610,7 +7048,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -6633,7 +7072,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -6656,7 +7096,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -6679,7 +7120,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -6702,7 +7144,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -6725,7 +7168,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -6748,7 +7192,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -6771,7 +7216,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -6794,7 +7240,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -6817,7 +7264,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -6840,7 +7288,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -6863,7 +7312,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -6886,7 +7336,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -6909,7 +7360,8 @@
     "is_active": true,
     "notes": "",
     "created_at": "2026-03-09T12:00:00Z",
-    "updated_at": "2026-03-09T12:00:00Z"
+    "updated_at": "2026-03-09T12:00:00Z",
+    "dietary_tags": []
   }
 },
 {
@@ -9121,6 +9573,9 @@
     "timezone": "Europe/London",
     "tax_label": "VAT",
     "default_tax_rate": "0.2000",
+    "service_charge_default_pct": "0.00",
+    "service_charge_taxable_default": true,
+    "gratuity_default_pct": "0.00",
     "default_price_per_head": "0.00",
     "default_guest_profile": "gents",
     "target_food_cost_percentage": "30.00",
@@ -9155,6 +9610,9 @@
     "timezone": "America/New_York",
     "tax_label": "Sales Tax",
     "default_tax_rate": "0.0000",
+    "service_charge_default_pct": "0.00",
+    "service_charge_taxable_default": true,
+    "gratuity_default_pct": "0.00",
     "default_price_per_head": "0.00",
     "default_guest_profile": "gents",
     "target_food_cost_percentage": "30.00",

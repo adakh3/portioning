@@ -1,6 +1,16 @@
 from django.contrib import admin
 from users.admin_mixins import OrgVisibleAdminMixin
-from .models import DishCategory, Dish
+from .models import DietaryTag, DishCategory, Dish
+
+
+@admin.register(DietaryTag)
+class DietaryTagAdmin(admin.ModelAdmin):
+    """The shared dietary/allergen vocabulary. Global (no OrgVisibleAdminMixin) —
+    every org sees the same rows, and they arrive via the data migration."""
+    list_display = ['label', 'short_label', 'slug', 'kind', 'sort_order']
+    list_filter = ['kind']
+    list_editable = ['short_label', 'sort_order']
+    ordering = ['kind', 'sort_order']
 
 
 @admin.register(DishCategory)
@@ -22,8 +32,9 @@ class DishAdmin(OrgVisibleAdminMixin, admin.ModelAdmin):
                     'selling_price_override', 'addition_surcharge', 'removal_discount',
                     'surcharge_override', 'is_vegetarian', 'is_active']
     list_filter = ['category', 'protein_type', 'is_vegetarian', 'is_active',
-                   'selling_price_override', 'surcharge_override']
+                   'selling_price_override', 'surcharge_override', 'dietary_tags']
     search_fields = ['name']
+    filter_horizontal = ['dietary_tags']
     list_editable = ['popularity', 'selling_price_per_gram',
                      'addition_surcharge', 'removal_discount',
                      'surcharge_override', 'is_active']

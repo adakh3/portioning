@@ -41,7 +41,7 @@ def _resolve_booking(token):
     from events.models import Event
     related = ('account', 'primary_contact', 'venue', 'organisation')
     prefetch = ('line_items', 'dishes__category', 'signatures',
-                'additional_meals', 'additional_meals__dishes')
+                'additional_meals', 'additional_meals__dishes', 'timeline_entries')
     quote = (Quote.objects.unscoped().select_related(*related)
              .prefetch_related(*prefetch).filter(public_token=token).first())
     if quote:

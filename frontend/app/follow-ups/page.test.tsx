@@ -21,6 +21,7 @@ vi.mock("@/lib/hooks", () => ({
   useFollowUpDrafts: () => ({ data: mockDrafts, mutate: vi.fn() }),
   useSiteSettings: () => ({ data: mockSettings }),
   useDateFormat: () => "DD/MM/YYYY",
+  useFormatDateTime: () => (v: string | null) => v ?? "-",
   revalidate: vi.fn(),
 }));
 

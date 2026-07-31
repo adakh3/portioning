@@ -3,6 +3,7 @@
 // The server (bookings/models/quotes.py: recalculate_totals + QuoteLineItem.save)
 // remains the source of truth on save.
 import { EventMealData } from "@/lib/api";
+import type { TimelineEntryValue } from "@/components/BookingTimelineField";
 import { formatCurrency } from "@/lib/utils";
 
 export interface LineItemInput {
@@ -367,6 +368,45 @@ export function buildLineItemsPayload(lineItems: LineItemInput[]) {
   }));
 }
 
+/** A booking's additional meals as read-only timeline rows.
+ *
+ * Derived on every render rather than copied into entries: the meal owns its
+ * time (along with its price and menu), so moving the meal moves the row and the
+ * two can never disagree. Untimed meals are left out — they aren't a moment yet.
+ */
+export function timelineMealRows(
+  meals: { label?: string; meal_time?: string | null }[] | undefined,
+): { label: string; time: string }[] {
+  return (meals || [])
+    .filter((m) => m.meal_time)
+    .map((m) => ({
+      label: m.label?.trim() || "Additional meal",
+      time: m.meal_time!.includes("T") ? m.meal_time!.slice(11, 16) : m.meal_time!.slice(0, 5),
+    }))
+    .sort((a, b) => a.time.localeCompare(b.time));
+}
+
+/** Serialize a booking's run-of-show for a save (quote OR event).
+ *
+ * Rows go out in the order they're shown — the backend turns that position into
+ * `sort_order`, so "the order I arranged" is what persists. Rows with no time
+ * are dropped: a step without a time isn't a step yet.
+ *
+ * An empty array is meaningful and IS sent: it clears the timeline and the
+ * booking falls back to its four legacy time fields.
+ */
+export function buildTimelineEntriesPayload(entries: TimelineEntryValue[] = []) {
+  return entries
+    .filter((e) => e.time)
+    .map((e) => ({
+      time: e.time.length === 5 ? `${e.time}:00` : e.time,
+      label: e.label.trim(),
+      // null, not omitted: a row moved back onto the event day has to clear the
+      // date it used to carry.
+      date: e.date || null,
+    }));
+}
+
 /** Serialize additional meals for a booking save (quote OR event). */
 export function buildMealsPayload(meals: EventMealData[]) {
   return meals.map((m) => ({
@@ -386,6 +426,7 @@ export function buildQuoteSavePayload(
   lineItems: LineItemInput[],
   meals: EventMealData[] = [],
   segmentMeta: GuestSegmentMeta[] = [],
+  timelineEntries: TimelineEntryValue[] = [],
 ) {
   return {
     primary_contact: editData.primary_contact ? Number(editData.primary_contact) : null,
@@ -419,6 +460,7 @@ export function buildQuoteSavePayload(
     based_on_template: menuData.based_on_template,
     line_items: buildLineItemsPayload(lineItems),
     additional_meals: buildMealsPayload(meals),
+    timeline_entries: buildTimelineEntriesPayload(timelineEntries),
   };
 }
 
@@ -463,6 +505,7 @@ export interface EventSaveInput {
   based_on_template: number | null;
   line_items: LineItemInput[];
   meals: EventMealData[];
+  timeline_entries: TimelineEntryValue[];
 }
 
 export function buildEventSavePayload(v: EventSaveInput, segmentMeta: GuestSegmentMeta[] = []) {
@@ -503,5 +546,6 @@ export function buildEventSavePayload(v: EventSaveInput, segmentMeta: GuestSegme
     based_on_template: v.based_on_template,
     line_items: buildLineItemsPayload(v.line_items),
     additional_meals: buildMealsPayload(v.meals),
+    timeline_entries: buildTimelineEntriesPayload(v.timeline_entries),
   };
 }

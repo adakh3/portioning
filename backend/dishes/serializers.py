@@ -1,5 +1,11 @@
 from rest_framework import serializers
-from .models import Dish, DishCategory
+from .models import DietaryTag, Dish, DishCategory
+
+
+class DietaryTagSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DietaryTag
+        fields = ['id', 'slug', 'label', 'short_label', 'kind']
 
 
 class DishCategorySerializer(serializers.ModelSerializer):
@@ -13,6 +19,10 @@ class DishCategorySerializer(serializers.ModelSerializer):
 class DishSerializer(serializers.ModelSerializer):
     category_name = serializers.CharField(source='category.display_name', read_only=True)
     margin_percent = serializers.SerializerMethodField()
+    # Additive and read-only: tags are set in Django admin (and by the starter
+    # catalog), and `dishes/urls.py` exposes only a list endpoint — a writable
+    # field here would be API surface nothing can reach.
+    dietary_tags = DietaryTagSerializer(many=True, read_only=True)
 
     class Meta:
         model = Dish
@@ -22,6 +32,7 @@ class DishSerializer(serializers.ModelSerializer):
             'cost_per_gram', 'selling_price_per_gram', 'selling_price_override',
             'addition_surcharge', 'removal_discount', 'surcharge_override',
             'margin_percent', 'is_vegetarian', 'notes',
+            'dietary_tags',
         ]
         extra_kwargs = {'notes': {'max_length': 5000}}
 

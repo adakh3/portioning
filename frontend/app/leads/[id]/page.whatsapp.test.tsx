@@ -40,6 +40,7 @@ vi.mock("@/lib/hooks", () => ({
   useLead: () => ({ data: LEAD, error: null, isLoading: false, mutate: vi.fn() }),
   useSiteSettings: () => ({ data: mockSettings }),
   useDateFormat: () => "DD/MM/YYYY",
+  useFormatDateTime: () => (v: string | null) => v ?? "-",
   useProductLines: () => empty,
   useUsers: () => empty,
   useSources: () => empty,

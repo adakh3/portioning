@@ -31,7 +31,8 @@ def _iso(dt):
 def booking_presentation(booking, signature=None):
     from bookings.models import OrgSettings
     from bookings.models.choices import EventTypeOption, ServiceStyleOption, MealTypeOption
-    from dishes.ordering import dish_names_in_added_order
+    from dishes.labels import dietary_suffix
+    from dishes.ordering import dish_display_names_in_added_order, tags_for_dish_ids
 
     org = booking.organisation
     settings = OrgSettings.for_org(org)
@@ -53,21 +54,35 @@ def booking_presentation(booking, signature=None):
 
     # Menu — grouped by course/category (rich structure; PDF flattens, HTML groups),
     # plus the flat added-order list the PDF's 2-column table uses verbatim.
+    # Dish names carry their dietary/allergen suffix ("Chicken Tikka (GF; contains
+    # milk)") — untagged dishes are just their name, so untagged menus are
+    # unchanged. Tags are fetched once for the whole menu, never per dish.
+    booking_dishes = list(booking.dishes.all())
+    meals = list(booking.additional_meals.all())
+    meal_dishes = {m.pk: list(m.dishes.all()) for m in meals}
+    all_dish_ids = [d.pk for d in booking_dishes]
+    for dishes in meal_dishes.values():
+        all_dish_ids.extend(d.pk for d in dishes)
+    tags_by_dish = tags_for_dish_ids(all_dish_ids)
+
+    def _display(dish):
+        return dish.name + dietary_suffix(tags_by_dish.get(dish.pk, []))
+
     groups = {}
-    for dish in booking.dishes.all():
+    for dish in booking_dishes:
         cat = dish.category
-        groups.setdefault((cat.display_order, cat.display_name), []).append(dish.name)
+        groups.setdefault((cat.display_order, cat.display_name), []).append(_display(dish))
     menu = [{'category': name, 'items': sorted(items)} for (_o, name), items in sorted(groups.items())]
-    menu_flat = dish_names_in_added_order(booking)
+    menu_flat = dish_display_names_in_added_order(booking)
 
     additional_meals = [
         {
             'label': m.label,
             'guest_count': m.guest_count,
             'price_per_head': str(m.price_per_head) if m.price_per_head else None,
-            'items': sorted(d.name for d in m.dishes.all()),
+            'items': sorted(_display(d) for d in meal_dishes[m.pk]),
         }
-        for m in booking.additional_meals.all()
+        for m in meals
     ]
 
     line_items = [
@@ -83,14 +98,29 @@ def booking_presentation(booking, signature=None):
         for li in booking.line_items.all()
     ]
 
-    # Timeline — labelled moments in the order they run.
+    # Timeline — labelled moments in the order they run. The booking's own
+    # entries when it has any, else the four legacy slots (see services/timeline).
+    # `time_display` is set only for entries: they carry a bare time, which a
+    # client can't parse as a date, so the server formats it. Legacy slots keep
+    # `time_display: None` and their full ISO datetime, so surfaces render them
+    # exactly as they always have.
+    # `date` is set only for a step on a different day from the booking's own
+    # (a load-in the afternoon before); `source` says where the row came from,
+    # so a surface can mark the ones the timeline doesn't own.
+    from bookings.services.timeline import booking_timeline, format_timeline_value
     timeline = [
-        {'label': label, 'time': _iso(getattr(booking, field, None))}
-        for label, field in (
-            ('Setup', 'setup_time'), ('Guest arrival', 'guest_arrival_time'),
-            ('Meal service', 'meal_time'), ('End', 'end_time'),
-        )
-        if getattr(booking, field, None)
+        {
+            'label': row.label,
+            'time': _iso(row.value),
+            'time_display': (None if hasattr(row.value, 'date')
+                             else format_timeline_value(row.value, settings.time_format)),
+            'date': _iso(row.date),
+            'source': row.source,
+        }
+        for row in booking_timeline(booking, {
+            'setup_time': 'Setup', 'guest_arrival_time': 'Guest arrival',
+            'meal_time': 'Meal service', 'end_time': 'End',
+        })
     ]
 
     contact = booking.primary_contact

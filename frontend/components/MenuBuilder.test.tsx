@@ -8,7 +8,17 @@ const h = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/hooks", () => ({
-  useDishes: () => ({ data: [{ id: 1, name: "Biryani", category: 1, is_vegetarian: false }] }),
+  useDishes: () => ({ data: [
+    { id: 1, name: "Biryani", category: 1, is_vegetarian: false },
+    // A tagged dish + an untagged-but-vegetarian one, so the pill rendering
+    // and the legacy-"V" fallback are both exercised on the REAL menu picker
+    // (MenuBuilder is what quotes and events use — DishSelector is /calculate).
+    { id: 2, name: "Baked Salmon", category: 1, is_vegetarian: false, dietary_tags: [
+      { id: 3, slug: "gluten_free", label: "Gluten-free", short_label: "GF", kind: "dietary" },
+      { id: 9, slug: "fish", label: "Fish", short_label: "FSH", kind: "allergen" },
+    ] },
+    { id: 3, name: "Garden Salad", category: 1, is_vegetarian: true },
+  ] }),
   useCategories: () => ({ data: [{ id: 1, display_name: "Mains", display_order: 1 }] }),
   useMenus: () => ({ data: [], isLoading: false }),
 }));
@@ -91,5 +101,28 @@ describe("MenuBuilder — price errors are surfaced", () => {
     // Stays settled — the effect doesn't keep re-firing.
     await new Promise((r) => setTimeout(r, 200));
     expect(screen.getByDisplayValue("1650.00")).toBeInTheDocument();
+  });
+});
+
+describe("MenuBuilder — dietary & allergen pills (REL-416 AC3)", () => {
+  beforeEach(() => h.priceEstimate.mockReset());
+
+  it("shows a tagged dish's pills on the selected-menu chip", async () => {
+    render(
+      <MenuBuilder selectedDishIds={[2]} basedOnTemplate={null} guestCount={100} priceRoundingStep={50} />
+    );
+    // "GF" for the dietary tag, "FSH" for the allergen — this is the picker that
+    // quotes and events actually use.
+    expect(await screen.findByText("GF")).toBeInTheDocument();
+    expect(screen.getByText("FSH")).toBeInTheDocument();
+  });
+
+  it("leaves an untagged dish alone — bare name plus the legacy V", async () => {
+    render(
+      <MenuBuilder selectedDishIds={[3]} basedOnTemplate={null} guestCount={100} priceRoundingStep={50} />
+    );
+    expect(await screen.findByText("Garden Salad")).toBeInTheDocument();
+    expect(screen.getByText("V")).toBeInTheDocument();
+    expect(screen.queryByText("GF")).not.toBeInTheDocument();
   });
 });

@@ -20,20 +20,21 @@ import {
   useEventTypes,
   useServiceStyles,
   useMealTypes,
+  useTimelinePresets,
   useUsers,
   useProductLines,
 } from "@/lib/hooks";
 import DealWonDialog from "@/components/DealWonDialog";
 import EventPaymentsCard from "@/components/EventPaymentsCard";
 import { useAuth } from "@/lib/auth";
-import { formatDate, formatDateTime as sharedFormatDateTime, todayISO } from "@/lib/dateFormat";
-import { LineItemInput, lineItemTotal, computeBookingTotals, buildEventSavePayload, segmentFood, segmentFoodRows, defaultSegmentRemainder, hasVendorDoubleEntry, GuestSegmentMeta } from "@/lib/quoteTotals";
+import { formatDate, formatDateTime as sharedFormatDateTime, formatTime, todayISO } from "@/lib/dateFormat";
+import { LineItemInput, lineItemTotal, computeBookingTotals, buildEventSavePayload, segmentFood, segmentFoodRows, defaultSegmentRemainder, hasVendorDoubleEntry, GuestSegmentMeta , timelineMealRows} from "@/lib/quoteTotals";
 import BookingTotalsCard from "@/components/BookingTotalsCard";
 import AddOnItemsEditor from "@/components/AddOnItemsEditor";
 import MenuBuilder from "@/components/MenuBuilder";
 import AdditionalMealsEditor from "@/components/AdditionalMealsEditor";
 import GuestCountField, { GuestCountValue } from "@/components/GuestCountField";
-import BookingTimelineField from "@/components/BookingTimelineField";
+import BookingTimelineField, { TimelineEntryValue } from "@/components/BookingTimelineField";
 import BookingDetailsForm, { BookingDetailsValue } from "@/components/BookingDetailsForm";
 import AssigneePicker from "@/components/AssigneePicker";
 import { Button } from "@/components/ui/button";
@@ -94,6 +95,7 @@ export default function EventDetailPage() {
   const { data: eventTypesData = [] } = useEventTypes();
   const { data: serviceStylesData = [] } = useServiceStyles();
   const { data: mealTypesData = [] } = useMealTypes();
+  const { data: timelinePresets = [] } = useTimelinePresets();
   const eventTypeLabels: Record<string, string> = Object.fromEntries(eventTypesData.map((et) => [et.value, et.label]));
   const serviceStyleLabels: Record<string, string> = Object.fromEntries(serviceStylesData.map((ss) => [ss.value, ss.label]));
   const mealTypeLabels: Record<string, string> = Object.fromEntries(mealTypesData.map((mt) => [mt.value, mt.label]));
@@ -209,6 +211,7 @@ export default function EventDetailPage() {
   const [formGratuityPct, setFormGratuityPct] = useState("0");
   // Additional meals
   const [formAdditionalMeals, setFormAdditionalMeals] = useState<EventMealData[]>([]);
+  const [formTimeline, setFormTimeline] = useState<TimelineEntryValue[]>([]);
 
   const syncFormToEvent = useCallback((data: EventData) => {
     setFormDate(data.date);
@@ -241,6 +244,9 @@ export default function EventDetailPage() {
     setFormArrivalTime(data.guest_arrival_time ? data.guest_arrival_time.slice(0, 16) : "");
     setFormMealTime(data.meal_time ? data.meal_time.slice(0, 16) : "");
     setFormEndTime(data.end_time ? data.end_time.slice(0, 16) : "");
+    setFormTimeline((data.timeline_entries || []).map((e) => ({
+      id: e.id, time: e.time.slice(0, 5), label: e.label, date: e.date || "",
+    })));
     setFormLineItems((data.line_items || []).map((li) => ({
       id: li.id, variant: li.variant, category: li.category, description: li.description,
       quantity: li.quantity, unit: li.unit, unit_price: li.unit_price,
@@ -337,6 +343,7 @@ export default function EventDetailPage() {
       based_on_template: menuData.based_on_template,
       line_items: formLineItems,
       meals: formAdditionalMeals,
+      timeline_entries: formTimeline,
     }, segmentMeta);
     try {
       if (isNew) {
@@ -797,14 +804,31 @@ export default function EventDetailPage() {
                   if (patch.meal_time !== undefined) setFormMealTime(patch.meal_time);
                   if (patch.end_time !== undefined) setFormEndTime(patch.end_time);
                 }}
+                entries={formTimeline}
+                onEntriesChange={setFormTimeline}
+                presets={timelinePresets}
+                meals={timelineMealRows(formAdditionalMeals)}
               />
-            ) : (
+            ) : (event!.timeline_entries || []).length > 0 ? (
+              /* The booking's own run-of-show replaces the four legacy slots. */
+              <dl className="space-y-1">
+                {(event!.timeline_entries || []).map((entry) => (
+                  <InfoRow key={entry.id} label={formatTime(entry.time.slice(0, 5), timeFormat)}
+                    value={entry.label} />
+                ))}
+              </dl>
+            ) : (event!.setup_time || event!.guest_arrival_time || event!.meal_time || event!.end_time) ? (
+              /* The four legacy slots show only on a booking that actually has
+                 them — they're how old bookings stored their times, not an empty
+                 shape every new event should carry. */
               <dl className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <InfoRow label="Setup Time" value={formatDateTime(event!.setup_time)} />
                 <InfoRow label="Guest Arrival" value={formatDateTime(event!.guest_arrival_time)} />
                 <InfoRow label="Meal Time" value={formatDateTime(event!.meal_time)} />
                 <InfoRow label="End Time" value={formatDateTime(event!.end_time)} />
               </dl>
+            ) : (
+              <p className="text-sm text-muted-foreground">No timeline set.</p>
             )}
         </CardContent>
       </Card>

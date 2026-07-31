@@ -14,6 +14,7 @@ vi.mock("@/lib/hooks", () => ({
   useQuotes: () => ({ data: QUOTES, error: null, isLoading: false }),
   useSiteSettings: () => ({ data: { currency_symbol: "£", currency_code: "GBP", date_format: "DD/MM/YYYY" } }),
   useDateFormat: () => "DD/MM/YYYY",
+  useFormatDateTime: () => (v: string | null) => v ?? "-",
   useUsers: () => ({ data: [] }),
   useProductLines: () => ({ data: [] }),
   useEventTypes: () => ({ data: [] }),
