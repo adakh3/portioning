@@ -7,7 +7,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('events', '0030_bookingguestcount_price_per_head'),
+        ('events', '0032_timelineentry_date'),
         ('rules', '0007_guestsegment_counts_toward_total'),
     ]
 
