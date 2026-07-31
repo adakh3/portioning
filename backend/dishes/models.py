@@ -97,6 +97,50 @@ class ProteinType(models.TextChoices):
     NONE = "none", "None"
 
 
+class DietaryTagKind(models.TextChoices):
+    DIETARY = 'dietary', 'Dietary'
+    ALLERGEN = 'allergen', 'Allergen'
+
+
+class DietaryTag(models.Model):
+    """A dietary or allergen label a dish can carry (gluten-free, contains peanuts…).
+
+    Deliberately a **global reference table** — no `organisation` column. The
+    vocabulary is a fixed universal standard (the FDA's 9 major allergens are law,
+    not a per-org preference), so every org shares one copy and nothing here is
+    tenant data. Two consequences worth knowing:
+
+    * `block_cross_org_m2m` skips this model (it only guards org-scoped ones), so
+      a dish in any org may link any tag — that is correct, not a hole.
+    * It is seeded by a **data migration** keyed on `slug`, not by `seed.json`,
+      because seed.json is dev-only and prod needs the vocabulary too.
+    """
+    slug = models.SlugField(max_length=30, unique=True)
+    label = models.CharField(max_length=50)
+    short_label = models.CharField(
+        max_length=8, blank=True,
+        help_text='Compact badge text, e.g. "GF". Blank falls back to the label.',
+    )
+    kind = models.CharField(
+        max_length=10, choices=DietaryTagKind.choices, default=DietaryTagKind.DIETARY,
+        help_text='Dietary tags read as "is" (vegan); allergens read as "contains".',
+    )
+    sort_order = models.IntegerField(default=0)
+
+    class Meta:
+        # DESCENDING on kind so 'dietary' sorts before 'allergen' — a dish reads
+        # as what it IS first ("GF, DF"), then what it contains. Alphabetical
+        # would put the allergens first, which reads backwards.
+        ordering = ['-kind', 'sort_order', 'slug']
+
+    def __str__(self):
+        return self.label
+
+    @property
+    def badge(self):
+        return self.short_label or self.label
+
+
 class Dish(models.Model):
     objects = TenantManager()
 
@@ -134,6 +178,12 @@ class Dish(models.Model):
         help_text="If True, surcharges are manually set and not auto-calculated",
     )
     is_vegetarian = models.BooleanField(default=False)
+    # Additive: `is_vegetarian`/`protein_type` stay the calculator's inputs; these
+    # are the client-facing dietary/allergen labels. Default none — an untagged
+    # dish renders exactly as it did before.
+    dietary_tags = models.ManyToManyField(
+        DietaryTag, blank=True, related_name='dishes',
+    )
     is_active = models.BooleanField(default=True)
     notes = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)

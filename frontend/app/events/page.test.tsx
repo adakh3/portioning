@@ -17,6 +17,7 @@ vi.mock("@/lib/hooks", () => ({
   useEvents: () => ({ data: events, error: null, isLoading: false }),
   useSiteSettings: () => ({ data: { currency_symbol: "£" } }),
   useDateFormat: () => "DD/MM/YYYY",
+  useFormatDateTime: () => (v: string | null) => v ?? "-",
   useUsers: () => ({ data: [{ id: 1, first_name: "Demo", last_name: "Rep" }] }),
   useProductLines: () => ({ data: [{ id: 1, name: "HR" }] }),
   useEventTypes: () => ({ data: [{ value: "wedding", label: "Wedding" }] }),

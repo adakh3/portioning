@@ -21,10 +21,12 @@ from bookings.views import (
     ServiceStyleOptionListView, LeadStatusOptionListView,
     LeadStatusManageListCreateView, LeadStatusManageDetailView,
     LostReasonOptionListView, MealTypeOptionListView,
+    TimelinePresetOptionListView,
     EventTypeManageListCreateView, EventTypeManageDetailView,
     SourceManageListCreateView, SourceManageDetailView,
     ServiceStyleManageListCreateView, ServiceStyleManageDetailView,
     MealTypeManageListCreateView, MealTypeManageDetailView,
+    TimelinePresetManageListCreateView, TimelinePresetManageDetailView,
     LostReasonManageListCreateView, LostReasonManageDetailView,
     AddOnProductListView,
     ReminderListCreateView, ReminderDetailView,
@@ -135,6 +137,7 @@ urlpatterns = [
     path('bookings/settings/lead-statuses/<int:pk>/', LeadStatusManageDetailView.as_view(), name='lead-status-manage-detail'),
     path('bookings/lost-reasons/', LostReasonOptionListView.as_view(), name='lost-reason-list'),
     path('bookings/meal-types/', MealTypeOptionListView.as_view(), name='meal-type-list'),
+    path('bookings/timeline-presets/', TimelinePresetOptionListView.as_view(), name='timeline-preset-list'),
 
     # Choice-option management (Settings, manager/owner)
     path('bookings/settings/event-types/', EventTypeManageListCreateView.as_view(), name='event-type-manage-list'),
@@ -147,6 +150,8 @@ urlpatterns = [
     path('bookings/settings/meal-types/<int:pk>/', MealTypeManageDetailView.as_view(), name='meal-type-manage-detail'),
     path('bookings/settings/lost-reasons/', LostReasonManageListCreateView.as_view(), name='lost-reason-manage-list'),
     path('bookings/settings/lost-reasons/<int:pk>/', LostReasonManageDetailView.as_view(), name='lost-reason-manage-detail'),
+    path('bookings/settings/timeline-presets/', TimelinePresetManageListCreateView.as_view(), name='timeline-preset-manage-list'),
+    path('bookings/settings/timeline-presets/<int:pk>/', TimelinePresetManageDetailView.as_view(), name='timeline-preset-manage-detail'),
 
     path('bookings/addon-products/', AddOnProductListView.as_view(), name='addon-product-list'),
 

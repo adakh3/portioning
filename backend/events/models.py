@@ -529,6 +529,60 @@ class BookingMeal(models.Model):
         return f"{self.label} for {self.event or self.quote}"
 
 
+class BookingTimelineEntry(models.Model):
+    """One moment in a booking's run-of-show — a time and a label ("18:30 Dinner
+    service"). Belongs to a quote XOR an event, mirroring ``BookingMeal``, so it
+    survives the quote→event conversion as a copy.
+
+    Purely additive. The four legacy time fields (`setup_time`,
+    `guest_arrival_time`, `meal_time`, `end_time`) stay on the booking and remain
+    the fallback: a booking with **no** entries renders those exactly as it always
+    did, and existing bookings are never auto-migrated into entries. Once a
+    booking has at least one entry, the entries are what render.
+
+    A plain ``TimeField``, not a datetime: a run-of-show is times on the event
+    day, and storing only the time keeps it free of the UTC-offset drift the
+    legacy datetime columns carry.
+    """
+    quote = models.ForeignKey(
+        'bookings.Quote', null=True, blank=True,
+        on_delete=models.CASCADE, related_name='timeline_entries',
+    )
+    event = models.ForeignKey(
+        Event, null=True, blank=True,
+        on_delete=models.CASCADE, related_name='timeline_entries',
+    )
+    time = models.TimeField()
+    date = models.DateField(
+        null=True, blank=True,
+        help_text="The day this step happens on. Null means the booking's event "
+                  "date, which is almost every step — set it only for the ones "
+                  "that aren't, like a load-in the afternoon before.",
+    )
+    label = models.CharField(max_length=100)
+    sort_order = models.IntegerField(
+        default=0,
+        help_text='Explicit run-of-show order — authoritative, so a caterer can '
+                  'place a row where they want it rather than by the clock.',
+    )
+
+    class Meta:
+        ordering = ['sort_order', 'time', 'id']
+        verbose_name_plural = 'booking timeline entries'
+        constraints = [
+            models.CheckConstraint(
+                name='timelineentry_exactly_one_parent',
+                condition=(
+                    models.Q(quote__isnull=False, event__isnull=True)
+                    | models.Q(quote__isnull=True, event__isnull=False)
+                ),
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.time:%H:%M} {self.label}"
+
+
 class BookingMealDishComment(models.Model):
     meal = models.ForeignKey(BookingMeal, on_delete=models.CASCADE, related_name='dish_comments')
     dish = models.ForeignKey('dishes.Dish', on_delete=models.CASCADE)

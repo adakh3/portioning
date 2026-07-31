@@ -23,7 +23,10 @@ def accept_quote(quote, user=None):
 
     from events.models import Event, EventDishComment
     from calculator.engine.calculator import calculate_portions
-    from bookings.views.quotes import _copy_line_items_to_event, _copy_additional_meals_to_event
+    from bookings.views.quotes import (
+        _copy_line_items_to_event, _copy_additional_meals_to_event,
+        _copy_timeline_entries_to_event,
+    )
 
     who = quote.account.name if quote.account_id else (
         quote.primary_contact.name if quote.primary_contact_id else 'Event')
@@ -98,10 +101,12 @@ def accept_quote(quote, user=None):
                 portion_grams=p['grams_per_person'],
             )
 
-    # Carry the add-on line items and additional meals across, then recompute via
-    # the shared engine so the event total matches the quote (food-only included).
+    # Carry the add-on line items, additional meals and timeline across, then
+    # recompute via the shared engine so the event total matches the quote
+    # (food-only included).
     _copy_line_items_to_event(quote, event)
     _copy_additional_meals_to_event(quote, event)
+    _copy_timeline_entries_to_event(quote, event)
     event.recalculate_totals()
 
     quote.event = event

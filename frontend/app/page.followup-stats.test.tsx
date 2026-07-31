@@ -27,6 +27,7 @@ vi.mock("@/lib/hooks", () => ({
   useMyDashboardStats: () => ({ data: MY_STATS }),
   useSiteSettings: () => ({ data: undefined }),
   useDateFormat: () => "DD/MM/YYYY",
+  useFormatDateTime: () => (v: string | null) => v ?? "-",
   useReminderCounts: () => ({ data: undefined }),
   useEvents: () => ({ data: [] }),
   useQuotes: () => ({ data: [] }),
