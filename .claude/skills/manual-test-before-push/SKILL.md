@@ -82,3 +82,33 @@ tweaks with no new visible surface. It is **in addition to** the Playwright e2e
   destructive controls (Delete with a confirm); warn the owner if a step needs one.
 - **Don't rabbit-hole:** if the extension errors 2–3 times or elements won't respond,
   stop and tell the owner what you tried — don't keep hammering the same action.
+
+### Before you believe a failure, check it's your app and not the environment
+
+These three cost a whole session's worth of false alarms. All of them look exactly
+like broken code. **When something "breaks" that your unit tests say works, check
+these first.**
+
+- **HTTP 429 — the API throttle.** DRF is set to `1000/hour` per user, and one full
+  Playwright run makes ~600 calls. **Two runs trip it**, after which every page
+  bounces to `/login` and assertions fail on missing elements. Check with
+  `grep -c 429 <backend log>`; **restarting the backend clears it** (the throttle
+  counter is in local memory). CI is unaffected — it starts fresh. If you're
+  re-running e2e repeatedly, expect this.
+- **Port 3000 may belong to another worktree.** Several worktrees run the same app,
+  and `next dev` silently falls back to another port when 3000 is taken — so your
+  server is on 3001 while Playwright and Chrome drive *someone else's branch*.
+  Symptom: features you just built are "missing", or you see features you didn't
+  write. Always confirm the owner of the port before trusting a result:
+  `lsof -a -p $(lsof -nP -iTCP:3000 -sTCP:LISTEN -t) -d cwd`
+- **Run on your own port, and never `pkill` broadly.** `pkill -f "next dev"` kills
+  other sessions' servers too. Start yours explicitly (`npx next dev -p 3100`), point
+  the tests at it (`E2E_BASE_URL=http://localhost:3100`), and add that origin to the
+  backend: `CORS_ALLOWED_ORIGINS="http://localhost:3000,http://localhost:3100"`.
+  Without the CORS entry, login returns 200 in the server log but the browser blocks
+  the response and the app never leaves `/login` — a failure that looks nothing like
+  its cause.
+- **The e2e suite isn't idempotent against a long-lived dev DB.** `settings-lead-statuses`
+  adds a row per run and eventually fails its own strict-mode locator on the
+  duplicates. Delete the leftovers (`LeadStatusOption.objects.filter(label__startswith='E2E ')`)
+  or rebuild the DB before trusting a red result.
