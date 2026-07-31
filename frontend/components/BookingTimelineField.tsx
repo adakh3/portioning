@@ -1,5 +1,12 @@
 "use client";
 
+import {
+  DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext, verticalListSortingStrategy, useSortable, arrayMove,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import TimeField from "@/components/TimeField";
 import { Button } from "@/components/ui/button";
 import { todayISO } from "@/lib/dateFormat";
@@ -99,12 +106,27 @@ export default function BookingTimelineField({
   const removeRow = (index: number) =>
     onEntriesChange?.(rows.filter((_, i) => i !== index));
 
+  // Drag to reorder, the same @dnd-kit pattern Settings uses for choice options.
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+
+  // …and plain arrow keys on the handle, so reordering works without a mouse.
+  // Deliberately our own handler rather than dnd-kit's KeyboardSensor: this is
+  // one predictable line of behaviour instead of a second sensor competing with
+  // the pointer one, and it's the only version that can be tested anywhere but a
+  // real browser.
   const moveRow = (index: number, delta: number) => {
     const to = index + delta;
     if (to < 0 || to >= rows.length) return;
-    const next = [...rows];
-    [next[index], next[to]] = [next[to], next[index]];
-    onEntriesChange?.(next);
+    onEntriesChange?.(arrayMove(rows, index, to));
+  };
+
+  const handleDragEnd = (e: DragEndEvent) => {
+    const { active, over } = e;
+    if (!over || active.id === over.id) return;
+    const from = Number(active.id) - 1;
+    const to = Number(over.id) - 1;
+    if (from < 0 || to < 0) return;
+    onEntriesChange?.(arrayMove(rows, from, to));
   };
 
   // A new step lands after the last one, an hour on from it — the common case is
@@ -213,51 +235,23 @@ export default function BookingTimelineField({
 
   return (
     <div className="space-y-2">
-      {rows.map((row, i) => (
-        <div key={row.id ?? `new-${i}`} className="flex items-center gap-2">
-          <div className="w-32 shrink-0">
-            {/* No "— Not set —" here: a step with no time is dropped on save,
-                which would silently delete the row and its label. Removing a
-                step is what the ✕ is for. */}
-            <TimeField
-              ariaLabel={`Step ${i + 1} time`}
-              value={row.time}
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <SortableContext items={rows.map((_, i) => i + 1)} strategy={verticalListSortingStrategy}>
+          {rows.map((row, i) => (
+            <StepRow
+              key={row.id ?? `new-${i}`}
+              index={i}
+              row={row}
+              presets={presets}
               disabled={disabled}
-              format={timeFormat}
-              allowEmpty={false}
-              onChange={(t) => patchRow(i, { time: t })}
+              timeFormat={timeFormat}
+              onPatch={(patch) => patchRow(i, patch)}
+              onRemove={() => removeRow(i)}
+              onMove={(delta) => moveRow(i, delta)}
             />
-          </div>
-          {/* A closed list, not free text: an event day is predictable enough
-              that picking beats typing, and it keeps labels consistent across
-              bookings (which is what makes them worth reporting on later). New
-              wording goes in Settings → Timeline Steps, once, for everyone. */}
-          <select
-            aria-label={`Step ${i + 1} label`}
-            value={row.label}
-            disabled={disabled}
-            onChange={(e) => patchRow(i, { label: e.target.value })}
-            className="flex h-9 w-full rounded-md border border-input bg-transparent px-2 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50"
-          >
-            <option value="">— Choose a step —</option>
-            {labelOptions(presets, row.label).map((label) => (
-              <option key={label} value={label}>{label}</option>
-            ))}
-          </select>
-          <Button type="button" size="sm" variant="ghost" aria-label={`Move step ${i + 1} up`}
-            disabled={disabled || i === 0} onClick={() => moveRow(i, -1)}>
-            ↑
-          </Button>
-          <Button type="button" size="sm" variant="ghost" aria-label={`Move step ${i + 1} down`}
-            disabled={disabled || i === rows.length - 1} onClick={() => moveRow(i, 1)}>
-            ↓
-          </Button>
-          <Button type="button" size="sm" variant="ghost" aria-label={`Remove step ${i + 1}`}
-            disabled={disabled} onClick={() => removeRow(i)}>
-            ✕
-          </Button>
-        </div>
-      ))}
+          ))}
+        </SortableContext>
+      </DndContext>
 
       {editable && (
         <Button type="button" size="sm" variant="outline" disabled={disabled} onClick={addRow}>
@@ -326,4 +320,76 @@ function bumpHour(time: string): string {
   const hh = Math.floor(clamped / 60);
   const mm = clamped % 60;
   return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+}
+
+/** One draggable row of the run-of-show: when it happens, and what happens. */
+function StepRow({
+  index, row, presets, disabled, timeFormat, onPatch, onRemove, onMove,
+}: {
+  index: number;
+  row: TimelineEntryValue;
+  presets: TimelinePreset[];
+  disabled: boolean;
+  timeFormat: "12h" | "24h";
+  onPatch: (patch: Partial<TimelineEntryValue>) => void;
+  onRemove: () => void;
+  onMove: (delta: number) => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: index + 1 });
+  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.6 : 1 };
+  const n = index + 1;
+
+  return (
+    <div ref={setNodeRef} style={style} className="flex items-center gap-2">
+      <button type="button" disabled={disabled}
+        aria-label={`Reorder step ${n} — drag, or use the arrow keys`}
+        title="Drag to reorder, or focus and use the arrow keys"
+        {...attributes} {...listeners}
+        onKeyDown={(e) => {
+          if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+          e.preventDefault();
+          onMove(e.key === "ArrowUp" ? -1 : 1);
+        }}
+        className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground touch-none px-1">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+          <circle cx="5" cy="3" r="1.4" /><circle cx="11" cy="3" r="1.4" />
+          <circle cx="5" cy="8" r="1.4" /><circle cx="11" cy="8" r="1.4" />
+          <circle cx="5" cy="13" r="1.4" /><circle cx="11" cy="13" r="1.4" />
+        </svg>
+      </button>
+      <div className="w-32 shrink-0">
+        {/* No "— Not set —" here: a step with no time is dropped on save, which
+            would silently delete the row and its label. Removing a step is what
+            the ✕ is for. */}
+        <TimeField
+          ariaLabel={`Step ${n} time`}
+          value={row.time}
+          disabled={disabled}
+          format={timeFormat}
+          allowEmpty={false}
+          onChange={(t) => onPatch({ time: t })}
+        />
+      </div>
+      {/* A closed list, not free text: the org's Timeline Steps are the only
+          labels a row may take, which keeps them consistent across bookings. New
+          wording goes in Settings, once, for everyone. */}
+      <select
+        aria-label={`Step ${n} label`}
+        value={row.label}
+        disabled={disabled}
+        onChange={(e) => onPatch({ label: e.target.value })}
+        className="flex h-9 w-full rounded-md border border-input bg-transparent px-2 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50"
+      >
+        <option value="">— Choose a step —</option>
+        {labelOptions(presets, row.label).map((label) => (
+          <option key={label} value={label}>{label}</option>
+        ))}
+      </select>
+      <Button type="button" size="sm" variant="ghost" aria-label={`Remove step ${n}`}
+        disabled={disabled} onClick={onRemove}>
+        ✕
+      </Button>
+    </div>
+  );
 }

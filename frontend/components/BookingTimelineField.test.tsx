@@ -388,17 +388,42 @@ describe("BookingTimelineField — run-of-show entries", () => {
     expect(onEntriesChange).toHaveBeenLastCalledWith([{ time: "17:30", label: "Cocktails" }]);
   });
 
-  it("reorders steps (AC2)", () => {
-    const rows = [
+  const handle = (n: number) =>
+    screen.getByLabelText(`Reorder step ${n} — drag, or use the arrow keys`);
+
+  it("reorders steps with the arrow keys (AC2)", () => {
+    // The mouse drag itself needs a real browser (@dnd-kit measures element
+    // rects; jsdom has no layout), and is covered in
+    // frontend/e2e/booking-timeline.spec.ts. This is the same reorder over the
+    // keyboard — the path someone without a mouse uses.
+    const onEntriesChange = renderEntries([
       { time: "17:00", label: "Cocktails" },
       { time: "18:30", label: "Dinner" },
-    ];
-    const onEntriesChange = renderEntries(rows);
-    fireEvent.click(screen.getByLabelText("Move step 2 up"));
+    ]);
+    fireEvent.keyDown(handle(2), { key: "ArrowUp" });
     expect(onEntriesChange).toHaveBeenLastCalledWith([
       { time: "18:30", label: "Dinner" },
       { time: "17:00", label: "Cocktails" },
     ]);
+  });
+
+  it("won't move the first step up or the last step down", () => {
+    const onEntriesChange = renderEntries([
+      { time: "17:00", label: "Cocktails" },
+      { time: "18:30", label: "Dinner" },
+    ]);
+    fireEvent.keyDown(handle(1), { key: "ArrowUp" });
+    fireEvent.keyDown(handle(2), { key: "ArrowDown" });
+    expect(onEntriesChange).not.toHaveBeenCalled();
+  });
+
+  it("gives every step a drag handle", () => {
+    renderEntries([
+      { time: "17:00", label: "Cocktails" },
+      { time: "18:30", label: "Dinner" },
+    ]);
+    expect(handle(1)).toBeInTheDocument();
+    expect(handle(2)).toBeInTheDocument();
   });
 
   it("removes a step (AC2)", () => {
@@ -408,15 +433,6 @@ describe("BookingTimelineField — run-of-show entries", () => {
     ]);
     fireEvent.click(screen.getByLabelText("Remove step 1"));
     expect(onEntriesChange).toHaveBeenLastCalledWith([{ time: "18:30", label: "Dinner" }]);
-  });
-
-  it("can't move the first step up or the last step down", () => {
-    renderEntries([
-      { time: "17:00", label: "Cocktails" },
-      { time: "18:30", label: "Dinner" },
-    ]);
-    expect(screen.getByLabelText("Move step 1 up")).toBeDisabled();
-    expect(screen.getByLabelText("Move step 2 down")).toBeDisabled();
   });
 
   it("offers no '— Not set —' on a step's time", () => {

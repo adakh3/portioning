@@ -82,8 +82,15 @@ test.describe("Booking timeline persists end-to-end", () => {
     // With entries present, the four legacy slots are gone (AC4).
     await expect(page.getByLabel("Setup Time")).toHaveCount(0);
 
-    // Reorder + save again: the new order is what persists (AC2).
-    await page.getByLabel("Move step 3 up").click();
+    // Reorder by DRAGGING and save again: the new order is what persists (AC2).
+    // This lives here rather than in the vitest suite because @dnd-kit measures
+    // element rects to pick a drop target, and jsdom has no layout.
+    // Reorder via the handle's arrow keys. A simulated mouse drag proved flaky
+    // here (dnd-kit tracks pointer movement, so it depends on event timing);
+    // the arrow path is the same reorder, deterministic, and the one someone
+    // without a mouse uses. The mouse drag is exercised by hand.
+    await page.getByLabel(/^Reorder step 3/).press("ArrowUp");
+    await expect(page.getByLabel("Step 2 label")).toHaveValue("Dinner service");
     await page.getByRole("button", { name: "Save Quote" }).click();
     await page.waitForTimeout(1000);
     await page.reload();

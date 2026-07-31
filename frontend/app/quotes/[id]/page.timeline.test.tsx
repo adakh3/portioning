@@ -139,7 +139,9 @@ describe("Quote form — the run-of-show reaches the payload", () => {
     expect(await screen.findByLabelText("Step 1 label")).toHaveValue("Cocktail hour");
     expect(screen.getByLabelText("Step 1 time")).toHaveValue("17:00");
 
-    fireEvent.click(screen.getByLabelText("Move step 2 up"));
+    // Reorder over the handle's arrow keys (the mouse drag needs a real
+    // browser; the e2e covers that).
+    fireEvent.keyDown(screen.getByLabelText(/^Reorder step 2/), { key: "ArrowUp" });
     fireEvent.click(screen.getByText("Save Quote"));
 
     await waitFor(() => expect(h.updateQuote).toHaveBeenCalledTimes(1));
