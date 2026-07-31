@@ -493,7 +493,11 @@ class TimelineRenderTests(TestCase):
     def setUp(self):
         self.org = _make_org(slug='tl-render')
         self.contact = make_contact(org=self.org)
+        # event_date matches the legacy datetimes on purpose: a booking whose
+        # times sit on a different day from its own event date is incoherent,
+        # and it made row ordering look broken when it was the fixture.
         self.quote = make_quote(org=self.org, primary_contact=self.contact,
+                                event_date='2026-08-01',
                                 guest_count=10, price_per_head=Decimal('20'),
                                 setup_time=_dt(15), guest_arrival_time=_dt(17),
                                 meal_time=_dt(19), end_time=_dt(23))
@@ -545,6 +549,86 @@ class TimelineRenderTests(TestCase):
                                             label='Load in', sort_order=0)
         self.assertEqual(booking_presentation(self.quote)['timeline'][0]['time_display'],
                          '9:00 AM')
+
+    # ── Per-row date: a step on a different day from the booking ──
+
+    def test_a_step_can_sit_on_another_day(self):
+        # Load-in the afternoon before is a real thing; a time-only row can't
+        # express it.
+        BookingTimelineEntry.objects.create(
+            quote=self.quote, time=datetime.time(16, 0), label='Load in',
+            date=datetime.date(2026, 7, 31), sort_order=0)
+        BookingTimelineEntry.objects.create(
+            quote=self.quote, time=datetime.time(18, 30), label='Dinner service',
+            sort_order=1)
+        pres = booking_presentation(self.quote)
+        self.assertEqual(pres['timeline'][0]['date'], '2026-07-31')
+        # A step on the event day carries no date — that's the overwhelming case
+        # and repeating it on every row would be noise.
+        self.assertIsNone(pres['timeline'][1]['date'])
+
+    def test_the_pdf_marks_a_step_that_is_on_another_day(self):
+        if not HAVE_PYPDF:
+            self.skipTest('pypdf not installed')
+        BookingTimelineEntry.objects.create(
+            quote=self.quote, time=datetime.time(16, 0), label='Load in',
+            date=datetime.date(2026, 7, 31), sort_order=0)
+        text = pdf_text(generate_quote_pdf(self.quote)).replace('\n', ' ')
+        self.assertIn('16:00 (31 Jul)', text)
+
+    # ── Additional meals merge in, without being copied ──
+
+    def test_an_additional_meal_appears_in_the_timeline(self):
+        from events.models import BookingMeal
+        BookingTimelineEntry.objects.create(
+            quote=self.quote, time=datetime.time(15, 0), label='Staff arrive', sort_order=0)
+        BookingTimelineEntry.objects.create(
+            quote=self.quote, time=datetime.time(19, 0), label='Dinner service', sort_order=1)
+        BookingMeal.objects.create(
+            quote=self.quote, label='Welcome drinks', guest_count=10,
+            price_per_head=Decimal('5'), meal_time=_dt(17))
+
+        rows = booking_presentation(self.quote)['timeline']
+        # Merged in at its own time, between the two entries.
+        self.assertEqual([r['label'] for r in rows],
+                         ['Staff arrive', 'Welcome drinks', 'Dinner service'])
+        # …and flagged as belonging to the meal, so a surface can mark it
+        # read-only rather than let someone edit a copy that then drifts.
+        self.assertEqual([r['source'] for r in rows], ['entry', 'meal', 'entry'])
+
+    def test_the_meal_is_never_copied_into_an_entry(self):
+        from events.models import BookingMeal
+        BookingTimelineEntry.objects.create(
+            quote=self.quote, time=datetime.time(19, 0), label='Dinner service', sort_order=0)
+        BookingMeal.objects.create(
+            quote=self.quote, label='Welcome drinks', guest_count=10,
+            price_per_head=Decimal('5'), meal_time=_dt(17))
+        booking_presentation(self.quote)
+        # One meal, one time. Moving the meal moves the timeline row with it,
+        # because there is nothing else holding that time.
+        self.assertEqual(self.quote.timeline_entries.count(), 1)
+
+    def test_a_legacy_booking_does_NOT_gain_meal_rows(self):
+        # The safety line: merging meals into a booking that never opted into a
+        # run-of-show would rewrite the rendered timeline of every existing
+        # booking with a timed meal — including quotes a client has signed.
+        from events.models import BookingMeal
+        BookingMeal.objects.create(
+            quote=self.quote, label='Welcome drinks', guest_count=10,
+            price_per_head=Decimal('5'), meal_time=_dt(17))
+        labels = [r['label'] for r in booking_presentation(self.quote)['timeline']]
+        self.assertEqual(labels, ['Setup', 'Guest arrival', 'Meal service', 'End'])
+        self.assertNotIn('Welcome drinks', labels)
+
+    def test_an_untimed_meal_is_left_out(self):
+        from events.models import BookingMeal
+        BookingTimelineEntry.objects.create(
+            quote=self.quote, time=datetime.time(19, 0), label='Dinner service', sort_order=0)
+        BookingMeal.objects.create(
+            quote=self.quote, label='Canapés', guest_count=10,
+            price_per_head=Decimal('5'), meal_time=None)
+        labels = [r['label'] for r in booking_presentation(self.quote)['timeline']]
+        self.assertEqual(labels, ['Dinner service'])
 
     def test_sign_page_payload_shows_entries(self):
         from bookings.views.public_sign import serialize_public_booking

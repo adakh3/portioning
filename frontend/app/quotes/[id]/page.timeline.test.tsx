@@ -97,8 +97,8 @@ describe("Quote form — the run-of-show reaches the payload", () => {
     await waitFor(() => expect(h.createQuote).toHaveBeenCalledTimes(1));
     const payload = h.createQuote.mock.calls[0][0] as Record<string, unknown>;
     expect(payload.timeline_entries).toEqual([
-      { time: "17:00:00", label: "Cocktail hour" },
-      { time: "18:30:00", label: "Dinner service" },
+      { time: "17:00:00", label: "Cocktail hour", date: null },
+      { time: "18:30:00", label: "Dinner service", date: null },
     ]);
   });
 
@@ -127,7 +127,7 @@ describe("Quote form — the run-of-show reaches the payload", () => {
 
     await waitFor(() => expect(h.createQuote).toHaveBeenCalledTimes(1));
     const payload = h.createQuote.mock.calls[0][0] as Record<string, unknown>;
-    expect(payload.timeline_entries).toContainEqual({ time: "19:30:00", label: "" });
+    expect(payload.timeline_entries).toContainEqual({ time: "19:30:00", label: "", date: null });
   });
 
   it("EDIT: existing entries hydrate, and a reorder is what gets saved", async () => {
@@ -148,8 +148,8 @@ describe("Quote form — the run-of-show reaches the payload", () => {
     await waitFor(() => expect(h.updateQuote).toHaveBeenCalledTimes(1));
     const payload = h.updateQuote.mock.calls[0][1] as Record<string, unknown>;
     expect(payload.timeline_entries).toEqual([
-      { time: "18:30:00", label: "Dinner service" },
-      { time: "17:00:00", label: "Cocktail hour" },
+      { time: "18:30:00", label: "Dinner service", date: null },
+      { time: "17:00:00", label: "Cocktail hour", date: null },
     ]);
   });
 

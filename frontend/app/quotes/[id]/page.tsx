@@ -16,7 +16,7 @@ import GuestCountField, { GuestCountValue } from "@/components/GuestCountField";
 import BookingTimelineField, { TimelineEntryValue } from "@/components/BookingTimelineField";
 import BookingDetailsForm, { BookingDetailsValue } from "@/components/BookingDetailsForm";
 import AssigneePicker from "@/components/AssigneePicker";
-import { computeQuoteTotals, buildQuoteSavePayload, buildTimelineEntriesPayload, buildGuestCountsPayload, bookingMealRows, hasVendorDoubleEntry, segmentFood, segmentFoodRows, LineItemInput, GuestSegmentMeta } from "@/lib/quoteTotals";
+import { computeQuoteTotals, buildQuoteSavePayload, buildTimelineEntriesPayload, buildGuestCountsPayload, bookingMealRows, hasVendorDoubleEntry, segmentFood, segmentFoodRows, LineItemInput, GuestSegmentMeta , timelineMealRows} from "@/lib/quoteTotals";
 import AddOnItemsEditor from "@/components/AddOnItemsEditor";
 import BookingTotalsCard from "@/components/BookingTotalsCard";
 import ESignPanel from "@/components/ESignPanel";
@@ -328,7 +328,7 @@ export default function QuoteDetailPage() {
     setMenuData({ dish_ids: quote.dishes || [], based_on_template: quote.based_on_template || null });
     setEditMeals((quote.additional_meals || []).map((m) => ({ ...m })));
     setEditTimeline((quote.timeline_entries || []).map((e) => ({
-      id: e.id, time: e.time.slice(0, 5), label: e.label,
+      id: e.id, time: e.time.slice(0, 5), label: e.label, date: e.date || "",
     })));
     setEditing(true);
   }
@@ -515,6 +515,7 @@ export default function QuoteDetailPage() {
                 entries={createTimeline}
                 onEntriesChange={setCreateTimeline}
                 presets={timelinePresets}
+                meals={timelineMealRows(createMeals)}
               />
             </CardContent>
           </Card>
@@ -998,6 +999,7 @@ export default function QuoteDetailPage() {
               entries={editTimeline}
               onEntriesChange={setEditTimeline}
               presets={timelinePresets}
+              meals={timelineMealRows(editMeals)}
             />
           </CardContent>
         </Card>

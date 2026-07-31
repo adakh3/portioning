@@ -104,15 +104,20 @@ def booking_presentation(booking, signature=None):
     # client can't parse as a date, so the server formats it. Legacy slots keep
     # `time_display: None` and their full ISO datetime, so surfaces render them
     # exactly as they always have.
+    # `date` is set only for a step on a different day from the booking's own
+    # (a load-in the afternoon before); `source` says where the row came from,
+    # so a surface can mark the ones the timeline doesn't own.
     from bookings.services.timeline import booking_timeline, format_timeline_value
     timeline = [
         {
-            'label': label,
-            'time': _iso(value),
-            'time_display': (None if hasattr(value, 'date')
-                             else format_timeline_value(value, settings.time_format)),
+            'label': row.label,
+            'time': _iso(row.value),
+            'time_display': (None if hasattr(row.value, 'date')
+                             else format_timeline_value(row.value, settings.time_format)),
+            'date': _iso(row.date),
+            'source': row.source,
         }
-        for label, value in booking_timeline(booking, {
+        for row in booking_timeline(booking, {
             'setup_time': 'Setup', 'guest_arrival_time': 'Guest arrival',
             'meal_time': 'Meal service', 'end_time': 'End',
         })

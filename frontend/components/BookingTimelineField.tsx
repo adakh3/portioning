@@ -9,7 +9,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import TimeField from "@/components/TimeField";
 import { Button } from "@/components/ui/button";
-import { todayISO } from "@/lib/dateFormat";
+import { formatTime, todayISO } from "@/lib/dateFormat";
 
 export interface BookingTimelineValue {
   setup_time: string;         // "YYYY-MM-DDTHH:mm" (stored) or ""
@@ -24,6 +24,18 @@ export interface TimelineEntryValue {
   id?: number;
   time: string;
   label: string;
+  /** "YYYY-MM-DD" when this step is on a different day from the booking's event
+   * date — a load-in the afternoon before. Empty for the overwhelming majority
+   * that are on the day itself. */
+  date?: string;
+}
+
+/** An additional meal, shown in the run-of-show but owned by the meals section.
+ * The meal keeps its own time; the timeline never copies it, so the two can't
+ * drift apart. */
+export interface TimelineMealRow {
+  label: string;
+  time: string;   // 24h "HH:MM"
 }
 
 /** An org's timeline step: the only labels a booking may use, and — via the last
@@ -53,6 +65,7 @@ export default function BookingTimelineField({
   entries,
   onEntriesChange,
   presets = [],
+  meals = [],
   eventDate,
   disabled = false,
   timeFormat = "24h",
@@ -64,6 +77,8 @@ export default function BookingTimelineField({
   onEntriesChange?: (entries: TimelineEntryValue[]) => void;
   /** Org timeline-step presets offered in the label picker. */
   presets?: TimelinePreset[];
+  /** The booking's additional meals, merged in read-only at their own times. */
+  meals?: TimelineMealRow[];
   /** The booking's event date ("YYYY-MM-DD"); entered legacy times are anchored to it. */
   eventDate?: string;
   disabled?: boolean;
@@ -245,6 +260,7 @@ export default function BookingTimelineField({
               presets={presets}
               disabled={disabled}
               timeFormat={timeFormat}
+              eventDate={eventDate}
               onPatch={(patch) => patchRow(i, patch)}
               onRemove={() => removeRow(i)}
               onMove={(delta) => moveRow(i, delta)}
@@ -252,6 +268,17 @@ export default function BookingTimelineField({
           ))}
         </SortableContext>
       </DndContext>
+
+      {/* The booking's additional meals, shown so the run-of-show is the whole
+          day. Read-only here on purpose: the meal owns its time (along with its
+          price and menu), so editing it in two places would let the two drift. */}
+      {meals.map((meal, i) => (
+        <div key={`meal-${i}`} className="flex items-center gap-2 pl-6 text-muted-foreground">
+          <div className="w-32 shrink-0 text-sm tabular-nums">{formatTime(meal.time, timeFormat)}</div>
+          <span className="flex-1 truncate text-sm">{meal.label}</span>
+          <span className="text-xs italic">from Additional Meals</span>
+        </div>
+      ))}
 
       {editable && (
         <Button type="button" size="sm" variant="outline" disabled={disabled} onClick={addRow}>
@@ -324,13 +351,14 @@ function bumpHour(time: string): string {
 
 /** One draggable row of the run-of-show: when it happens, and what happens. */
 function StepRow({
-  index, row, presets, disabled, timeFormat, onPatch, onRemove, onMove,
+  index, row, presets, disabled, timeFormat, eventDate, onPatch, onRemove, onMove,
 }: {
   index: number;
   row: TimelineEntryValue;
   presets: TimelinePreset[];
   disabled: boolean;
   timeFormat: "12h" | "24h";
+  eventDate?: string;
   onPatch: (patch: Partial<TimelineEntryValue>) => void;
   onRemove: () => void;
   onMove: (delta: number) => void;
@@ -386,10 +414,43 @@ function StepRow({
           <option key={label} value={label}>{label}</option>
         ))}
       </select>
+      {/* Nearly every step is on the event day, so the date only appears once a
+          row needs one — a load-in the afternoon before. Until then it's a quiet
+          link rather than a fourth control on every row. */}
+      {row.date ? (
+        <div className="flex items-center gap-1">
+          <input
+            type="date"
+            aria-label={`Step ${n} date`}
+            value={row.date}
+            disabled={disabled}
+            onChange={(e) => onPatch({ date: e.target.value })}
+            className="h-9 rounded-md border border-input bg-transparent px-2 text-sm shadow-sm"
+          />
+          <Button type="button" size="sm" variant="ghost" aria-label={`Put step ${n} back on the event day`}
+            disabled={disabled} onClick={() => onPatch({ date: "" })}>
+            ↺
+          </Button>
+        </div>
+      ) : (
+        <Button type="button" size="sm" variant="ghost" aria-label={`Move step ${n} to another day`}
+          title="This step happens on a different day (e.g. load-in the afternoon before)"
+          disabled={disabled} onClick={() => onPatch({ date: dayBefore(eventDate) })}>
+          + day
+        </Button>
+      )}
       <Button type="button" size="sm" variant="ghost" aria-label={`Remove step ${n}`}
         disabled={disabled} onClick={onRemove}>
         ✕
       </Button>
     </div>
   );
+}
+
+/** The day before the booking's event date — what a step that isn't on the day
+ * almost always is. Falls back to today when the booking has no date yet. */
+function dayBefore(eventDate?: string): string {
+  const base = eventDate ? new Date(`${eventDate}T12:00:00`) : new Date();
+  base.setDate(base.getDate() - 1);
+  return base.toISOString().slice(0, 10);
 }

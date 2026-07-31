@@ -496,6 +496,12 @@ class BookingTimelineEntry(models.Model):
         on_delete=models.CASCADE, related_name='timeline_entries',
     )
     time = models.TimeField()
+    date = models.DateField(
+        null=True, blank=True,
+        help_text="The day this step happens on. Null means the booking's event "
+                  "date, which is almost every step — set it only for the ones "
+                  "that aren't, like a load-in the afternoon before.",
+    )
     label = models.CharField(max_length=100)
     sort_order = models.IntegerField(
         default=0,

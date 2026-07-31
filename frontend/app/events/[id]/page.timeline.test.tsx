@@ -105,8 +105,8 @@ describe("Event form — the run-of-show reaches the payload", () => {
     await waitFor(() => expect(h.createEvent).toHaveBeenCalledTimes(1));
     const payload = h.createEvent.mock.calls[0][0] as Record<string, unknown>;
     expect(payload.timeline_entries).toEqual([
-      { time: "15:00:00", label: "Staff arrive" },
-      { time: "21:00:00", label: "Cake cutting" },
+      { time: "15:00:00", label: "Staff arrive", date: null },
+      { time: "21:00:00", label: "Cake cutting", date: null },
     ]);
   });
 
@@ -150,8 +150,8 @@ describe("Event form — the run-of-show reaches the payload", () => {
     await waitFor(() => expect(h.updateEvent).toHaveBeenCalledTimes(1));
     const payload = h.updateEvent.mock.calls[0][1] as Record<string, unknown>;
     expect(payload.timeline_entries).toEqual([
-      { time: "21:00:00", label: "Cake cutting" },
-      { time: "15:00:00", label: "Staff arrive" },
+      { time: "21:00:00", label: "Cake cutting", date: null },
+      { time: "15:00:00", label: "Staff arrive", date: null },
     ]);
   });
 

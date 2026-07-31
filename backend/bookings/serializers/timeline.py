@@ -11,7 +11,7 @@ from events.models import BookingTimelineEntry
 class BookingTimelineEntrySerializer(serializers.ModelSerializer):
     class Meta:
         model = BookingTimelineEntry
-        fields = ['id', 'time', 'label', 'sort_order']
+        fields = ['id', 'time', 'date', 'label', 'sort_order']
         # `sort_order` is assigned from the payload's order on save, never sent by
         # the client — so what you see in the editor is what persists.
         read_only_fields = ['id', 'sort_order']

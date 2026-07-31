@@ -16,7 +16,7 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 
 from bookings.models.settings import OrgSettings
 from bookings.models.choices import EventTypeOption, ServiceStyleOption, MealTypeOption
-from bookings.services.timeline import booking_timeline, format_timeline_value
+from bookings.services.timeline import booking_timeline, format_timeline_row
 from dishes.ordering import dish_display_names_in_added_order
 
 
@@ -634,9 +634,9 @@ def generate_quote_pdf(quote, signature=None):
     # Timeline — above the menu, mirroring the form. The booking's own run-of-show
     # entries when it has any, else the four legacy slots worded exactly as before.
     timeline_rows = [
-        [Paragraph(label, s['info_label']),
-         Paragraph(format_timeline_value(value, settings.time_format), s['info_value'])]
-        for label, value in booking_timeline(quote, LEGACY_PDF_LABELS)
+        [Paragraph(row.label, s['info_label']),
+         Paragraph(format_timeline_row(row, settings.time_format), s['info_value'])]
+        for row in booking_timeline(quote, LEGACY_PDF_LABELS)
     ]
     if timeline_rows:
         elements.append(_section_header([Paragraph('TIMELINE', s['section_title'])], [CONTENT_W]))
@@ -883,9 +883,9 @@ def generate_event_pdf(event, signature=None):
 
     # ── Timeline ── (entries when present, else the four legacy slots)
     timeline_rows = [
-        [Paragraph(label, s['info_label']),
-         Paragraph(format_timeline_value(value, settings.time_format), s['info_value'])]
-        for label, value in booking_timeline(event, LEGACY_PDF_LABELS)
+        [Paragraph(row.label, s['info_label']),
+         Paragraph(format_timeline_row(row, settings.time_format), s['info_value'])]
+        for row in booking_timeline(event, LEGACY_PDF_LABELS)
     ]
     if timeline_rows:
         elements.append(_section_header([Paragraph('TIMELINE', s['section_title'])], [CONTENT_W]))

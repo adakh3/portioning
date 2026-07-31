@@ -28,7 +28,7 @@ import DealWonDialog from "@/components/DealWonDialog";
 import EventPaymentsCard from "@/components/EventPaymentsCard";
 import { useAuth } from "@/lib/auth";
 import { formatDate, formatDateTime as sharedFormatDateTime, formatTime, todayISO } from "@/lib/dateFormat";
-import { LineItemInput, lineItemTotal, computeBookingTotals, buildEventSavePayload, segmentFood, segmentFoodRows, defaultSegmentRemainder, hasVendorDoubleEntry, GuestSegmentMeta } from "@/lib/quoteTotals";
+import { LineItemInput, lineItemTotal, computeBookingTotals, buildEventSavePayload, segmentFood, segmentFoodRows, defaultSegmentRemainder, hasVendorDoubleEntry, GuestSegmentMeta , timelineMealRows} from "@/lib/quoteTotals";
 import BookingTotalsCard from "@/components/BookingTotalsCard";
 import AddOnItemsEditor from "@/components/AddOnItemsEditor";
 import MenuBuilder from "@/components/MenuBuilder";
@@ -245,7 +245,7 @@ export default function EventDetailPage() {
     setFormMealTime(data.meal_time ? data.meal_time.slice(0, 16) : "");
     setFormEndTime(data.end_time ? data.end_time.slice(0, 16) : "");
     setFormTimeline((data.timeline_entries || []).map((e) => ({
-      id: e.id, time: e.time.slice(0, 5), label: e.label,
+      id: e.id, time: e.time.slice(0, 5), label: e.label, date: e.date || "",
     })));
     setFormLineItems((data.line_items || []).map((li) => ({
       id: li.id, variant: li.variant, category: li.category, description: li.description,
@@ -807,6 +807,7 @@ export default function EventDetailPage() {
                 entries={formTimeline}
                 onEntriesChange={setFormTimeline}
                 presets={timelinePresets}
+                meals={timelineMealRows(formAdditionalMeals)}
               />
             ) : (event!.timeline_entries || []).length > 0 ? (
               /* The booking's own run-of-show replaces the four legacy slots. */

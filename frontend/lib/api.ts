@@ -166,6 +166,9 @@ export interface TimelineEntry {
   id: number;
   time: string;
   label: string;
+  /** "YYYY-MM-DD" when the step is on a different day from the booking's event
+   * date (a load-in the afternoon before); null when it's on the day itself. */
+  date: string | null;
   sort_order: number;
 }
 

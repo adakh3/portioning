@@ -417,6 +417,50 @@ describe("BookingTimelineField — run-of-show entries", () => {
     expect(onEntriesChange).not.toHaveBeenCalled();
   });
 
+  it("puts a step on another day, and back", () => {
+    // Load-in the afternoon before. The date control only appears once a row
+    // needs one, so most rows stay three controls wide.
+    const onEntriesChange = renderEntries([{ time: "16:00", label: "Cocktails" }]);
+    expect(screen.queryByLabelText("Step 1 date")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText("Move step 1 to another day"));
+    // Defaults to the day before the event, which is what it almost always is.
+    expect(onEntriesChange).toHaveBeenLastCalledWith([
+      { time: "16:00", label: "Cocktails", date: "2026-07-31" },
+    ]);
+  });
+
+  it("clears a step's date to put it back on the event day", () => {
+    const onEntriesChange = vi.fn();
+    render(
+      <BookingTimelineField value={base} onChange={() => {}}
+        entries={[{ time: "16:00", label: "Cocktails", date: "2026-07-31" }]}
+        onEntriesChange={onEntriesChange} presets={presets} eventDate="2026-08-01" />,
+    );
+    expect(screen.getByLabelText("Step 1 date")).toHaveValue("2026-07-31");
+    fireEvent.click(screen.getByLabelText("Put step 1 back on the event day"));
+    expect(onEntriesChange).toHaveBeenLastCalledWith([
+      { time: "16:00", label: "Cocktails", date: "" },
+    ]);
+  });
+
+  it("shows additional meals in the run-of-show, read-only", () => {
+    // The meal owns its time (and its price and menu), so the timeline shows it
+    // but never lets you edit a second copy that could then drift.
+    render(
+      <BookingTimelineField value={base} onChange={() => {}}
+        entries={[{ time: "19:00", label: "Dinner service" }]}
+        onEntriesChange={vi.fn()} presets={presets}
+        meals={[{ label: "Welcome drinks", time: "17:00" }]} eventDate="2026-08-01" />,
+    );
+    expect(screen.getByText("Welcome drinks")).toBeInTheDocument();
+    expect(screen.getByText("from Additional Meals")).toBeInTheDocument();
+    // One editable step — the meal is not one of them.
+    expect(screen.getByLabelText("Step 1 label")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Step 2 label")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Remove step 2")).not.toBeInTheDocument();
+  });
+
   it("gives every step a drag handle", () => {
     renderEntries([
       { time: "17:00", label: "Cocktails" },

@@ -368,6 +368,24 @@ export function buildLineItemsPayload(lineItems: LineItemInput[]) {
   }));
 }
 
+/** A booking's additional meals as read-only timeline rows.
+ *
+ * Derived on every render rather than copied into entries: the meal owns its
+ * time (along with its price and menu), so moving the meal moves the row and the
+ * two can never disagree. Untimed meals are left out — they aren't a moment yet.
+ */
+export function timelineMealRows(
+  meals: { label?: string; meal_time?: string | null }[] | undefined,
+): { label: string; time: string }[] {
+  return (meals || [])
+    .filter((m) => m.meal_time)
+    .map((m) => ({
+      label: m.label?.trim() || "Additional meal",
+      time: m.meal_time!.includes("T") ? m.meal_time!.slice(11, 16) : m.meal_time!.slice(0, 5),
+    }))
+    .sort((a, b) => a.time.localeCompare(b.time));
+}
+
 /** Serialize a booking's run-of-show for a save (quote OR event).
  *
  * Rows go out in the order they're shown — the backend turns that position into
@@ -380,7 +398,13 @@ export function buildLineItemsPayload(lineItems: LineItemInput[]) {
 export function buildTimelineEntriesPayload(entries: TimelineEntryValue[] = []) {
   return entries
     .filter((e) => e.time)
-    .map((e) => ({ time: e.time.length === 5 ? `${e.time}:00` : e.time, label: e.label.trim() }));
+    .map((e) => ({
+      time: e.time.length === 5 ? `${e.time}:00` : e.time,
+      label: e.label.trim(),
+      // null, not omitted: a row moved back onto the event day has to clear the
+      // date it used to carry.
+      date: e.date || null,
+    }));
 }
 
 /** Serialize additional meals for a booking save (quote OR event). */
