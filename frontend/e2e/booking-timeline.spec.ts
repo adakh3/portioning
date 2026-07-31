@@ -23,7 +23,7 @@ test.describe("Booking timeline persists end-to-end", () => {
 
     // Meal Time is the run-of-show anchor, and the one legacy column a new
     // booking still writes — the four slots only render on a booking that
-    // already has them. Same 30-min-slot dropdown, same persistence bug class.
+    // already has them. Same slot dropdown, same persistence bug class.
     await page.getByLabel("Meal Time").selectOption("14:30");
 
     await page.getByRole("button", { name: "Create Quote" }).click();
