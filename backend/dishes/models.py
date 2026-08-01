@@ -2,7 +2,9 @@ from decimal import Decimal
 
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
-from users.managers import TenantManager
+from django.db.models.deletion import ProtectedError
+
+from users.managers import TenantManager, TenantQuerySet
 
 
 class PoolType(models.TextChoices):
@@ -141,8 +143,69 @@ class DietaryTag(models.Model):
         return self.short_label or self.label
 
 
+def bookings_using_dish(dish):
+    """(quotes, events, meals) counts for the bookings that reference ``dish``."""
+    from bookings.models import Quote
+    from events.models import BookingMeal, Event
+
+    return (
+        Quote.objects.filter(dishes=dish).count(),
+        Event.objects.filter(dishes=dish).count(),
+        BookingMeal.objects.filter(dishes=dish).count(),
+    )
+
+
+def protect_dish_on_bookings(dish):
+    """Refuse to delete a dish that is on a booking; point at deactivating it.
+
+    ``Quote.dishes`` / ``Event.dishes`` / ``BookingMeal.dishes`` are plain M2M
+    relations, so deleting a dish cascaded the join rows away and the dish
+    silently vanished from every booking that had it — historical and
+    already-accepted ones included. A caterer tidying their catalogue quietly
+    changed what past clients had ordered.
+
+    The codebase already protects this class of thing: ``Contact`` is PROTECTed
+    while a booking references it, and ``GuestSegment`` while a
+    ``BookingGuestCount`` uses it. Dishes were the gap.
+
+    Menu templates deliberately do NOT protect: a template is reusable config,
+    not a record of something that happened, so pulling a dish out rewrites
+    nothing.
+    """
+    quotes, events, meals = bookings_using_dish(dish)
+    if not (quotes or events or meals):
+        return
+    used_on = ', '.join(
+        f'{n} {label}' for n, label in
+        [(quotes, 'quote(s)'), (events, 'event(s)'), (meals, 'additional meal(s)')]
+        if n
+    )
+    raise ProtectedError(
+        f'"{dish.name}" is on {used_on} and cannot be deleted — removing it would '
+        'silently change those bookings\' menus. Untick "is active" instead: the '
+        'dish disappears from new bookings and keeps its place on the ones that '
+        'already have it.',
+        {dish},
+    )
+
+
+class DishQuerySet(TenantQuerySet):
+    def delete(self):
+        # Checked here rather than in a pre_delete receiver so it raises BEFORE
+        # Django opens the delete transaction — a receiver aborts mid-transaction
+        # and leaves it unusable, which is not how PROTECT behaves.
+        for dish in self:
+            protect_dish_on_bookings(dish)
+        return super().delete()
+
+
+class DishManager(TenantManager):
+    def get_queryset(self):
+        return DishQuerySet(self.model, using=self._db)
+
+
 class Dish(models.Model):
-    objects = TenantManager()
+    objects = DishManager()
 
     organisation = models.ForeignKey(
         'users.Organisation',
@@ -194,6 +257,12 @@ class Dish(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.category.display_name})"
+
+    def delete(self, *args, **kwargs):
+        # Before super(), so it raises outside Django's delete transaction —
+        # the same point at which a PROTECT FK would refuse.
+        protect_dish_on_bookings(self)
+        return super().delete(*args, **kwargs)
 
     @property
     def computed_selling_price(self):
