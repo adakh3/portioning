@@ -3,6 +3,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { api, PublicBooking } from "@/lib/api";
+import { formatPercent } from "@/lib/utils";
 
 // Terms are stored as a lightweight-markdown template (headings, bullets, bold).
 // Render them as clean text rather than showing raw `#`/`**`/`-` markers — no
@@ -79,7 +80,7 @@ function BookingView({
       : booking.guest_count
       ? String(booking.guest_count)
       : null;
-  const taxPct = booking.tax_rate ? Math.round(parseFloat(booking.tax_rate) * 100) : 0;
+  const taxPct = booking.tax_rate ? formatPercent(parseFloat(booking.tax_rate) * 100) : 0;
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-8 sm:py-12">

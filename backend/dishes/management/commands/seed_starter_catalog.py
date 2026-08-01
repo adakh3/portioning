@@ -15,9 +15,6 @@ from users.models import Organisation
 from dishes.models import DietaryTag, DishCategory, Dish
 from menus.models import MenuTemplate, MenuDishPortion, MenuTemplatePriceTier
 from bookings.models.addons import AddOnProduct
-from bookings.models.choices import (
-    EventTypeOption, MealTypeOption, ServiceStyleOption, SourceOption,
-)
 from staff.models import LaborRole
 from equipment.models import EquipmentItem
 from rules.models import GlobalConfig, GlobalConstraint, BudgetProfile, GuestSegment
@@ -47,7 +44,6 @@ class Command(BaseCommand):
         org-creation signal (auto-onboarding) as well as this command — pass the
         org object directly, no name lookup."""
         self.org = org
-        self._choice_options()
         cats = self._categories()
         dishes = self._dishes(cats)
         self._menus(dishes)
@@ -55,36 +51,6 @@ class Command(BaseCommand):
         self._labor_roles()
         self._equipment()
         self._rules(cats)
-
-    # ── Choice options (so quotes/events are usable) ──
-    def _choice_options(self):
-        def seed(model, items):
-            for i, (value, label) in enumerate(items):
-                model.objects.get_or_create(
-                    organisation=self.org, value=value,
-                    defaults={'label': label, 'sort_order': i},
-                )
-        seed(EventTypeOption, [
-            ('wedding', 'Wedding'), ('corporate', 'Corporate Event'),
-            ('birthday', 'Birthday Party'), ('anniversary', 'Anniversary'),
-            ('holiday', 'Holiday Party'), ('private_dinner', 'Private Dinner'),
-            ('graduation', 'Graduation'),
-        ])
-        seed(MealTypeOption, [
-            ('breakfast', 'Breakfast'), ('brunch', 'Brunch'), ('lunch', 'Lunch'),
-            ('dinner', 'Dinner'), ('cocktail', 'Cocktail Reception'),
-            ('hors_doeuvres', "Hors d'oeuvres"),
-        ])
-        seed(ServiceStyleOption, [
-            ('buffet', 'Buffet'), ('plated', 'Plated (Sit-down)'),
-            ('family_style', 'Family Style'), ('stations', 'Food Stations'),
-            ('drop_off', 'Drop-off / Delivery'),
-        ])
-        seed(SourceOption, [
-            ('referral', 'Referral'), ('website', 'Website'), ('instagram', 'Instagram'),
-            ('google', 'Google'), ('facebook', 'Facebook'), ('walk_in', 'Walk-in'),
-            ('repeat', 'Repeat Client'),
-        ])
 
     # ── Dish categories ── (name, display, order, pool, unit, baseline, min, fixed)
     def _categories(self):

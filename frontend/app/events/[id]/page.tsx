@@ -45,7 +45,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { ValidatedInput } from "@/components/ui/validated-input";
 import { Textarea } from "@/components/ui/textarea";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, formatPercent } from "@/lib/utils";
 
 const statusBadgeVariant: Record<string, "warning" | "info" | "secondary" | "success" | "destructive"> = {
   tentative: "warning",
@@ -1052,7 +1052,7 @@ export default function EventDetailPage() {
             ) : undefined}
             total={grandTotal}
             taxLabel={settings.tax_label}
-            taxPercent={(taxRate * 100).toFixed(0)}
+            taxPercent={formatPercent(taxRate * 100)}
             taxApplied={taxable}
             taxControl={editing ? (
               <label className="flex items-center gap-2 cursor-pointer">

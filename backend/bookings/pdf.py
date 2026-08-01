@@ -53,6 +53,19 @@ UNIT_LABELS = {
 }
 
 
+def _pct(value):
+    """A rate for display: '20', '8.5', '7.25' — never rounded to a whole number.
+
+    US sales tax is routinely fractional (CA 7.25%, many states x.5%), so rounding
+    the label to an integer prints a rate the customer is not being charged. An
+    8.5% quote printed '8%' here (Decimal's half-even) while the app showed '9%'
+    and the money — correct in both — was 8.5%. Mirrors ``formatPercent`` in
+    frontend/lib/utils.ts so the PDF and the screen always agree.
+    """
+    q = Decimal(value or 0).quantize(Decimal('0.01')).normalize()
+    return f'{q:f}'
+
+
 def _fmt(value, cs):
     """Format a Decimal as a currency string with thousand separators.
 
@@ -145,7 +158,7 @@ def _totals_rows(booking, cs, tax_label, tax_pct, s):
         [Paragraph('Sub Total', s['totals_label']), Paragraph(_fmt(booking.subtotal, cs), s['totals_value'])],
     ]
     if booking.service_charge and booking.service_charge > 0:
-        sc_pct = booking.service_charge_pct.quantize(Decimal('1'))
+        sc_pct = _pct(booking.service_charge_pct)
         rows.append([Paragraph(f'Service Charge ({sc_pct}%)', s['totals_label']),
                      Paragraph(_fmt(booking.service_charge, cs), s['totals_value'])])
     rows.append([Paragraph('TOTAL', s['body_bold_right']),
@@ -154,7 +167,7 @@ def _totals_rows(booking, cs, tax_label, tax_pct, s):
     rows.append([Paragraph(f'{tax_label} Amount', s['totals_label']),
                  Paragraph(_fmt(booking.tax_amount, cs), s['totals_value'])])
     if booking.gratuity and booking.gratuity > 0:
-        grat_pct = booking.gratuity_pct.quantize(Decimal('1'))
+        grat_pct = _pct(booking.gratuity_pct)
         rows.append([Paragraph(f'Gratuity ({grat_pct}%)', s['totals_label']),
                      Paragraph(_fmt(booking.gratuity, cs), s['totals_value'])])
     return rows
@@ -163,7 +176,7 @@ def _totals_rows(booking, cs, tax_label, tax_pct, s):
 def _totals_block(booking, cs, tax_label, s):
     """The right-aligned totals table + dark grand-total bar, shared by the quote
     and event PDFs. Returns one flowable to append to the story."""
-    tax_pct = (booking.tax_rate * 100).quantize(Decimal('1'))
+    tax_pct = _pct(booking.tax_rate * 100)
     TOTALS_LABEL_W = 110
     TOTALS_VALUE_W = 120
     TOTALS_W = TOTALS_LABEL_W + TOTALS_VALUE_W
