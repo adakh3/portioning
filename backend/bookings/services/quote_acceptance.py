@@ -60,6 +60,12 @@ def accept_quote(quote, user=None):
         price_per_head=quote.price_per_head,
         tax_rate=quote.tax_rate or 0,
         is_taxable=quote.is_taxable and bool(quote.tax_rate and quote.tax_rate > 0),
+        # Carry the rest of the pricing snapshot too. Without these the event
+        # recomputed at 0% and its total silently came out BELOW the accepted
+        # quote — by the whole service charge (20% for a US org by default).
+        service_charge_pct=quote.service_charge_pct or 0,
+        service_charge_taxable=quote.service_charge_taxable,
+        gratuity_pct=quote.gratuity_pct or 0,
         setup_time=quote.setup_time,
         guest_arrival_time=quote.guest_arrival_time,
         meal_time=quote.meal_time,

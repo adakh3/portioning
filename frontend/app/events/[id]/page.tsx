@@ -264,6 +264,13 @@ export default function EventDetailPage() {
     setFormAdditionalMeals(data.additional_meals || []);
     setFormCourses(data.courses || []);
     setFormDishCourses(data.dish_courses || {});
+    // The save payload always sends `dish_ids: menuData.dish_ids`, and the edit-mode
+    // MenuBuilder instant-saves via onSave rather than onChange — so without this the
+    // menu state stayed [] for an existing event and saving the form WIPED its menu
+    // (and, because courses can only reference dishes on the booking, its course
+    // assignments with it). Hydrating here also gives CoursesEditor the dish list it
+    // needs to render the "Assign dishes" dropdowns on an existing event.
+    setMenuData({ dish_ids: data.dishes || [], based_on_template: data.based_on_template ?? null });
   }, []);
 
   useEffect(() => {
