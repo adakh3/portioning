@@ -41,13 +41,20 @@ languages. This doc is how we stop that.
   `price/head × guests = total` line, so those surfaces stay byte-identical.
 - **subtotal** = food_total + every add-on line item (discounts are negative
   lines, so they reduce the subtotal).
-- **service_charge** = subtotal × `service_charge_pct` / 100, rounded to 2 dp
+- **charge_base** = `max(subtotal, 0)` — the base for the two percentage charges
+  below. A discount larger than everything it discounts used to drive the
+  subtotal negative, which flipped the service charge and gratuity negative too
+  and *compounded* the error (a −95,000 subtotal produced a −19,000 "service
+  charge"). A charge on nothing is nothing. Such a save is also **rejected** at
+  the API (`bookings/services/subtotal_guard.py`), so a negative subtotal should
+  only ever be a transient live-preview state.
+- **service_charge** = charge_base × `service_charge_pct` / 100, rounded to 2 dp
   (a percentage, e.g. 20). US orgs default to 20%; others to 0.
 - **tax** = **tax_base** × tax_rate, rounded to 2 dp, where
   **tax_base** = subtotal + (service_charge if `service_charge_taxable` else 0).
   Tax applies to the whole subtotal (no per-line split); quotes use the quote's
   `tax_rate`, events use it when `is_taxable`, else 0.
-- **gratuity** = subtotal × `gratuity_pct` / 100, rounded to 2 dp — **always
+- **gratuity** = charge_base × `gratuity_pct` / 100, rounded to 2 dp — **always
   post-tax and never taxed**.
 - **total** = subtotal + service_charge + tax + gratuity.
 

@@ -1,9 +1,11 @@
+from django.db import transaction
 from rest_framework import serializers
 
 from bookings.models import Quote, BookingLineItem
 from bookings.serializers.leads import _get_event_type_labels
 from bookings.serializers.meals import BookingMealSerializer, replace_meals
 from bookings.serializers.courses import read_courses, read_dish_courses
+from bookings.services.subtotal_guard import reject_negative_subtotal
 from bookings.serializers.timeline import (
     BookingTimelineEntrySerializer, replace_timeline_entries,
 )
@@ -258,6 +260,9 @@ class QuoteSerializer(OrgScopedModelSerializer):
             if li_id not in keep_ids:
                 li.delete()
 
+    # Atomic so a rejected save (see reject_negative_subtotal) rolls the whole
+    # write back instead of leaving a half-written booking behind.
+    @transaction.atomic
     def create(self, validated_data):
         dishes = validated_data.pop('dishes', [])
         line_items_data = validated_data.pop('line_items', None)
@@ -286,8 +291,12 @@ class QuoteSerializer(OrgScopedModelSerializer):
         if timeline_data is not None:
             replace_timeline_entries('quote', quote, timeline_data)
         quote.recalculate_totals()
+        reject_negative_subtotal(quote)
         return quote
 
+    # Atomic so a rejected save (see reject_negative_subtotal) rolls the whole
+    # write back instead of leaving a half-written booking behind.
+    @transaction.atomic
     def update(self, instance, validated_data):
         dishes = validated_data.pop('dishes', None)
         line_items_data = validated_data.pop('line_items', None)
@@ -305,6 +314,7 @@ class QuoteSerializer(OrgScopedModelSerializer):
         if timeline_data is not None:
             replace_timeline_entries('quote', quote, timeline_data)
         quote.recalculate_totals()
+        reject_negative_subtotal(quote)
         return quote
 
     def _write_courses(self, quote):

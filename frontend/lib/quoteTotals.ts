@@ -67,10 +67,16 @@ export function computeBookingTotals(
   let items = 0;
   for (const item of lineItems) items += lineItemTotal(item, guestCount);
   const subtotal = round2(food + items);
-  const service_charge = round2((subtotal * (serviceChargePct || 0)) / 100);
+  // Percentage charges are taken on the subtotal but never on a NEGATIVE one: an
+  // over-large discount used to flip the service charge and gratuity negative too,
+  // compounding the error rather than bounding it. Mirrors `charge_base` in
+  // bookings/services/totals.py — the save is rejected outright, so this is what
+  // keeps the live preview honest while the user is still typing.
+  const chargeBase = Math.max(subtotal, 0);
+  const service_charge = round2((chargeBase * (serviceChargePct || 0)) / 100);
   const tax_base = round2(subtotal + (serviceChargeTaxable ? service_charge : 0));
   const tax_amount = round2(tax_base * (taxRate || 0));
-  const gratuity = round2((subtotal * (gratuityPct || 0)) / 100);
+  const gratuity = round2((chargeBase * (gratuityPct || 0)) / 100);
   return {
     food_total: food,
     subtotal,

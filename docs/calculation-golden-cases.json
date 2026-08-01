@@ -1,5 +1,5 @@
 {
-  "_comment": "SHARED SPEC for booking totals \u2014 the single source of truth for the MATH, consumed by BOTH the backend engine (bookings/services/totals.py, via bookings/test_totals.py) and the frontend mirror (lib/quoteTotals.ts, via lib/quoteTotals.test.ts). Each case feeds food_total + line items (each with a precomputed signed line_total; discounts are negative) + tax_rate (decimal fraction) and asserts the resulting subtotal/tax_amount/total. food_total already includes any additional meals. Tax applies to the WHOLE subtotal (food + all line items) \u2014 there is no per-line taxable/non-taxable split. Change the rule => update this file => BOTH engine tests must conform. See docs/CALCULATION_PARITY.md.",
+  "_comment": "SHARED SPEC for booking totals — the single source of truth for the MATH, consumed by BOTH the backend engine (bookings/services/totals.py, via bookings/test_totals.py) and the frontend mirror (lib/quoteTotals.ts, via lib/quoteTotals.test.ts). Each case feeds food_total + line items (each with a precomputed signed line_total; discounts are negative) + tax_rate (decimal fraction) and asserts the resulting subtotal/tax_amount/total. food_total already includes any additional meals. Tax applies to the WHOLE subtotal (food + all line items) — there is no per-line taxable/non-taxable split. Change the rule => update this file => BOTH engine tests must conform. See docs/CALCULATION_PARITY.md.",
   "cases": [
     {
       "name": "food_only_with_tax",
@@ -229,6 +229,72 @@
         "tax_amount": "200.00",
         "gratuity": "0.00",
         "total": "1200.00"
+      }
+    },
+    {
+      "name": "discount_larger_than_subtotal_never_makes_a_negative_service_charge",
+      "_why": "A discount bigger than the booking used to flip the service charge and gratuity negative too (a -95,000 subtotal produced a -19,000 'service charge'), compounding the error. Percentage charges are now taken on max(subtotal, 0). The save path rejects a negative subtotal outright; this pins the engine so the live preview and any already-stored row stay sane.",
+      "food_total": "5000",
+      "items": [
+        {
+          "line_total": "-100000"
+        }
+      ],
+      "tax_rate": "0",
+      "service_charge_pct": "20",
+      "service_charge_taxable": true,
+      "gratuity_pct": "10",
+      "expected": {
+        "subtotal": "-95000.00",
+        "service_charge": "0.00",
+        "tax_base": "-95000.00",
+        "tax_amount": "0.00",
+        "gratuity": "0.00",
+        "total": "-95000.00"
+      }
+    },
+    {
+      "name": "discount_to_exactly_zero_charges_nothing",
+      "_why": "The boundary: a discount that exactly cancels the booking. Zero subtotal, zero charges, zero total.",
+      "food_total": "5000",
+      "items": [
+        {
+          "line_total": "-5000"
+        }
+      ],
+      "tax_rate": "0.20",
+      "service_charge_pct": "20",
+      "service_charge_taxable": true,
+      "gratuity_pct": "10",
+      "expected": {
+        "subtotal": "0.00",
+        "service_charge": "0.00",
+        "tax_base": "0.00",
+        "tax_amount": "0.00",
+        "gratuity": "0.00",
+        "total": "0.00"
+      }
+    },
+    {
+      "name": "a_normal_discount_still_reduces_the_service_charge_base",
+      "_why": "Guard from the other side: a legitimate discount must still shrink the charge base, not be ignored.",
+      "food_total": "5000",
+      "items": [
+        {
+          "line_total": "-1000"
+        }
+      ],
+      "tax_rate": "0",
+      "service_charge_pct": "20",
+      "service_charge_taxable": true,
+      "gratuity_pct": "0",
+      "expected": {
+        "subtotal": "4000.00",
+        "service_charge": "800.00",
+        "tax_base": "4800.00",
+        "tax_amount": "0.00",
+        "gratuity": "0.00",
+        "total": "4800.00"
       }
     }
   ],

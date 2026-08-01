@@ -116,10 +116,17 @@ def compute_booking_totals(food_total, line_items, tax_rate,
 
     items_total = sum((Decimal(item.line_total or 0) for item in line_items), Decimal('0.00'))
     subtotal = food_total + items_total
-    service_charge = (subtotal * service_charge_pct / 100).quantize(TWO_PLACES)
+    # Percentage charges are taken on the subtotal but never on a NEGATIVE one: an
+    # over-large discount used to flip the service charge and gratuity negative too,
+    # which compounded the error instead of bounding it (a -$95,000 subtotal produced
+    # a -$19,000 "service charge"). A charge on nothing is nothing. The save path
+    # rejects a negative subtotal outright; this keeps the live preview — and any row
+    # already stored that way — from showing a negative charge.
+    charge_base = max(subtotal, Decimal('0.00'))
+    service_charge = (charge_base * service_charge_pct / 100).quantize(TWO_PLACES)
     tax_base = subtotal + (service_charge if service_charge_taxable else Decimal('0.00'))
     tax_amount = (tax_base * tax_rate).quantize(TWO_PLACES)
-    gratuity = (subtotal * gratuity_pct / 100).quantize(TWO_PLACES)
+    gratuity = (charge_base * gratuity_pct / 100).quantize(TWO_PLACES)
     total = subtotal + service_charge + tax_amount + gratuity
 
     return BookingTotals(
