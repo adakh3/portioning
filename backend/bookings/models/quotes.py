@@ -89,15 +89,28 @@ class Quote(OrgScopedModel, models.Model):
     valid_until = models.DateField(null=True, blank=True)
     is_taxable = models.BooleanField(default=True, help_text='Whether tax applies to this booking')
     subtotal = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
-    tax_rate = models.DecimalField(max_digits=5, decimal_places=4, default=Decimal('0.2000'))
+    # Rate fields are user-editable, so they carry bounds: without them the API
+    # accepted a NEGATIVE tax (a tax that pays the customer), a 150% tax, and
+    # negative service charge / gratuity — each of which recomputed the totals and
+    # rendered happily into a sendable PDF.
+    tax_rate = models.DecimalField(
+        max_digits=5, decimal_places=4, default=Decimal('0.2000'),
+        validators=[MinValueValidator(Decimal('0')), MaxValueValidator(Decimal('1'))],
+    )
     tax_amount = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
     # Service charge (snapshot % + stored amount) and gratuity — copied from
     # OrgSettings at creation; amounts stored by recalculate_totals. Default 0 so
     # existing rows and non-US orgs are unaffected.
-    service_charge_pct = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('0.00'), help_text='Service charge as a percentage of the subtotal')
+    service_charge_pct = models.DecimalField(
+        max_digits=5, decimal_places=2, default=Decimal('0.00'),
+        validators=[MinValueValidator(Decimal('0')), MaxValueValidator(Decimal('100'))],
+        help_text='Service charge as a percentage of the subtotal')
     service_charge_taxable = models.BooleanField(default=True, help_text='Whether the service charge is added to the tax base')
     service_charge = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
-    gratuity_pct = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('0.00'), help_text='Gratuity as a percentage of the subtotal (post-tax, never taxed)')
+    gratuity_pct = models.DecimalField(
+        max_digits=5, decimal_places=2, default=Decimal('0.00'),
+        validators=[MinValueValidator(Decimal('0')), MaxValueValidator(Decimal('100'))],
+        help_text='Gratuity as a percentage of the subtotal (post-tax, never taxed)')
     gratuity = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
     total = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
     event = models.OneToOneField(

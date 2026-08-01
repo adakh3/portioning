@@ -53,6 +53,20 @@ UNIT_LABELS = {
 }
 
 
+def _esc(value):
+    """Escape user text for reportlab's mini-markup parser.
+
+    Every Paragraph below is parsed as markup, so raw user text was interpreted
+    rather than shown: a note reading "<b>Deposit</b>" silently rendered bold,
+    and malformed markup ("<br>", a stray "</b>") raised ValueError and killed
+    the whole download. Course names were already escaped (REL-417); this brings
+    the rest of the free-text fields — including the client-supplied signer name
+    on the signed copy — in line.
+    """
+    from xml.sax.saxutils import escape
+    return escape(str(value)) if value is not None else ''
+
+
 def _pct(value):
     """A rate for display: '20', '8.5', '7.25' — never rounded to a whole number.
 
@@ -368,7 +382,7 @@ def _acceptance_block(signature, s):
     if img is not None:
         out += [img, Spacer(1, 2 * mm)]
     when = signature.signed_at.strftime('%d %b %Y, %H:%M') if signature.signed_at else ''
-    line = f"Accepted &amp; signed electronically by <b>{signature.signer_name}</b>"
+    line = f"Accepted &amp; signed electronically by <b>{_esc(signature.signer_name)}</b>"
     if when:
         line += f" on {when}"
     out.append(Paragraph(line, s['note']))
@@ -478,7 +492,7 @@ def _meal_flowables(booking, cs, s, time_format='24h'):
         if not line and not dishes:
             continue
         if line:
-            out.append(Paragraph(f'<b>{line}</b>', s['body']))
+            out.append(Paragraph(f'<b>{_esc(line)}</b>', s['body']))
         if dishes:
             out.append(Spacer(1, 1 * mm))
             out.append(_dish_table(dishes, s))
@@ -560,19 +574,19 @@ def generate_quote_pdf(quote, signature=None):
     left_data.append([Paragraph(f'<b>To: {to_name}</b>', s['info_header']), ''])
 
     if pres['contact_phone']:
-        left_data.append([Paragraph('Phone:', s['info_label']), Paragraph(pres['contact_phone'], s['info_value'])])
+        left_data.append([Paragraph('Phone:', s['info_label']), Paragraph(_esc(pres['contact_phone']), s['info_value'])])
     if pres['contact_email']:
-        left_data.append([Paragraph('Email:', s['info_label']), Paragraph(pres['contact_email'], s['info_value'])])
+        left_data.append([Paragraph('Email:', s['info_label']), Paragraph(_esc(pres['contact_email']), s['info_value'])])
 
     if quote.account_id:
         acct = quote.account
-        left_data.append([Paragraph('Business:', s['info_label']), Paragraph(acct.name, s['info_value'])])
+        left_data.append([Paragraph('Business:', s['info_label']), Paragraph(_esc(acct.name), s['info_value'])])
         addr_parts = [p for p in [
             acct.billing_address_line1, acct.billing_address_line2,
             acct.billing_city, acct.billing_postcode,
         ] if p]
         if addr_parts:
-            left_data.append([Paragraph('Address:', s['info_label']), Paragraph(', '.join(addr_parts), s['info_value'])])
+            left_data.append([Paragraph('Address:', s['info_label']), Paragraph(_esc(', '.join(addr_parts)), s['info_value'])])
 
     if quote.venue:
         venue = quote.venue
@@ -580,9 +594,9 @@ def generate_quote_pdf(quote, signature=None):
         addr = [p for p in [venue.address_line1, venue.city] if p]
         if addr:
             venue_parts.append(', '.join(addr))
-        left_data.append([Paragraph('Venue:', s['info_label']), Paragraph(' — '.join(venue_parts), s['info_value'])])
+        left_data.append([Paragraph('Venue:', s['info_label']), Paragraph(_esc(' — '.join(venue_parts)), s['info_value'])])
     elif quote.venue_address:
-        left_data.append([Paragraph('Venue:', s['info_label']), Paragraph(quote.venue_address, s['info_value'])])
+        left_data.append([Paragraph('Venue:', s['info_label']), Paragraph(_esc(quote.venue_address), s['info_value'])])
 
     et_label = pres['event_type_label']
     left_data.append([Paragraph('Event Type:', s['info_label']), Paragraph(et_label, s['info_value'])])
@@ -669,7 +683,7 @@ def generate_quote_pdf(quote, signature=None):
     # Timeline — above the menu, mirroring the form. The booking's own run-of-show
     # entries when it has any, else the four legacy slots worded exactly as before.
     timeline_rows = [
-        [Paragraph(row.label, s['info_label']),
+        [Paragraph(_esc(row.label), s['info_label']),
          Paragraph(format_timeline_row(row, settings.time_format), s['info_value'])]
         for row in booking_timeline(quote, LEGACY_PDF_LABELS)
     ]
@@ -739,7 +753,7 @@ def generate_quote_pdf(quote, signature=None):
 
             addon_rows.append([
                 Paragraph(cat, s['body']),
-                Paragraph(desc, s['body']),
+                Paragraph(_esc(desc), s['body']),
                 Paragraph(rate, s['body_right']),
                 Paragraph(amount, amount_style),
             ])
@@ -763,7 +777,7 @@ def generate_quote_pdf(quote, signature=None):
     if pres['notes']:
         elements.append(Spacer(1, 2 * mm))
         elements.append(Paragraph('<b>Notes:</b>', s['body_bold']))
-        elements.append(Paragraph(pres['notes'], s['note']))
+        elements.append(Paragraph(_esc(pres['notes']), s['note']))
         elements.append(Spacer(1, 6 * mm))
 
     # ── 6. Totals block (right-aligned) ──
@@ -847,9 +861,9 @@ def generate_event_pdf(event, signature=None):
         addr = [p for p in [venue.address_line1, venue.city] if p]
         if addr:
             venue_parts.append(', '.join(addr))
-        left_data.append([Paragraph('Venue:', s['info_label']), Paragraph(' — '.join(venue_parts), s['info_value'])])
+        left_data.append([Paragraph('Venue:', s['info_label']), Paragraph(_esc(' — '.join(venue_parts)), s['info_value'])])
     elif event.venue_address:
-        left_data.append([Paragraph('Venue:', s['info_label']), Paragraph(event.venue_address, s['info_value'])])
+        left_data.append([Paragraph('Venue:', s['info_label']), Paragraph(_esc(event.venue_address), s['info_value'])])
     left_data.append([Paragraph('Event Type:', s['info_label']),
                       Paragraph(_choice_label(EventTypeOption, event.event_type, event.organisation), s['info_value'])])
 
@@ -918,7 +932,7 @@ def generate_event_pdf(event, signature=None):
 
     # ── Timeline ── (entries when present, else the four legacy slots)
     timeline_rows = [
-        [Paragraph(row.label, s['info_label']),
+        [Paragraph(_esc(row.label), s['info_label']),
          Paragraph(format_timeline_row(row, settings.time_format), s['info_value'])]
         for row in booking_timeline(event, LEGACY_PDF_LABELS)
     ]
@@ -972,7 +986,7 @@ def generate_event_pdf(event, signature=None):
             if item.category == 'discount':
                 amount_style = ParagraphStyle('Discount', parent=s['body_right'], textColor=colors.HexColor('#DC2626'))
             addon_rows.append([
-                Paragraph(cat, s['body']), Paragraph(desc, s['body']),
+                Paragraph(cat, s['body']), Paragraph(_esc(desc), s['body']),
                 Paragraph(rate, s['body_right']), Paragraph(amount, amount_style),
             ])
         addon_table = Table(addon_rows, colWidths=ADDON_COL_WIDTHS)
@@ -1005,7 +1019,7 @@ def generate_event_pdf(event, signature=None):
             elements.append(Spacer(1, 2 * mm))
             for para in text.split('\n'):
                 if para.strip():
-                    elements.append(Paragraph(para.strip(), s['note']))
+                    elements.append(Paragraph(_esc(para.strip()), s['note']))
             elements.append(Spacer(1, 6 * mm))
 
     elements += _acceptance_block(signature, s)
