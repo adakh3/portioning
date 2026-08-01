@@ -5,7 +5,9 @@ from bookings.models import Quote, BookingLineItem
 from bookings.serializers.leads import _get_event_type_labels
 from bookings.serializers.meals import BookingMealSerializer, replace_meals
 from bookings.serializers.courses import read_courses, read_dish_courses
-from bookings.services.subtotal_guard import reject_negative_subtotal
+from bookings.services.subtotal_guard import (
+    reject_unstorable_inputs, validate_booking_totals,
+)
 from bookings.serializers.timeline import (
     BookingTimelineEntrySerializer, replace_timeline_entries,
 )
@@ -157,6 +159,14 @@ class QuoteSerializer(OrgScopedModelSerializer):
                 err = guest_counts_error(org, guest_count, raw_counts)
                 if err:
                     raise serializers.ValidationError({'guest_counts': err})
+        # Reject a booking too large to store before anything is written — a
+        # per-guest line item recalculates the parent on save, so an overflow
+        # there crashed mid-write rather than reaching the post-save guard.
+        reject_unstorable_inputs(
+            attrs.get('guest_count', getattr(self.instance, 'guest_count', 0)),
+            attrs.get('price_per_head', getattr(self.instance, 'price_per_head', None)),
+            self.initial_data.get('line_items') if hasattr(self, 'initial_data') else None,
+        )
         return attrs
 
     def get_account_name(self, obj):
@@ -291,7 +301,7 @@ class QuoteSerializer(OrgScopedModelSerializer):
         if timeline_data is not None:
             replace_timeline_entries('quote', quote, timeline_data)
         quote.recalculate_totals()
-        reject_negative_subtotal(quote)
+        validate_booking_totals(quote)
         return quote
 
     # Atomic so a rejected save (see reject_negative_subtotal) rolls the whole
@@ -314,7 +324,7 @@ class QuoteSerializer(OrgScopedModelSerializer):
         if timeline_data is not None:
             replace_timeline_entries('quote', quote, timeline_data)
         quote.recalculate_totals()
-        reject_negative_subtotal(quote)
+        validate_booking_totals(quote)
         return quote
 
     def _write_courses(self, quote):
