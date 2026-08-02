@@ -75,10 +75,14 @@ export default function GuestCountField({
     countControl: React.ReactNode,
     rateControl: React.ReactNode,
   ) => (
-    <div key={s.name} className="rounded-lg border border-border/70 bg-muted/20 p-3">
+    // flex column + `mt-auto` on the rate: grid cells already stretch to the tallest
+    // in the row, so pinning the rate to the bottom keeps every rate on one baseline
+    // even when a neighbour grows — e.g. an over-count on Kids renders a validation
+    // message INSIDE its cell, which would otherwise shove its rate below Adults'.
+    <div key={s.name} className="flex h-full flex-col rounded-lg border border-border/70 bg-muted/20 p-3">
       <label className={labelCls}>{s.name}</label>
       {countControl}
-      <div className="mt-2">
+      <div className="mt-auto pt-2">
         <span className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
           {s.name} $/head
         </span>
@@ -103,22 +107,39 @@ export default function GuestCountField({
   /** The default segment's rate, read-only (AC3). It is the booking's own price per
    * head — showing it stops the block implying that everyone except Adults is
    * priced. Whether it should become overridable is a product decision, so it is
-   * deliberately not an input here. */
-  const baseRateBox = (s: GuestSegmentMeta) => (
-    <div
-      aria-label={`${s.name} price per head`}
-      className="flex h-8 items-center rounded-md border border-input bg-muted/50 px-3 text-sm text-muted-foreground"
-    >
-      {segmentEffectiveRate(pricePerHead, s.price_multiplier).toFixed(2)}
-      <span className="ml-1.5 text-xs">(base)</span>
-    </div>
-  );
+   * deliberately not an input here.
+   *
+   * Until a price per head exists this shows an em-dash, not "0.00": the Guests card
+   * sits ABOVE Menu & Pricing, so on every new booking the breakdown is filled in
+   * before a price is. Rendering 0.00 as a statement of fact would tell the caterer
+   * their guests are priced at nothing. (The editable boxes show 0.00 as a greyed
+   * PLACEHOLDER, which reads as "unset" rather than as an assertion.) */
+  const baseRateBox = (s: GuestSegmentMeta) => {
+    const priced = pricePerHead !== undefined && String(pricePerHead).trim() !== "";
+    return (
+      <div
+        aria-label={`${s.name} price per head`}
+        className="flex h-8 items-center rounded-md border border-input bg-muted/50 px-3 text-sm text-muted-foreground"
+      >
+        {priced ? (
+          <>
+            {segmentEffectiveRate(pricePerHead, s.price_multiplier).toFixed(2)}
+            <span className="ml-1.5 text-xs">(auto)</span>
+          </>
+        ) : (
+          <span aria-hidden="true">—</span>
+        )}
+      </div>
+    );
+  };
 
-  /** The default segment's count: the derived remainder, clearly not a field (AC4). */
+  /** The default segment's count: the derived remainder, clearly not a field (AC4).
+   * `h-9` matches the Input default so this column doesn't run taller than the
+   * editable ones — the ragged grid is the whole reason this ticket exists. */
   const derivedCountBox = (s: GuestSegmentMeta) => (
     <div
       aria-label={`${s.name} (derived)`}
-      className="flex h-10 items-center rounded-md border border-input bg-muted/50 px-3 text-sm text-muted-foreground"
+      className="flex h-9 items-center rounded-md border border-input bg-muted/50 px-3 text-sm text-muted-foreground"
     >
       {Math.max(0, remainder)}
       <span className="ml-1.5 text-xs">(auto)</span>

@@ -124,9 +124,12 @@ describe("Quote form — Timeline sits below the meals (REL-430)", () => {
 
     await screen.findByText("Edit Quote"); // page loaded, not editing
     const order = sectionOrder();
-    // Guests + Timeline are edit-only cards on the quote; Additional Meals renders
-    // because this quote has one, and it must still precede nothing later than it.
     expectOrder(order, "Menu", "Additional Meals");
+    // NOT a decision — this DOCUMENTS a known gap. The quote page has only ever had
+    // an edit-mode Timeline card, while the event page renders a read-only one, and
+    // the quote PDF *does* print the run-of-show (bookings/pdf.py). So a caterer
+    // can't see on screen what the customer receives. Out of scope for REL-430,
+    // which is a pure reorder; raised separately. Delete this line when that lands.
     expect(order).not.toContain("Timeline");
   });
 });

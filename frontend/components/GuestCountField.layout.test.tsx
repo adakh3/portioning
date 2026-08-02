@@ -69,14 +69,64 @@ describe("GuestCountField — the breakdown says who is priced at what (REL-428)
     }
   });
 
+  // jsdom has no layout engine, so "the columns line up" can't be measured here —
+  // only the class contract that produces it. These three assertions are what would
+  // have caught the derived count box being 4px taller than every editable input,
+  // which is exactly the ragged grid this ticket was raised about.
+  it("AC2: the derived count box is the same height as an editable count input", () => {
+    setup({ guest_count: 150, segment_counts: { Kids: 12 } });
+
+    // Input's own default is h-9 (components/ui/input.tsx) — the read-only box must match.
+    expect(screen.getByLabelText("Kids")).toHaveClass("h-9");
+    expect(screen.getByLabelText("Adults (derived)")).toHaveClass("h-9");
+  });
+
+  it("AC2: the read-only rate box is the same height as an editable rate input", () => {
+    setup({ guest_count: 150, segment_counts: { Kids: 12 } }, US, "40");
+
+    expect(screen.getByLabelText("Kids price per head")).toHaveClass("h-8");
+    expect(screen.getByLabelText("Adults price per head")).toHaveClass("h-8");
+  });
+
+  it("AC2: a validation message in one cell can't shove its rate off the shared baseline", () => {
+    // Kids over the guest count → ValidatedInput renders its message INSIDE the
+    // cell. The rate is pinned to the bottom of a stretched grid cell, so both
+    // rates stay on one line instead of Kids' dropping below Adults'.
+    setup({ guest_count: 150, segment_counts: { Kids: 200 } });
+
+    for (const name of ["Kids", "Adults"]) {
+      const rateBlock = within(cellFor(name)).getByText(`${name} $/head`).parentElement;
+      expect(rateBlock).toHaveClass("mt-auto");
+    }
+  });
+
   it("AC3: the derived segment shows the booking's per-head rate, read-only", () => {
     setup({ guest_count: 150, segment_counts: { Kids: 12 } }, US, "40");
 
     const adultsRate = screen.getByLabelText("Adults price per head");
     expect(adultsRate).toHaveTextContent("40.00"); // the booking's price per head
-    expect(adultsRate).toHaveTextContent("base");
+    expect(adultsRate).toHaveTextContent("auto");
     // Read-only by construction: it is not an input at all, so it can't be typed in.
     expect(adultsRate.tagName).not.toBe("INPUT");
+  });
+
+  it("AC3: with no price per head yet, the derived rate shows a dash — never '0.00'", () => {
+    // The Guests card sits ABOVE Menu & Pricing, so on every new booking the
+    // breakdown is filled in before a price exists. "0.00 (auto)" would state as
+    // fact that the guests are priced at nothing.
+    for (const noPrice of ["", undefined as unknown as string]) {
+      const { unmount } = render(
+        <GuestCountField
+          value={{ ...base, guest_count: 150, segment_counts: { Kids: 12 } }}
+          onChange={vi.fn()}
+          pricePerHead={noPrice}
+        />,
+      );
+      const adultsRate = screen.getByLabelText("Adults price per head");
+      expect(adultsRate).toHaveTextContent("—");
+      expect(adultsRate).not.toHaveTextContent("0.00");
+      unmount();
+    }
   });
 
   it("AC3: the derived rate follows the booking's price per head, not a hardcoded one", () => {
