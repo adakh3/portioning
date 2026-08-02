@@ -65,20 +65,73 @@ export default function GuestCountField({
 
   const labelCls = "block text-sm font-medium text-foreground mb-1";
 
-  /** A per-head rate box for a non-default segment: default (base × multiplier)
-   * shows as the placeholder; typing stores a flat/custom override. */
-  const rateBox = (s: GuestSegmentMeta) => (
-    <div className="mt-1.5 flex items-center gap-1.5">
-      <span className="text-xs text-muted-foreground">$/head</span>
-      <ValidatedInput
-        type="number" step="0.01" min={0} disabled={disabled}
-        aria-label={`${s.name} price per head`}
-        placeholder={segmentEffectiveRate(pricePerHead, s.price_multiplier).toFixed(2)}
-        value={prices[s.name] ?? ""}
-        onChange={(e) => setPrice(s.name, e.target.value)}
-        className="h-8"
-      />
+  /** One segment = one bounded cell: its name, its count, its rate (REL-428 AC1).
+   * Every cell has the same shape — name, a count control, a rate control — so a
+   * column of editable segments lines up with the derived one instead of running a
+   * control short (AC2). The rate carries the segment's own name because the whole
+   * complaint was that a bare "$/head" under Kids could have belonged to anything. */
+  const segmentCell = (
+    s: GuestSegmentMeta,
+    countControl: React.ReactNode,
+    rateControl: React.ReactNode,
+  ) => (
+    <div key={s.name} className="rounded-lg border border-border/70 bg-muted/20 p-3">
+      <label className={labelCls}>{s.name}</label>
+      {countControl}
+      <div className="mt-2">
+        <span className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+          {s.name} $/head
+        </span>
+        {rateControl}
+      </div>
     </div>
+  );
+
+  /** An editable per-head rate: the default (base × multiplier) shows as the
+   * placeholder; typing stores a flat/custom override for this booking. */
+  const rateInput = (s: GuestSegmentMeta) => (
+    <ValidatedInput
+      type="number" step="0.01" min={0} disabled={disabled}
+      aria-label={`${s.name} price per head`}
+      placeholder={segmentEffectiveRate(pricePerHead, s.price_multiplier).toFixed(2)}
+      value={prices[s.name] ?? ""}
+      onChange={(e) => setPrice(s.name, e.target.value)}
+      className="h-8"
+    />
+  );
+
+  /** The default segment's rate, read-only (AC3). It is the booking's own price per
+   * head — showing it stops the block implying that everyone except Adults is
+   * priced. Whether it should become overridable is a product decision, so it is
+   * deliberately not an input here. */
+  const baseRateBox = (s: GuestSegmentMeta) => (
+    <div
+      aria-label={`${s.name} price per head`}
+      className="flex h-8 items-center rounded-md border border-input bg-muted/50 px-3 text-sm text-muted-foreground"
+    >
+      {segmentEffectiveRate(pricePerHead, s.price_multiplier).toFixed(2)}
+      <span className="ml-1.5 text-xs">(base)</span>
+    </div>
+  );
+
+  /** The default segment's count: the derived remainder, clearly not a field (AC4). */
+  const derivedCountBox = (s: GuestSegmentMeta) => (
+    <div
+      aria-label={`${s.name} (derived)`}
+      className="flex h-10 items-center rounded-md border border-input bg-muted/50 px-3 text-sm text-muted-foreground"
+    >
+      {Math.max(0, remainder)}
+      <span className="ml-1.5 text-xs">(auto)</span>
+    </div>
+  );
+
+  const countInput = (s: GuestSegmentMeta, max: number) => (
+    <ValidatedInput
+      type="number" min={0} max={max} disabled={disabled}
+      aria-label={s.name}
+      value={counts[s.name] ?? ""}
+      onChange={(e) => setCount(s.name, Number(e.target.value))}
+    />
   );
 
   return (
@@ -100,30 +153,8 @@ export default function GuestCountField({
         <div className="space-y-2">
           <p className="text-sm font-medium text-foreground">Breakdown (optional)</p>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            {explicitInCount.map((s) => (
-              <div key={s.name}>
-                <label className={labelCls}>{s.name}</label>
-                <ValidatedInput
-                  type="number" min={0} max={total} disabled={disabled}
-                  aria-label={s.name}
-                  value={counts[s.name] ?? ""}
-                  onChange={(e) => setCount(s.name, Number(e.target.value))}
-                />
-                {rateBox(s)}
-              </div>
-            ))}
-            {defaultSeg && (
-              <div>
-                <label className={labelCls}>{defaultSeg.name}</label>
-                <div
-                  aria-label={`${defaultSeg.name} (derived)`}
-                  className="flex h-10 items-center rounded-md border border-input bg-muted/50 px-3 text-sm text-muted-foreground"
-                >
-                  {Math.max(0, remainder)}
-                  <span className="ml-1.5 text-xs">(auto)</span>
-                </div>
-              </div>
-            )}
+            {explicitInCount.map((s) => segmentCell(s, countInput(s, total), rateInput(s)))}
+            {defaultSeg && segmentCell(defaultSeg, derivedCountBox(defaultSeg), baseRateBox(defaultSeg))}
           </div>
           {remainder < 0 && (
             <p className="text-xs text-destructive">
@@ -137,19 +168,10 @@ export default function GuestCountField({
       {additional.length > 0 && (
         <div className="space-y-2">
           <p className="text-sm font-medium text-foreground">Additional covers (not in guest count)</p>
+          {/* Same cell as the in-count breakdown — extra covers have the identical
+              name/count/rate shape, so they get the identical treatment (AC7). */}
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            {additional.map((s) => (
-              <div key={s.name}>
-                <label className={labelCls}>{s.name}</label>
-                <ValidatedInput
-                  type="number" min={0} max={100000} disabled={disabled}
-                  aria-label={s.name}
-                  value={counts[s.name] ?? ""}
-                  onChange={(e) => setCount(s.name, Number(e.target.value))}
-                />
-                {rateBox(s)}
-              </div>
-            ))}
+            {additional.map((s) => segmentCell(s, countInput(s, 100000), rateInput(s)))}
           </div>
           <p className="text-xs text-muted-foreground">
             Serving vendors a different menu? Add it as a separate meal instead.
