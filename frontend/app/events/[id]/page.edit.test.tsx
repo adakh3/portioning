@@ -40,7 +40,7 @@ const existingEvent = {
   venue: null, venue_name: null, venue_address: "", venue_city: "", venue_state: "", venue_zip: "",
   product: 5, product_name: "Catering", assigned_to: 7, assigned_to_name: "Sam Sales",
   created_by: 7, created_by_name: "Sam Sales",
-  event_type: "wedding", meal_type: "", service_style: "", booking_date: "",
+  event_type: "wedding", meal_type: "", service_style: "plated", booking_date: "",
   price_per_head: "40.00", status: "tentative", status_display: "Tentative",
   is_taxable: false, tax_rate: "0.0000", subtotal: "2000.00", tax_amount: "0.00", total: "2000.00",
   service_charge_pct: "0", service_charge_taxable: true, service_charge: "0.00",
@@ -54,6 +54,10 @@ const existingEvent = {
   dishes: [11, 12, 13], dish_comments: [], line_items: [], additional_meals: [],
   courses: [{ name: "Starter", sort_order: 0 }, { name: "Main", sort_order: 1 }],
   dish_courses: { "11": 0, "12": 1 },
+  // Plated, with two offered entrée choices — one already tallied by the finals
+  // panel. The ON state: an empty map would pass even if the save dropped them.
+  entree_choices: { "12": 90, "13": null },
+  finals_status: null,
   based_on_template: 4, constraint_override: null,
   shifts: [], equipment_reservations: [], invoices: [], payments: [],
   amount_paid: "0.00", balance_due: "2000.00", payment_status: "unpaid",
@@ -113,6 +117,23 @@ describe("Event edit — saving the form must not destroy what it never edited",
       { name: "Main", sort_order: 1 },
     ]);
     expect(payload.dish_courses).toEqual({ "11": 0, "12": 1 });
+  });
+
+  it("keeps the offered entrée choices AND the tallies the finals panel recorded", async () => {  // REL-419
+    const payload = await editAndSave();
+    // Dropping the counts here would wipe a recorded final breakdown on every
+    // ordinary edit of the event form.
+    expect(payload.entree_choices).toEqual({ "12": 90, "13": null });
+  });
+
+  it("marking another dish as an entrée choice keeps the existing tally intact", async () => {  // REL-419
+    render(<EventDetailPage />);
+    fireEvent.click(await screen.findByText("Edit"));
+    fireEvent.click(await screen.findByLabelText("Offer Bruschetta as a choice"));
+    fireEvent.click(await screen.findByText("Save"));
+    await waitFor(() => expect(h.updateEvent).toHaveBeenCalledTimes(1));
+    const payload = h.updateEvent.mock.calls[0][1] as Record<string, unknown>;
+    expect(payload.entree_choices).toEqual({ "11": null, "12": 90, "13": null });
   });
 
   it("offers the dish→course dropdowns, which need the booking's dishes in edit mode", async () => {

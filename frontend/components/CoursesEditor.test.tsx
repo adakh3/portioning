@@ -7,22 +7,39 @@ vi.mock("@/lib/hooks", () => ({
 }));
 
 import CoursesEditor from "./CoursesEditor";
-import { CourseData } from "@/lib/api";
+import { CourseData, EntreeChoices } from "@/lib/api";
 
 /** Controlled harness so multi-step edits (add course, then assign a dish) persist. */
-function Harness({ initCourses = [], initDish = {} }: { initCourses?: CourseData[]; initDish?: Record<string, number> }) {
+function Harness({
+  initCourses = [],
+  initDish = {},
+  initChoices = {},
+  plated = false,
+}: {
+  initCourses?: CourseData[];
+  initDish?: Record<string, number>;
+  initChoices?: EntreeChoices;
+  plated?: boolean;
+}) {
   const [courses, setCourses] = useState<CourseData[]>(initCourses);
   const [dishCourses, setDishCourses] = useState<Record<string, number>>(initDish);
+  const [entreeChoices, setEntreeChoices] = useState<EntreeChoices>(initChoices);
   return (
     <>
       <CoursesEditor
         courses={courses}
         dishCourses={dishCourses}
-        onChange={({ courses, dishCourses }) => { setCourses(courses); setDishCourses(dishCourses); }}
+        entreeChoices={entreeChoices}
+        plated={plated}
+        onChange={({ courses, dishCourses, entreeChoices }) => {
+          setCourses(courses);
+          setDishCourses(dishCourses);
+          setEntreeChoices(entreeChoices);
+        }}
         selectedDishIds={[1, 2, 3]}
         editing
       />
-      <div data-testid="state">{JSON.stringify({ courses, dishCourses })}</div>
+      <div data-testid="state">{JSON.stringify({ courses, dishCourses, entreeChoices })}</div>
     </>
   );
 }
@@ -80,5 +97,58 @@ describe("CoursesEditor", () => {
     expect(state().courses.map((c: CourseData) => c.name)).toEqual(["A", "C"]);
     // Soup stays on A(0); Steak (was on removed B) unassigned; Cake shifts 2→1.
     expect(state().dishCourses).toEqual({ "1": 0, "3": 1 });
+  });
+
+  // ---- Entrée choices (REL-419) ----
+
+  it("offers no choice checkbox unless the booking is plated", () => {  // AC1
+    render(<Harness initCourses={[{ name: "Entrée", sort_order: 0 }]} />);
+    expect(screen.queryByLabelText("Offer Steak as a choice")).not.toBeInTheDocument();
+  });
+
+  it("marks two entrée dishes as offered, with no count field at quote time", () => {  // AC1
+    render(<Harness initCourses={[{ name: "Entrée", sort_order: 0 }]} plated />);
+    fireEvent.click(screen.getByLabelText("Offer Steak as a choice"));
+    fireEvent.click(screen.getByLabelText("Offer Cake as a choice"));
+    // Flagged with NO tally — counts arrive at finals, on the event.
+    expect(state().entreeChoices).toEqual({ "2": null, "3": null });
+    // No count input and no validation message anywhere in the proposal editor.
+    expect(screen.queryByLabelText(/Tally for/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("un-ticking a dish drops it from the offered map", () => {
+    render(<Harness initChoices={{ "2": null }} plated />);
+    fireEvent.click(screen.getByLabelText("Offer Steak as a choice"));
+    expect(state().entreeChoices).toEqual({});
+  });
+
+  it("keeps a recorded tally when the offering is re-emitted", () => {
+    // The event editor round-trips {dish: count}; toggling another dish must not
+    // blank a count the finals panel already recorded.
+    render(<Harness initChoices={{ "2": 90 }} plated />);
+    fireEvent.click(screen.getByLabelText("Offer Cake as a choice"));
+    expect(state().entreeChoices).toEqual({ "2": 90, "3": null });
+  });
+
+  it("shows the choice checkbox on a plated booking that has no courses yet", () => {
+    render(<Harness plated />);
+    expect(screen.getByLabelText("Offer Steak as a choice")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Course for Steak")).not.toBeInTheDocument();
+  });
+
+  it("view mode marks which dishes are offered as a choice", () => {
+    render(
+      <CoursesEditor
+        courses={[{ name: "Entrée", sort_order: 0 }]}
+        dishCourses={{ "2": 0, "3": 0 }}
+        entreeChoices={{ "2": null }}
+        plated
+        onChange={() => {}}
+        selectedDishIds={[1, 2, 3]}
+        editing={false}
+      />,
+    );
+    expect(screen.getByText(/Entrée/).closest("div")).toHaveTextContent("Entrée: Steak (choice), Cake");
   });
 });

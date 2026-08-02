@@ -8,6 +8,7 @@ import {
   EventData,
   EventMealData,
   CourseData,
+  EntreeChoices,
   Contact,
 } from "@/lib/api";
 import {
@@ -35,6 +36,8 @@ import AddOnItemsEditor from "@/components/AddOnItemsEditor";
 import MenuBuilder from "@/components/MenuBuilder";
 import AdditionalMealsEditor from "@/components/AdditionalMealsEditor";
 import CoursesEditor from "@/components/CoursesEditor";
+import FinalNumbersPanel from "@/components/FinalNumbersPanel";
+import FinalsPill from "@/components/FinalsPill";
 import GuestCountField, { GuestCountValue } from "@/components/GuestCountField";
 import BookingTimelineField, { TimelineEntryValue } from "@/components/BookingTimelineField";
 import BookingDetailsForm, { BookingDetailsValue } from "@/components/BookingDetailsForm";
@@ -124,6 +127,10 @@ export default function EventDetailPage() {
   // Courses (Starter/Entrée/Dessert + service style) + dish→course map (REL-417).
   const [formCourses, setFormCourses] = useState<CourseData[]>([]);
   const [formDishCourses, setFormDishCourses] = useState<Record<string, number>>({});
+  // Offered entrée choices + any tallies already recorded (REL-419). Hydrated from
+  // the event and echoed back on save so the finals panel's numbers survive an
+  // ordinary edit of the menu.
+  const [formEntreeChoices, setFormEntreeChoices] = useState<EntreeChoices>({});
 
 
   // Form fields (used in edit mode)
@@ -264,6 +271,7 @@ export default function EventDetailPage() {
     setFormAdditionalMeals(data.additional_meals || []);
     setFormCourses(data.courses || []);
     setFormDishCourses(data.dish_courses || {});
+    setFormEntreeChoices(data.entree_choices || {});
     // The save payload always sends `dish_ids: menuData.dish_ids`, and the edit-mode
     // MenuBuilder instant-saves via onSave rather than onChange — so without this the
     // menu state stayed [] for an existing event and saving the form WIPED its menu
@@ -358,7 +366,7 @@ export default function EventDetailPage() {
       line_items: formLineItems,
       meals: formAdditionalMeals,
       timeline_entries: formTimeline,
-    }, segmentMeta, formCourses, formDishCourses);
+    }, segmentMeta, formCourses, formDishCourses, formEntreeChoices);
     try {
       if (isNew) {
         const created = await api.createEvent({ ...payload, status: formStatus, assigned_to: formAssigned });
@@ -587,10 +595,17 @@ export default function EventDetailPage() {
                     <option value="confirmed">Confirmed</option>
                   </select>
                 ) : (
-                  <span className="h-9 flex items-center">
+                  <span className="h-9 flex items-center gap-2">
                     <Badge variant={statusBadgeVariant[event!.status] || "secondary"} className="whitespace-nowrap">
                       {event!.status_display || event!.status}
                     </Badge>
+                    {/* Finals reminder sits beside the status — same derived pill as
+                        the events list, so the two can never disagree (REL-419). */}
+                    <FinalsPill
+                      status={event!.finals_status}
+                      dueDate={event!.final_count_due}
+                      dateFormat={dateFormat}
+                    />
                   </span>
                 )}
               </div>
@@ -930,13 +945,30 @@ export default function EventDetailPage() {
       </Card>
 
       {/* Courses (Starter/Entrée/Dessert + service style) — groups the main menu */}
-      {(editing || formCourses.length > 0) && (
+      {(editing || formCourses.length > 0 || Object.keys(formEntreeChoices).length > 0) && (
         <CoursesEditor
           courses={formCourses}
           dishCourses={formDishCourses}
-          onChange={({ courses, dishCourses }) => { setFormCourses(courses); setFormDishCourses(dishCourses); }}
+          entreeChoices={formEntreeChoices}
+          plated={formServiceStyle === "plated"}
+          onChange={({ courses, dishCourses, entreeChoices }) => {
+            setFormCourses(courses);
+            setFormDishCourses(dishCourses);
+            setFormEntreeChoices(entreeChoices);
+          }}
           selectedDishIds={editing ? menuData.dish_ids : (event?.dishes || [])}
           editing={editing}
+        />
+      )}
+
+      {/* Final numbers — the guarantee + per-entrée tallies, and the only place the
+          two are checked against each other (REL-419). Confirmed events only: there
+          is nothing to guarantee before the booking is on. */}
+      {!isNew && event && event.status === "confirmed" && (
+        <FinalNumbersPanel
+          event={event}
+          dateFormat={dateFormat}
+          onSaved={() => mutateEvent()}
         />
       )}
 

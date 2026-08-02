@@ -31,6 +31,7 @@ const mkEvent = (over: Record<string, unknown> = {}) => ({
   created_by: 1, created_by_name: "Demo Rep",
   product: 1, event_type: "wedding", venue_name: "Grand Hall", venue_address: "",
   total: "1200000.00", created_at: "2026-06-01", status: "confirmed", status_display: "Confirmed",
+  final_count: null, final_count_due: null, finals_status: null,
   ...over,
 });
 
@@ -89,5 +90,40 @@ describe("Events list", () => {
     const rows = screen.getAllByRole("row").slice(1); // drop header
     expect(within(rows[0]).getByText("Alpha")).toBeInTheDocument();
     expect(within(rows[1]).getByText("Bravo")).toBeInTheDocument();
+  });
+});
+
+// REL-419 AC4/AC5 — the finals reminder is on the LIST too, not just the event page:
+// an overdue guarantee has to be visible without opening every booking.
+describe("Events list — finals reminder", () => {
+  it("shows an amber 'Finals due <date>' pill as the date approaches", () => {  // AC4
+    events = [mkEvent({ finals_status: "due_soon", final_count_due: "2026-08-20" })];
+    render(<EventsPage />);
+    const pill = screen.getByTestId("finals-pill");
+    expect(pill).toHaveTextContent("Finals due 20/08/2026");  // org date format
+    expect(pill.className).toContain("bg-amber-100");
+  });
+
+  it("turns the pill red once the due date has passed", () => {  // AC5
+    events = [mkEvent({ finals_status: "overdue", final_count_due: "2026-07-01" })];
+    render(<EventsPage />);
+    expect(screen.getByTestId("finals-pill").className).toContain("bg-red-100");
+  });
+
+  it("turns it green once the numbers are recorded", () => {  // AC6
+    events = [mkEvent({ finals_status: "recorded", final_count: 150, final_count_due: "2026-07-01" })];
+    render(<EventsPage />);
+    const pill = screen.getByTestId("finals-pill");
+    expect(pill).toHaveTextContent("Finals recorded");
+    expect(pill.className).toContain("bg-green-100");
+  });
+
+  it("shows no finals pill when there is nothing to chase", () => {
+    events = [mkEvent()];
+    render(<EventsPage />);
+    expect(screen.queryByTestId("finals-pill")).not.toBeInTheDocument();
+    // …and the row's ordinary status pill is untouched ("Confirmed" is also a
+    // filter button, so scope the assertion to the table).
+    expect(within(screen.getByRole("table")).getByText("Confirmed")).toBeInTheDocument();
   });
 });

@@ -218,7 +218,7 @@ def resolve_booking_menu(booking):
 def write_booking_courses(booking, courses_data, dish_courses):
     """Replace a booking's courses and (re)assign dishes to them.
 
-    ``courses_data`` is an ordered list of ``{'name','service_style','sort_order'}``;
+    ``courses_data`` is an ordered list of ``{'name','sort_order'}``;
     ``dish_courses`` maps ``dish_id -> course index`` (into ``courses_data``). Courses
     are replaced wholesale; each listed dish's per-dish row is upserted with its
     course (preserving any ``comment``/``portion_grams``); dishes not listed are
@@ -246,6 +246,73 @@ def write_booking_courses(booking, courses_data, dish_courses):
     for dish_id, course in assigned.items():
         Model.objects.update_or_create(dish_id=dish_id, defaults={'course': course}, **parent)
     Model.objects.filter(**parent).exclude(dish_id__in=assigned.keys()).update(course=None)
+
+
+def write_entree_choices(booking, entree_choices):
+    """Replace which of a booking's dishes are offered as an entrée choice (REL-419).
+
+    ``entree_choices`` maps ``dish_id -> count or None``: every listed dish is flagged
+    ``is_entree_choice``; its value becomes ``choice_count`` (null at proposal time,
+    a tally once finals land). Dishes not listed are un-flagged and their count
+    cleared. Only dishes actually on the booking are accepted, so a stale/foreign
+    dish_id in the raw payload is ignored — never a stray or cross-org row. Sums are
+    never validated here: that check belongs to the finals panel alone (AC7/AC8).
+    """
+    parent = {'event': booking} if isinstance(booking, Event) else {'quote': booking}
+    Model = dish_comment_model(booking)
+    valid_dish_ids = set(booking.dishes.values_list('id', flat=True))
+    wanted = {}
+    for dish_id, count in (entree_choices or {}).items():
+        did = int(dish_id)
+        if did in valid_dish_ids:
+            wanted[did] = None if count is None else int(count)
+    for dish_id, count in wanted.items():
+        Model.objects.update_or_create(
+            dish_id=dish_id,
+            defaults={'is_entree_choice': True, 'choice_count': count},
+            **parent,
+        )
+    Model.objects.filter(**parent).exclude(dish_id__in=wanted.keys()).update(
+        is_entree_choice=False, choice_count=None,
+    )
+
+
+def read_entree_choices(booking):
+    """``{dish_id: count or None}`` for every dish flagged as an entrée choice —
+    the exact shape ``write_entree_choices`` accepts, so a read→write round-trip
+    (including the quote→event conversion) is lossless."""
+    return {
+        str(r.dish_id): r.choice_count
+        for r in booking.dish_comments.all() if r.is_entree_choice
+    }
+
+
+# How far ahead of the due date the finals reminder turns amber. Finals typically
+# land 2–4 weeks out, so a fortnight is the point where chasing starts.
+FINALS_DUE_SOON_DAYS = 14
+
+
+def finals_status(event, today=None):
+    """The event's finals state, DERIVED — never stored (REL-419 AC10).
+
+    ``recorded`` once ``final_count`` is filled; otherwise, when a due date is set,
+    ``overdue`` past it, ``due_soon`` inside the fortnight before it, and ``awaiting``
+    while it is still comfortably ahead. ``None`` — no pill at all — for anything that
+    can't be chased yet: an unconfirmed event, or a confirmed one with no due date.
+    """
+    if event.status != EventStatus.CONFIRMED:
+        return None
+    if event.final_count is not None:
+        return 'recorded'
+    due = event.final_count_due
+    if not due:
+        return None
+    today = today or timezone.localdate()
+    if due < today:
+        return 'overdue'
+    if (due - today).days <= FINALS_DUE_SOON_DAYS:
+        return 'due_soon'
+    return 'awaiting'
 
 
 class MealAudience(models.TextChoices):
@@ -443,6 +510,12 @@ class Event(OrgScopedModel, models.Model):
         return self.public_token
 
     @property
+    def finals_status(self):
+        """Derived finals state (REL-419) — see ``finals_status()``. A property, not a
+        column: the answer changes with the calendar, so storing it would go stale."""
+        return finals_status(self)
+
+    @property
     def latest_signature(self):
         return self.signatures.order_by('-signed_at').first()
 
@@ -543,9 +616,10 @@ class EventConstraintOverride(models.Model):
 
 class BookingCourse(models.Model):
     """An ordered course on a quote OR an event (exactly one) — Starter / Entrée /
-    Dessert — each with its own service style. Dishes are assigned to a course via
-    the per-dish rows (EventDishComment / QuoteDishComment). Additive & optional: a
-    booking with no courses renders exactly as before (implicit single course)."""
+    Dessert. Courses are grouping only: the service style is booking-level, not
+    per-course. Dishes are assigned to a course via the per-dish rows
+    (EventDishComment / QuoteDishComment). Additive & optional: a booking with no
+    courses renders exactly as before (implicit single course)."""
     quote = models.ForeignKey(
         'bookings.Quote', null=True, blank=True,
         on_delete=models.CASCADE, related_name='courses',
@@ -582,6 +656,12 @@ class EventDishComment(models.Model):
     course = models.ForeignKey(
         'events.BookingCourse', null=True, blank=True, on_delete=models.SET_NULL, related_name='+',
     )
+    # Entrée-choice lifecycle (REL-419). `is_entree_choice` is set at PROPOSAL time —
+    # this dish is one of the entrées the guest may pick — and is priced per head
+    # regardless of who picks what. `choice_count` is the tally that arrives with the
+    # final guarantee weeks later; null until then, and never validated at quote time.
+    is_entree_choice = models.BooleanField(default=False)
+    choice_count = models.PositiveIntegerField(null=True, blank=True)
 
     class Meta:
         unique_together = ('event', 'dish')
@@ -601,6 +681,11 @@ class QuoteDishComment(models.Model):
     course = models.ForeignKey(
         'events.BookingCourse', null=True, blank=True, on_delete=models.SET_NULL, related_name='+',
     )
+    # Mirrors EventDishComment (REL-419). On a quote only `is_entree_choice` is ever
+    # set — the tallies arrive at finals, on the event — but the column exists on both
+    # so the flag survives the quote→event conversion through one shared code path.
+    is_entree_choice = models.BooleanField(default=False)
+    choice_count = models.PositiveIntegerField(null=True, blank=True)
 
     class Meta:
         unique_together = ('quote', 'dish')

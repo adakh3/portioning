@@ -166,6 +166,14 @@ export interface CourseData {
   sort_order: number;
 }
 
+/** Which dishes are offered as an entrée choice (REL-419), `{dish_id: tally}`. The
+ * tally is null until the finals arrive — on a quote it is always null. */
+export type EntreeChoices = Record<string, number | null>;
+
+/** Derived finals state of a confirmed event (REL-419) — never a stored column.
+ * `null` when there is nothing to chase (unconfirmed, or no due date set). */
+export type FinalsStatus = "awaiting" | "due_soon" | "overdue" | "recorded" | null;
+
 /** One row of a booking's event-day run-of-show. `time` is 24h "HH:MM:SS" as the
  * API stores it; a booking with no entries falls back to its four legacy time
  * fields. */
@@ -488,6 +496,7 @@ export interface Quote {
   dish_names: string[];
   courses: CourseData[];
   dish_courses: Record<string, number>;
+  entree_choices: EntreeChoices;
   based_on_template: number | null;
   notes: string;
   internal_notes: string;
@@ -770,6 +779,7 @@ export interface EventData {
   dishes: number[];
   courses: CourseData[];
   dish_courses: Record<string, number>;
+  entree_choices: EntreeChoices;
   based_on_template: number | null;
   notes: string;
   kitchen_instructions: string;
@@ -825,6 +835,8 @@ export interface EventData {
   guaranteed_count: number | null;
   final_count: number | null;
   final_count_due: string | null;
+  /** Derived on the backend from (confirmed + final_count vs final_count_due). */
+  finals_status: FinalsStatus;
   // Nested
   source_quote_id: number | null;
   contact_phone: string | null;
@@ -1398,6 +1410,21 @@ export const api = {
     fetchApi<void>(`/events/${id}/`, { method: "DELETE" }),
   calculateEvent: (id: number) =>
     fetchApi<CalculationResult>(`/events/${id}/calculate/`, { method: "POST" }),
+  /** Record final numbers (REL-419): guarantee + due date + per-entrée tallies in one
+   * save. The only endpoint that checks the tallies add up to the guarantee. */
+  recordEventFinals: (
+    id: number,
+    data: {
+      final_count: number;
+      final_count_due?: string | null;
+      guaranteed_count?: number | null;
+      entree_counts?: Record<string, number>;
+    },
+  ) =>
+    fetchApi<EventData>(`/events/${id}/finals/`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   exportPDF: async (data: {
     dish_ids: number[];
     guests: GuestMix;
