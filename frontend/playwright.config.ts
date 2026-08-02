@@ -3,10 +3,15 @@ import { defineConfig, devices } from "@playwright/test";
 /**
  * Pre-push smoke tests. These drive the REAL running dev app in a real browser
  * (localhost:3000 → Django :8000 → sqlite) with NOTHING mocked — the "did it
- * actually work in a browser" check the mocked vitest suite can't give. They are
- * NOT part of the pre-commit hook or CI; run them by hand before a push:
+ * actually work in a browser" check the mocked vitest suite can't give.
+ *
+ * They are NOT in the pre-commit hook, so run them by hand before a push:
  *
  *     npm run e2e
+ *
+ * They ARE a required check on every PR — the `e2e` job in ci.yml boots its own
+ * stack. Note there are deliberately no retries: a spec that only passes on a
+ * re-run is a bug to fix, not to paper over (see REL-442).
  *
  * Requires the dev servers running (npm run dev + manage.py runserver) with
  * seed_demo data. Override the login via E2E_EMAIL / E2E_PASSWORD, or the target
