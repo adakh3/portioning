@@ -100,12 +100,32 @@ describe("MenuChoicesEditor", () => {
     expect(state()).toEqual({ "1": 90, "2": null });
   });
 
-  it("hints when a course offers only one dish", () => {
+  it("warns when a course offers only one dish", () => {  // AC1 rule 2
+    // A "choice" of one is 150 guests all choosing beef — the tick has no effect
+    // worth signing. Non-blocking at quote time, but no longer silent.
     render(<Harness initChoices={{ "1": null }} />);
-    expect(screen.getByText("A choice needs at least two dishes.")).toBeInTheDocument();
-    // …and stops hinting once it's a real choice — it never blocks anything.
+    expect(screen.getByText("A choice needs at least two options.")).toBeInTheDocument();
+    // …and stops warning once it's a real choice — it never blocks anything.
     fireEvent.click(screen.getByLabelText("Offer Salmon as a choice"));
-    expect(screen.queryByText("A choice needs at least two dishes.")).not.toBeInTheDocument();
+    expect(screen.queryByText("A choice needs at least two options.")).not.toBeInTheDocument();
+  });
+
+  it("offers no checkbox at all for a dish that isn't in a course", () => {  // AC1 rule 1
+    // The old card invited nonsense: ticking Dinner Rolls as a "guest choice" when
+    // it belongs to no course, so there is nothing for it to sum against at finals.
+    render(<Harness dishCourses={{ "1": 0, "2": 0 }} />);
+    expect(screen.getByLabelText("Offer Beef as a choice")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Offer Brownie as a choice")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Offer Cheesecake as a choice")).not.toBeInTheDocument();
+    expect(
+      screen.getByText("Assign these to a course first — a choice belongs to a course."),
+    ).toBeInTheDocument();
+  });
+
+  it("offers nothing when the booking has no courses at all", () => {  // AC1 rule 1
+    render(<Harness courses={[]} dishCourses={{}} />);
+    expect(screen.queryByLabelText(/Offer .* as a choice/)).not.toBeInTheDocument();
+    expect(screen.getByTestId("menu-choices")).toHaveTextContent(/Assign these to a course first/);
   });
 
   it("points at where the numbers go, once something is offered", () => {
@@ -120,8 +140,6 @@ describe("MenuChoicesEditor", () => {
     const card = screen.getByTestId("menu-choices");
     expect(within(card).getByText("Dishes")).toBeInTheDocument();
     expect(card).toHaveTextContent(/Add courses to group these/);
-    fireEvent.click(screen.getByLabelText("Offer Beef as a choice"));
-    expect(state()).toEqual({ "1": null });
   });
 
   it("lists a dish left unassigned to any course separately", () => {

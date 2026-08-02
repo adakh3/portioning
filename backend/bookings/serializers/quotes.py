@@ -72,6 +72,9 @@ class QuoteSerializer(OrgScopedModelSerializer):
     # (REL-419). On a quote the count is always null — tallies arrive at finals, on
     # the event — and nothing here is ever sum-validated (AC2/AC8).
     menu_choices = serializers.SerializerMethodField()
+    # The menu as the CLIENT sees it — see EventSerializer.menu_lines. Same renderer
+    # as the quote PDF and the sign page (REL-419 AC13).
+    menu_lines = serializers.SerializerMethodField()
 
     # E-signature status (for the staff-side "send for signature" flow)
     public_token = serializers.CharField(read_only=True)
@@ -122,7 +125,7 @@ class QuoteSerializer(OrgScopedModelSerializer):
             'service_charge_pct', 'service_charge_taxable', 'service_charge',
             'gratuity_pct', 'gratuity',
             'dishes', 'dish_ids', 'dish_names', 'based_on_template',
-            'courses', 'dish_courses', 'menu_choices',
+            'courses', 'dish_courses', 'menu_choices', 'menu_lines',
             'additional_meals', 'timeline_entries',
             'notes', 'internal_notes',
             'sent_at', 'accepted_at',
@@ -185,6 +188,10 @@ class QuoteSerializer(OrgScopedModelSerializer):
     def get_menu_choices(self, obj):
         from events.models import read_menu_choices
         return read_menu_choices(obj)
+
+    def get_menu_lines(self, obj):
+        from bookings.services.presentation import booking_menu_courses
+        return booking_menu_courses(obj)
 
     def get_guest_counts(self, obj):
         # ``.all()`` (not select_related) so the list view's
@@ -382,7 +389,7 @@ class QuoteSerializer(OrgScopedModelSerializer):
 
 # signature does a per-row query (latest_signature); it's a detail-view concern.
 QUOTE_LIST_EXCLUDE = {'line_items', 'dishes', 'dish_ids', 'dish_names', 'additional_meals',
-                      'courses', 'dish_courses', 'menu_choices', 'timeline_entries',
+                      'courses', 'dish_courses', 'menu_choices', 'menu_lines', 'timeline_entries',
                       'signature', 'public_token'}
 
 

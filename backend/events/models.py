@@ -245,7 +245,13 @@ def write_booking_courses(booking, courses_data, dish_courses):
             assigned[did] = created[idx]
     for dish_id, course in assigned.items():
         Model.objects.update_or_create(dish_id=dish_id, defaults={'course': course}, **parent)
-    Model.objects.filter(**parent).exclude(dish_id__in=assigned.keys()).update(course=None)
+    # Losing its course also drops the dish's choice flag (REL-419): a choice belongs
+    # to a course — without one there is no group for it to be an alternative within,
+    # and nothing for the finals tallies to add up against. Clearing it here keeps the
+    # stored data honest; the readers ignore such a flag anyway (booking_offers_choices).
+    Model.objects.filter(**parent).exclude(dish_id__in=assigned.keys()).update(
+        course=None, is_choice=False, choice_count=None,
+    )
 
 
 def write_menu_choices(booking, menu_choices):
@@ -305,19 +311,43 @@ def read_menu_choices(booking):
     }
 
 
+# The service style that offers the guest a choice. A choice only exists on a plated
+# dinner — on a buffet or family-style booking the guest picks at the line or the
+# table, so there is nothing to offer in advance and nothing to tally.
+PLATED_SERVICE_STYLE = 'plated'
+
+
+def booking_offers_choices(booking):
+    """Whether this booking's menu choices mean anything at all (REL-419).
+
+    Gates every READ of the flags — the client-facing rendering and the finals sum
+    alike — so a flag left behind by an earlier edit can never leak. Two ways that
+    happens, both reachable: the booking is switched off plated (the Menu-choices card
+    disappears, taking the only way to untick with it), or the dish is moved out of its
+    course (a choice with no course has nothing to sum against). Ignoring such a flag
+    on read is what makes those states harmless rather than a corrupt contract.
+    """
+    return (getattr(booking, 'service_style', '') or '') == PLATED_SERVICE_STYLE
+
+
 def choice_groups(booking):
     """A booking's offered choices grouped BY COURSE (REL-419).
 
-    Returns ``[{'course_id', 'course_name', 'dish_ids'}]`` in course order, with any
-    course-less choices last under ``course_id=None``. Only courses that actually
-    offer a choice appear.
+    Returns ``[{'course_id', 'course_name', 'dish_ids'}]`` in course order. Only
+    courses that actually offer a choice appear, and only on a plated booking.
 
     Grouping is what makes the finals sum correct: each course's choices are offered
     to every guest, so each must add up to the guarantee **on its own**. Summing them
     together would demand 300 covers from a 150-guest booking that offers a choice of
     main *and* of dessert.
+
+    A flagged dish with NO course is not a choice — there is no group for it to belong
+    to, so it is skipped rather than forming a phantom group the finals panel would
+    then demand tallies for.
     """
-    rows = [r for r in booking.dish_comments.all() if r.is_choice]
+    if not booking_offers_choices(booking):
+        return []
+    rows = [r for r in booking.dish_comments.all() if r.is_choice and r.course_id]
     if not rows:
         return []
     by_course = {}

@@ -284,10 +284,16 @@ class FinalsPanelApiTests(TestCase):
         self.event = Event.objects.create(
             organisation=self.org, name='Gala', event_date=FUTURE_DATE,
             guest_count=150, price_per_head=Decimal('40.00'), status='confirmed',
+            service_style='plated',
             final_count_due=timezone.localdate() + timedelta(days=7),
         )
         self.event.dishes.set([self.d1, self.d2])
         self.event.recalculate_totals()
+        # A choice belongs to a course (AC1 rule 1) — without one there is no group
+        # for the finals sum to check against.
+        write_booking_courses(self.event, [{'name': 'Entrée', 'sort_order': 0}], {
+            str(self.d1.id): 0, str(self.d2.id): 0,
+        })
         write_menu_choices(self.event, {str(self.d1.id): None, str(self.d2.id): None})
 
     def _post(self, **data):
@@ -371,7 +377,7 @@ class FinalsRegressionTests(TestCase):
         self.client.force_authenticate(user=self.user)
         self.event = Event.objects.create(
             organisation=self.org, name='Gala', event_date=FUTURE_DATE,
-            guest_count=50, status='confirmed',
+            guest_count=50, status='confirmed', service_style='plated',
         )
         self.event.dishes.set([self.d1, self.d2])
         write_menu_choices(self.event, {str(self.d1.id): None, str(self.d2.id): None})
@@ -503,7 +509,7 @@ class PerCourseChoiceTests(TestCase):
         self.client.force_authenticate(user=self.user)
         self.event = Event.objects.create(
             organisation=self.org, name='Gala', event_date=FUTURE_DATE,
-            guest_count=150, status='confirmed',
+            guest_count=150, status='confirmed', service_style='plated',
         )
         self.event.dishes.set([self.beef, self.salmon, self.brownie, self.cake])
         write_booking_courses(self.event, [
@@ -567,15 +573,18 @@ class PerCourseChoiceTests(TestCase):
         res = self._post({self.beef.id: 90, self.salmon.id: 60})
         self.assertEqual(res.status_code, 200, res.content)
 
-    def test_a_course_less_booking_still_validates_as_one_group(self):
+    def test_a_course_less_choice_is_no_group_at_all(self):
+        # AC1 rule 1: a choice belongs to a course. Deleting the courses leaves the
+        # flags with nothing to sum against, so finals stop demanding tallies for a
+        # choice the client was never shown — it used to be an unescapable block,
+        # because the un-coursed dishes also have no checkbox to untick.
+        from events.models import choice_groups
         write_booking_courses(self.event, [], {})
         write_menu_choices(self.event, {
             str(self.beef.id): None, str(self.salmon.id): None,
         })
-        self.assertEqual(self._post({self.beef.id: 90, self.salmon.id: 60}).status_code, 200)
-        res = self._post({self.beef.id: 90, self.salmon.id: 55})
-        self.assertEqual(res.status_code, 400)
-        self.assertIn('Menu choices must add up', str(res.json()))
+        self.assertEqual(choice_groups(self.event), [])
+        self.assertEqual(self._post({}).status_code, 200)
 
     def test_choices_in_one_course_and_a_plain_dish_in_another(self):
         """Only the dishes actually ticked form a group — an un-ticked course is not

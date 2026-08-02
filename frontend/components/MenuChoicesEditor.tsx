@@ -90,14 +90,17 @@ export default function MenuChoicesEditor({
                     <span className="text-xs font-semibold uppercase tracking-wide text-foreground">
                       {group.courseName || "Dishes"}
                     </span>
-                    {editing && (
+                    {editing && group.courseName && (
                       <span className="text-xs text-muted-foreground">Offered</span>
                     )}
                   </div>
                   {visible.map((id) => (
                     <div key={id} className="flex items-center justify-between py-0.5">
                       <span className="text-sm">{nameById[id]}</span>
-                      {editing ? (
+                      {/* Only a dish inside a course is offerable: a choice group has
+                          to belong to a course to have something to sum against at
+                          finals, so un-coursed dishes get no tick at all. */}
+                      {editing && group.courseName ? (
                         <input
                           type="checkbox"
                           aria-label={`Offer ${nameById[id]} as a choice`}
@@ -105,14 +108,19 @@ export default function MenuChoicesEditor({
                           onChange={(e) => toggle(id, e.target.checked)}
                           className="h-4 w-4 rounded border-input"
                         />
-                      ) : (
+                      ) : !editing ? (
                         <span className="text-xs text-muted-foreground">offered</span>
-                      )}
+                      ) : null}
                     </div>
                   ))}
-                  {editing && tickedHere.length === 1 && (
+                  {editing && !group.courseName && (
                     <p className="mt-1 text-xs text-muted-foreground">
-                      A choice needs at least two dishes.
+                      Assign these to a course first — a choice belongs to a course.
+                    </p>
+                  )}
+                  {editing && group.courseName && tickedHere.length === 1 && (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      A choice needs at least two options.
                     </p>
                   )}
                 </div>

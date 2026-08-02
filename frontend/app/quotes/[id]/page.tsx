@@ -14,6 +14,7 @@ import MenuBuilder from "@/components/MenuBuilder";
 import AdditionalMealsEditor from "@/components/AdditionalMealsEditor";
 import CoursesEditor from "@/components/CoursesEditor";
 import MenuChoicesEditor from "@/components/MenuChoicesEditor";
+import MenuAsClientSees from "@/components/MenuAsClientSees";
 import GuestCountField, { GuestCountValue } from "@/components/GuestCountField";
 import BookingTimelineField, { TimelineEntryValue } from "@/components/BookingTimelineField";
 import BookingDetailsForm, { BookingDetailsValue } from "@/components/BookingDetailsForm";
@@ -1166,6 +1167,10 @@ export default function QuoteDetailPage() {
           editing={editing}
         />
       )}
+
+      {/* The menu the client reads — server-rendered, "Choice of: …" collapsed
+          (REL-419 AC13). View mode only, for the same reason as the event page. */}
+      {!editing && <MenuAsClientSees menuLines={q.menu_lines} />}
 
       {/* Additional Items */}
       <Card>

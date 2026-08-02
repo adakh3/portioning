@@ -99,6 +99,11 @@ class EventSerializer(OrgScopedModelSerializer):
     # `{dish_id: count or None}` (REL-419). Counts are written by the finals panel
     # (EventFinalsView), which is the only place the sum is validated.
     menu_choices = serializers.SerializerMethodField()
+    # The menu as the CLIENT sees it: course-grouped, with offered dishes collapsed
+    # into one "Choice of: A / B / C" line (REL-419 AC13). Rendered by the same
+    # `booking_menu_courses` the PDFs and the sign page use, so the in-app page can't
+    # drift from the contract. None when the booking defines no courses.
+    menu_lines = serializers.SerializerMethodField()
     # Derived finals state — a model property, never a stored column (AC10). Declared
     # as ReadOnlyField (not a method field) so the list serializer inherits it.
     finals_status = serializers.ReadOnlyField()
@@ -211,7 +216,7 @@ class EventSerializer(OrgScopedModelSerializer):
                   'guest_counts',
                   'big_eaters', 'big_eaters_percentage',
                   'dishes', 'dish_ids', 'based_on_template', 'notes',
-                  'courses', 'dish_courses', 'menu_choices', 'finals_status',
+                  'courses', 'dish_courses', 'menu_choices', 'menu_lines', 'finals_status',
                   'kitchen_instructions', 'banquet_instructions', 'setup_instructions',
                   'constraint_override', 'dish_comments', 'line_items', 'created_at',
                   # Booking fields
@@ -273,6 +278,10 @@ class EventSerializer(OrgScopedModelSerializer):
 
     def get_menu_choices(self, obj):
         return read_menu_choices(obj)
+
+    def get_menu_lines(self, obj):
+        from bookings.services.presentation import booking_menu_courses
+        return booking_menu_courses(obj)
 
     def _write_dish_lines(self, booking):
         # `courses` is the authoritative list; require it before touching courses so a
@@ -535,9 +544,10 @@ EVENT_LIST_EXCLUDE = {
     'guest_counts',
     # courses + dish→course map are per-row queries — detail-view only
     'courses', 'dish_courses',
-    # menu choices read the per-dish rows — detail-view only. `finals_status` stays:
-    # it is derived from columns already on the row, so the list pill costs no query.
-    'menu_choices',
+    # menu choices + rendered menu lines read the per-dish rows — detail-view only.
+    # `finals_status` stays: it is derived from columns already on the row, so the
+    # list pill costs no query.
+    'menu_choices', 'menu_lines',
 }
 
 

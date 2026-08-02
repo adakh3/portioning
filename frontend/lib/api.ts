@@ -170,6 +170,12 @@ export interface CourseData {
  * tally is null until the finals arrive — on a quote it is always null. */
 export type MenuChoices = Record<string, number | null>;
 
+/** A course of the menu as the CLIENT sees it, rendered server-side: offered dishes
+ * are already collapsed into one "Choice of: A / B / C" line (REL-419 AC13). The same
+ * shape the sign page and both PDFs render, so the in-app page can't drift from the
+ * contract. `null` when the booking defines no courses. */
+export type MenuLineGroup = { name: string; items: string[] };
+
 /** Derived finals state of a confirmed event (REL-419) — never a stored column.
  * `null` when there is nothing to chase (unconfirmed, or no due date set). */
 export type FinalsStatus = "awaiting" | "due_soon" | "overdue" | "recorded" | null;
@@ -497,6 +503,7 @@ export interface Quote {
   courses: CourseData[];
   dish_courses: Record<string, number>;
   menu_choices: MenuChoices;
+  menu_lines: MenuLineGroup[] | null;
   based_on_template: number | null;
   notes: string;
   internal_notes: string;
@@ -780,6 +787,7 @@ export interface EventData {
   courses: CourseData[];
   dish_courses: Record<string, number>;
   menu_choices: MenuChoices;
+  menu_lines: MenuLineGroup[] | null;
   based_on_template: number | null;
   notes: string;
   kitchen_instructions: string;
@@ -1291,7 +1299,7 @@ export interface PublicBooking {
   menu: { category: string; items: string[] }[];
   // Absent/null on a course-less booking, which renders the flat menu unchanged
   // (REL-417 AC4) — the sign page guards on it, so it is optional here too.
-  menu_courses?: { name: string; items: string[] }[] | null; // REL-417
+  menu_courses?: MenuLineGroup[] | null; // REL-417 grouping, REL-419 "Choice of"
   additional_meals: { label: string; guest_count: number; price_per_head: string | null; items: string[] }[];
   line_items: { description: string; category: string; quantity: string; unit: string; line_total: string }[];
   price_per_head: string | null;
