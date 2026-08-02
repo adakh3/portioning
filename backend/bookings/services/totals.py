@@ -116,10 +116,22 @@ def compute_booking_totals(food_total, line_items, tax_rate,
 
     items_total = sum((Decimal(item.line_total or 0) for item in line_items), Decimal('0.00'))
     subtotal = food_total + items_total
-    service_charge = (subtotal * service_charge_pct / 100).quantize(TWO_PLACES)
+    # Percentage charges are taken on the subtotal but never on a NEGATIVE one: an
+    # over-large discount used to flip the service charge and gratuity negative too,
+    # which compounded the error instead of bounding it (a -$95,000 subtotal produced
+    # a -$19,000 "service charge"). A charge on nothing is nothing. The save path
+    # rejects a negative subtotal outright; this keeps the live preview — and any row
+    # already stored that way — from showing a negative charge.
+    charge_base = max(subtotal, Decimal('0.00'))
+    # _round2 (HALF_UP), not a bare .quantize (Decimal defaults to HALF_EVEN): on a
+    # .005 boundary the two rounding modes differ by a cent, and the frontend mirror
+    # uses Math.round, which is half-up. Tax of 5% on 100.10 is exactly 5.005 — the
+    # preview said 5.01 and the saved value was 5.00, so the total changed under the
+    # user on save. segment_food_total already used _round2 for this exact reason.
+    service_charge = _round2(charge_base * service_charge_pct / 100)
     tax_base = subtotal + (service_charge if service_charge_taxable else Decimal('0.00'))
-    tax_amount = (tax_base * tax_rate).quantize(TWO_PLACES)
-    gratuity = (subtotal * gratuity_pct / 100).quantize(TWO_PLACES)
+    tax_amount = _round2(tax_base * tax_rate)
+    gratuity = _round2(charge_base * gratuity_pct / 100)
     total = subtotal + service_charge + tax_amount + gratuity
 
     return BookingTotals(

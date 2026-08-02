@@ -9,7 +9,7 @@ import { canWhatsApp, waLink } from "@/lib/whatsapp";
 import { MessageCircle } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { formatDate, todayISO } from "@/lib/dateFormat";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, formatPercent } from "@/lib/utils";
 import MenuBuilder from "@/components/MenuBuilder";
 import AdditionalMealsEditor from "@/components/AdditionalMealsEditor";
 import CoursesEditor from "@/components/CoursesEditor";
@@ -634,7 +634,7 @@ export default function QuoteDetailPage() {
             }
             total={createTotals.total}
             taxLabel={settings.tax_label}
-            taxPercent={(parseFloat(createData.tax_rate || "0") * 100).toFixed(0)}
+            taxPercent={formatPercent(parseFloat(createData.tax_rate || "0") * 100)}
             taxRateField={
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">Tax Rate (%)</label>
@@ -1226,7 +1226,7 @@ export default function QuoteDetailPage() {
         ) : undefined}
         total={editing ? liveTotals.total : parseFloat(q.total)}
         taxLabel={settings.tax_label}
-        taxPercent={editing ? parseFloat(editData.tax_rate || "0").toFixed(0) : (parseFloat(q.tax_rate) * 100).toFixed(0)}
+        taxPercent={editing ? formatPercent(editData.tax_rate || "0") : formatPercent(parseFloat(q.tax_rate) * 100)}
         taxRateField={editing ? (
           <div>
             <label className="block text-sm font-medium text-foreground mb-1">Tax Rate (%)</label>

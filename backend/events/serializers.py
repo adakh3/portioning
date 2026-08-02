@@ -1,3 +1,4 @@
+from django.db import transaction
 from rest_framework import serializers
 from .models import (
     Event, EventConstraintOverride, EventDishComment, EventPayment,
@@ -13,6 +14,9 @@ from bookings.serializers.finance import InvoiceSerializer
 from bookings.serializers.quotes import BookingLineItemSerializer
 from bookings.serializers.meals import BookingMealSerializer, replace_meals
 from bookings.serializers.courses import read_courses, read_dish_courses
+from bookings.services.subtotal_guard import (
+    reject_unstorable_inputs, validate_booking_totals,
+)
 from bookings.serializers.timeline import (
     BookingTimelineEntrySerializer, replace_timeline_entries,
 )
@@ -156,6 +160,14 @@ class EventSerializer(OrgScopedModelSerializer):
                 err = guest_counts_error(org, guest_count, raw_counts)
                 if err:
                     raise serializers.ValidationError({'guest_counts': err})
+        # Reject a booking too large to store before anything is written — a
+        # per-guest line item recalculates the parent on save, so an overflow
+        # there crashed mid-write rather than reaching the post-save guard.
+        reject_unstorable_inputs(
+            guest_count,
+            attrs.get('price_per_head', getattr(self.instance, 'price_per_head', None)),
+            self.initial_data.get('line_items') if hasattr(self, 'initial_data') else None,
+        )
         return attrs
 
     def get_assigned_to_name(self, obj):
@@ -249,6 +261,9 @@ class EventSerializer(OrgScopedModelSerializer):
                 booking, self.initial_data.get('courses'), self.initial_data.get('dish_courses'),
             )
 
+    # Atomic so a rejected save (see reject_negative_subtotal) rolls the whole
+    # write back instead of leaving a half-written booking behind.
+    @transaction.atomic
     def create(self, validated_data):
         override_data = validated_data.pop('constraint_override', None)
         dishes = validated_data.pop('dishes', [])
@@ -286,8 +301,12 @@ class EventSerializer(OrgScopedModelSerializer):
         if timeline_data is not None:
             replace_timeline_entries('event', event, timeline_data)
         event.recalculate_totals()  # food + meals + line items + tax (shared engine)
+        validate_booking_totals(event)
         return event
 
+    # Atomic so a rejected save (see reject_negative_subtotal) rolls the whole
+    # write back instead of leaving a half-written booking behind.
+    @transaction.atomic
     def update(self, instance, validated_data):
         override_data = validated_data.pop('constraint_override', None)
         dishes = validated_data.pop('dishes', None)
@@ -351,6 +370,7 @@ class EventSerializer(OrgScopedModelSerializer):
                 )
 
         instance.recalculate_totals()  # food + meals + line items + tax (shared engine)
+        validate_booking_totals(instance)
         return instance
 
     @staticmethod

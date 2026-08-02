@@ -45,7 +45,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { ValidatedInput } from "@/components/ui/validated-input";
 import { Textarea } from "@/components/ui/textarea";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, formatPercent } from "@/lib/utils";
 
 const statusBadgeVariant: Record<string, "warning" | "info" | "secondary" | "success" | "destructive"> = {
   tentative: "warning",
@@ -264,6 +264,13 @@ export default function EventDetailPage() {
     setFormAdditionalMeals(data.additional_meals || []);
     setFormCourses(data.courses || []);
     setFormDishCourses(data.dish_courses || {});
+    // The save payload always sends `dish_ids: menuData.dish_ids`, and the edit-mode
+    // MenuBuilder instant-saves via onSave rather than onChange — so without this the
+    // menu state stayed [] for an existing event and saving the form WIPED its menu
+    // (and, because courses can only reference dishes on the booking, its course
+    // assignments with it). Hydrating here also gives CoursesEditor the dish list it
+    // needs to render the "Assign dishes" dropdowns on an existing event.
+    setMenuData({ dish_ids: data.dishes || [], based_on_template: data.based_on_template ?? null });
   }, []);
 
   useEffect(() => {
@@ -1045,7 +1052,7 @@ export default function EventDetailPage() {
             ) : undefined}
             total={grandTotal}
             taxLabel={settings.tax_label}
-            taxPercent={(taxRate * 100).toFixed(0)}
+            taxPercent={formatPercent(taxRate * 100)}
             taxApplied={taxable}
             taxControl={editing ? (
               <label className="flex items-center gap-2 cursor-pointer">
