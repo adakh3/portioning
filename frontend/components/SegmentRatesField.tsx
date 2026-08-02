@@ -51,6 +51,17 @@ export default function SegmentRatesField({
   const setPrice = (name: string, raw: string) =>
     onChange({ segment_prices: { ...prices, [name]: raw } });
 
+  /** A segment's derived rate as display text, or null when it isn't a real number.
+   * `segmentEffectiveRate` happily returns NaN for a non-numeric multiplier and
+   * Infinity for an absurd one — both of which used to reach the screen as literally
+   * "NaN" / "Infinity". The multiplier comes from org config, so this is defence
+   * against bad data rather than bad typing, but a rate box exists to state a price
+   * and "$NaN" states nothing. */
+  const rateText = (s: GuestSegmentMeta): string | null => {
+    const r = segmentEffectiveRate(pricePerHead, s.price_multiplier);
+    return Number.isFinite(r) ? r.toFixed(2) : null;
+  };
+
   const rowCls = "flex items-center justify-between gap-3";
   const nameCls = "text-sm text-foreground";
 
@@ -67,9 +78,15 @@ export default function SegmentRatesField({
               aria-label={`${defaultSeg.name} price per head`}
               className="flex h-8 min-w-[7rem] items-center justify-end rounded-md border border-input bg-muted/50 px-3 text-sm text-muted-foreground"
             >
-              {currencySymbol}
-              {segmentEffectiveRate(pricePerHead, defaultSeg.price_multiplier).toFixed(2)}
-              <span className="ml-1.5 text-xs">(auto)</span>
+              {rateText(defaultSeg) === null ? (
+                <span aria-hidden="true">—</span>
+              ) : (
+                <>
+                  {currencySymbol}
+                  {rateText(defaultSeg)}
+                  <span className="ml-1.5 text-xs">(auto)</span>
+                </>
+              )}
             </span>
           </div>
         )}
@@ -86,7 +103,7 @@ export default function SegmentRatesField({
               <ValidatedInput
                 type="number" step="0.01" min={0} disabled={disabled}
                 aria-label={`${s.name} price per head`}
-                placeholder={segmentEffectiveRate(pricePerHead, s.price_multiplier).toFixed(2)}
+                placeholder={rateText(s) ?? ""}
                 value={prices[s.name] ?? ""}
                 onChange={(e) => setPrice(s.name, e.target.value)}
                 className="h-8 w-24 text-right"

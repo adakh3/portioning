@@ -55,6 +55,21 @@ describe("AdditionalMealsEditor", () => {
     expect(onChange).toHaveBeenCalledWith([expect.objectContaining({ label: "B" })]);
   });
 
+  // REL-428 moved the per-segment rates into the Main Meal card, which put this
+  // asymmetry in plain sight: the main meal prices Kids at their multiplier, an
+  // extra meal charges everyone the same. That IS the behaviour (REL-426 AC3
+  // deferred per-segment rates on extras) — so it has to be stated, or it reads as
+  // a bug. Remove this note only when extras really do price by guest type.
+  it("says the extra meal's price is one flat rate for everyone it serves", () => {
+    setup([meal()]);
+    expect(screen.getByText(/one flat rate for everyone this meal serves/i)).toBeInTheDocument();
+  });
+
+  it("does not show that note in read-only mode", () => {
+    setup([meal()], false);
+    expect(screen.queryByText(/one flat rate for everyone/i)).not.toBeInTheDocument();
+  });
+
   it("is read-only when not editing (no Add/Remove)", () => {
     setup([meal({ label: "Dinner" })], false);
     expect(screen.queryByText("+ Add Meal")).not.toBeInTheDocument();
