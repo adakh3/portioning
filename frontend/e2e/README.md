@@ -11,10 +11,10 @@ They run in **two places**:
    without clicking through by hand. They're **not** in the pre-commit hook.
 2. **CI, on PRs only** — the `e2e` job in `.github/workflows/ci.yml` boots the full stack
    in the cloud (`migrate` → `loaddata seed.json` → `seed_demo` → Django `:8000` + a built
-   Next on `:3000`) and runs these specs. It's the slow, flake-prone job, so it runs on
-   **pull requests only** (the backend/frontend/migration jobs are the fast gate on every
-   push). It starts **non-blocking**; once stable it's promoted to a required check
-   (REL-360). A failing run uploads the Playwright HTML report as a downloadable artifact.
+   Next on `:3000`) and runs these specs. It's the slow job, so it runs on **pull requests
+   only** (the backend/frontend/migration jobs are the fast gate on every push). It is now
+   a **required check** — *End-to-end (Playwright)* must be green to merge. A failing run
+   uploads the Playwright HTML report as a downloadable artifact.
 
 Running them locally still needs the dev servers up (below); CI boots its own.
 
@@ -57,3 +57,28 @@ outcome** (e.g. set a value → save → reopen → it's still there), not inter
 3. Drive the real UI; target inputs by `aria-label` (add one to the component if missing —
    same convention the vitest integration tests use).
 4. Assert the outcome a user would check (reload and read the value back).
+
+## Don't race async data (REL-442)
+
+There are **no retries** here on purpose: a spec that only passes on a re-run is a bug to
+fix, not to paper over — a suite that fails 1-in-N trains people to hit re-run instead of
+reading the failure.
+
+Playwright's own actions auto-retry, which covers most of it: `selectOption({ label: … })`
+keeps retrying until that option exists, so a dropdown still loading is not a race.
+
+What it does **not** cover is **clicking a button whose handler reads async data, then
+asserting the result**. The click fires once, against whatever data had arrived by then,
+and a wrong result never recovers. That's what flaked here: `+ Build a run-of-show` seeds
+the day from the org's Timeline Steps at click time, so clicking before SWR resolved built
+one blank row that nothing re-populated.
+
+Gate the **click** on the data, not the assertion — and register the waiter *before* the
+navigation that triggers the request, or you've just moved the race:
+
+```ts
+const loaded = page.waitForResponse((r) => r.url().includes("/bookings/x/") && r.ok());
+await page.goto("/quotes/new");
+await loaded;
+await page.getByRole("button", { name: "…" }).click();
+```
