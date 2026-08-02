@@ -1,6 +1,13 @@
 import { test, expect } from "@playwright/test";
 import { login } from "./helpers";
 
+/** 90 days out, as YYYY-MM-DD. */
+function futureDate(): string {
+  const d = new Date();
+  d.setDate(d.getDate() + 90);
+  return d.toISOString().slice(0, 10);
+}
+
 /**
  * Entrée choices + the finals lifecycle (REL-419). The mocked suite proves the
  * wiring; only a real round-trip proves the native checkbox / number / date inputs
@@ -21,6 +28,9 @@ test.describe("Entrée choices and final numbers survive save + reload", () => {
     await page.waitForLoadState("networkidle");
     await page.getByLabel("Customer", { exact: false }).selectOption({ label: "Aisha Khan" });
     await page.getByLabel("Guest Count").fill("50");
+    // A future date: a confirmed event auto-advances to in_progress on its event
+    // day, and finals only apply while the booking is still ahead.
+    await page.getByLabel("Event date").fill(futureDate());
 
     // Plated is what turns the entrée-choice checkboxes on (AC1). Confirmed at
     // creation because an existing event's status is read-only on this page — and
@@ -67,7 +77,10 @@ test.describe("Entrée choices and final numbers survive save + reload", () => {
     await expect(page.getByTestId("finals-pill").first()).toHaveText(/Finals recorded/, { timeout: 15_000 });
     await page.reload();
     await expect(page.getByTestId("finals-pill").first()).toHaveText(/Finals recorded/);
-    await expect(page.getByText("30")).toBeVisible();
-    await expect(page.getByText("20")).toBeVisible();
+    // Scoped to the panel: "50" and "20" also appear elsewhere on the page.
+    const recorded = page.getByTestId("finals-panel").getByRole("definition");
+    await expect(recorded.filter({ hasText: /^50$/ })).toBeVisible();  // the guarantee
+    await expect(recorded.filter({ hasText: /^30$/ })).toBeVisible();  // entrée A
+    await expect(recorded.filter({ hasText: /^20$/ })).toBeVisible();  // entrée B
   });
 });

@@ -597,9 +597,6 @@ export interface EventSaveInput {
   guest_count: number;
   segment_counts: Record<string, number>; // explicit per-segment inputs (default derived)
   segment_prices: Record<string, string>; // per-segment per-head overrides (blank = use multiplier)
-  guaranteed_count: number | null;
-  final_count: number | null;
-  final_count_due: string;
   big_eaters: boolean;
   big_eaters_percentage: number;
   setup_time: string;
@@ -651,9 +648,6 @@ export function buildEventSavePayload(
     setup_instructions: v.setup_instructions,
     guest_count: v.guest_count,
     guest_counts: buildGuestCountsPayload(v.guest_count, v.segment_counts, segmentMeta, v.segment_prices),
-    guaranteed_count: v.guaranteed_count,
-    final_count: v.final_count,
-    final_count_due: v.final_count_due || null,
     big_eaters: v.big_eaters,
     big_eaters_percentage: v.big_eaters_percentage,
     setup_time: v.setup_time || null,

@@ -50,6 +50,10 @@ import { ValidatedInput } from "@/components/ui/validated-input";
 import { Textarea } from "@/components/ui/textarea";
 import { formatCurrency, formatPercent } from "@/lib/utils";
 
+// Statuses in which the finals panel + pill apply — mirrors FINALS_STATUSES on the
+// backend, which derives `finals_status` itself.
+const FINALS_STATUSES = ["confirmed", "in_progress", "completed"];
+
 const statusBadgeVariant: Record<string, "warning" | "info" | "secondary" | "success" | "destructive"> = {
   tentative: "warning",
   confirmed: "info",
@@ -187,9 +191,6 @@ export default function EventDetailPage() {
   const [formGuestCount, setFormGuestCount] = useState(0);
   const [formSegmentCounts, setFormSegmentCounts] = useState<Record<string, number>>({});
   const [formSegmentPrices, setFormSegmentPrices] = useState<Record<string, string>>({});
-  const [formGuaranteed, setFormGuaranteed] = useState<number | null>(null);
-  const [formFinalCount, setFormFinalCount] = useState<number | null>(null);
-  const [formFinalCountDue, setFormFinalCountDue] = useState("");
   const [formBigEaters, setFormBigEaters] = useState(false);
   const [formBigEatersPercent, setFormBigEatersPercent] = useState(0);
   const totalGuests = formGuestCount;
@@ -247,9 +248,6 @@ export default function EventDetailPage() {
     // default segment's entry is ignored downstream — it's the derived remainder).
     setFormSegmentCounts(Object.fromEntries((data.guest_counts ?? []).map((r) => [r.segment, r.count])));
     setFormSegmentPrices(Object.fromEntries((data.guest_counts ?? []).filter((r) => r.price_per_head != null).map((r) => [r.segment, String(r.price_per_head)])));
-    setFormGuaranteed(data.guaranteed_count);
-    setFormFinalCount(data.final_count);
-    setFormFinalCountDue(data.final_count_due || "");
     setFormBigEaters(data.big_eaters);
     setFormBigEatersPercent(data.big_eaters_percentage);
     setFormSetupTime(data.setup_time ? data.setup_time.slice(0, 16) : "");
@@ -348,9 +346,6 @@ export default function EventDetailPage() {
       guest_count: formGuestCount,
       segment_counts: formSegmentCounts,
       segment_prices: formSegmentPrices,
-      guaranteed_count: formGuaranteed,
-      final_count: formFinalCount,
-      final_count_due: formFinalCountDue,
       big_eaters: formBigEaters,
       big_eaters_percentage: formBigEatersPercent,
       setup_time: formSetupTime,
@@ -587,6 +582,7 @@ export default function EventDetailPage() {
                 <label className="text-xs font-medium text-muted-foreground">Status</label>
                 {isNew ? (
                   <select
+                    aria-label="Status"
                     value={formStatus}
                     onChange={(e) => setFormStatus(e.target.value)}
                     className="flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
@@ -798,7 +794,7 @@ export default function EventDetailPage() {
                 eventDateSlot={
                   <div>
                     <label className="block text-sm font-medium text-foreground mb-1">Date *</label>
-                    <ValidatedInput type="date" value={formDate} onChange={(e) => setFormDate(e.target.value)} required />
+                    <ValidatedInput aria-label="Event date" type="date" value={formDate} onChange={(e) => setFormDate(e.target.value)} required />
                   </div>
                 }
               />
@@ -962,9 +958,12 @@ export default function EventDetailPage() {
       )}
 
       {/* Final numbers — the guarantee + per-entrée tallies, and the only place the
-          two are checked against each other (REL-419). Confirmed events only: there
-          is nothing to guarantee before the booking is on. */}
-      {!isNew && event && event.status === "confirmed" && (
+          two are checked against each other (REL-419). Confirmed onwards: nothing to
+          guarantee before the booking is on, and the recorded numbers must stay on
+          screen through the event day (an event auto-advances to in_progress then).
+          Hidden while the form is being edited — saving the panel refetches the
+          event, which would discard the unsaved edit above it. */}
+      {!isNew && !editing && event && FINALS_STATUSES.includes(event.status) && (
         <FinalNumbersPanel
           event={event}
           dateFormat={dateFormat}

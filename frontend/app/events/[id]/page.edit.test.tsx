@@ -143,4 +143,33 @@ describe("Event edit — saving the form must not destroy what it never edited",
     expect(await screen.findByLabelText("Course for Bruschetta")).toBeTruthy();
     expect(await screen.findByLabelText("Course for Roast Beef")).toBeTruthy();
   });
+
+  it("never writes the finals numbers on an ordinary save (REL-419)", async () => {
+    // They are owned by the finals panel's endpoint. Echoing a hydrated copy back
+    // let a stale form blank a guarantee recorded while it was open.
+    const payload = await editAndSave();
+    expect(payload).not.toHaveProperty("final_count");
+    expect(payload).not.toHaveProperty("final_count_due");
+    expect(payload).not.toHaveProperty("guaranteed_count");
+  });
+
+  it("hides the finals panel on a tentative booking, and while editing", async () => {  // REL-419
+    render(<EventDetailPage />);
+    // Fixture is tentative → nothing to guarantee yet.
+    expect(screen.queryByText("Final numbers")).not.toBeInTheDocument();
+    fireEvent.click(await screen.findByText("Edit"));
+    expect(screen.queryByText("Final numbers")).not.toBeInTheDocument();
+  });
+
+  it("keeps the finals panel on screen once the event is under way (REL-419)", async () => {
+    // A confirmed event auto-advances to in_progress on its own day — the day the
+    // kitchen reads the breakdown. Gating on "confirmed" alone hid it exactly then.
+    for (const status of ["confirmed", "in_progress", "completed"]) {
+      existingEvent.status = status;
+      const view = render(<EventDetailPage />);
+      expect(await screen.findByText("Final numbers")).toBeInTheDocument();
+      view.unmount();
+    }
+    existingEvent.status = "tentative";
+  });
 });

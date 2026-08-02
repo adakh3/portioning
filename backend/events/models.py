@@ -257,15 +257,30 @@ def write_entree_choices(booking, entree_choices):
     cleared. Only dishes actually on the booking are accepted, so a stale/foreign
     dish_id in the raw payload is ignored — never a stray or cross-org row. Sums are
     never validated here: that check belongs to the finals panel alone (AC7/AC8).
+
+    Raises ``ValueError`` on a payload that isn't ``{int-ish: int-ish or None}`` so the
+    caller can turn it into a 400 — the raw client payload reaches this untyped.
     """
     parent = {'event': booking} if isinstance(booking, Event) else {'quote': booking}
     Model = dish_comment_model(booking)
     valid_dish_ids = set(booking.dishes.values_list('id', flat=True))
+    if entree_choices is None:
+        entree_choices = {}
+    if not isinstance(entree_choices, dict):
+        raise ValueError('entree_choices must be an object of {dish_id: count or null}.')
     wanted = {}
-    for dish_id, count in (entree_choices or {}).items():
-        did = int(dish_id)
+    for dish_id, count in entree_choices.items():
+        try:
+            did = int(dish_id)
+            value = None if count is None else int(count)
+        except (TypeError, ValueError):
+            raise ValueError(
+                'entree_choices must map a dish id to a whole number or null.'
+            )
+        if value is not None and value < 0:
+            raise ValueError('An entrée choice tally cannot be negative.')
         if did in valid_dish_ids:
-            wanted[did] = None if count is None else int(count)
+            wanted[did] = value
     for dish_id, count in wanted.items():
         Model.objects.update_or_create(
             dish_id=dish_id,
@@ -298,12 +313,18 @@ def finals_status(event, today=None):
     ``recorded`` once ``final_count`` is filled; otherwise, when a due date is set,
     ``overdue`` past it, ``due_soon`` inside the fortnight before it, and ``awaiting``
     while it is still comfortably ahead. ``None`` — no pill at all — for anything that
-    can't be chased yet: an unconfirmed event, or a confirmed one with no due date.
+    can't be chased: an unconfirmed or cancelled booking, or one with no due date.
+
+    Chasing stops once the event is under way (there is nothing left to ask the client
+    for on the day), but a recorded guarantee keeps showing right through the event.
     """
-    if event.status != EventStatus.CONFIRMED:
+    if event.status not in FINALS_STATUSES:
         return None
     if event.final_count is not None:
         return 'recorded'
+    # Nothing left to chase once the event is under way.
+    if event.status != EventStatus.CONFIRMED:
+        return None
     due = event.final_count_due
     if not due:
         return None
@@ -366,6 +387,15 @@ class EventStatus(models.TextChoices):
     IN_PROGRESS = 'in_progress', 'In Progress'
     COMPLETED = 'completed', 'Completed'
     CANCELLED = 'cancelled', 'Cancelled'
+
+
+# Statuses a booking must be in for finals to mean anything. `in_progress` and
+# `completed` are here because an event auto-advances to them on its own day: gating
+# on `confirmed` alone would make the recorded numbers — the ones the kitchen cooks
+# to — vanish from the screen on exactly the morning they matter.
+FINALS_STATUSES = (
+    EventStatus.CONFIRMED, EventStatus.IN_PROGRESS, EventStatus.COMPLETED,
+)
 
 
 EVENT_STATUS_TRANSITIONS = {

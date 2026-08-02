@@ -129,4 +129,58 @@ describe("FinalNumbersPanel", () => {
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Entrée choices must add up"));
     expect(onSaved).not.toHaveBeenCalled();
   });
+
+  it("re-seeds when a dish stops being offered, instead of summing a stale tally", () => {
+    // The panel outlives an edit of the menu above it. Counts seeded once at mount
+    // kept summing the removed dish, so the panel said 50/50 while the save sent 30
+    // — and the backend rejected what the panel had just green-lit.
+    const view = render(
+      <FinalNumbersPanel event={makeEvent()} dateFormat="MM/DD/YYYY" onSaved={vi.fn()} />,
+    );
+    fireEvent.click(screen.getByText("Record final numbers"));
+    fireEvent.change(screen.getByLabelText("Final guarantee"), { target: { value: "50" } });
+    fireEvent.change(screen.getByLabelText("Tally for Beef"), { target: { value: "30" } });
+    fireEvent.change(screen.getByLabelText("Tally for Salmon"), { target: { value: "20" } });
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+
+    // Salmon is un-offered in the editor above; the event refetches.
+    view.rerender(
+      <FinalNumbersPanel
+        event={makeEvent({ entree_choices: { "1": null } })}
+        dateFormat="MM/DD/YYYY"
+        onSaved={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByLabelText("Tally for Salmon")).not.toBeInTheDocument();
+    expect(screen.getByText("Total entered: 30")).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("currently total 30");
+    expect(screen.getByText("Save final numbers")).toBeDisabled();
+  });
+
+  it("keeps a typed tally when an extra dish is offered mid-edit", () => {
+    const view = render(
+      <FinalNumbersPanel
+        event={makeEvent({ entree_choices: { "1": null } })}
+        dateFormat="MM/DD/YYYY"
+        onSaved={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByText("Record final numbers"));
+    fireEvent.change(screen.getByLabelText("Tally for Beef"), { target: { value: "30" } });
+    view.rerender(
+      <FinalNumbersPanel event={makeEvent()} dateFormat="MM/DD/YYYY" onSaved={vi.fn()} />,
+    );
+    expect(screen.getByLabelText("Tally for Beef")).toHaveValue(30);
+    expect(screen.getByLabelText("Tally for Salmon")).toHaveValue(null);
+  });
+
+  it("refuses a negative tally that would otherwise 'add up'", () => {
+    open();
+    fireEvent.change(screen.getByLabelText("Final guarantee"), { target: { value: "50" } });
+    fireEvent.change(screen.getByLabelText("Tally for Beef"), { target: { value: "60" } });
+    fireEvent.change(screen.getByLabelText("Tally for Salmon"), { target: { value: "-10" } });
+    expect(screen.getByRole("alert")).toHaveTextContent("cannot be negative");
+    expect(screen.getByText("Save final numbers")).toBeDisabled();
+  });
 });

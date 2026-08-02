@@ -352,3 +352,131 @@ class FinalsPanelApiTests(TestCase):
         res = self.client.post(f'/api/events/{foreign.id}/finals/',
                                {'final_count': 10}, format='json')
         self.assertEqual(res.status_code, 404)
+
+
+class FinalsRegressionTests(TestCase):
+    """The defects an adversarial review of the first cut turned up. Each test is
+    named for the way the data was actually lost or corrupted."""
+
+    @classmethod
+    def setUpTestData(cls):
+        call_command('seed_data', verbosity=0)
+
+    def setUp(self):
+        self.user = get_test_user()
+        self.org = self.user.organisation
+        from dishes.models import Dish
+        self.d1, self.d2 = list(Dish.objects.filter(organisation=self.org)[:2])
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
+        self.event = Event.objects.create(
+            organisation=self.org, name='Gala', event_date=FUTURE_DATE,
+            guest_count=50, status='confirmed',
+        )
+        self.event.dishes.set([self.d1, self.d2])
+        write_entree_choices(self.event, {str(self.d1.id): None, str(self.d2.id): None})
+
+    def _record_finals(self):
+        res = self.client.post(f'/api/events/{self.event.id}/finals/', {
+            'final_count': 50,
+            'entree_counts': {str(self.d1.id): 30, str(self.d2.id): 20},
+        }, format='json')
+        self.assertEqual(res.status_code, 200, res.content)
+
+    def test_a_partial_dish_comments_save_keeps_an_omitted_offering(self):
+        """The kitchen page only sends rows that HAVE a portion. Replacing the rows
+        with just those would delete an offered entrée and its recorded tally."""
+        self._record_finals()
+        res = self.client.patch(f'/api/events/{self.event.id}/', {
+            'dish_comments': [{'dish_id': self.d1.id, 'comment': '', 'portion_grams': 120}],
+        }, format='json')
+        self.assertEqual(res.status_code, 200, res.content)
+        self.assertEqual(
+            res.json()['entree_choices'], {str(self.d1.id): 30, str(self.d2.id): 20},
+        )
+
+    def test_an_ordinary_patch_cannot_write_the_finals_numbers(self):
+        """Otherwise the sum check is bypassed, and a stale event form can blank a
+        guarantee that was recorded while it was open."""
+        self._record_finals()
+        res = self.client.patch(f'/api/events/{self.event.id}/', {
+            'final_count': 999, 'guaranteed_count': 1, 'final_count_due': '2026-01-01',
+        }, format='json')
+        self.assertEqual(res.status_code, 200, res.content)
+        self.event.refresh_from_db()
+        self.assertEqual(self.event.final_count, 50)     # unchanged
+        self.assertIsNone(self.event.guaranteed_count)
+        self.assertIsNone(self.event.final_count_due)
+
+    def test_recorded_numbers_stay_visible_once_the_event_is_under_way(self):
+        """An event auto-advances to in_progress on its own day — the day the kitchen
+        reads the breakdown. Gating on `confirmed` alone hid it exactly then."""
+        self._record_finals()
+        for status in ('in_progress', 'completed'):
+            Event.objects.filter(pk=self.event.pk).update(status=status)
+            self.event.refresh_from_db()
+            self.assertEqual(finals_status(self.event), 'recorded', status)
+
+    def test_chasing_stops_once_the_event_is_under_way(self):
+        Event.objects.filter(pk=self.event.pk).update(
+            status='in_progress', final_count_due=timezone.localdate() - timedelta(days=1),
+        )
+        self.event.refresh_from_db()
+        self.assertIsNone(finals_status(self.event))  # nothing left to ask for on the day
+
+    def test_a_cancelled_booking_has_no_finals_state(self):
+        Event.objects.filter(pk=self.event.pk).update(status='cancelled', final_count=50)
+        self.event.refresh_from_db()
+        self.assertIsNone(finals_status(self.event))
+
+    def test_malformed_entree_choices_are_rejected_not_a_500(self):
+        for bad in ({'abc': None}, {str(self.d1.id): 'lots'}, ['x'], {str(self.d1.id): -3}):
+            res = self.client.patch(f'/api/events/{self.event.id}/',
+                                    {'entree_choices': bad}, format='json')
+            self.assertEqual(res.status_code, 400, f'{bad} → {res.status_code}')
+
+    def test_a_null_entree_choices_leaves_the_offerings_alone(self):
+        """A client that serialises absent optional fields as null must not wipe them."""
+        res = self.client.patch(f'/api/events/{self.event.id}/',
+                                {'entree_choices': None}, format='json')
+        self.assertEqual(res.status_code, 200, res.content)
+        self.assertEqual(
+            res.json()['entree_choices'], {str(self.d1.id): None, str(self.d2.id): None},
+        )
+
+    def test_an_empty_map_still_clears_the_offerings(self):
+        res = self.client.patch(f'/api/events/{self.event.id}/',
+                                {'entree_choices': {}}, format='json')
+        self.assertEqual(res.status_code, 200, res.content)
+        self.assertEqual(res.json()['entree_choices'], {})
+
+    def test_a_malformed_tally_key_is_rejected_not_a_500(self):
+        res = self.client.post(f'/api/events/{self.event.id}/finals/', {
+            'final_count': 50, 'entree_counts': {'abc': 5},
+        }, format='json')
+        self.assertEqual(res.status_code, 400)
+
+    def test_finals_cannot_be_recorded_before_the_booking_is_confirmed(self):
+        Event.objects.filter(pk=self.event.pk).update(status='tentative')
+        res = self.client.post(f'/api/events/{self.event.id}/finals/',
+                               {'final_count': 50,
+                                'entree_counts': {str(self.d1.id): 30, str(self.d2.id): 20}},
+                               format='json')
+        self.assertEqual(res.status_code, 400)
+        self.event.refresh_from_db()
+        self.assertIsNone(self.event.final_count)
+
+    def test_a_quote_never_stores_a_tally_so_none_can_reach_the_event(self):
+        """A count on a quote would ride the conversion onto the event and show as a
+        recorded breakdown against no guarantee."""
+        contact = Contact.objects.create(organisation=self.org, name='C')
+        quote = Quote.objects.create(organisation=self.org, primary_contact=contact,
+                                     event_date=FUTURE_DATE, guest_count=50)
+        quote.dishes.set([self.d1])
+        res = self.client.patch(f'/api/bookings/quotes/{quote.id}/',
+                                {'entree_choices': {str(self.d1.id): 7}}, format='json')
+        self.assertEqual(res.status_code, 200, res.content)
+        self.assertEqual(res.json()['entree_choices'], {str(self.d1.id): None})
+        self.assertIsNone(
+            QuoteDishComment.objects.get(quote=quote, dish=self.d1).choice_count,
+        )

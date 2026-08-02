@@ -238,8 +238,14 @@ class EventSerializer(OrgScopedModelSerializer):
                   # Client payments
                   'payments', 'amount_paid', 'balance_due', 'payment_status']
         # created_by is stamped server-side on create; never client-writable.
+        # The finals numbers are writable ONLY through the finals endpoint (REL-419):
+        # that is the one place the per-entrée tallies are checked against the
+        # guarantee, so letting an ordinary PATCH set final_count would both bypass
+        # the check and let a stale event form blank a guarantee someone just
+        # recorded. `EventFinalsSerializer` writes them on the model directly.
         read_only_fields = ['created_at', 'subtotal', 'tax_amount', 'total',
-                            'service_charge', 'gratuity', 'created_by']
+                            'service_charge', 'gratuity', 'created_by',
+                            'guaranteed_count', 'final_count', 'final_count_due']
         extra_kwargs = {
             'notes': {'max_length': 5000},
             'kitchen_instructions': {'max_length': 5000},
@@ -278,8 +284,13 @@ class EventSerializer(OrgScopedModelSerializer):
             write_booking_courses(
                 booking, self.initial_data.get('courses'), self.initial_data.get('dish_courses'),
             )
-        if 'entree_choices' in self.initial_data:
-            write_entree_choices(booking, self.initial_data.get('entree_choices'))
+        # An explicit `null` means "nothing to say", not "clear them" — a client that
+        # serialises absent optional fields as null must not wipe the offerings.
+        if self.initial_data.get('entree_choices') is not None:
+            try:
+                write_entree_choices(booking, self.initial_data['entree_choices'])
+            except ValueError as exc:
+                raise serializers.ValidationError({'entree_choices': str(exc)})
 
     # Atomic so a rejected save (see reject_negative_subtotal) rolls the whole
     # write back instead of leaving a half-written booking behind.
@@ -356,19 +367,29 @@ class EventSerializer(OrgScopedModelSerializer):
         if dish_comments_data is not None:
             # Replace all dish comments (keep course assignments below re-applying).
             # The rows also carry the entrée-choice flag + final tally (REL-419), which
-            # the comments/portions payload knows nothing about — carry them across the
-            # replace by dish, or an ordinary event save would silently wipe the
-            # offerings and the recorded finals.
+            # the comments/portions payload knows nothing about. Carry them across the
+            # replace BY DISH — including for dishes the payload leaves out, because
+            # the kitchen page only sends rows that have a portion. Without the
+            # re-create below, saving portions there would delete an offered entrée
+            # and the guest tally already recorded against it.
             carried = {
                 r.dish_id: (r.is_entree_choice, r.choice_count)
                 for r in instance.dish_comments.all() if r.is_entree_choice
             }
             instance.dish_comments.all().delete()
+            written = set()
             for dc in dish_comments_data:
                 row = EventDishComment.objects.create(event=instance, **dc)
+                written.add(row.dish_id)
                 if row.dish_id in carried:
                     row.is_entree_choice, row.choice_count = carried[row.dish_id]
                     row.save(update_fields=['is_entree_choice', 'choice_count'])
+            for dish_id, (flag, count) in carried.items():
+                if dish_id not in written:
+                    EventDishComment.objects.create(
+                        event=instance, dish_id=dish_id,
+                        is_entree_choice=flag, choice_count=count,
+                    )
         self._write_dish_lines(instance)  # after dish_comments so course rows attach
         if line_items_data is not None:
             self._save_line_items(instance, line_items_data)
@@ -436,6 +457,11 @@ class EventFinalsSerializer(serializers.Serializer):
         self.event = event
 
     def validate(self, attrs):
+        from events.models import FINALS_STATUSES
+        if self.event.status not in FINALS_STATUSES:
+            raise serializers.ValidationError(
+                'Final numbers can only be recorded once the booking is confirmed.'
+            )
         offered = {
             r.dish_id: r.dish.name
             for r in self.event.dish_comments.select_related('dish').all()
@@ -443,7 +469,12 @@ class EventFinalsSerializer(serializers.Serializer):
         }
         if not offered:
             return attrs
-        counts = {int(k): v for k, v in (attrs.get('entree_counts') or {}).items()}
+        try:
+            counts = {int(k): v for k, v in (attrs.get('entree_counts') or {}).items()}
+        except (TypeError, ValueError):
+            raise serializers.ValidationError({
+                'entree_counts': 'Each key must be a dish id.',
+            })
         unknown = set(counts) - set(offered)
         if unknown:
             raise serializers.ValidationError({

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api, EventData } from "@/lib/api";
 import { useDishes } from "@/lib/hooks";
 import { entreeTallyError, entreeTallyTotal, offeredEntreeIds } from "@/lib/finals";
@@ -38,18 +38,29 @@ export default function FinalNumbersPanel({
     event.final_count != null ? String(event.final_count) : "",
   );
   const [dueDate, setDueDate] = useState(event.final_count_due || "");
-  const [counts, setCounts] = useState<Record<string, string>>(() =>
-    Object.fromEntries(
-      offeredIds.map((id) => {
-        const v = (event.entree_choices || {})[String(id)];
-        return [String(id), v != null ? String(v) : ""];
-      }),
-    ),
-  );
+  const [counts, setCounts] = useState<Record<string, string>>({});
+
+  // Re-seed the tallies whenever the offered set or the stored counts change — the
+  // panel outlives an edit of the menu above it, and state seeded once at mount
+  // would keep showing (and summing) a dish that is no longer offered.
+  const choicesKey = JSON.stringify(event.entree_choices || {});
+  useEffect(() => {
+    const stored: Record<string, number | null> = JSON.parse(choicesKey);
+    setCounts((prev) =>
+      Object.fromEntries(
+        Object.keys(stored).map((k) => {
+          const v = stored[k];
+          // Keep what the owner has typed for a dish that is still offered.
+          return [k, prev[k] !== undefined ? prev[k] : v != null ? String(v) : ""];
+        }),
+      ),
+    );
+  }, [choicesKey]);
 
   const guarantee = finalCount.trim() === "" ? null : parseInt(finalCount, 10);
   // Only a plated booking with offered choices has anything to add up.
-  const tallyError = offeredIds.length > 0 ? entreeTallyError(counts, guarantee) : null;
+  const tallyError =
+    offeredIds.length > 0 ? entreeTallyError(counts, guarantee, offeredIds) : null;
   const blocked = guarantee === null || Number.isNaN(guarantee) || tallyError !== null;
 
   async function save() {
@@ -76,7 +87,7 @@ export default function FinalNumbersPanel({
 
   return (
     <Card>
-      <CardContent className="p-6">
+      <CardContent className="p-6" data-testid="finals-panel">
         <div className="flex items-center justify-between gap-3 mb-3">
           <div className="flex items-center gap-2">
             <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
@@ -185,7 +196,7 @@ export default function FinalNumbersPanel({
                   ))}
                 </div>
                 <p className="mt-2 text-xs text-muted-foreground">
-                  Total entered: {entreeTallyTotal(counts)}
+                  Total entered: {entreeTallyTotal(counts, offeredIds)}
                 </p>
               </div>
             )}

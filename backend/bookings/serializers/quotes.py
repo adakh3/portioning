@@ -349,8 +349,21 @@ class QuoteSerializer(OrgScopedModelSerializer):
             write_booking_courses(
                 quote, self.initial_data.get('courses'), self.initial_data.get('dish_courses'),
             )
-        if 'entree_choices' in self.initial_data:
-            write_entree_choices(quote, self.initial_data.get('entree_choices'))
+        # An explicit `null` means "nothing to say", not "clear them". A quote only
+        # ever records WHICH dishes are offered — the tallies belong to the event's
+        # finals panel, so any count a client sends here is dropped rather than
+        # carried onto the event by the conversion.
+        raw_choices = self.initial_data.get('entree_choices')
+        if raw_choices is not None:
+            if not isinstance(raw_choices, dict):
+                raise serializers.ValidationError({
+                    'entree_choices': 'entree_choices must be an object of '
+                                      '{dish_id: null}.',
+                })
+            try:
+                write_entree_choices(quote, {k: None for k in raw_choices})
+            except ValueError as exc:
+                raise serializers.ValidationError({'entree_choices': str(exc)})
 
     def _write_guest_counts(self, quote):
         """Dual-write the quote's guest breakdown into BookingGuestCount rows

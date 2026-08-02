@@ -352,7 +352,7 @@ describe("buildEventSavePayload", () => {
     venue: null, venue_address: "", event_type: "corporate", meal_type: "lunch",
     booking_date: "", service_style: "buffet", product: null, price_per_head: "50.00", notes: "n",
     kitchen_instructions: "k", banquet_instructions: "b", setup_instructions: "s",
-    guest_count: 40, segment_counts: {}, segment_prices: {}, guaranteed_count: 40, final_count: null, final_count_due: "",
+    guest_count: 40, segment_counts: {}, segment_prices: {},
     big_eaters: true, big_eaters_percentage: 30,
     setup_time: "2026-09-01T09:00", guest_arrival_time: "", meal_time: "", end_time: "",
     is_taxable: true, service_charge_pct: "0", service_charge_taxable: true, gratuity_pct: "0",
@@ -367,7 +367,7 @@ describe("buildEventSavePayload", () => {
     expect(p).toMatchObject({
       name: "Acme — 2026-09-01", date: "2026-09-01",
       big_eaters: true, big_eaters_percentage: 30,
-      guaranteed_count: 40, kitchen_instructions: "k", is_taxable: true,
+      kitchen_instructions: "k", is_taxable: true,
       setup_time: "2026-09-01T09:00",
     });
     // No breakdown entered → no guest_counts rows (whole count is the default).
@@ -394,8 +394,15 @@ describe("buildEventSavePayload", () => {
     const p = buildEventSavePayload(base);
     expect(p.booking_date).toBeNull();
     expect(p.guest_arrival_time).toBeNull();
-    expect(p.final_count_due).toBeNull();
-    expect(p.final_count).toBeNull();
+  });
+
+  it("never writes the finals numbers — only the finals endpoint may (REL-419)", () => {
+    // Echoing a hydrated copy back on an ordinary save let a stale event form blank
+    // a guarantee someone had just recorded, and bypassed the sum check entirely.
+    const p = buildEventSavePayload(base) as Record<string, unknown>;
+    expect(p).not.toHaveProperty("final_count");
+    expect(p).not.toHaveProperty("final_count_due");
+    expect(p).not.toHaveProperty("guaranteed_count");
   });
 
   it("only sends the business when B2B", () => {

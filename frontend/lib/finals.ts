@@ -26,9 +26,18 @@ export function finalsPill(status: FinalsStatus): FinalsPill | null {
 }
 
 /** The tallies' running total, for the panel's live sum check. Blank entries count
- * as zero so a half-filled panel reads as "doesn't add up yet", not as valid. */
-export function entreeTallyTotal(counts: Record<string, string>): number {
-  return Object.values(counts).reduce((sum, v) => sum + (parseInt(v, 10) || 0), 0);
+ * as zero so a half-filled panel reads as "doesn't add up yet", not as valid.
+ *
+ * `offeredIds` scopes the sum to the dishes actually offered — the same set the save
+ * sends. Summing the raw map instead would count a dish that has since been
+ * un-offered, so the panel would say the numbers add up and the backend would reject
+ * the save. */
+export function entreeTallyTotal(
+  counts: Record<string, string>,
+  offeredIds?: number[],
+): number {
+  const keys = offeredIds ? offeredIds.map(String) : Object.keys(counts);
+  return keys.reduce((sum, k) => sum + (parseInt(counts[k], 10) || 0), 0);
 }
 
 /** The live validation message for the finals panel, or null when it is safe to
@@ -40,9 +49,16 @@ export function entreeTallyTotal(counts: Record<string, string>): number {
 export function entreeTallyError(
   counts: Record<string, string>,
   guarantee: number | null,
+  offeredIds?: number[],
 ): string | null {
   if (guarantee === null || Number.isNaN(guarantee)) return null;
-  const total = entreeTallyTotal(counts);
+  const keys = offeredIds ? offeredIds.map(String) : Object.keys(counts);
+  if (keys.some((k) => (parseInt(counts[k], 10) || 0) < 0)) {
+    // The backend rejects these too; catching it here keeps the panel's own
+    // running total from claiming a negative breakdown adds up.
+    return "An entrée tally cannot be negative.";
+  }
+  const total = entreeTallyTotal(counts, offeredIds);
   if (total === guarantee) return null;
   return `Entrée choices must add up to the final guarantee (${guarantee}) — they currently total ${total}.`;
 }

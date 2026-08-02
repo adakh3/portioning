@@ -66,3 +66,23 @@ describe("offeredEntreeIds", () => {
     expect(offeredEntreeIds({})).toEqual([]);
   });
 });
+
+describe("scoping the sum to what is actually offered", () => {
+  // A dish un-offered while the panel is open must drop out of the running total,
+  // or the panel green-lights a save the backend then rejects.
+  it("ignores a tally for a dish that is no longer offered", () => {
+    expect(entreeTallyTotal({ "1": "30", "2": "20" }, [1])).toBe(30);
+    expect(entreeTallyError({ "1": "30", "2": "20" }, 50, [1])).toMatch(/currently total 30/);
+  });
+
+  it("counts a newly offered dish as zero until it is filled in", () => {
+    // Zero is a legitimate tally — nobody picked it — so 50 + 0 still adds up…
+    expect(entreeTallyError({ "1": "50" }, 50, [1, 2])).toBeNull();
+    // …but the blank dish can't paper over a breakdown that falls short.
+    expect(entreeTallyError({ "1": "30" }, 50, [1, 2])).toMatch(/currently total 30/);
+  });
+
+  it("rejects a negative tally outright", () => {
+    expect(entreeTallyError({ "1": "60", "2": "-10" }, 50, [1, 2])).toMatch(/cannot be negative/);
+  });
+});
