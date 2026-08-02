@@ -65,12 +65,15 @@ describe("hostile: price per head feeding the rates block", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("Infinity never reaches the screen as a rate", () => {
-    renderRates("Infinity");
-    const adults = screen.getByLabelText("Adults price per head");
-    expect(adults.textContent ?? "").not.toMatch(GARBAGE);
-    expect(adults).toHaveTextContent("—"); // suppressed, not printed
-  });
+  it.each(["Infinity", "-Infinity"])(
+    "%o is not a price — nothing renders, and certainly not a derived 0.00",
+    (price) => {
+      // Infinity passes a bare `> 0` gate and would then derive a rate of 0.00 and
+      // state it as fact. It has to be refused as "not a price", like any junk.
+      const { container } = renderRates(price);
+      expect(container).toBeEmptyDOMElement();
+    },
+  );
 
   it.each(["0.005", "40.999", "1e3", "1e-3", "  40  ", "07"])(
     "unusual but numeric price %o renders a clean 2dp rate",
@@ -235,37 +238,34 @@ describe("hostile: the money math these inputs feed", () => {
     },
   );
 
-  it.each(["", "-1", "0.0000"])(
-    "a multiplier of %o still yields a finite rate",
+  // These four were `it.fails` characterization tests pinning a real defect in the
+  // shared money engine. REL-449 fixed it, so they are now ordinary assertions.
+  it.each(["", "-1", "0.0000", "abc", "1e400", "NaN", "Infinity"])(
+    "a multiplier of %o still yields a finite, non-negative rate",
     (mult) => {
       const r = segmentEffectiveRate("40", mult);
       expect(Number.isFinite(r)).toBe(true);
+      expect(r).toBeGreaterThanOrEqual(0);
     },
   );
 
-  // ---------------------------------------------------------------------------
-  // KNOWN BROKEN — the shared money engine, NOT this ticket's UI. Written with
-  // `it.fails` so they are green while the defect stands and start FAILING the
-  // moment someone fixes it, which is the prompt to turn them into ordinary
-  // assertions. Changing this math needs the totals trio + golden cases (see
-  // CALCULATION_PARITY), so it is deliberately not done on a presentation branch.
-  // Tracked separately; see the REL ticket linked from REL-428's thread.
-  // ---------------------------------------------------------------------------
-  it.fails.each(["abc", "1e400"])(
-    "KNOWN BROKEN: a multiplier of %o yields NaN/Infinity instead of a finite rate",
-    (mult) => {
-      expect(Number.isFinite(segmentEffectiveRate("40", mult))).toBe(true);
-    },
-  );
-
-  it.fails("KNOWN BROKEN: a junk segment override makes the food total NaN", () => {
-    expect(Number.isFinite(segmentFood("40", 100, { Kids: 10 }, US, { Kids: "abc" }))).toBe(true);
+  it("an unusable multiplier reverts to full price, it does NOT make the cover free", () => {
+    // Flooring to zero would turn a bad org-config value into a silent discount.
+    expect(segmentEffectiveRate("40", "abc")).toBe(40);
+    expect(segmentEffectiveRate("40", "-1")).toBe(40);
   });
 
-  it.fails("KNOWN BROKEN: a negative override drives the food total negative", () => {
-    // -1000/head on 10 kids => -6400 overall. The backend only catches this via the
-    // subtotal guard, and then blames "discounts" in the error message.
-    expect(segmentFood("40", 100, { Kids: 10 }, US, { Kids: "-1000" })).toBeGreaterThanOrEqual(0);
+  it("a junk segment override never makes the food total NaN", () => {
+    const total = segmentFood("40", 100, { Kids: 10 }, US, { Kids: "abc" });
+    expect(Number.isFinite(total)).toBe(true);
+    // Override ignored → Kids revert to their 0.5x multiplier: 90×40 + 10×20 = 3800.
+    expect(total).toBe(3800);
+  });
+
+  it("a negative override never drives the food total negative", () => {
+    const total = segmentFood("40", 100, { Kids: 10 }, US, { Kids: "-1000" });
+    expect(total).toBeGreaterThanOrEqual(0);
+    expect(total).toBe(3800); // same fallback — ignored, not floored to free
   });
 
   it("breakdownValid and the remainder agree on an over-count", () => {

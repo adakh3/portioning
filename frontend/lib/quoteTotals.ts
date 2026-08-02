@@ -315,17 +315,38 @@ export function defaultSegmentRemainder(
  * With no breakdown, the whole count is priced at the default segment's multiplier
  * (or 1.0), reducing to `price_per_head × guest_count`.
  */
+/** A finite, non-negative number, or `null` when the value can't be used as money.
+ * `null` means "fall back", never "free" (REL-449). Mirror of the backend
+ * `_usable_rate`. */
+function usableRate(value: number | string | null | undefined): number | null {
+  if (value == null || value === "") return null;
+  const n = Number(value);
+  return Number.isFinite(n) && n >= 0 ? n : null;
+}
+
 /** The per-cover price for a segment, rounded to cents — mirror of the backend
  * `segment_effective_rate`. A per-segment `override` (flat/custom rate) wins;
- * else `round(base price × multiplier)`. */
+ * else `round(base price × multiplier)`.
+ *
+ * Always **finite and non-negative** (REL-449). Bad input is refused at the API, so
+ * nothing here should ever be junk — but a rate is money, and this also has to hold
+ * for rows already in the database.
+ *
+ * Unusable input **falls back; it never makes a cover free.** An unusable override
+ * is ignored (the segment reverts to its multiplier), and an unusable multiplier
+ * reverts to `1.0` — full price. Flooring to zero instead would turn a bad config
+ * value into a silent discount, which is the failure mode a caterer would never
+ * spot. The one thing always refused is a negative, which would otherwise pay the
+ * customer to attend. */
 export function segmentEffectiveRate(
   pricePerHead: number | string | null | undefined,
   priceMultiplier: string | number | null | undefined,
   override?: string | number | null,
 ): number {
-  if (override != null && override !== "") return round2(Number(override));
-  const mult = priceMultiplier == null ? 1 : Number(priceMultiplier);
-  return round2((Number(pricePerHead) || 0) * mult);
+  const o = usableRate(override);
+  if (o !== null) return round2(o);
+  const mult = usableRate(priceMultiplier) ?? 1;
+  return round2((usableRate(pricePerHead) ?? 0) * mult);
 }
 
 /** Low-level food sum over already-resolved segment rows — the exact mirror of the

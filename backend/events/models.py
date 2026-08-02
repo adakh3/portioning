@@ -1,5 +1,5 @@
 import uuid
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 from django.conf import settings
 from django.core.validators import MinValueValidator, MaxValueValidator
@@ -84,11 +84,47 @@ def sync_legacy_guest_counts(booking, organisation, gents, ladies, guest_count):
             BookingGuestCount.objects.filter(segment=seg, **parent).delete()
 
 
+# A per-head rate is stored as DecimalField(max_digits=10, decimal_places=2), so
+# anything from 0 to 99,999,999.99 fits. Beyond that the DB write itself fails.
+MAX_SEGMENT_RATE = Decimal('99999999.99')
+
+
+def parse_segment_rate(raw):
+    """``(Decimal | None, error | None)`` for a submitted per-segment rate (REL-449).
+
+    The single place that decides what a per-head override may be, shared by the
+    API validator and the write path so they can never disagree. ``None``/blank is
+    "no override" and is valid. Anything else must be a finite, non-negative number
+    that fits the column.
+
+    Before this, ``Decimal(str(raw))`` was called straight on the payload: ``"abc"``
+    and ``"1e400"`` raised ``InvalidOperation`` out of the serializer as an unhandled
+    **500**, and a negative rate sailed through to make the food total negative —
+    caught, if at all, only by the subtotal guard, which then blamed discounts that
+    didn't exist.
+    """
+    if raw is None or raw == '':
+        return None, None
+    try:
+        value = Decimal(str(raw))
+    except (InvalidOperation, ValueError, TypeError):
+        return None, 'must be a number'
+    if not value.is_finite():
+        return None, 'must be a number'
+    if value < 0:
+        return None, 'cannot be negative'
+    if value > MAX_SEGMENT_RATE:
+        return None, f'cannot be more than {MAX_SEGMENT_RATE}'
+    return value, None
+
+
 def guest_counts_error(organisation, guest_count, raw_counts):
     """Validation guard for a submitted breakdown: return an error message when the
     explicit **in-count** segments sum to more than ``guest_count`` (a negative
-    remainder), else ``None``. Additional-cover segments (``counts_toward_total=
-    False``, e.g. Vendors) are ignored — they never reconcile against the count.
+    remainder), or when any row's per-head rate isn't a usable amount, else
+    ``None``. Additional-cover segments (``counts_toward_total=False``, e.g.
+    Vendors) are ignored for the count check — they never reconcile against the
+    count — but their **rate** is still validated.
     """
     if not raw_counts:
         return None
@@ -96,7 +132,15 @@ def guest_counts_error(organisation, guest_count, raw_counts):
     in_count = 0
     for row in raw_counts:
         seg = segs.get((row.get('segment') or '').lower())
-        if seg is not None and seg.counts_toward_total:
+        if seg is None:
+            continue
+        # Name the segment in the message: "Kids price per head cannot be negative"
+        # points at the box that's wrong, instead of the subtotal guard's phantom
+        # discount (REL-449 AC1).
+        _, rate_error = parse_segment_rate(row.get('price_per_head'))
+        if rate_error:
+            return f'{seg.name} price per head {rate_error}.'
+        if seg.counts_toward_total:
             in_count += int(row.get('count') or 0)
     if in_count > (guest_count or 0):
         return (f'The breakdown ({in_count}) is more than the guest count '
@@ -127,8 +171,11 @@ def write_booking_segments(booking, raw_counts):
         elif name == 'ladies':
             ladies = count
         if count > 0:
-            raw_price = row.get('price_per_head')
-            override = Decimal(str(raw_price)) if raw_price not in (None, '') else None
+            # Parse through the shared guard, so this path can't store what the API
+            # validator rejects — and can't raise InvalidOperation as a 500 either.
+            # An unusable value becomes "no override" (fall back to the multiplier)
+            # rather than a stored rate nobody chose (REL-449 AC2).
+            override, _ = parse_segment_rate(row.get('price_per_head'))
             # The default in-count segment (Adults) always uses the base price/head —
             # never an override — so the stored total can't diverge from the preview.
             # Guard here (not just the UI) so the raw API / AI-agent write path can't

@@ -41,7 +41,11 @@ export default function SegmentRatesField({
   // Price/head with the dishes' suggested price, which is "0.00" when those dishes
   // carry no selling price. A comped booking reads as unpriced here too — the right
   // trade, since claiming a $0.00 rate is exactly the failure this avoids.
-  if (!(Number(pricePerHead) > 0)) return null;
+  //
+  // `Number.isFinite` as well as `> 0`: Infinity passes a bare `> 0`, and would then
+  // derive a rate of 0.00 and print it as fact — the same lie by another route.
+  const basePrice = Number(pricePerHead);
+  if (!Number.isFinite(basePrice) || basePrice <= 0) return null;
 
   // Only segments that can carry a rate. If the org has no split and no extra
   // covers, there is nothing to break down — the Price/head field says it all.

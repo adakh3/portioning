@@ -1,5 +1,6 @@
 from decimal import Decimal
 
+from django.core.validators import MinValueValidator
 from django.db import models
 from users.managers import TenantManager
 
@@ -120,6 +121,11 @@ class GuestSegment(models.Model):
     )
     price_multiplier = models.DecimalField(
         max_digits=5, decimal_places=4, default=Decimal('1.0000'),
+        # A negative multiplier would subtract from the food total — never meaningful.
+        # Bounded at the source (REL-449): segments are admin-managed, and the admin
+        # runs full_clean, so this is the write path that matters. The engines also
+        # revert an unusable multiplier to 1.0 rather than trusting it.
+        validators=[MinValueValidator(Decimal('0'))],
         help_text="Charge vs base per-head price (1.0 full, 0.5 half).",
     )
     sort_order = models.IntegerField(default=0)

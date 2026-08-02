@@ -4,7 +4,7 @@ Do not re-implement this math anywhere else (serializers, views, models): call
 `compute_booking_totals`. See docs/CODE_MAINTENANCE.md.
 """
 from dataclasses import dataclass
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal, ROUND_HALF_UP, InvalidOperation
 
 TWO_PLACES = Decimal('0.01')
 
@@ -15,14 +15,42 @@ def _round2(x):
     return Decimal(x).quantize(TWO_PLACES, rounding=ROUND_HALF_UP)
 
 
+def _usable_rate(value):
+    """A finite, non-negative Decimal, or ``None`` when the value can't be used as
+    money. ``None`` means "fall back", never "free" (REL-449)."""
+    if value is None or value == '':
+        return None
+    try:
+        d = Decimal(str(value))
+    except (InvalidOperation, ValueError, TypeError):
+        return None
+    return d if (d.is_finite() and d >= 0) else None
+
+
 def segment_effective_rate(price_per_head, price_multiplier, override=None):
     """The per-cover price for a segment, rounded to cents. A per-segment
     ``override`` (a flat/custom per-head set on the booking) wins; otherwise it's
-    ``round(price_per_head × price_multiplier)`` (e.g. Kids at 0.5 → $5.00)."""
-    if override is not None:
-        return _round2(Decimal(str(override)))
-    mult = Decimal(str(price_multiplier if price_multiplier is not None else 1))
-    return _round2(Decimal(price_per_head or 0) * mult)
+    ``round(price_per_head × price_multiplier)`` (e.g. Kids at 0.5 → $5.00).
+
+    Always **finite and non-negative** (REL-449). Bad input is refused at the API
+    (see ``guest_counts_error``), so nothing here should ever be junk — but a rate
+    is money, and this also has to hold for rows already in the database.
+
+    Unusable input **falls back; it never makes a cover free.** An unusable override
+    is ignored (the segment reverts to its multiplier), and an unusable multiplier
+    reverts to ``1.0`` — full price. Flooring to zero instead would turn a bad
+    config value into a silent discount, which is the failure mode a caterer would
+    never spot. The one thing that is always refused is a negative, which would
+    otherwise pay the customer to attend.
+    """
+    o = _usable_rate(override)
+    if o is not None:
+        return _round2(o)
+    mult = _usable_rate(price_multiplier)
+    if mult is None:
+        mult = Decimal('1')
+    base = _usable_rate(price_per_head) or Decimal('0')
+    return _round2(base * mult)
 
 
 def segment_food_total(price_per_head, segments):
