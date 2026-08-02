@@ -75,20 +75,21 @@ describe("GuestCountField — count-first breakdown", () => {
     expect(screen.queryByRole("checkbox", { name: /split/i })).not.toBeInTheDocument();
   });
 
-  it("per-segment rate box: shows the multiplier default as placeholder, stores an edit", () => {
-    mockUseSiteSettings.mockReturnValue({ data: { guest_segments: US } });
-    const onChange = vi.fn();
-    render(
-      <GuestCountField
-        value={{ ...base, guest_count: 150, segment_counts: { Kids: 12 } }}
-        onChange={onChange}
-        pricePerHead="10"
-      />,
-    );
-    const kidsRate = screen.getByLabelText("Kids price per head") as HTMLInputElement;
-    expect(kidsRate.placeholder).toBe("5.00"); // 0.5 × $10 default
-    fireEvent.change(kidsRate, { target: { value: "18" } });
-    expect(onChange).toHaveBeenCalledWith({ segment_prices: { Kids: "18" } });
+  // The per-segment rate boxes used to live here. They moved to Menu & Pricing
+  // (REL-428) because this card is filled in BEFORE the menu is priced, so any rate
+  // shown here was a number that couldn't be known yet — and the Price/head
+  // auto-fill writes "0.00" the moment a template loads, which read as "your guests
+  // are priced at nothing". Their behaviour is now pinned in SegmentRatesField.test.tsx.
+  it("carries no pricing at all — rates belong with the price they derive from", () => {
+    setup({ guest_count: 150, segment_counts: { Kids: 12, Vendors: 8 } });
+
+    expect(screen.queryByLabelText("Kids price per head")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Adults price per head")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Vendors price per head")).not.toBeInTheDocument();
+    expect(screen.queryByText(/\$\/head/)).not.toBeInTheDocument();
+    // The counts it DOES own are untouched.
+    expect(val(screen.getByLabelText("Kids"))).toBe("12");
+    expect(screen.getByLabelText("Adults (derived)")).toHaveTextContent("138");
   });
 
   it("enables the big-eaters modifier", () => {

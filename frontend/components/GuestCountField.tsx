@@ -2,7 +2,7 @@
 
 import { ValidatedInput } from "@/components/ui/validated-input";
 import { useSiteSettings } from "@/lib/hooks";
-import { defaultSegmentRemainder, segmentEffectiveRate, GuestSegmentMeta } from "@/lib/quoteTotals";
+import { defaultSegmentRemainder, GuestSegmentMeta } from "@/lib/quoteTotals";
 
 export interface GuestCountValue {
   guest_count: number; // THE number — canonical, drives money and displays
@@ -43,95 +43,36 @@ export default function GuestCountField({
   value,
   onChange,
   disabled = false,
-  pricePerHead,
 }: {
   value: GuestCountValue;
   onChange: (patch: Partial<GuestCountValue>) => void;
   disabled?: boolean;
-  pricePerHead?: string; // base per-head (Adults rate); seeds each segment's default rate
 }) {
   const { data: settings } = useSiteSettings();
   const segments = (settings?.guest_segments ?? []) as GuestSegmentMeta[];
   const total = value.guest_count || 0;
   const counts = value.segment_counts || {};
-  const prices = value.segment_prices || {};
   const { defaultSeg, explicitInCount, additional } = groupSegments(segments);
   const remainder = defaultSegmentRemainder(total, counts, segments);
 
   const setCount = (name: string, raw: number) =>
     onChange({ segment_counts: { ...counts, [name]: Math.max(0, raw || 0) } });
-  const setPrice = (name: string, raw: string) =>
-    onChange({ segment_prices: { ...prices, [name]: raw } });
 
   const labelCls = "block text-sm font-medium text-foreground mb-1";
 
-  /** One segment = one bounded cell: its name, its count, its rate (REL-428 AC1).
-   * Every cell has the same shape — name, a count control, a rate control — so a
-   * column of editable segments lines up with the derived one instead of running a
-   * control short (AC2). The rate carries the segment's own name because the whole
-   * complaint was that a bare "$/head" under Kids could have belonged to anything. */
-  const segmentCell = (
-    s: GuestSegmentMeta,
-    countControl: React.ReactNode,
-    rateControl: React.ReactNode,
-  ) => (
-    // flex column + `mt-auto` on the rate: grid cells already stretch to the tallest
-    // in the row, so pinning the rate to the bottom keeps every rate on one baseline
-    // even when a neighbour grows — e.g. an over-count on Kids renders a validation
-    // message INSIDE its cell, which would otherwise shove its rate below Adults'.
-    <div key={s.name} className="flex h-full flex-col rounded-lg border border-border/70 bg-muted/20 p-3">
+  /** One segment = one bounded cell: its name and its count (REL-428).
+   *
+   * Per-head RATES deliberately do not live here. This card is filled in before the
+   * menu is priced, so any rate shown here is a number that cannot be known yet —
+   * and the auto-fill writes "0.00" the moment a template loads, which read as a
+   * statement that the guests were priced at nothing. Rates now sit in Menu &
+   * Pricing beside the Price/head they derive from: see SegmentRatesField. */
+  const segmentCell = (s: GuestSegmentMeta, countControl: React.ReactNode) => (
+    <div key={s.name} className="rounded-lg border border-border/70 bg-muted/20 p-3">
       <label className={labelCls}>{s.name}</label>
       {countControl}
-      <div className="mt-auto pt-2">
-        <span className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-          {s.name} $/head
-        </span>
-        {rateControl}
-      </div>
     </div>
   );
-
-  /** An editable per-head rate: the default (base × multiplier) shows as the
-   * placeholder; typing stores a flat/custom override for this booking. */
-  const rateInput = (s: GuestSegmentMeta) => (
-    <ValidatedInput
-      type="number" step="0.01" min={0} disabled={disabled}
-      aria-label={`${s.name} price per head`}
-      placeholder={segmentEffectiveRate(pricePerHead, s.price_multiplier).toFixed(2)}
-      value={prices[s.name] ?? ""}
-      onChange={(e) => setPrice(s.name, e.target.value)}
-      className="h-8"
-    />
-  );
-
-  /** The default segment's rate, read-only (AC3). It is the booking's own price per
-   * head — showing it stops the block implying that everyone except Adults is
-   * priced. Whether it should become overridable is a product decision, so it is
-   * deliberately not an input here.
-   *
-   * Until a price per head exists this shows an em-dash, not "0.00": the Guests card
-   * sits ABOVE Menu & Pricing, so on every new booking the breakdown is filled in
-   * before a price is. Rendering 0.00 as a statement of fact would tell the caterer
-   * their guests are priced at nothing. (The editable boxes show 0.00 as a greyed
-   * PLACEHOLDER, which reads as "unset" rather than as an assertion.) */
-  const baseRateBox = (s: GuestSegmentMeta) => {
-    const priced = pricePerHead !== undefined && String(pricePerHead).trim() !== "";
-    return (
-      <div
-        aria-label={`${s.name} price per head`}
-        className="flex h-8 items-center rounded-md border border-input bg-muted/50 px-3 text-sm text-muted-foreground"
-      >
-        {priced ? (
-          <>
-            {segmentEffectiveRate(pricePerHead, s.price_multiplier).toFixed(2)}
-            <span className="ml-1.5 text-xs">(auto)</span>
-          </>
-        ) : (
-          <span aria-hidden="true">—</span>
-        )}
-      </div>
-    );
-  };
 
   /** The default segment's count: the derived remainder, clearly not a field (AC4).
    * `h-9` matches the Input default so this column doesn't run taller than the
@@ -174,8 +115,8 @@ export default function GuestCountField({
         <div className="space-y-2">
           <p className="text-sm font-medium text-foreground">Breakdown (optional)</p>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            {explicitInCount.map((s) => segmentCell(s, countInput(s, total), rateInput(s)))}
-            {defaultSeg && segmentCell(defaultSeg, derivedCountBox(defaultSeg), baseRateBox(defaultSeg))}
+            {explicitInCount.map((s) => segmentCell(s, countInput(s, total)))}
+            {defaultSeg && segmentCell(defaultSeg, derivedCountBox(defaultSeg))}
           </div>
           {remainder < 0 && (
             <p className="text-xs text-destructive">
@@ -190,9 +131,9 @@ export default function GuestCountField({
         <div className="space-y-2">
           <p className="text-sm font-medium text-foreground">Additional covers (not in guest count)</p>
           {/* Same cell as the in-count breakdown — extra covers have the identical
-              name/count/rate shape, so they get the identical treatment (AC7). */}
+              name/count shape, so they get the identical treatment (AC7). */}
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            {additional.map((s) => segmentCell(s, countInput(s, 100000), rateInput(s)))}
+            {additional.map((s) => segmentCell(s, countInput(s, 100000)))}
           </div>
           <p className="text-xs text-muted-foreground">
             Serving vendors a different menu? Add it as a separate meal instead.

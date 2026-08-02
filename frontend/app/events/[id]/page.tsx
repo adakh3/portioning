@@ -36,6 +36,7 @@ import MenuBuilder from "@/components/MenuBuilder";
 import AdditionalMealsEditor from "@/components/AdditionalMealsEditor";
 import CoursesEditor from "@/components/CoursesEditor";
 import GuestCountField, { GuestCountValue } from "@/components/GuestCountField";
+import SegmentRatesField from "@/components/SegmentRatesField";
 import BookingTimelineField, { TimelineEntryValue } from "@/components/BookingTimelineField";
 import BookingDetailsForm, { BookingDetailsValue } from "@/components/BookingDetailsForm";
 import AssigneePicker from "@/components/AssigneePicker";
@@ -812,7 +813,6 @@ export default function EventDetailPage() {
               <GuestCountField
                 value={{ guest_count: formGuestCount, segment_counts: formSegmentCounts, segment_prices: formSegmentPrices, big_eaters: formBigEaters, big_eaters_percentage: formBigEatersPercent }}
                 onChange={applyGuestPatch}
-                pricePerHead={formPricePerHead}
               />
               {hasVendorDoubleEntry(formSegmentCounts, formAdditionalMeals, segmentMeta) && (
                 <div role="alert" className="mt-2 flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
@@ -880,6 +880,16 @@ export default function EventDetailPage() {
                 guestCount={event!.guest_count}
                 currencySymbol={settings.currency_symbol}
                 disabled={true}
+              />
+            )}
+            {editing && (
+              /* Per-segment rates sit beside the Price/head they derive from, not in
+                 the Guests card which is filled in before pricing (REL-428). */
+              <SegmentRatesField
+                segmentPrices={formSegmentPrices}
+                onChange={(patch) => setFormSegmentPrices(patch.segment_prices)}
+                pricePerHead={formPricePerHead}
+                currencySymbol={settings.currency_symbol}
               />
             )}
         </CardContent>
