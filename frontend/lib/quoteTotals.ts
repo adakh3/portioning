@@ -315,13 +315,33 @@ export function defaultSegmentRemainder(
  * With no breakdown, the whole count is priced at the default segment's multiplier
  * (or 1.0), reducing to `price_per_head × guest_count`.
  */
-/** A finite, non-negative number, or `null` when the value can't be used as money.
- * `null` means "fall back", never "free" (REL-449). Mirror of the backend
- * `_usable_rate`. */
-function usableRate(value: number | string | null | undefined): number | null {
+/** The one accepted spelling of a rate — the exact mirror of the backend's
+ * `_RATE_RE`. Anchored ASCII digits, optional single dot, no exponent, no sign. */
+const RATE_RE = /^\s*\d+(?:\.\d+)?\s*$/;
+
+/** Nothing priceable is worth more than this per cover — mirrors `MAX_USABLE_RATE`. */
+const MAX_USABLE_RATE = 99999999.99;
+
+/** A finite, non-negative, in-range number, or `null` when the value can't be used
+ * as money. `null` means "fall back", never "free" (REL-449). Mirror of the backend
+ * `_usable_rate`.
+ *
+ * Strings go through `RATE_RE` rather than bare `Number()`, because `Number`'s
+ * coercion table and `Decimal`'s parser accept different languages, and every
+ * disagreement is money one side charges and the other doesn't:
+ * `Number("  ")`, `Number(false)` and `Number([])` are all **0** — which would price
+ * a cover at zero where the backend falls back to the multiplier — while
+ * `Decimal("1_000")`, `Decimal("١٢٣")` and `Decimal("５")` all parse, storing an
+ * amount the customer's preview never showed. Both halves are closed by insisting
+ * on one plain spelling. */
+export function usableRate(value: number | string | null | undefined): number | null {
   if (value == null || value === "") return null;
+  if (typeof value === "number") {
+    return Number.isFinite(value) && value >= 0 && value <= MAX_USABLE_RATE ? value : null;
+  }
+  if (typeof value !== "string" || !RATE_RE.test(value)) return null;
   const n = Number(value);
-  return Number.isFinite(n) && n >= 0 ? n : null;
+  return Number.isFinite(n) && n >= 0 && n <= MAX_USABLE_RATE ? n : null;
 }
 
 /** The per-cover price for a segment, rounded to cents — mirror of the backend

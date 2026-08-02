@@ -84,11 +84,19 @@ describe("hostile: price per head feeding the rates block", () => {
     },
   );
 
-  it("a very large price still renders a finite number", () => {
-    renderRates("999999999");
+  it("the largest storable price still renders a finite number", () => {
+    // The column is DecimalField(max_digits=10, decimal_places=2).
+    renderRates("99999999.99");
     const adults = screen.getByLabelText("Adults price per head");
     expect(adults.textContent ?? "").not.toMatch(GARBAGE);
-    expect(adults).toHaveTextContent("999999999.00");
+    expect(adults).toHaveTextContent("99999999.99");
+  });
+
+  it("a price beyond what the column can hold is not a price", () => {
+    // Refused rather than rendered: the API rejects it too, so showing a rate the
+    // booking could never store would be a promise the save can't keep.
+    const { container } = renderRates("999999999");
+    expect(container).toBeEmptyDOMElement();
   });
 });
 

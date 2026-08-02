@@ -182,3 +182,138 @@ class SegmentRateWritePathTests(TestCase):
         ])
         row = BookingGuestCount.objects.get(quote=self.quote, segment=self.seg)
         self.assertEqual(row.price_per_head, Decimal('18.50'))
+
+
+class SegmentRateParityAndScaleTests(TestCase):
+    """Review findings H2/H3/M4/M5 — the ways the two engines could disagree, or the
+    saved total could differ from the preview the customer was shown."""
+
+    @classmethod
+    def setUpTestData(cls):
+        call_command('seed_data', verbosity=0)
+
+    def setUp(self):
+        self.user = get_test_user()
+        self.org = self.user.organisation
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
+        self.contact = Contact.objects.create(organisation=self.org, name='C')
+        from rules.models import GuestSegment
+        segs = list(GuestSegment.objects.filter(organisation=self.org).order_by('sort_order'))
+        self.seg = [s for s in segs if not (s.is_default and s.counts_toward_total)][0]
+        self.default_seg = [s for s in segs if s.is_default and s.counts_toward_total][0]
+
+    def _post(self, rate, endpoint='/api/bookings/quotes/'):
+        row = {'segment': self.seg.name, 'count': 10}
+        if rate is not None:
+            row['price_per_head'] = rate
+        payload = {
+            'guest_count': 100, 'price_per_head': '40.00', 'is_taxable': False,
+            'guest_counts': [row, {'segment': self.default_seg.name, 'count': 90}],
+        }
+        if 'events' in endpoint:
+            payload.update({'name': 'E', 'date': '2026-09-01', 'primary_contact': self.contact.id})
+        else:
+            payload.update({'primary_contact': self.contact.id, 'event_date': '2026-09-01'})
+        return self.client.post(endpoint, payload, format='json')
+
+    def test_a_half_cent_rate_is_stored_as_the_preview_showed_it(self):  # H2
+        # The column is decimal_places=2 and Django rounds HALF_EVEN on write, so
+        # 12.345 used to preview as 12.35 and store as 12.34 — the saved booking a
+        # cent lighter than the quote the customer saw. Both are 12.35 now.
+        res = self._post('12.345')
+        self.assertEqual(res.status_code, 201, res.content)
+        row = BookingGuestCount.objects.get(quote_id=res.json()['id'], segment=self.seg)
+        self.assertEqual(row.price_per_head, Decimal('12.35'))
+        # 90 × 40 + 10 × 12.35 = 3723.50 — matches frontend round2.
+        self.assertEqual(Decimal(res.json()['food_total']), Decimal('3723.50'))
+
+    def test_exotic_numeric_spellings_the_frontend_cannot_read_are_refused(self):  # H3
+        # Decimal parses all of these; Number() does not. Accepting them would store
+        # money the customer's preview never showed.
+        for bad in ['1_000', '١٢٣', '５', '0x10', '0o17', '1e3', '+5']:
+            res = self._post(bad)
+            self.assertEqual(res.status_code, 400, f'{bad!r} -> {res.status_code}')
+
+    def test_whitespace_and_non_string_junk_are_refused(self):  # H3 (other half)
+        for bad in ['  ', '\t', True, False, [], {}]:
+            res = self._post(bad)
+            self.assertEqual(res.status_code, 400, f'{bad!r} -> {res.status_code}')
+
+    def test_negative_zero_never_becomes_a_minus_sign_on_a_quote(self):  # M5
+        value, error = parse_segment_rate('-0')
+        self.assertIsNone(error)
+        self.assertEqual(value, Decimal('0.00'))
+        self.assertFalse(str(value).startswith('-'), str(value))
+
+    def test_a_deliberately_comped_segment_still_works(self):
+        # Zero is a real, chosen rate — it must NOT be swallowed as "no override".
+        res = self._post('0')
+        self.assertEqual(res.status_code, 201, res.content)
+        row = BookingGuestCount.objects.get(quote_id=res.json()['id'], segment=self.seg)
+        self.assertEqual(row.price_per_head, Decimal('0.00'))
+        self.assertEqual(Decimal(res.json()['food_total']), Decimal('3600.00'))  # 90×40 + 10×0
+
+    def test_the_event_endpoint_enforces_the_same_rule(self):  # review Area 8
+        # The event serializer calls the same guest_counts_error; only the quote
+        # endpoint was covered before.
+        res = self._post('-5', endpoint='/api/events/')
+        self.assertEqual(res.status_code, 400, res.content)
+        self.assertIn('cannot be negative', str(res.json()['guest_counts']))
+
+    def test_the_engine_never_raises_on_an_absurd_value(self):  # M4
+        from bookings.services.totals import segment_effective_rate
+        # Decimal('1e400').is_finite() is True (unlike JS Infinity), so without a
+        # magnitude bound quantize() raises the very InvalidOperation this replaced.
+        for mult in ['1e400', '1e200', 'abc']:
+            rate = segment_effective_rate('40', mult)
+            self.assertGreaterEqual(rate, 0)
+        self.assertEqual(segment_effective_rate('1e400', '1.0'), Decimal('0.00'))
+
+    def test_the_over_count_error_still_wins_over_a_rate_error(self):  # L8
+        # Both wrong: the caterer should still hear about the breakdown first, as
+        # they always did — adding the rate check must not reorder the messages.
+        from events.models import guest_counts_error
+        err = guest_counts_error(self.org, 10, [
+            {'segment': self.seg.name, 'count': 500, 'price_per_head': 'abc'},
+            {'segment': self.default_seg.name, 'count': 90},
+        ])
+        self.assertIn('more than the guest count', err)
+
+
+class LegacyNegativeRateMigrationTests(TestCase):
+    """Review finding C1 — negative rates WERE storable before this release, so the
+    'existing bookings are untouched' claim only holds because 0036 clears them."""
+
+    @classmethod
+    def setUpTestData(cls):
+        call_command('seed_data', verbosity=0)
+
+    def test_the_data_migration_nulls_a_legacy_negative_rate(self):
+        from django.db import connection
+        from django.apps import apps as global_apps
+        user = get_test_user()
+        org = user.organisation
+        contact = Contact.objects.create(organisation=org, name='C')
+        quote = Quote.objects.create(
+            organisation=org, primary_contact=contact,
+            event_date='2026-09-01', guest_count=100, price_per_head=Decimal('40'),
+        )
+        from rules.models import GuestSegment
+        seg = [s for s in GuestSegment.objects.filter(organisation=org)
+               if not (s.is_default and s.counts_toward_total)][0]
+        # Force the row in the way the old unbounded write path could have.
+        row = BookingGuestCount.objects.create(quote=quote, segment=seg, count=10)
+        BookingGuestCount.objects.filter(pk=row.pk).update(price_per_head=Decimal('-5.00'))
+        self.assertEqual(BookingGuestCount.objects.get(pk=row.pk).price_per_head, Decimal('-5.00'))
+
+        # Run the migration's own function against the live models.
+        import importlib
+        mod = importlib.import_module('events.migrations.0036_clear_unusable_segment_rates'.replace('0036', '0036'))
+        mod.clear_unusable_rates(global_apps, connection.schema_editor())
+        self.assertIsNone(BookingGuestCount.objects.get(pk=row.pk).price_per_head)
+
+    def test_engine_falls_back_rather_than_pricing_a_legacy_negative(self):
+        # Even if a row somehow survives, the engine must never price it negative.
+        from bookings.services.totals import segment_effective_rate
+        self.assertEqual(segment_effective_rate('40', '0.5', '-5'), Decimal('20.00'))

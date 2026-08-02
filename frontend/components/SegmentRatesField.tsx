@@ -2,7 +2,7 @@
 
 import { ValidatedInput } from "@/components/ui/validated-input";
 import { useSiteSettings } from "@/lib/hooks";
-import { segmentEffectiveRate, GuestSegmentMeta } from "@/lib/quoteTotals";
+import { segmentEffectiveRate, usableRate, GuestSegmentMeta } from "@/lib/quoteTotals";
 import { groupSegments } from "@/components/GuestCountField";
 
 /**
@@ -42,10 +42,11 @@ export default function SegmentRatesField({
   // carry no selling price. A comped booking reads as unpriced here too — the right
   // trade, since claiming a $0.00 rate is exactly the failure this avoids.
   //
-  // `Number.isFinite` as well as `> 0`: Infinity passes a bare `> 0`, and would then
-  // derive a rate of 0.00 and print it as fact — the same lie by another route.
-  const basePrice = Number(pricePerHead);
-  if (!Number.isFinite(basePrice) || basePrice <= 0) return null;
+  // Uses the engine's own `usableRate`, not a second opinion — Infinity passes a
+  // bare `> 0` and would then derive 0.00 and print it as fact, and a price beyond
+  // what the column can store would promise a rate the save can't keep.
+  const basePrice = usableRate(pricePerHead);
+  if (basePrice === null || basePrice <= 0) return null;
 
   // Only segments that can carry a rate. If the org has no split and no extra
   // covers, there is nothing to break down — the Price/head field says it all.

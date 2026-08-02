@@ -34,6 +34,37 @@ languages. This doc is how we stop that.
   (both multipliers 1.0), keep byte-identical food totals. The shared
   `segment_food_cases` in the golden file assert this in both engines.
 
+  **Per-segment override.** A booking may set a flat per-head rate on a segment
+  (`BookingGuestCount.price_per_head`). When present it **replaces** the
+  multiplier calculation for that segment: `rate = round(override)`. The org's
+  default in-count segment (Adults) never honours one — it always uses the base
+  price/head — guarded on the write path, not just in the UI.
+
+  **Unusable input: fall back, never free** (REL-449). A rate is money, so neither
+  engine may return `NaN`, `Infinity`, or a negative, and neither may quietly turn a
+  bad value into a discount:
+
+  | Situation | Result |
+  |---|---|
+  | override unusable (junk, negative, out of range) | **ignored** — segment reverts to its multiplier |
+  | multiplier unusable | reverts to **1.0** — full price |
+  | base price/head unusable | treated as 0 |
+  | override of exactly `0` | **honoured** — a deliberately comped segment |
+
+  Flooring an unusable value to zero would turn a config error into a silent
+  discount, which is the failure a caterer never spots — hence "never free". The one
+  thing always refused is a negative, which would pay the customer to attend.
+
+  **One spelling of a number.** `Decimal` and JS `Number` accept different
+  languages, and every disagreement is money one engine charges and the other
+  doesn't: `Decimal` takes `"1_000"` and Unicode digits (`"١٢٣"`, `"５"`), while
+  `Number` turns `"  "`, `false` and `[]` into `0`. Both engines therefore accept
+  only one plain spelling — `RATE_RE` in `totals.py` (imported by the API validator
+  `events.models.parse_segment_rate`) and its mirror in `quoteTotals.ts`. The API
+  also **quantizes to cents HALF_UP before storing**, because the column is
+  `decimal_places=2` and Django rounds HALF_EVEN on write — without it, `12.345`
+  previewed as `12.35` and saved as `12.34`.
+
   **Itemized display** (`segment_food_rows` / `segmentFoodRows`) shows one line per
   segment (`Name — count × rate = amount`) on the totals card, both PDFs, and the
   sign page — but **only when segments have more than one distinct rate**. A

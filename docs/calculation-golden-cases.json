@@ -1,5 +1,5 @@
 {
-  "_comment": "SHARED SPEC for booking totals \u2014 the single source of truth for the MATH, consumed by BOTH the backend engine (bookings/services/totals.py, via bookings/test_totals.py) and the frontend mirror (lib/quoteTotals.ts, via lib/quoteTotals.test.ts). Each case feeds food_total + line items (each with a precomputed signed line_total; discounts are negative) + tax_rate (decimal fraction) and asserts the resulting subtotal/tax_amount/total. food_total already includes any additional meals. Tax applies to the WHOLE subtotal (food + all line items) \u2014 there is no per-line taxable/non-taxable split. Change the rule => update this file => BOTH engine tests must conform. See docs/CALCULATION_PARITY.md.",
+  "_comment": "SHARED SPEC for booking totals — the single source of truth for the MATH, consumed by BOTH the backend engine (bookings/services/totals.py, via bookings/test_totals.py) and the frontend mirror (lib/quoteTotals.ts, via lib/quoteTotals.test.ts). Each case feeds food_total + line items (each with a precomputed signed line_total; discounts are negative) + tax_rate (decimal fraction) and asserts the resulting subtotal/tax_amount/total. food_total already includes any additional meals. Tax applies to the WHOLE subtotal (food + all line items) — there is no per-line taxable/non-taxable split. Change the rule => update this file => BOTH engine tests must conform. See docs/CALCULATION_PARITY.md.",
   "cases": [
     {
       "name": "food_only_with_tax",
@@ -299,7 +299,7 @@
     },
     {
       "name": "half_up_tax_on_a_005_boundary",
-      "_why": "A .005 boundary \u2014 the one place Decimal's default HALF_EVEN and the frontend's Math.round (HALF_UP) disagree. The engines differed by a cent here: the live preview showed 5.01 and the saved value was 5.00, so the total moved under the user on save. Both engines must now round HALF_UP.",
+      "_why": "A .005 boundary — the one place Decimal's default HALF_EVEN and the frontend's Math.round (HALF_UP) disagree. The engines differed by a cent here: the live preview showed 5.01 and the saved value was 5.00, so the total moved under the user on save. Both engines must now round HALF_UP.",
       "food_total": "100.10",
       "items": [],
       "tax_rate": "0.05",
@@ -347,7 +347,7 @@
     },
     {
       "name": "half_up_tax_on_a_larger_005_boundary",
-      "_why": "2.5% of 200.20 = 5.005 \u2014 proves it is the boundary, not the number.",
+      "_why": "2.5% of 200.20 = 5.005 — proves it is the boundary, not the number.",
       "food_total": "200.20",
       "items": [],
       "tax_rate": "0.025",
@@ -446,7 +446,7 @@
     },
     {
       "name": "rel449_unusable_override_reverts_to_multiplier_negative",
-      "_why": "A negative per-segment override must never pay the customer to attend. It is refused at the API; the engines IGNORE it and the segment reverts to its multiplier \u2014 falling back, never making the cover free. 90 adults @10 + 10 kids @5 (0.5x) = 950.00.",
+      "_why": "A negative per-segment override must never pay the customer to attend. It is refused at the API; the engines IGNORE it and the segment reverts to its multiplier — falling back, never making the cover free. 90 adults @10 + 10 kids @5 (0.5x) = 950.00.",
       "price_per_head": "10",
       "segments": [
         {
@@ -480,7 +480,7 @@
     },
     {
       "name": "rel449_unusable_multiplier_reverts_to_full_price_junk",
-      "_why": "A non-numeric multiplier is bad org config, not typing. It reverts to 1.0 \u2014 FULL price \u2014 because flooring to zero would turn a config error into a silent discount nobody would spot. 90 @10 + 10 @10 = 1000.00.",
+      "_why": "A non-numeric multiplier is bad org config, not typing. It reverts to 1.0 — FULL price — because flooring to zero would turn a config error into a silent discount nobody would spot. 90 @10 + 10 @10 = 1000.00.",
       "price_per_head": "10",
       "segments": [
         {
@@ -509,6 +509,91 @@
         }
       ],
       "expected_food": "1000.00"
+    },
+    {
+      "name": "rel449_comped_segment_override_of_zero_applies",
+      "_why": "Zero is a REAL, chosen rate, not 'no override'. Both engines must keep it (neither may use truthiness). 90 adults @10 + 10 kids @0 = 900.00.",
+      "price_per_head": "10",
+      "segments": [
+        {
+          "count": 90,
+          "price_multiplier": "1.0"
+        },
+        {
+          "count": 10,
+          "price_multiplier": "0.5",
+          "price_override": "0"
+        }
+      ],
+      "expected_food": "900.00"
+    },
+    {
+      "name": "rel449_half_cent_override_rounds_half_up_in_both",
+      "_why": "12.345/head must round the SAME way in both engines and in the DB write. HALF_UP -> 12.35 (the column would round HALF_EVEN to 12.34, which is why the API quantizes before storing). 90 @10 + 10 @12.35 = 1023.50.",
+      "price_per_head": "10",
+      "segments": [
+        {
+          "count": 90,
+          "price_multiplier": "1.0"
+        },
+        {
+          "count": 10,
+          "price_multiplier": "0.5",
+          "price_override": "12.345"
+        }
+      ],
+      "expected_food": "1023.50"
+    },
+    {
+      "name": "rel449_whitespace_override_is_not_a_free_cover",
+      "_why": "Number('  ') is 0 in JS while Decimal refuses it — so a bare Number() would price this cover FREE on the frontend and at the multiplier on the backend. Both must fall back: 90 @10 + 10 @5 (0.5x) = 950.00.",
+      "price_per_head": "10",
+      "segments": [
+        {
+          "count": 90,
+          "price_multiplier": "1.0"
+        },
+        {
+          "count": 10,
+          "price_multiplier": "0.5",
+          "price_override": "   "
+        }
+      ],
+      "expected_food": "950.00"
+    },
+    {
+      "name": "rel449_exotic_digits_override_is_not_a_rate",
+      "_why": "Decimal parses '1_000' and full-width/Arabic-Indic digits; Number() does not. Accepting them would store money the preview never showed. Both fall back to the multiplier: 90 @10 + 10 @5 = 950.00.",
+      "price_per_head": "10",
+      "segments": [
+        {
+          "count": 90,
+          "price_multiplier": "1.0"
+        },
+        {
+          "count": 10,
+          "price_multiplier": "0.5",
+          "price_override": "1_000"
+        }
+      ],
+      "expected_food": "950.00"
+    },
+    {
+      "name": "rel449_absurd_price_per_head_does_not_explode",
+      "_why": "Decimal('1e400').is_finite() is True (JS gives Infinity), so an unbounded quantize raises InvalidOperation. Out-of-range base price falls back to 0; the kids override still stands: 90 @0 + 10 @7 = 70.00.",
+      "price_per_head": "1e400",
+      "segments": [
+        {
+          "count": 90,
+          "price_multiplier": "1.0"
+        },
+        {
+          "count": 10,
+          "price_multiplier": "0.5",
+          "price_override": "7"
+        }
+      ],
+      "expected_food": "70.00"
     }
   ],
   "meal_audience_cases": [
