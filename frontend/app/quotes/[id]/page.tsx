@@ -510,23 +510,6 @@ export default function QuoteDetailPage() {
             </CardContent>
           </Card>
 
-          {/* Timeline */}
-          <Card>
-            <CardContent className="p-6">
-              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Timeline</h2>
-              <BookingTimelineField
-                eventDate={createData.event_date}
-                timeFormat={timeFormat}
-                value={{ setup_time: createData.setup_time, guest_arrival_time: createData.guest_arrival_time, meal_time: createData.meal_time, end_time: createData.end_time }}
-                onChange={(patch) => setCreateData((prev) => ({ ...prev, ...patch }))}
-                entries={createTimeline}
-                onEntriesChange={setCreateTimeline}
-                presets={timelinePresets}
-                meals={timelineMealRows(createMeals)}
-              />
-            </CardContent>
-          </Card>
-
           {/* Guests — entered once; every meal draws from this */}
           <Card>
             <CardContent className="p-6">
@@ -587,6 +570,24 @@ export default function QuoteDetailPage() {
             selectedDishIds={menuData.dish_ids}
             editing
           />
+
+          {/* Timeline — below the meals: the run-of-show is built around the meal
+              times, so it reads after you've said what's being served (REL-430). */}
+          <Card>
+            <CardContent className="p-6">
+              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Timeline</h2>
+              <BookingTimelineField
+                eventDate={createData.event_date}
+                timeFormat={timeFormat}
+                value={{ setup_time: createData.setup_time, guest_arrival_time: createData.guest_arrival_time, meal_time: createData.meal_time, end_time: createData.end_time }}
+                onChange={(patch) => setCreateData((prev) => ({ ...prev, ...patch }))}
+                entries={createTimeline}
+                onEntriesChange={setCreateTimeline}
+                presets={timelinePresets}
+                meals={timelineMealRows(createMeals)}
+              />
+            </CardContent>
+          </Card>
 
           {/* Additional Items */}
           <Card>
@@ -1011,25 +1012,6 @@ export default function QuoteDetailPage() {
         </Card>
       )}
 
-      {/* Timeline (editing) */}
-      {editing && (
-        <Card>
-          <CardContent className="p-6">
-            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Timeline</h2>
-            <BookingTimelineField
-              eventDate={editData.event_date}
-              timeFormat={timeFormat}
-              value={{ setup_time: editData.setup_time, guest_arrival_time: editData.guest_arrival_time, meal_time: editData.meal_time, end_time: editData.end_time }}
-              onChange={(patch) => setEditData((prev) => ({ ...prev, ...patch }))}
-              entries={editTimeline}
-              onEntriesChange={setEditTimeline}
-              presets={timelinePresets}
-              meals={timelineMealRows(editMeals)}
-            />
-          </CardContent>
-        </Card>
-      )}
-
       {/* Guests — entered once; every meal draws from this */}
       {editing && (
         <Card>
@@ -1133,6 +1115,26 @@ export default function QuoteDetailPage() {
           selectedDishIds={editing ? menuData.dish_ids : (q.dishes || [])}
           editing={editing}
         />
+      )}
+
+      {/* Timeline (editing) — below the meals: the run-of-show is built around the
+          meal times, so it reads after you've said what's being served (REL-430). */}
+      {editing && (
+        <Card>
+          <CardContent className="p-6">
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Timeline</h2>
+            <BookingTimelineField
+              eventDate={editData.event_date}
+              timeFormat={timeFormat}
+              value={{ setup_time: editData.setup_time, guest_arrival_time: editData.guest_arrival_time, meal_time: editData.meal_time, end_time: editData.end_time }}
+              onChange={(patch) => setEditData((prev) => ({ ...prev, ...patch }))}
+              entries={editTimeline}
+              onEntriesChange={setEditTimeline}
+              presets={timelinePresets}
+              meals={timelineMealRows(editMeals)}
+            />
+          </CardContent>
+        </Card>
       )}
 
       {/* Additional Items */}
