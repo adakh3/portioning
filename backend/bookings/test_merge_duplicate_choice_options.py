@@ -15,6 +15,7 @@ from decimal import Decimal
 from io import StringIO
 
 from django.core.management import call_command
+from django.core.management.base import CommandError
 from django.test import TestCase
 
 from bookings.models import Contact
@@ -56,6 +57,18 @@ class MergeDuplicateChoiceOptionsTests(TestCase):
             organisation=self.org, value='private_dinner', label='Private Dinner', sort_order=5)
 
         self.contact = Contact.objects.create(organisation=self.org, name='Client')
+
+        # The canonical rows come from the org-creation signal. Assert them, or a
+        # change to that seeding would make the merge tests pass VACUOUSLY —
+        # nothing to merge trivially satisfies every "left alone" assertion.
+        for model, value in (
+            (ServiceStyleOption, 'family'), (ServiceStyleOption, 'dropoff'),
+            (EventTypeOption, 'holiday_party'),
+        ):
+            self.assertTrue(
+                model.objects.filter(organisation=self.org, value=value).exists(),
+                f'fixture assumes the org signal seeds {value!r}',
+            )
 
     def _quote(self, **kw):
         return Quote.objects.create(
@@ -260,6 +273,73 @@ class MergeDuplicateChoiceOptionsTests(TestCase):
 
         out = run(apply=True)
 
-        self.assertIn('not a known pair', out)
+        # Once, not once per pair sharing that choice type.
+        self.assertEqual(out.count('not a known pair'), 1)
         self.assertTrue(
             ServiceStyleOption.objects.filter(organisation=self.org, value='buffet_style').exists())
+
+    # ── Rows already stranded before the merge ────────────────────────────────
+
+    def test_a_booking_on_a_deleted_option_is_reported_not_ignored(self):
+        # Reachable in prod today: the choice-option manage endpoints have no
+        # in-use guard, so an org can delete "Family Style" while bookings still
+        # point at it. There is no duplicate left for the merge to key off, so
+        # without an explicit report the run says "0 merged" and reads as clean.
+        ServiceStyleOption.objects.filter(
+            organisation=self.org, value__in=['family', 'family_style']).delete()
+        quote = self._quote(service_style='family_style')
+
+        out = run(apply=True)
+
+        self.assertIn('family_style', out)
+        self.assertIn('no option row', out)
+        quote.refresh_from_db()
+        self.assertEqual(quote.service_style, 'family_style', 'must report, not rewrite')
+
+    def test_a_clean_org_reports_nothing_stranded(self):
+        # The other direction: the warning must not cry wolf on healthy data.
+        self._quote(service_style='family_style', event_type='holiday')
+        out = run(apply=True)
+        self.assertNotIn('no option row', out)
+
+    def test_a_blank_choice_is_not_reported_as_stranded(self):
+        self._quote(service_style='', event_type='')
+        out = run(apply=True)
+        self.assertNotIn('no option row', out)
+
+    # ── Ambiguous --org ───────────────────────────────────────────────────────
+
+    def test_an_ambiguous_org_name_is_refused_rather_than_guessed(self):
+        # Organisation.name is not unique. Picking one silently would rewrite one
+        # org and quietly leave its namesake broken.
+        Organisation.objects.create(name='Legacy Co', slug='legacy-co-2')
+        with self.assertRaises(CommandError) as ctx:
+            run(apply=True, org='Legacy Co')
+        self.assertIn('Re-run with --org <id>', str(ctx.exception))
+
+    def test_an_ambiguous_name_can_still_be_resolved_by_id(self):
+        Organisation.objects.create(name='Legacy Co', slug='legacy-co-2')
+        run(apply=True, org=str(self.org.pk))
+        self.assertFalse(
+            ServiceStyleOption.objects.filter(organisation=self.org, value='family_style').exists())
+
+    # ── Staffing rules that collide after the merge ───────────────────────────
+
+    def test_it_warns_when_the_merge_collides_two_staffing_rules(self):
+        # AllocationRule has no uniqueness on (role, event_type), so a role with
+        # a rule under each slug ends up with two for the same event type.
+        role = LaborRole.objects.create(
+            organisation=self.org, name='Server', default_hourly_rate=Decimal('20'))
+        AllocationRule.objects.create(
+            organisation=self.org, role=role, guests_per_staff=30, event_type='holiday')
+        AllocationRule.objects.create(
+            organisation=self.org, role=role, guests_per_staff=50, event_type='holiday_party')
+
+        out = run(apply=True)
+
+        self.assertIn('staffing rules', out)
+        self.assertEqual(
+            AllocationRule.objects.filter(
+                organisation=self.org, role=role, event_type='holiday_party').count(),
+            2, 'rules must be reported, never silently merged — that would be guessing',
+        )

@@ -23,6 +23,7 @@ Dry run by default; nothing is written without `--apply`.
 """
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
+from django.db.models import Count
 
 from bookings.models.choices import EventTypeOption, ServiceStyleOption
 from bookings.models.leads import Lead
@@ -32,20 +33,33 @@ from staff.models import AllocationRule
 from users.models import Organisation
 
 
-# (legacy slug seeded by the old catalog, canonical slug owned by defaults.py).
-# Derived by diffing the two seeders at the commit that removed the overlap
-# (2a64e1e): these are every pair that shares a label but not a value. Options
-# only one seeder ever had ("Private Dinner", "Walk-in", "Hors d'oeuvres") are
-# NOT duplicates — they are real options an org may be using, and are untouched.
+# Which option table backs each slug column.
+CHOICE_MODELS = {
+    'service_style': ServiceStyleOption,
+    'event_type': EventTypeOption,
+}
+
+# (choice type, legacy slug seeded by the old catalog, canonical slug owned by
+# defaults.py). Derived by diffing the two seeders at the commit that removed the
+# overlap (2a64e1e): these are every pair that shares a label but not a value.
+# Options only one seeder ever had ("Private Dinner", "Walk-in", "Hors
+# d'oeuvres") are NOT duplicates — they are real options an org may be using, and
+# are untouched.
 DUPLICATE_PAIRS = [
-    ('service_style', ServiceStyleOption, 'family_style', 'family'),
-    ('service_style', ServiceStyleOption, 'drop_off', 'dropoff'),
-    ('event_type', EventTypeOption, 'holiday', 'holiday_party'),
+    ('service_style', 'family_style', 'family'),
+    ('service_style', 'drop_off', 'dropoff'),
+    ('event_type', 'holiday', 'holiday_party'),
 ]
 
-# Every column storing one of these slugs. A miss here would strand a booking on
-# a value whose option row has just been deleted, so this list is the crux of
-# the command — `event_type` also reaches the staffing rules, not just bookings.
+# Every *live* column storing one of these slugs. A miss here would strand a
+# booking on a value whose option row has just been deleted, so this list is the
+# crux of the command — `event_type` also reaches the staffing rules, not just
+# bookings.
+#
+# Deliberately excluded: `bookings.ActivityLog.old_value` / `new_value`, which
+# also hold these slugs (both fields are tracked — see `bookings/activity.py`).
+# That is an append-only record of what actually happened at the time, so
+# rewriting it would falsify history rather than repair data.
 REFERENCES = {
     'service_style': [
         (Quote, 'service_style'),
@@ -111,6 +125,7 @@ class Command(BaseCommand):
                 merged += org_merged
                 repointed += org_repointed
                 self._report_other_duplicates(org)
+                self._report_stranded(org)
             if not apply:
                 transaction.set_rollback(True)
 
@@ -123,7 +138,8 @@ class Command(BaseCommand):
 
     def _merge_org(self, org, apply):
         merged = repointed = 0
-        for choice_type, Model, legacy_value, canonical_value in DUPLICATE_PAIRS:
+        for choice_type, legacy_value, canonical_value in DUPLICATE_PAIRS:
+            Model = CHOICE_MODELS[choice_type]
             legacy = Model.objects.for_org(org).filter(value=legacy_value).first()
             canonical = Model.objects.for_org(org).filter(value=canonical_value).first()
 
@@ -163,10 +179,12 @@ class Command(BaseCommand):
                 if legacy.is_active and not canonical.is_active:
                     canonical.is_active = True
                 # Sit where the earlier of the two sat, so the surviving entry
-                # doesn't appear to jump position in the dropdown.
+                # doesn't appear to jump down the list. (Only affects service
+                # styles in practice — event types are listed by label.)
                 canonical.sort_order = min(legacy.sort_order, canonical.sort_order)
                 canonical.save(update_fields=["is_active", "sort_order"])
                 legacy.delete()
+                self._warn_duplicate_allocation_rules(org, choice_type, canonical_value)
 
             merged += 1
             detail = f" — repointed {', '.join(counts)}" if counts else " — no rows referenced it"
@@ -176,14 +194,34 @@ class Command(BaseCommand):
             )
         return merged, repointed
 
+    def _warn_duplicate_allocation_rules(self, org, choice_type, value):
+        """A merge can leave two staffing rules for the same role + event type.
+
+        `AllocationRule` has no uniqueness on (role, event_type), so an org with
+        a "Holiday Party" rule under each slug ends up with both pointing at the
+        same one. Merging them automatically would be guessing at staffing
+        numbers, so this only says so.
+        """
+        if choice_type != 'event_type':
+            return
+        dupes = (
+            AllocationRule.objects.for_org(org).filter(event_type=value)
+            .values('role_id', 'role__name').annotate(n=Count('id')).filter(n__gt=1)
+        )
+        for d in dupes:
+            self.stdout.write(self.style.WARNING(
+                f"    ! {d['role__name']!r} now has {d['n']} staffing rules for "
+                f"{value!r} — review them, they were separate before the merge"
+            ))
+
     def _report_other_duplicates(self, org):
         """Read-only warning about same-label duplicates outside the known pairs.
 
         Never merged automatically — an unknown pair could be two options an org
         meant to keep. Surfacing them is useful; guessing at them is not.
         """
-        known = {legacy for _, _, legacy, _ in DUPLICATE_PAIRS}
-        for choice_type, Model, _, _ in DUPLICATE_PAIRS:
+        known = {legacy for _, legacy, _ in DUPLICATE_PAIRS}
+        for choice_type, Model in CHOICE_MODELS.items():
             seen = {}
             for row in Model.objects.for_org(org):
                 if row.value in known:
@@ -196,10 +234,46 @@ class Command(BaseCommand):
                         f"{sorted(values)} — not a known pair, left alone"
                     ))
 
+    def _report_stranded(self, org):
+        """Rows pointing at a slug with no option row behind it.
+
+        Read-only, and the reason it exists: an org can delete a choice option
+        itself (the manage endpoints have no in-use guard), which strands every
+        booking already on it. Those rows are invisible to the merge — there is
+        no duplicate left to key off — so without this the command prints
+        nothing for that org and "0 merged" reads as "clean".
+
+        Not repaired automatically: the right target for an unrecognised slug is
+        a judgement call about that org's data, not something to guess at.
+        """
+        for choice_type, Model in CHOICE_MODELS.items():
+            known = set(Model.objects.for_org(org).values_list('value', flat=True))
+            for RefModel, field in REFERENCES[choice_type]:
+                stranded = (
+                    RefModel.objects.for_org(org)
+                    .exclude(**{field: ''}).exclude(**{f"{field}__in": known})
+                    .values(field).annotate(n=Count('id')).order_by(field)
+                )
+                for row in stranded:
+                    self.stdout.write(self.style.WARNING(
+                        f"  ! {RefModel.__name__}.{field}: {row['n']} row(s) still on "
+                        f"{row[field]!r}, which has no option row — left alone, needs a look"
+                    ))
+
     def _resolve_org(self, value):
         org = Organisation.objects.filter(pk=value).first() if value.isdigit() else None
-        if org is None:
-            org = Organisation.objects.filter(name=value).first()
-        if org is None:
+        if org is not None:
+            return org
+        # Organisation.name is NOT unique. Picking one silently would rewrite one
+        # org's data and quietly leave its namesake broken — refuse and let the
+        # caller name the id instead.
+        matches = list(Organisation.objects.filter(name=value).order_by('pk'))
+        if len(matches) > 1:
+            listed = ', '.join(f"{o.pk}={o.name!r}" for o in matches)
+            raise CommandError(
+                f"{len(matches)} organisations are named {value!r} ({listed}). "
+                f"Re-run with --org <id>."
+            )
+        if not matches:
             raise CommandError(f"No organisation matching {value!r}")
-        return org
+        return matches[0]
