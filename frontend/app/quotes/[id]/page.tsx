@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { api, Contact, EventMealData, CourseData, EntreeChoices } from "@/lib/api";
+import { api, Contact, EventMealData, CourseData, MenuChoices } from "@/lib/api";
 import { useQuote, useAccounts, useContacts, useSiteSettings, useDateFormat, useEventTypes, useServiceStyles, useMealTypes, useTimelinePresets, useAllLeads, useProductLines, useUsers, revalidate } from "@/lib/hooks";
 import { canWhatsApp, waLink } from "@/lib/whatsapp";
 import { MessageCircle } from "lucide-react";
@@ -13,6 +13,7 @@ import { formatCurrency, formatPercent } from "@/lib/utils";
 import MenuBuilder from "@/components/MenuBuilder";
 import AdditionalMealsEditor from "@/components/AdditionalMealsEditor";
 import CoursesEditor from "@/components/CoursesEditor";
+import MenuChoicesEditor from "@/components/MenuChoicesEditor";
 import GuestCountField, { GuestCountValue } from "@/components/GuestCountField";
 import BookingTimelineField, { TimelineEntryValue } from "@/components/BookingTimelineField";
 import BookingDetailsForm, { BookingDetailsValue } from "@/components/BookingDetailsForm";
@@ -156,10 +157,10 @@ export default function QuoteDetailPage() {
   const [editDishCourses, setEditDishCourses] = useState<Record<string, number>>({});
   const [createCourses, setCreateCourses] = useState<CourseData[]>([]);
   const [createDishCourses, setCreateDishCourses] = useState<Record<string, number>>({});
-  // Which dishes are offered as an entrée choice (REL-419). Counts stay null here —
+  // Which dishes are offered as a menu choice (REL-419). Counts stay null here —
   // the tallies arrive with the final guarantee, on the event.
-  const [editEntreeChoices, setEditEntreeChoices] = useState<EntreeChoices>({});
-  const [createEntreeChoices, setCreateEntreeChoices] = useState<EntreeChoices>({});
+  const [editMenuChoices, setEditMenuChoices] = useState<MenuChoices>({});
+  const [createMenuChoices, setCreateMenuChoices] = useState<MenuChoices>({});
   const [editTimeline, setEditTimeline] = useState<TimelineEntryValue[]>([]);
   const [createTimeline, setCreateTimeline] = useState<TimelineEntryValue[]>([]);
   // New-quote owner (existing quotes reassign via the header's instant-save select).
@@ -281,7 +282,7 @@ export default function QuoteDetailPage() {
         based_on_template: menuData.based_on_template,
         courses: createCourses,
         dish_courses: createDishCourses,
-        entree_choices: createEntreeChoices,
+        menu_choices: createMenuChoices,
         line_items: createLineItems,
         additional_meals: buildMealsPayload(createMeals, createData.guest_count, createData.segment_counts, segmentMeta),
         timeline_entries: buildTimelineEntriesPayload(createTimeline),
@@ -339,7 +340,7 @@ export default function QuoteDetailPage() {
     setEditMeals((quote.additional_meals || []).map((m) => ({ ...m })));
     setEditCourses(quote.courses || []);
     setEditDishCourses(quote.dish_courses || {});
-    setEditEntreeChoices(quote.entree_choices || {});
+    setEditMenuChoices(quote.menu_choices || {});
     setEditTimeline((quote.timeline_entries || []).map((e) => ({
       id: e.id, time: e.time.slice(0, 5), label: e.label, date: e.date || "",
     })));
@@ -377,7 +378,7 @@ export default function QuoteDetailPage() {
     setSaving(true);
     setError("");
     try {
-      await api.updateQuote(quote.id, buildQuoteSavePayload(editData, menuData, editLineItems, editMeals, segmentMeta, editTimeline, editCourses, editDishCourses, editEntreeChoices));
+      await api.updateQuote(quote.id, buildQuoteSavePayload(editData, menuData, editLineItems, editMeals, segmentMeta, editTimeline, editCourses, editDishCourses, editMenuChoices));
       await mutateQuote();
       setEditing(false);
     } catch (err) {
@@ -589,16 +590,22 @@ export default function QuoteDetailPage() {
           <CoursesEditor
             courses={createCourses}
             dishCourses={createDishCourses}
-            entreeChoices={createEntreeChoices}
-            plated={createData.service_style === "plated"}
-            onChange={({ courses, dishCourses, entreeChoices }) => {
-              setCreateCourses(courses);
-              setCreateDishCourses(dishCourses);
-              setCreateEntreeChoices(entreeChoices);
-            }}
+            onChange={({ courses, dishCourses }) => { setCreateCourses(courses); setCreateDishCourses(dishCourses); }}
             selectedDishIds={menuData.dish_ids}
             editing
           />
+
+          {/* Menu choices — plated only: what the guest gets to pick between. */}
+          {createData.service_style === "plated" && (
+            <MenuChoicesEditor
+              courses={createCourses}
+              dishCourses={createDishCourses}
+              menuChoices={createMenuChoices}
+              onChange={setCreateMenuChoices}
+              selectedDishIds={menuData.dish_ids}
+              editing
+            />
+          )}
 
           {/* Additional Items */}
           <Card>
@@ -1137,17 +1144,24 @@ export default function QuoteDetailPage() {
       )}
 
       {/* Courses — groups the main menu */}
-      {(editing || (q.courses || []).length > 0 || Object.keys(q.entree_choices || {}).length > 0) && (
+      {(editing || (q.courses || []).length > 0) && (
         <CoursesEditor
           courses={editing ? editCourses : (q.courses || [])}
           dishCourses={editing ? editDishCourses : (q.dish_courses || {})}
-          entreeChoices={editing ? editEntreeChoices : (q.entree_choices || {})}
-          plated={(editing ? editData.service_style : q.service_style) === "plated"}
-          onChange={({ courses, dishCourses, entreeChoices }) => {
-            setEditCourses(courses);
-            setEditDishCourses(dishCourses);
-            setEditEntreeChoices(entreeChoices);
-          }}
+          onChange={({ courses, dishCourses }) => { setEditCourses(courses); setEditDishCourses(dishCourses); }}
+          selectedDishIds={editing ? menuData.dish_ids : (q.dishes || [])}
+          editing={editing}
+        />
+      )}
+
+      {/* Menu choices — plated only: what the guest gets to pick between. */}
+      {(editing ? editData.service_style : q.service_style) === "plated"
+        && (editing || Object.keys(q.menu_choices || {}).length > 0) && (
+        <MenuChoicesEditor
+          courses={editing ? editCourses : (q.courses || [])}
+          dishCourses={editing ? editDishCourses : (q.dish_courses || {})}
+          menuChoices={editing ? editMenuChoices : (q.menu_choices || {})}
+          onChange={setEditMenuChoices}
           selectedDishIds={editing ? menuData.dish_ids : (q.dishes || [])}
           editing={editing}
         />

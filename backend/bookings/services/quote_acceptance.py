@@ -111,7 +111,7 @@ def accept_quote(quote, user=None):
     # after the portion rows exist so write_booking_courses upserts course onto them.
     from bookings.serializers.courses import read_courses, read_dish_courses
     from events.models import (
-        write_booking_courses, read_entree_choices, write_entree_choices,
+        write_booking_courses, read_menu_choices, write_menu_choices,
     )
     course_data = read_courses(quote)
     if course_data:
@@ -121,9 +121,9 @@ def accept_quote(quote, user=None):
     # themselves arrive later, at finals — but the offering is a proposal-time decision
     # the client already agreed to, so losing it here would silently drop the plated
     # menu the event was sold on.
-    offered = read_entree_choices(quote)
+    offered = read_menu_choices(quote)
     if offered:
-        write_entree_choices(event, offered)
+        write_menu_choices(event, offered)
 
     # Carry the add-on line items, additional meals and timeline across, then
     # recompute via the shared engine so the event total matches the quote

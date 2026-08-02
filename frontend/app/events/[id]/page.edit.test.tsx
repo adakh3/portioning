@@ -54,9 +54,9 @@ const existingEvent = {
   dishes: [11, 12, 13], dish_comments: [], line_items: [], additional_meals: [],
   courses: [{ name: "Starter", sort_order: 0 }, { name: "Main", sort_order: 1 }],
   dish_courses: { "11": 0, "12": 1 },
-  // Plated, with two offered entrée choices — one already tallied by the finals
+  // Plated, with two offered menu choices — one already tallied by the finals
   // panel. The ON state: an empty map would pass even if the save dropped them.
-  entree_choices: { "12": 90, "13": null },
+  menu_choices: { "12": 90, "13": null },
   finals_status: null,
   based_on_template: 4, constraint_override: null,
   shifts: [], equipment_reservations: [], invoices: [], payments: [],
@@ -119,11 +119,11 @@ describe("Event edit — saving the form must not destroy what it never edited",
     expect(payload.dish_courses).toEqual({ "11": 0, "12": 1 });
   });
 
-  it("keeps the offered entrée choices AND the tallies the finals panel recorded", async () => {  // REL-419
+  it("keeps the offered menu choices AND the tallies the finals panel recorded", async () => {  // REL-419
     const payload = await editAndSave();
     // Dropping the counts here would wipe a recorded final breakdown on every
     // ordinary edit of the event form.
-    expect(payload.entree_choices).toEqual({ "12": 90, "13": null });
+    expect(payload.menu_choices).toEqual({ "12": 90, "13": null });
   });
 
   it("marking another dish as an entrée choice keeps the existing tally intact", async () => {  // REL-419
@@ -133,7 +133,7 @@ describe("Event edit — saving the form must not destroy what it never edited",
     fireEvent.click(await screen.findByText("Save"));
     await waitFor(() => expect(h.updateEvent).toHaveBeenCalledTimes(1));
     const payload = h.updateEvent.mock.calls[0][1] as Record<string, unknown>;
-    expect(payload.entree_choices).toEqual({ "11": null, "12": 90, "13": null });
+    expect(payload.menu_choices).toEqual({ "11": null, "12": 90, "13": null });
   });
 
   it("offers the dish→course dropdowns, which need the booking's dishes in edit mode", async () => {

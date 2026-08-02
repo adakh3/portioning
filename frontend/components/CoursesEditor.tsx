@@ -1,6 +1,6 @@
 "use client";
 
-import { CourseData, EntreeChoices } from "@/lib/api";
+import { CourseData } from "@/lib/api";
 import { useDishes } from "@/lib/hooks";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -9,58 +9,29 @@ import { Card, CardContent } from "@/components/ui/card";
  * (REL-417). Courses are grouping only — service style is booking-level, not
  * per-course. Shared by the quote and event editors. Controlled: the page holds
  * `courses` + `dishCourses` ({dishId -> course index}) and this component keeps the
- * index references consistent when courses are reordered or removed.
- *
- * On a PLATED booking it also marks which dishes are offered as an entrée choice
- * (REL-419) — a proposal-time decision, priced per head whoever picks what. The
- * tallies are not entered here and nothing is validated: those arrive weeks later
- * with the final guarantee, in the event's "Record final numbers" panel. */
+ * index references consistent when courses are reordered or removed. */
 export default function CoursesEditor({
   courses,
   dishCourses,
-  entreeChoices,
-  plated = false,
   onChange,
   selectedDishIds,
   editing,
 }: {
   courses: CourseData[];
   dishCourses: Record<string, number>;
-  entreeChoices?: EntreeChoices;
-  /** Booking-level service style is plated — only then are entrée choices offered. */
-  plated?: boolean;
-  onChange: (v: {
-    courses: CourseData[];
-    dishCourses: Record<string, number>;
-    entreeChoices: EntreeChoices;
-  }) => void;
+  onChange: (v: { courses: CourseData[]; dishCourses: Record<string, number> }) => void;
   selectedDishIds: number[];
   editing: boolean;
 }) {
   const { data: dishes = [] } = useDishes();
   const nameById: Record<number, string> = Object.fromEntries(dishes.map((d) => [d.id, d.name]));
-  const choices: EntreeChoices = entreeChoices || {};
 
   // Always emit courses with sort_order == array position (0..n-1).
-  const emit = (
-    nextCourses: CourseData[],
-    nextDishCourses: Record<string, number>,
-    nextChoices: EntreeChoices = choices,
-  ) =>
+  const emit = (nextCourses: CourseData[], nextDishCourses: Record<string, number>) =>
     onChange({
       courses: nextCourses.map((c, i) => ({ ...c, sort_order: i })),
       dishCourses: nextDishCourses,
-      entreeChoices: nextChoices,
     });
-
-  const toggleChoice = (dishId: number, offered: boolean) => {
-    const next = { ...choices };
-    // Keep any tally already recorded against the dish; un-offering drops the row
-    // entirely, which is what clears the flag and its count on save.
-    if (offered) next[dishId] = next[dishId] ?? null;
-    else delete next[dishId];
-    emit(courses, dishCourses, next);
-  };
 
   const addCourse = () =>
     emit([...courses, { name: "", sort_order: courses.length }], dishCourses);
@@ -136,9 +107,7 @@ export default function CoursesEditor({
                   {(() => {
                     const dishesHere = assignableDishes.filter((id) => dishCourses[id] === idx);
                     return dishesHere.length > 0 ? (
-                      <span className="text-muted-foreground">
-                        : {dishesHere.map((id) => `${nameById[id]}${choices[id] !== undefined ? " (choice)" : ""}`).join(", ")}
-                      </span>
+                      <span className="text-muted-foreground">: {dishesHere.map((id) => nameById[id]).join(", ")}</span>
                     ) : null;
                   })()}
                 </div>
@@ -147,63 +116,27 @@ export default function CoursesEditor({
           </div>
         )}
 
-        {/* Choices with no courses still need a read-only home — otherwise marking
-            them and saving would look like nothing happened. */}
-        {!editing && courses.length === 0 && assignableDishes.some((id) => choices[id] !== undefined) && (
-          <p className="mt-2 text-sm">
-            <span className="font-medium">Entrée choices: </span>
-            <span className="text-muted-foreground">
-              {assignableDishes.filter((id) => choices[id] !== undefined).map((id) => nameById[id]).join(", ")}
-            </span>
-          </p>
-        )}
-
-        {/* Per-dish row: the course picker, and on a plated booking the
-            "offered as a choice" flag. Shown as soon as EITHER has something to
-            offer, so choices can be marked before any course exists. */}
-        {editing && assignableDishes.length > 0 && (courses.length > 0 || plated) && (
+        {editing && courses.length > 0 && assignableDishes.length > 0 && (
           <div className="mt-4 border-t border-border pt-3">
-            <label className="block text-sm font-medium text-foreground mb-2">
-              {courses.length > 0 ? "Assign dishes" : "Dishes"}
-            </label>
+            <label className="block text-sm font-medium text-foreground mb-2">Assign dishes</label>
             <div className="space-y-1.5">
               {assignableDishes.map((id) => (
                 <div key={id} className="flex items-center gap-2">
                   <span className="text-sm flex-1">{nameById[id]}</span>
-                  {plated && (
-                    <label className="flex items-center gap-1.5 text-xs text-muted-foreground whitespace-nowrap">
-                      <input
-                        type="checkbox"
-                        aria-label={`Offer ${nameById[id]} as a choice`}
-                        checked={choices[id] !== undefined}
-                        onChange={(e) => toggleChoice(id, e.target.checked)}
-                        className="h-4 w-4 rounded border-input"
-                      />
-                      Offered as a choice
-                    </label>
-                  )}
-                  {courses.length > 0 && (
-                    <select
-                      aria-label={`Course for ${nameById[id]}`}
-                      value={dishCourses[id] ?? ""}
-                      onChange={(e) => assign(id, e.target.value)}
-                      className="flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                    >
-                      <option value="">Unassigned</option>
-                      {courses.map((c, i) => (
-                        <option key={i} value={i}>{c.name || `Course ${i + 1}`}</option>
-                      ))}
-                    </select>
-                  )}
+                  <select
+                    aria-label={`Course for ${nameById[id]}`}
+                    value={dishCourses[id] ?? ""}
+                    onChange={(e) => assign(id, e.target.value)}
+                    className="flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  >
+                    <option value="">Unassigned</option>
+                    {courses.map((c, i) => (
+                      <option key={i} value={i}>{c.name || `Course ${i + 1}`}</option>
+                    ))}
+                  </select>
                 </div>
               ))}
             </div>
-            {plated && (
-              <p className="mt-2 text-xs text-muted-foreground">
-                Entrée choices are priced per head whoever picks what. The tallies arrive
-                with the final guarantee — record them on the event, not here.
-              </p>
-            )}
           </div>
         )}
       </CardContent>

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 
-// REL-419 AC1/AC2/AC8 — entrée choices are marked on the REAL quote page and must
+// REL-419 AC1/AC2/AC8 — menu choices are marked on the REAL quote page and must
 // reach the save payload. The proposal surface must never ask for a count or a sum:
 // the tallies arrive weeks later with the final guarantee, on the event.
 const h = vi.hoisted(() => ({
@@ -20,7 +20,7 @@ const h = vi.hoisted(() => ({
     dishes: [11, 12, 13], based_on_template: null,
     courses: [{ name: "Entrée", sort_order: 0 }],
     dish_courses: { "11": 0, "12": 0 },
-    entree_choices: {},
+    menu_choices: {},
     line_items: [], additional_meals: [], timeline_entries: [],
     subtotal: "5000.00", tax_amount: "1000.00", total: "6000.00",
     food_total: "5000.00", is_editable: true, event_id: null,
@@ -77,11 +77,11 @@ async function saveAfter(drive: () => void | Promise<void>) {
   return h.updateQuote.mock.calls[0][1] as Record<string, unknown>;
 }
 
-describe("Quote — offering entrée choices at proposal", () => {
+describe("Quote — offering menu choices at proposal", () => {
   beforeEach(() => {
     h.updateQuote.mockClear();
     h.quote.service_style = "plated";
-    h.quote.entree_choices = {};
+    h.quote.menu_choices = {};
   });
 
   it("sends two offered dishes with null counts, and nothing else changes", async () => {  // AC1, AC2
@@ -89,7 +89,7 @@ describe("Quote — offering entrée choices at proposal", () => {
       fireEvent.click(await screen.findByLabelText("Offer Beef as a choice"));
       fireEvent.click(await screen.findByLabelText("Offer Salmon as a choice"));
     });
-    expect(payload.entree_choices).toEqual({ "11": null, "12": null });
+    expect(payload.menu_choices).toEqual({ "11": null, "12": null });
     // The offering is orthogonal to price and to courses.
     expect(payload.price_per_head).toBe("50.00");
     expect(payload.dish_courses).toEqual({ "11": 0, "12": 0 });
@@ -107,18 +107,18 @@ describe("Quote — offering entrée choices at proposal", () => {
   });
 
   it("keeps already-offered choices on a save that never touched them", async () => {
-    h.quote.entree_choices = { "11": null, "12": null };
+    h.quote.menu_choices = { "11": null, "12": null };
     const payload = await saveAfter(() => {});
-    expect(payload.entree_choices).toEqual({ "11": null, "12": null });
+    expect(payload.menu_choices).toEqual({ "11": null, "12": null });
   });
 
   it("un-ticking the last offering clears it on the server", async () => {
-    h.quote.entree_choices = { "11": null };
+    h.quote.menu_choices = { "11": null };
     const payload = await saveAfter(async () => {
       fireEvent.click(await screen.findByLabelText("Offer Beef as a choice"));
     });
     // Sent as an explicit empty map — omitting the key would leave the flag set.
-    expect(payload.entree_choices).toEqual({});
+    expect(payload.menu_choices).toEqual({});
   });
 
   it("offers no choice checkbox when the service style is not plated", async () => {  // AC1

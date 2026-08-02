@@ -2,7 +2,7 @@
 // previewed live while editing, and so the whole quote saves in one PATCH.
 // The server (bookings/models/quotes.py: recalculate_totals + QuoteLineItem.save)
 // remains the source of truth on save.
-import { EventMealData, CourseData, EntreeChoices } from "@/lib/api";
+import { EventMealData, CourseData, MenuChoices } from "@/lib/api";
 import type { TimelineEntryValue } from "@/components/BookingTimelineField";
 import { formatCurrency } from "@/lib/utils";
 
@@ -530,7 +530,7 @@ export function buildQuoteSavePayload(
   timelineEntries: TimelineEntryValue[] = [],
   courses: CourseData[] = [],
   dishCourses: Record<string, number> = {},
-  entreeChoices: EntreeChoices = {},
+  menuChoices: MenuChoices = {},
 ) {
   return {
     primary_contact: editData.primary_contact ? Number(editData.primary_contact) : null,
@@ -566,7 +566,7 @@ export function buildQuoteSavePayload(
     dish_courses: dishCourses,
     // Which dishes are offered as an entrée choice (REL-419). Always sent so
     // un-ticking the last one clears it; the counts stay null until finals.
-    entree_choices: entreeChoices,
+    menu_choices: menuChoices,
     line_items: buildLineItemsPayload(lineItems),
     additional_meals: buildMealsPayload(meals, editData.guest_count, editData.segment_counts, segmentMeta),
     timeline_entries: buildTimelineEntriesPayload(timelineEntries),
@@ -619,7 +619,7 @@ export function buildEventSavePayload(
   segmentMeta: GuestSegmentMeta[] = [],
   courses: CourseData[] = [],
   dishCourses: Record<string, number> = {},
-  entreeChoices: EntreeChoices = {},
+  menuChoices: MenuChoices = {},
 ) {
   return {
     name: v.name,
@@ -630,7 +630,7 @@ export function buildEventSavePayload(
     // owns the tallies, but they ride along here UNCHANGED — the map is authoritative
     // server-side, so dropping them from an ordinary event save would wipe recorded
     // finals. The editor never edits a count, only which dishes are offered.
-    entree_choices: entreeChoices,
+    menu_choices: menuChoices,
     is_b2b: v.is_b2b,
     account: v.is_b2b ? v.account : null,
     primary_contact: v.primary_contact,

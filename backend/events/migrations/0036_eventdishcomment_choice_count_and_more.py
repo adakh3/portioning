@@ -17,7 +17,7 @@ class Migration(migrations.Migration):
         ),
         migrations.AddField(
             model_name='eventdishcomment',
-            name='is_entree_choice',
+            name='is_choice',
             field=models.BooleanField(default=False),
         ),
         migrations.AddField(
@@ -27,7 +27,7 @@ class Migration(migrations.Migration):
         ),
         migrations.AddField(
             model_name='quotedishcomment',
-            name='is_entree_choice',
+            name='is_choice',
             field=models.BooleanField(default=False),
         ),
     ]

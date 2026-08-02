@@ -168,7 +168,7 @@ export interface CourseData {
 
 /** Which dishes are offered as an entrée choice (REL-419), `{dish_id: tally}`. The
  * tally is null until the finals arrive — on a quote it is always null. */
-export type EntreeChoices = Record<string, number | null>;
+export type MenuChoices = Record<string, number | null>;
 
 /** Derived finals state of a confirmed event (REL-419) — never a stored column.
  * `null` when there is nothing to chase (unconfirmed, or no due date set). */
@@ -496,7 +496,7 @@ export interface Quote {
   dish_names: string[];
   courses: CourseData[];
   dish_courses: Record<string, number>;
-  entree_choices: EntreeChoices;
+  menu_choices: MenuChoices;
   based_on_template: number | null;
   notes: string;
   internal_notes: string;
@@ -779,7 +779,7 @@ export interface EventData {
   dishes: number[];
   courses: CourseData[];
   dish_courses: Record<string, number>;
-  entree_choices: EntreeChoices;
+  menu_choices: MenuChoices;
   based_on_template: number | null;
   notes: string;
   kitchen_instructions: string;
@@ -1418,7 +1418,7 @@ export const api = {
       final_count: number;
       final_count_due?: string | null;
       guaranteed_count?: number | null;
-      entree_counts?: Record<string, number>;
+      choice_counts?: Record<string, number>;
     },
   ) =>
     fetchApi<EventData>(`/events/${id}/finals/`, {

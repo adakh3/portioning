@@ -1,4 +1,7 @@
-import { entreeTallyError, entreeTallyTotal, finalsPill, offeredEntreeIds } from "./finals";
+import {
+  choiceTallyError, choiceTallyTotal, finalsPill, groupChoicesByCourse, offeredChoiceIds,
+} from "./finals";
+import type { CourseData } from "@/lib/api";
 
 describe("finalsPill", () => {
   it("is amber as the due date approaches", () => {  // AC4
@@ -22,67 +25,111 @@ describe("finalsPill", () => {
   });
 });
 
-describe("entreeTallyTotal", () => {
-  it("adds the entered tallies", () => {
-    expect(entreeTallyTotal({ "1": "90", "2": "60" })).toBe(150);
-  });
-
-  it("treats blank and junk as zero", () => {
-    expect(entreeTallyTotal({ "1": "90", "2": "", "3": "abc" })).toBe(90);
-  });
-});
-
-describe("entreeTallyError", () => {
-  it("passes when the tallies hit the guarantee", () => {  // AC7
-    expect(entreeTallyError({ "1": "90", "2": "60" }, 150)).toBeNull();
-  });
-
-  it("blocks when they undershoot", () => {  // AC7
-    expect(entreeTallyError({ "1": "90", "2": "55" }, 150)).toMatch(/add up to the final guarantee \(150\)/);
-    expect(entreeTallyError({ "1": "90", "2": "55" }, 150)).toMatch(/currently total 145/);
-  });
-
-  it("blocks when they overshoot", () => {  // AC7
-    expect(entreeTallyError({ "1": "100", "2": "60" }, 150)).toMatch(/currently total 160/);
-  });
-
-  it("blocks while a tally is still blank", () => {  // AC7
-    expect(entreeTallyError({ "1": "150", "2": "" }, 150)).toBeNull();
-    expect(entreeTallyError({ "1": "140", "2": "" }, 150)).not.toBeNull();
-  });
-
-  it("says nothing when no guarantee has been typed yet", () => {
-    expect(entreeTallyError({ "1": "90" }, null)).toBeNull();
-  });
-});
-
-describe("offeredEntreeIds", () => {
+describe("offeredChoiceIds", () => {
   it("returns the offered dish ids in a stable order", () => {
-    expect(offeredEntreeIds({ "12": null, "3": 40 })).toEqual([3, 12]);
+    expect(offeredChoiceIds({ "12": null, "3": 40 })).toEqual([3, 12]);
   });
 
   it("is empty when nothing is offered", () => {
-    expect(offeredEntreeIds(undefined)).toEqual([]);
-    expect(offeredEntreeIds({})).toEqual([]);
+    expect(offeredChoiceIds(undefined)).toEqual([]);
+    expect(offeredChoiceIds({})).toEqual([]);
   });
 });
 
-describe("scoping the sum to what is actually offered", () => {
-  // A dish un-offered while the panel is open must drop out of the running total,
-  // or the panel green-lights a save the backend then rejects.
-  it("ignores a tally for a dish that is no longer offered", () => {
-    expect(entreeTallyTotal({ "1": "30", "2": "20" }, [1])).toBe(30);
-    expect(entreeTallyError({ "1": "30", "2": "20" }, 50, [1])).toMatch(/currently total 30/);
+// A choice belongs to a course, and every guest picks one dish per course that offers
+// one — so each course is validated on its own. Mirrors `choice_groups` on the
+// backend; if these two ever disagree the panel green-lights a rejected save.
+const COURSES: CourseData[] = [
+  { name: "Entrée", sort_order: 0 },
+  { name: "Dessert", sort_order: 1 },
+];
+// Beef + Salmon are the entrée; Brownie + Cake the dessert.
+const DISH_COURSES = { "1": 0, "2": 0, "3": 1, "4": 1 };
+
+describe("groupChoicesByCourse", () => {
+  it("groups the offered dishes under their course, in course order", () => {
+    const groups = groupChoicesByCourse(
+      { "1": null, "2": null, "3": null, "4": null }, COURSES, DISH_COURSES,
+    );
+    expect(groups).toEqual([
+      { courseName: "Entrée", dishIds: [1, 2] },
+      { courseName: "Dessert", dishIds: [3, 4] },
+    ]);
   });
 
-  it("counts a newly offered dish as zero until it is filled in", () => {
-    // Zero is a legitimate tally — nobody picked it — so 50 + 0 still adds up…
-    expect(entreeTallyError({ "1": "50" }, 50, [1, 2])).toBeNull();
-    // …but the blank dish can't paper over a breakdown that falls short.
-    expect(entreeTallyError({ "1": "30" }, 50, [1, 2])).toMatch(/currently total 30/);
+  it("only includes courses that actually offer a choice", () => {
+    const groups = groupChoicesByCourse({ "1": null, "2": null }, COURSES, DISH_COURSES);
+    expect(groups).toEqual([{ courseName: "Entrée", dishIds: [1, 2] }]);
   });
 
-  it("rejects a negative tally outright", () => {
-    expect(entreeTallyError({ "1": "60", "2": "-10" }, 50, [1, 2])).toMatch(/cannot be negative/);
+  it("puts course-less choices in one trailing unnamed group", () => {
+    const groups = groupChoicesByCourse({ "1": null, "9": null }, COURSES, DISH_COURSES);
+    expect(groups).toEqual([
+      { courseName: "Entrée", dishIds: [1] },
+      { courseName: null, dishIds: [9] },
+    ]);
+  });
+
+  it("is one unnamed group when the booking has no courses at all", () => {
+    expect(groupChoicesByCourse({ "1": null, "2": null }, [], {})).toEqual([
+      { courseName: null, dishIds: [1, 2] },
+    ]);
+  });
+
+  it("is empty when nothing is offered", () => {
+    expect(groupChoicesByCourse({}, COURSES, DISH_COURSES)).toEqual([]);
+  });
+});
+
+describe("choiceTallyTotal", () => {
+  it("sums only the dishes in that group", () => {
+    expect(choiceTallyTotal({ "1": "90", "2": "60", "3": "150" }, [1, 2])).toBe(150);
+  });
+
+  it("treats blank and junk as zero", () => {
+    expect(choiceTallyTotal({ "1": "90", "2": "", "3": "abc" }, [1, 2, 3])).toBe(90);
+  });
+});
+
+describe("choiceTallyError", () => {
+  const entree = { courseName: "Entrée", dishIds: [1, 2] };
+
+  it("passes when the group hits the guarantee", () => {  // AC7
+    expect(choiceTallyError({ "1": "90", "2": "60" }, 150, entree)).toBeNull();
+  });
+
+  it("names the course when the group undershoots", () => {  // AC7
+    const msg = choiceTallyError({ "1": "90", "2": "55" }, 150, entree);
+    expect(msg).toMatch(/^Entrée choices must add up to the final guarantee \(150\)/);
+    expect(msg).toMatch(/currently total 145/);
+  });
+
+  it("names the course when the group overshoots", () => {
+    expect(choiceTallyError({ "1": "100", "2": "60" }, 150, entree)).toMatch(/currently total 160/);
+  });
+
+  it("ignores tallies belonging to another course", () => {
+    // A choice of main AND of dessert for 150 guests is 300 tallies in total —
+    // summing across groups would make a correct breakdown impossible to save.
+    expect(choiceTallyError({ "1": "90", "2": "60", "3": "150" }, 150, entree)).toBeNull();
+  });
+
+  it("blocks a group left entirely blank", () => {
+    // Ticking a dish as offered is a commitment to collecting its numbers.
+    const dessert = { courseName: "Dessert", dishIds: [3, 4] };
+    expect(choiceTallyError({ "1": "90", "2": "60" }, 150, dessert)).toMatch(/currently total 0/);
+  });
+
+  it("falls back to a generic label with no course", () => {
+    expect(choiceTallyError({ "1": "10" }, 150, { courseName: null, dishIds: [1] }))
+      .toMatch(/^Menu choices must add up/);
+  });
+
+  it("refuses a negative tally that would otherwise 'add up'", () => {
+    expect(choiceTallyError({ "1": "160", "2": "-10" }, 150, entree)).toMatch(/cannot be negative/);
+  });
+
+  it("says nothing when no guarantee has been typed yet", () => {
+    expect(choiceTallyError({ "1": "90" }, null, entree)).toBeNull();
   });
 });

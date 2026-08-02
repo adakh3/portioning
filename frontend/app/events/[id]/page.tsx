@@ -8,7 +8,7 @@ import {
   EventData,
   EventMealData,
   CourseData,
-  EntreeChoices,
+  MenuChoices,
   Contact,
 } from "@/lib/api";
 import {
@@ -36,6 +36,7 @@ import AddOnItemsEditor from "@/components/AddOnItemsEditor";
 import MenuBuilder from "@/components/MenuBuilder";
 import AdditionalMealsEditor from "@/components/AdditionalMealsEditor";
 import CoursesEditor from "@/components/CoursesEditor";
+import MenuChoicesEditor from "@/components/MenuChoicesEditor";
 import FinalNumbersPanel from "@/components/FinalNumbersPanel";
 import FinalsPill from "@/components/FinalsPill";
 import GuestCountField, { GuestCountValue } from "@/components/GuestCountField";
@@ -134,7 +135,7 @@ export default function EventDetailPage() {
   // Offered entrée choices + any tallies already recorded (REL-419). Hydrated from
   // the event and echoed back on save so the finals panel's numbers survive an
   // ordinary edit of the menu.
-  const [formEntreeChoices, setFormEntreeChoices] = useState<EntreeChoices>({});
+  const [formMenuChoices, setFormMenuChoices] = useState<MenuChoices>({});
 
 
   // Form fields (used in edit mode)
@@ -269,7 +270,7 @@ export default function EventDetailPage() {
     setFormAdditionalMeals(data.additional_meals || []);
     setFormCourses(data.courses || []);
     setFormDishCourses(data.dish_courses || {});
-    setFormEntreeChoices(data.entree_choices || {});
+    setFormMenuChoices(data.menu_choices || {});
     // The save payload always sends `dish_ids: menuData.dish_ids`, and the edit-mode
     // MenuBuilder instant-saves via onSave rather than onChange — so without this the
     // menu state stayed [] for an existing event and saving the form WIPED its menu
@@ -361,7 +362,7 @@ export default function EventDetailPage() {
       line_items: formLineItems,
       meals: formAdditionalMeals,
       timeline_entries: formTimeline,
-    }, segmentMeta, formCourses, formDishCourses, formEntreeChoices);
+    }, segmentMeta, formCourses, formDishCourses, formMenuChoices);
     try {
       if (isNew) {
         const created = await api.createEvent({ ...payload, status: formStatus, assigned_to: formAssigned });
@@ -941,17 +942,24 @@ export default function EventDetailPage() {
       </Card>
 
       {/* Courses (Starter/Entrée/Dessert + service style) — groups the main menu */}
-      {(editing || formCourses.length > 0 || Object.keys(formEntreeChoices).length > 0) && (
+      {(editing || formCourses.length > 0) && (
         <CoursesEditor
           courses={formCourses}
           dishCourses={formDishCourses}
-          entreeChoices={formEntreeChoices}
-          plated={formServiceStyle === "plated"}
-          onChange={({ courses, dishCourses, entreeChoices }) => {
-            setFormCourses(courses);
-            setFormDishCourses(dishCourses);
-            setFormEntreeChoices(entreeChoices);
-          }}
+          onChange={({ courses, dishCourses }) => { setFormCourses(courses); setFormDishCourses(dishCourses); }}
+          selectedDishIds={editing ? menuData.dish_ids : (event?.dishes || [])}
+          editing={editing}
+        />
+      )}
+
+      {/* Menu choices — plated only: what the guest gets to pick between. */}
+      {formServiceStyle === "plated"
+        && (editing || Object.keys(formMenuChoices).length > 0) && (
+        <MenuChoicesEditor
+          courses={formCourses}
+          dishCourses={formDishCourses}
+          menuChoices={formMenuChoices}
+          onChange={setFormMenuChoices}
           selectedDishIds={editing ? menuData.dish_ids : (event?.dishes || [])}
           editing={editing}
         />

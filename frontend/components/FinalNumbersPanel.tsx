@@ -3,7 +3,9 @@
 import { useEffect, useState } from "react";
 import { api, EventData } from "@/lib/api";
 import { useDishes } from "@/lib/hooks";
-import { entreeTallyError, entreeTallyTotal, offeredEntreeIds } from "@/lib/finals";
+import {
+  ChoiceGroup, choiceTallyError, choiceTallyTotal, groupChoicesByCourse, offeredChoiceIds,
+} from "@/lib/finals";
 import { formatDate } from "@/lib/dateFormat";
 import FinalsPill from "@/components/FinalsPill";
 import { Button } from "@/components/ui/button";
@@ -11,10 +13,14 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 
 /** "Record final numbers" (REL-419) — where the final guarantee, its due date and
- * the per-entrée tallies are entered together and saved once. This is the only place
+ * the per-dish tallies are entered together and saved once. This is the only place
  * the tallies are checked against the guarantee: at proposal time an offering has no
  * count and nothing to add up. The numbers are kitchen numbers — recording them
- * never moves the price, which is per head regardless of who picks what. */
+ * never moves the price, which is per head regardless of who picks what.
+ *
+ * Tallies are grouped and validated PER COURSE: every guest picks one dish from each
+ * course that offers a choice, so a choice of main and a choice of dessert each add
+ * up to the guarantee on their own. */
 export default function FinalNumbersPanel({
   event,
   dateFormat,
@@ -26,7 +32,10 @@ export default function FinalNumbersPanel({
 }) {
   const { data: dishes = [] } = useDishes();
   const nameById: Record<number, string> = Object.fromEntries(dishes.map((d) => [d.id, d.name]));
-  const offeredIds = offeredEntreeIds(event.entree_choices);
+  const groups: ChoiceGroup[] = groupChoicesByCourse(
+    event.menu_choices, event.courses || [], event.dish_courses || {},
+  );
+  const offeredIds = offeredChoiceIds(event.menu_choices);  // the save payload
 
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -43,7 +52,7 @@ export default function FinalNumbersPanel({
   // Re-seed the tallies whenever the offered set or the stored counts change — the
   // panel outlives an edit of the menu above it, and state seeded once at mount
   // would keep showing (and summing) a dish that is no longer offered.
-  const choicesKey = JSON.stringify(event.entree_choices || {});
+  const choicesKey = JSON.stringify(event.menu_choices || {});
   useEffect(() => {
     const stored: Record<string, number | null> = JSON.parse(choicesKey);
     setCounts((prev) =>
@@ -58,10 +67,9 @@ export default function FinalNumbersPanel({
   }, [choicesKey]);
 
   const guarantee = finalCount.trim() === "" ? null : parseInt(finalCount, 10);
-  // Only a plated booking with offered choices has anything to add up.
-  const tallyError =
-    offeredIds.length > 0 ? entreeTallyError(counts, guarantee, offeredIds) : null;
-  const blocked = guarantee === null || Number.isNaN(guarantee) || tallyError !== null;
+  const groupErrors = groups.map((g) => choiceTallyError(counts, guarantee, g));
+  const blocked =
+    guarantee === null || Number.isNaN(guarantee) || groupErrors.some((e) => e !== null);
 
   async function save() {
     if (blocked) return;
@@ -72,7 +80,7 @@ export default function FinalNumbersPanel({
         final_count: guarantee!,
         final_count_due: dueDate || null,
         guaranteed_count: guaranteed.trim() === "" ? null : parseInt(guaranteed, 10),
-        entree_counts: Object.fromEntries(
+        choice_counts: Object.fromEntries(
           offeredIds.map((id) => [String(id), parseInt(counts[String(id)], 10) || 0]),
         ),
       });
@@ -123,12 +131,21 @@ export default function FinalNumbersPanel({
                   <dd className="font-medium">{formatDate(event.final_count_due, dateFormat)}</dd>
                 </div>
               )}
-              {offeredIds.map((id) => (
-                <div key={id}>
-                  <dt className="text-muted-foreground">{nameById[id] || `Dish ${id}`}</dt>
-                  <dd className="font-medium">{(event.entree_choices || {})[String(id)] ?? "—"}</dd>
-                </div>
-              ))}
+              {/* Course order, so the summary reads the same way the panel above
+                  it was filled in — not shuffled into dish-id order. */}
+              {groups.flatMap((group) =>
+                group.dishIds.map((id) => (
+                  <div key={id}>
+                    <dt className="text-muted-foreground">
+                      {nameById[id] || `Dish ${id}`}
+                      {group.courseName && (
+                        <span className="ml-1 opacity-60">({group.courseName})</span>
+                      )}
+                    </dt>
+                    <dd className="font-medium">{(event.menu_choices || {})[String(id)] ?? "—"}</dd>
+                  </div>
+                )),
+              )}
             </dl>
           ) : (
             <p className="text-sm text-muted-foreground">
@@ -170,42 +187,47 @@ export default function FinalNumbersPanel({
               </label>
             </div>
 
-            {offeredIds.length > 0 && (
-              <div>
-                <p className="text-sm font-medium mb-2">
-                  Entrée choices{" "}
-                  <span className="font-normal text-muted-foreground">
-                    (must add up to the guarantee — in-count guests only)
-                  </span>
-                </p>
-                <div className="space-y-1.5">
-                  {offeredIds.map((id) => (
-                    <div key={id} className="flex items-center gap-2">
-                      <span className="text-sm flex-1">{nameById[id] || `Dish ${id}`}</span>
-                      <Input
-                        type="number"
-                        min={0}
-                        aria-label={`Tally for ${nameById[id] || `Dish ${id}`}`}
-                        value={counts[String(id)] ?? ""}
-                        onChange={(e) =>
-                          setCounts((c) => ({ ...c, [String(id)]: e.target.value }))
-                        }
-                        className="w-28"
-                      />
-                    </div>
-                  ))}
+            {groups.map((group, gi) => {
+              const total = choiceTallyTotal(counts, group.dishIds);
+              const groupError = groupErrors[gi];
+              return (
+                <div key={gi} data-testid={`choice-group-${gi}`}>
+                  <p className="text-sm font-medium mb-2">
+                    {group.courseName || "Menu choices"}{" "}
+                    <span className="font-normal text-muted-foreground">
+                      — must add up to the final guarantee
+                    </span>
+                  </p>
+                  <div className="space-y-1.5">
+                    {group.dishIds.map((id) => (
+                      <div key={id} className="flex items-center gap-2">
+                        <span className="text-sm flex-1">{nameById[id] || `Dish ${id}`}</span>
+                        <Input
+                          type="number"
+                          min={0}
+                          aria-label={`Tally for ${nameById[id] || `Dish ${id}`}`}
+                          value={counts[String(id)] ?? ""}
+                          onChange={(e) =>
+                            setCounts((c) => ({ ...c, [String(id)]: e.target.value }))
+                          }
+                          className="w-28"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  {groupError ? (
+                    <p role="alert" className="mt-2 text-sm text-destructive">
+                      {groupError}
+                    </p>
+                  ) : (
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      {total} of {guarantee ?? "—"} ✓
+                    </p>
+                  )}
                 </div>
-                <p className="mt-2 text-xs text-muted-foreground">
-                  Total entered: {entreeTallyTotal(counts, offeredIds)}
-                </p>
-              </div>
-            )}
+              );
+            })}
 
-            {tallyError && (
-              <p role="alert" className="text-sm text-destructive">
-                {tallyError}
-              </p>
-            )}
             {error && (
               <p role="alert" className="text-sm text-destructive">
                 {error}

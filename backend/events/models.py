@@ -248,11 +248,14 @@ def write_booking_courses(booking, courses_data, dish_courses):
     Model.objects.filter(**parent).exclude(dish_id__in=assigned.keys()).update(course=None)
 
 
-def write_entree_choices(booking, entree_choices):
-    """Replace which of a booking's dishes are offered as an entrée choice (REL-419).
+def write_menu_choices(booking, menu_choices):
+    """Replace which of a booking's dishes are offered as a menu choice (REL-419).
 
-    ``entree_choices`` maps ``dish_id -> count or None``: every listed dish is flagged
-    ``is_entree_choice``; its value becomes ``choice_count`` (null at proposal time,
+    A choice belongs to a course: the entrée is the usual one, but a plated dinner can
+    just as well offer a choice of dessert, so nothing here is entrée-specific.
+
+    ``menu_choices`` maps ``dish_id -> count or None``: every listed dish is flagged
+    ``is_choice``; its value becomes ``choice_count`` (null at proposal time,
     a tally once finals land). Dishes not listed are un-flagged and their count
     cleared. Only dishes actually on the booking are accepted, so a stale/foreign
     dish_id in the raw payload is ignored — never a stray or cross-org row. Sums are
@@ -264,42 +267,71 @@ def write_entree_choices(booking, entree_choices):
     parent = {'event': booking} if isinstance(booking, Event) else {'quote': booking}
     Model = dish_comment_model(booking)
     valid_dish_ids = set(booking.dishes.values_list('id', flat=True))
-    if entree_choices is None:
-        entree_choices = {}
-    if not isinstance(entree_choices, dict):
-        raise ValueError('entree_choices must be an object of {dish_id: count or null}.')
+    if menu_choices is None:
+        menu_choices = {}
+    if not isinstance(menu_choices, dict):
+        raise ValueError('menu_choices must be an object of {dish_id: count or null}.')
     wanted = {}
-    for dish_id, count in entree_choices.items():
+    for dish_id, count in menu_choices.items():
         try:
             did = int(dish_id)
             value = None if count is None else int(count)
         except (TypeError, ValueError):
             raise ValueError(
-                'entree_choices must map a dish id to a whole number or null.'
+                'menu_choices must map a dish id to a whole number or null.'
             )
         if value is not None and value < 0:
-            raise ValueError('An entrée choice tally cannot be negative.')
+            raise ValueError('A menu-choice tally cannot be negative.')
         if did in valid_dish_ids:
             wanted[did] = value
     for dish_id, count in wanted.items():
         Model.objects.update_or_create(
             dish_id=dish_id,
-            defaults={'is_entree_choice': True, 'choice_count': count},
+            defaults={'is_choice': True, 'choice_count': count},
             **parent,
         )
     Model.objects.filter(**parent).exclude(dish_id__in=wanted.keys()).update(
-        is_entree_choice=False, choice_count=None,
+        is_choice=False, choice_count=None,
     )
 
 
-def read_entree_choices(booking):
-    """``{dish_id: count or None}`` for every dish flagged as an entrée choice —
-    the exact shape ``write_entree_choices`` accepts, so a read→write round-trip
+def read_menu_choices(booking):
+    """``{dish_id: count or None}`` for every dish flagged as a menu choice —
+    the exact shape ``write_menu_choices`` accepts, so a read→write round-trip
     (including the quote→event conversion) is lossless."""
     return {
         str(r.dish_id): r.choice_count
-        for r in booking.dish_comments.all() if r.is_entree_choice
+        for r in booking.dish_comments.all() if r.is_choice
     }
+
+
+def choice_groups(booking):
+    """A booking's offered choices grouped BY COURSE (REL-419).
+
+    Returns ``[{'course_id', 'course_name', 'dish_ids'}]`` in course order, with any
+    course-less choices last under ``course_id=None``. Only courses that actually
+    offer a choice appear.
+
+    Grouping is what makes the finals sum correct: each course's choices are offered
+    to every guest, so each must add up to the guarantee **on its own**. Summing them
+    together would demand 300 covers from a 150-guest booking that offers a choice of
+    main *and* of dessert.
+    """
+    rows = [r for r in booking.dish_comments.all() if r.is_choice]
+    if not rows:
+        return []
+    by_course = {}
+    for r in rows:
+        by_course.setdefault(r.course_id, []).append(r.dish_id)
+    order = {c.id: i for i, c in enumerate(booking.courses.all())}
+    names = {c.id: c.name for c in booking.courses.all()}
+    groups = [
+        {'course_id': cid, 'course_name': names.get(cid), 'dish_ids': sorted(dish_ids)}
+        for cid, dish_ids in by_course.items()
+    ]
+    # Course order, then the unassigned group (sorts last — no course to order by).
+    groups.sort(key=lambda g: order.get(g['course_id'], len(order)))
+    return groups
 
 
 # How far ahead of the due date the finals reminder turns amber. Finals typically
@@ -686,11 +718,11 @@ class EventDishComment(models.Model):
     course = models.ForeignKey(
         'events.BookingCourse', null=True, blank=True, on_delete=models.SET_NULL, related_name='+',
     )
-    # Entrée-choice lifecycle (REL-419). `is_entree_choice` is set at PROPOSAL time —
+    # Entrée-choice lifecycle (REL-419). `is_choice` is set at PROPOSAL time —
     # this dish is one of the entrées the guest may pick — and is priced per head
     # regardless of who picks what. `choice_count` is the tally that arrives with the
     # final guarantee weeks later; null until then, and never validated at quote time.
-    is_entree_choice = models.BooleanField(default=False)
+    is_choice = models.BooleanField(default=False)
     choice_count = models.PositiveIntegerField(null=True, blank=True)
 
     class Meta:
@@ -711,10 +743,10 @@ class QuoteDishComment(models.Model):
     course = models.ForeignKey(
         'events.BookingCourse', null=True, blank=True, on_delete=models.SET_NULL, related_name='+',
     )
-    # Mirrors EventDishComment (REL-419). On a quote only `is_entree_choice` is ever
+    # Mirrors EventDishComment (REL-419). On a quote only `is_choice` is ever
     # set — the tallies arrive at finals, on the event — but the column exists on both
     # so the flag survives the quote→event conversion through one shared code path.
-    is_entree_choice = models.BooleanField(default=False)
+    is_choice = models.BooleanField(default=False)
     choice_count = models.PositiveIntegerField(null=True, blank=True)
 
     class Meta:

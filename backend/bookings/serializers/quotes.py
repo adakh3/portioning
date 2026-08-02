@@ -68,10 +68,10 @@ class QuoteSerializer(OrgScopedModelSerializer):
     # payload in create/update (mirrors the event serializer).
     courses = serializers.SerializerMethodField()
     dish_courses = serializers.SerializerMethodField()
-    # Which dishes are offered as an entrée choice, `{dish_id: count or None}`
+    # Which dishes are offered as a menu choice, `{dish_id: count or None}`
     # (REL-419). On a quote the count is always null — tallies arrive at finals, on
     # the event — and nothing here is ever sum-validated (AC2/AC8).
-    entree_choices = serializers.SerializerMethodField()
+    menu_choices = serializers.SerializerMethodField()
 
     # E-signature status (for the staff-side "send for signature" flow)
     public_token = serializers.CharField(read_only=True)
@@ -122,7 +122,7 @@ class QuoteSerializer(OrgScopedModelSerializer):
             'service_charge_pct', 'service_charge_taxable', 'service_charge',
             'gratuity_pct', 'gratuity',
             'dishes', 'dish_ids', 'dish_names', 'based_on_template',
-            'courses', 'dish_courses', 'entree_choices',
+            'courses', 'dish_courses', 'menu_choices',
             'additional_meals', 'timeline_entries',
             'notes', 'internal_notes',
             'sent_at', 'accepted_at',
@@ -182,9 +182,9 @@ class QuoteSerializer(OrgScopedModelSerializer):
     def get_dish_courses(self, obj):
         return read_dish_courses(obj)
 
-    def get_entree_choices(self, obj):
-        from events.models import read_entree_choices
-        return read_entree_choices(obj)
+    def get_menu_choices(self, obj):
+        from events.models import read_menu_choices
+        return read_menu_choices(obj)
 
     def get_guest_counts(self, obj):
         # ``.all()`` (not select_related) so the list view's
@@ -341,10 +341,10 @@ class QuoteSerializer(OrgScopedModelSerializer):
         courses; absent `courses` key leaves courses untouched.
 
         Entrée-choice flags (REL-419) ride along on the same per-dish rows and follow
-        the same rule: only an explicit `entree_choices` key rewrites them, so a client
+        the same rule: only an explicit `menu_choices` key rewrites them, so a client
         that doesn't know about choices can't silently clear a quote's offerings.
         """
-        from events.models import write_booking_courses, write_entree_choices
+        from events.models import write_booking_courses, write_menu_choices
         if 'courses' in self.initial_data:
             write_booking_courses(
                 quote, self.initial_data.get('courses'), self.initial_data.get('dish_courses'),
@@ -353,17 +353,17 @@ class QuoteSerializer(OrgScopedModelSerializer):
         # ever records WHICH dishes are offered — the tallies belong to the event's
         # finals panel, so any count a client sends here is dropped rather than
         # carried onto the event by the conversion.
-        raw_choices = self.initial_data.get('entree_choices')
+        raw_choices = self.initial_data.get('menu_choices')
         if raw_choices is not None:
             if not isinstance(raw_choices, dict):
                 raise serializers.ValidationError({
-                    'entree_choices': 'entree_choices must be an object of '
+                    'menu_choices': 'menu_choices must be an object of '
                                       '{dish_id: null}.',
                 })
             try:
-                write_entree_choices(quote, {k: None for k in raw_choices})
+                write_menu_choices(quote, {k: None for k in raw_choices})
             except ValueError as exc:
-                raise serializers.ValidationError({'entree_choices': str(exc)})
+                raise serializers.ValidationError({'menu_choices': str(exc)})
 
     def _write_guest_counts(self, quote):
         """Dual-write the quote's guest breakdown into BookingGuestCount rows
@@ -382,7 +382,7 @@ class QuoteSerializer(OrgScopedModelSerializer):
 
 # signature does a per-row query (latest_signature); it's a detail-view concern.
 QUOTE_LIST_EXCLUDE = {'line_items', 'dishes', 'dish_ids', 'dish_names', 'additional_meals',
-                      'courses', 'dish_courses', 'entree_choices', 'timeline_entries',
+                      'courses', 'dish_courses', 'menu_choices', 'timeline_entries',
                       'signature', 'public_token'}
 
 

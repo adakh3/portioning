@@ -3,7 +3,7 @@ from rest_framework import serializers
 from .models import (
     Event, EventConstraintOverride, EventDishComment, EventPayment,
     sync_legacy_guest_counts, write_booking_segments, guest_counts_error,
-    write_booking_courses, write_entree_choices, read_entree_choices,
+    write_booking_courses, write_menu_choices, read_menu_choices,
 )
 from dishes.models import Dish
 from dishes.ordering import dish_ids_in_added_order
@@ -95,10 +95,10 @@ class EventSerializer(OrgScopedModelSerializer):
     # (by index into `courses`); written from the raw payload in create/update.
     courses = serializers.SerializerMethodField()
     dish_courses = serializers.SerializerMethodField()
-    # Which dishes are offered as an entrée choice + their final tallies,
+    # Which dishes are offered as a menu choice + their final tallies,
     # `{dish_id: count or None}` (REL-419). Counts are written by the finals panel
     # (EventFinalsView), which is the only place the sum is validated.
-    entree_choices = serializers.SerializerMethodField()
+    menu_choices = serializers.SerializerMethodField()
     # Derived finals state — a model property, never a stored column (AC10). Declared
     # as ReadOnlyField (not a method field) so the list serializer inherits it.
     finals_status = serializers.ReadOnlyField()
@@ -211,7 +211,7 @@ class EventSerializer(OrgScopedModelSerializer):
                   'guest_counts',
                   'big_eaters', 'big_eaters_percentage',
                   'dishes', 'dish_ids', 'based_on_template', 'notes',
-                  'courses', 'dish_courses', 'entree_choices', 'finals_status',
+                  'courses', 'dish_courses', 'menu_choices', 'finals_status',
                   'kitchen_instructions', 'banquet_instructions', 'setup_instructions',
                   'constraint_override', 'dish_comments', 'line_items', 'created_at',
                   # Booking fields
@@ -271,14 +271,14 @@ class EventSerializer(OrgScopedModelSerializer):
     def get_dish_courses(self, obj):
         return read_dish_courses(obj)
 
-    def get_entree_choices(self, obj):
-        return read_entree_choices(obj)
+    def get_menu_choices(self, obj):
+        return read_menu_choices(obj)
 
     def _write_dish_lines(self, booking):
         # `courses` is the authoritative list; require it before touching courses so a
         # lone `dish_courses` (or its absence) can't wipe existing courses. Absent
         # `courses` key → leave courses untouched. Entrée-choice flags (REL-419) obey
-        # the same rule on the same rows — only an explicit `entree_choices` key
+        # the same rule on the same rows — only an explicit `menu_choices` key
         # rewrites them, so an ordinary event save can't clear the offerings.
         if 'courses' in self.initial_data:
             write_booking_courses(
@@ -286,11 +286,11 @@ class EventSerializer(OrgScopedModelSerializer):
             )
         # An explicit `null` means "nothing to say", not "clear them" — a client that
         # serialises absent optional fields as null must not wipe the offerings.
-        if self.initial_data.get('entree_choices') is not None:
+        if self.initial_data.get('menu_choices') is not None:
             try:
-                write_entree_choices(booking, self.initial_data['entree_choices'])
+                write_menu_choices(booking, self.initial_data['menu_choices'])
             except ValueError as exc:
-                raise serializers.ValidationError({'entree_choices': str(exc)})
+                raise serializers.ValidationError({'menu_choices': str(exc)})
 
     # Atomic so a rejected save (see reject_negative_subtotal) rolls the whole
     # write back instead of leaving a half-written booking behind.
@@ -373,8 +373,8 @@ class EventSerializer(OrgScopedModelSerializer):
             # re-create below, saving portions there would delete an offered entrée
             # and the guest tally already recorded against it.
             carried = {
-                r.dish_id: (r.is_entree_choice, r.choice_count)
-                for r in instance.dish_comments.all() if r.is_entree_choice
+                r.dish_id: (r.is_choice, r.choice_count)
+                for r in instance.dish_comments.all() if r.is_choice
             }
             instance.dish_comments.all().delete()
             written = set()
@@ -382,13 +382,13 @@ class EventSerializer(OrgScopedModelSerializer):
                 row = EventDishComment.objects.create(event=instance, **dc)
                 written.add(row.dish_id)
                 if row.dish_id in carried:
-                    row.is_entree_choice, row.choice_count = carried[row.dish_id]
-                    row.save(update_fields=['is_entree_choice', 'choice_count'])
+                    row.is_choice, row.choice_count = carried[row.dish_id]
+                    row.save(update_fields=['is_choice', 'choice_count'])
             for dish_id, (flag, count) in carried.items():
                 if dish_id not in written:
                     EventDishComment.objects.create(
                         event=instance, dish_id=dish_id,
-                        is_entree_choice=flag, choice_count=count,
+                        is_choice=flag, choice_count=count,
                     )
         self._write_dish_lines(instance)  # after dish_comments so course rows attach
         if line_items_data is not None:
@@ -438,17 +438,21 @@ class EventSerializer(OrgScopedModelSerializer):
 class EventFinalsSerializer(serializers.Serializer):
     """The "Record final numbers" panel's single save (REL-419 AC6).
 
-    The finals guarantee, its due date, and the per-entrée tallies land together in
-    one write, and this is the ONLY place the tallies are checked against the
-    guarantee (AC7). Quote-time and ordinary event saves never see this serializer,
-    which is what makes "no sum validation at proposal" structural rather than a
-    flag someone can forget to pass (AC8).
+    The finals guarantee, its due date, and the per-dish tallies land together in one
+    write, and this is the ONLY place the tallies are checked against the guarantee
+    (AC7). Quote-time and ordinary event saves never see this serializer, which is
+    what makes "no sum validation at proposal" structural rather than a flag someone
+    can forget to pass (AC8).
+
+    The check runs PER COURSE: every guest picks one dish from each course that offers
+    a choice, so a choice of main and a choice of dessert must each add up to the
+    guarantee on their own.
     """
     final_count = serializers.IntegerField(min_value=0)
     final_count_due = serializers.DateField(required=False, allow_null=True)
     guaranteed_count = serializers.IntegerField(min_value=0, required=False, allow_null=True)
-    # {dish_id: tally}. Only dishes flagged as an entrée choice are counted.
-    entree_counts = serializers.DictField(
+    # {dish_id: tally}. Only dishes flagged as a menu choice are counted.
+    choice_counts = serializers.DictField(
         child=serializers.IntegerField(min_value=0), required=False,
     )
 
@@ -465,32 +469,37 @@ class EventFinalsSerializer(serializers.Serializer):
         offered = {
             r.dish_id: r.dish.name
             for r in self.event.dish_comments.select_related('dish').all()
-            if r.is_entree_choice
+            if r.is_choice
         }
         if not offered:
             return attrs
         try:
-            counts = {int(k): v for k, v in (attrs.get('entree_counts') or {}).items()}
+            counts = {int(k): v for k, v in (attrs.get('choice_counts') or {}).items()}
         except (TypeError, ValueError):
             raise serializers.ValidationError({
-                'entree_counts': 'Each key must be a dish id.',
+                'choice_counts': 'Each key must be a dish id.',
             })
         unknown = set(counts) - set(offered)
         if unknown:
             raise serializers.ValidationError({
-                'entree_counts': 'A tally was given for a dish that is not offered as '
-                                 'an entrée choice on this event.',
+                'choice_counts': 'A tally was given for a dish that is not offered as '
+                                 'a choice on this event.',
             })
-        # Missing tallies count as zero, so a half-filled panel fails the sum below
-        # rather than saving a breakdown that silently doesn't add up.
-        total = sum(counts.get(dish_id, 0) for dish_id in offered)
+        # One sum per course. Missing tallies count as zero, so a half-filled panel —
+        # or a whole course left blank — fails here rather than saving a breakdown
+        # that silently doesn't add up. Untick a course's dishes if its numbers are
+        # never collected; the tick is the commitment to collect them.
+        from events.models import choice_groups
         guarantee = attrs['final_count']
-        if total != guarantee:
-            raise serializers.ValidationError({
-                'entree_counts': f'Entrée choices must add up to the final guarantee '
-                                 f'({guarantee}) — they currently total {total}.',
-            })
-        attrs['entree_counts'] = counts
+        for group in choice_groups(self.event):
+            total = sum(counts.get(dish_id, 0) for dish_id in group['dish_ids'])
+            if total != guarantee:
+                label = f"{group['course_name']} choices" if group['course_name'] else 'Menu choices'
+                raise serializers.ValidationError({
+                    'choice_counts': f'{label} must add up to the final guarantee '
+                                     f'({guarantee}) — they currently total {total}.',
+                })
+        attrs['choice_counts'] = counts
         return attrs
 
     def save(self):
@@ -505,11 +514,11 @@ class EventFinalsSerializer(serializers.Serializer):
             event.guaranteed_count = data['guaranteed_count']
             fields.append('guaranteed_count')
         event.save(update_fields=fields)
-        # Tallies are kitchen numbers: they land on the existing entrée-choice rows
+        # Tallies are kitchen numbers: they land on the existing menu-choice rows
         # and never touch pricing, so no recalculate_totals here (AC9).
-        for dish_id, count in (data.get('entree_counts') or {}).items():
+        for dish_id, count in (data.get('choice_counts') or {}).items():
             EventDishComment.objects.filter(
-                event=event, dish_id=dish_id, is_entree_choice=True,
+                event=event, dish_id=dish_id, is_choice=True,
             ).update(choice_count=count)
         return event
 
@@ -526,9 +535,9 @@ EVENT_LIST_EXCLUDE = {
     'guest_counts',
     # courses + dish→course map are per-row queries — detail-view only
     'courses', 'dish_courses',
-    # entrée choices read the per-dish rows — detail-view only. `finals_status` stays:
+    # menu choices read the per-dish rows — detail-view only. `finals_status` stays:
     # it is derived from columns already on the row, so the list pill costs no query.
-    'entree_choices',
+    'menu_choices',
 }
 
 
