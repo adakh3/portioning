@@ -1,10 +1,14 @@
 "use client";
 
 import { useEffect, useState, useMemo, useRef } from "react";
-import { api, collectErrorMessages, MenuTemplateDetail, CourseData, PriceTier, PriceCheckResult, PriceCheckBreakdownItem, PriceEstimateResult } from "@/lib/api";
+import { api, collectErrorMessages, MenuTemplateDetail, CourseData, MenuChoices, PriceTier, PriceCheckResult, PriceCheckBreakdownItem, PriceEstimateResult } from "@/lib/api";
 import { useDishes, useCategories, useMenus } from "@/lib/hooks";
 import { formatCurrency } from "@/lib/utils";
-import DietaryTagPills, { dietaryTagsDescription } from "@/components/DietaryTagPills";
+import DietaryTagPills from "@/components/DietaryTagPills";
+import DishPickerInline from "@/components/DishPickerInline";
+import {
+  assignDish, courseSubtitle, menuSections, moveDish, removeCourse, toggleChoice,
+} from "@/lib/menuStructure";
 
 interface CalculatedPrice {
   price: number;
@@ -36,6 +40,23 @@ interface Props {
   /** REL-417: when a template with courses is loaded, its course structure is
    * surfaced so the booking can carry it over (AC6). */
   onLoadCourses?: (courses: CourseData[], dishCourses: Record<string, number>) => void;
+  /** The menu's structure (REL-451). Courses contain dishes, and on a plated booking
+   * a dish inside a course can be marked as one of the guest's options — one card,
+   * one thought. Owned by the page (it goes in the single save payload); this
+   * component reads it and reports edits through `onStructureChange`. */
+  courses?: CourseData[];
+  dishCourses?: Record<string, number>;
+  menuChoices?: MenuChoices;
+  /** Choice affordances are plated-only; buffet/family style keep the flags but
+   * never show them (AC8). */
+  plated?: boolean;
+  /** "Plated dinner", "Buffet", … — the header subtitle's first word. */
+  serviceStyleLabel?: string;
+  onStructureChange?: (v: {
+    courses: CourseData[];
+    dishCourses: Record<string, number>;
+    menuChoices: MenuChoices;
+  }) => void;
   pricePerHead?: string;
   onPricePerHeadChange?: (value: string) => void;
   currencySymbol?: string;
@@ -50,6 +71,12 @@ export default function MenuBuilder({
   onSave,
   onChange,
   onLoadCourses,
+  courses = [],
+  dishCourses = {},
+  menuChoices = {},
+  plated = false,
+  serviceStyleLabel,
+  onStructureChange,
   pricePerHead,
   onPricePerHeadChange,
   currencySymbol = "",
@@ -65,6 +92,10 @@ export default function MenuBuilder({
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState("");
   const [showSelector, setShowSelector] = useState(false);
+  /** Which course the open picker adds into — `null` means the unassigned section
+   * (or the whole menu when the booking has no courses). Scoping the picker is what
+   * removes the old second step of assigning a dish after picking it (AC8b). */
+  const [pickerCourse, setPickerCourse] = useState<number | null>(null);
 
   // Track if changes have been made
   const [dirty, setDirty] = useState(false);
@@ -118,6 +149,16 @@ export default function MenuBuilder({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tierPrice, calculatedPrice, extraFoodPercent]);
 
+  // Esc closes the dish picker — one of its three ways out (AC8b).
+  useEffect(() => {
+    if (!showSelector) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setShowSelector(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [showSelector]);
+
   // Track last auto-filled price so we only overwrite when user hasn't manually edited
   const lastAutoFilledRef = useRef<string>("");
 
@@ -155,7 +196,75 @@ export default function MenuBuilder({
     setDishesModified(true);
     setCalculatedPrice(null);
     setPriceError(null);
+    // A dish leaving the menu takes its course assignment and choice flag with it —
+    // otherwise a stale entry would point at a dish that isn't on the booking.
+    if (!next.has(id) && onStructureChange) {
+      const nextCourses = { ...dishCourses };
+      delete nextCourses[id];
+      const nextChoices = { ...menuChoices };
+      delete nextChoices[id];
+      onStructureChange({ courses, dishCourses: nextCourses, menuChoices: nextChoices });
+    }
     onChange?.({ dish_ids: Array.from(next), based_on_template: templateId });
+  };
+
+  // ---- Menu structure (REL-451) ----
+  const emit = (v: Partial<{
+    courses: CourseData[];
+    dishCourses: Record<string, number>;
+    menuChoices: MenuChoices;
+  }>) => {
+    setDirty(true);
+    onStructureChange?.({ courses, dishCourses, menuChoices, ...v });
+  };
+
+  const dishIdsInOrder = selectedDishIds.filter((id) => selected.has(id))
+    .concat(Array.from(selected).filter((id) => !selectedDishIds.includes(id)));
+  const sections = menuSections(dishIdsInOrder, courses, dishCourses, menuChoices, plated);
+  /** No courses at all → the card is a plain list (AC8): no headers, no scaffolding. */
+  const isFlat = courses.length === 0;
+
+  const addCourse = () =>
+    emit({ courses: [...courses, { name: "", sort_order: courses.length }] });
+
+  const renameCourse = (idx: number, name: string) =>
+    emit({ courses: courses.map((c, i) => (i === idx ? { ...c, name } : c)) });
+
+  const dropCourse = (idx: number) => emit(removeCourse(idx, courses, dishCourses, menuChoices));
+
+  const moveRow = (dishId: number, direction: -1 | 1) =>
+    emit(moveDish(dishId, direction, sections, dishCourses, menuChoices));
+
+  const putInCourse = (dishId: number, courseIndex: number | null) =>
+    emit(assignDish(dishId, courseIndex, dishCourses, menuChoices));
+
+  const markChoice = (dishId: number) =>
+    emit({ menuChoices: toggleChoice(menuChoices, dishId) });
+
+  /** Open the picker for a course, or close it if that course's trigger is clicked
+   * again — the trigger reads "Done" while open, one of the three ways out (AC8b). */
+  const openPickerFor = (courseIndex: number | null) => {
+    if (showSelector && pickerCourse === courseIndex) {
+      setShowSelector(false);
+      return;
+    }
+    setPickerCourse(courseIndex);
+    setShowSelector(true);
+    setSearch("");
+  };
+
+  /** Add a dish straight into the course the picker was opened for. */
+  const addDishToPickerCourse = (dishId: number) => {
+    if (selected.has(dishId)) return;  // already on the menu — the row reads "on menu"
+    const next = new Set(selected);
+    next.add(dishId);
+    setSelected(next);
+    setDirty(true);
+    setDishesModified(true);
+    setCalculatedPrice(null);
+    setPriceError(null);
+    onChange?.({ dish_ids: Array.from(next), based_on_template: templateId });
+    if (pickerCourse !== null) putInCourse(dishId, pickerCourse);
   };
 
   const handleLoadTemplate = async (tid: number) => {
@@ -263,18 +372,6 @@ export default function MenuBuilder({
   const selectedDishes = dishes.filter((d) => selected.has(d.id));
   const templateName = templates.find((t) => t.id === templateId)?.name;
 
-  // Grouped dishes for selector
-  const filtered = dishes.filter((d) =>
-    d.name.toLowerCase().includes(search.toLowerCase())
-  );
-  const grouped = categories
-    .sort((a, b) => a.display_order - b.display_order)
-    .map((cat) => ({
-      ...cat,
-      dishes: filtered.filter((d) => d.category === cat.id),
-    }))
-    .filter((g) => g.dishes.length > 0);
-
   // Determine pricing bar state
   const hasDishes = selected.size > 0;
   const hasGuestCount = !!guestCount && guestCount > 0;
@@ -343,43 +440,211 @@ export default function MenuBuilder({
         </p>
       )}
 
-      {/* Current Menu (dish names only) */}
-      {selectedDishes.length > 0 ? (
+      {/* The menu as one structure: courses containing dishes, with the guest
+          choice marked inside the course (REL-451). A course-less booking is a plain
+          list — no headers, no empty scaffolding. */}
+      {selectedDishes.length === 0 ? (
         <div>
-          <h4 className="text-sm font-medium text-foreground mb-2">
-            Menu ({selectedDishes.length} dishes)
-          </h4>
-          <div className="flex flex-wrap gap-2">
-            {selectedDishes.map((dish) => (
-              <span
-                key={dish.id}
-                className="inline-flex items-center gap-1.5 bg-primary/10 text-primary border border-primary/20 px-2.5 py-1 rounded-full text-sm"
-              >
-                {dish.name}
-                {/* The legacy flag only shows for dishes with no dietary tags —
-                    otherwise the pills already say it, and say it better. */}
-                {dish.is_vegetarian && !dish.dietary_tags?.length && (
-                  <span className="text-success text-xs">V</span>
-                )}
-                <DietaryTagPills tags={dish.dietary_tags} />
-                {!disabled && (
-                  <button
-                    type="button"
-                    onClick={() => toggleDish(dish.id)}
-                    className="text-primary/60 hover:text-primary ml-0.5"
-                    title="Remove"
-                  >
-                    &times;
-                  </button>
-                )}
-              </span>
-            ))}
-          </div>
+          <p className="text-sm text-muted-foreground">
+            No dishes yet. Load a template or add dishes.
+          </p>
+          {/* Nothing on the menu means no section to anchor the picker to. */}
+          {showSelector && !disabled && (
+            <DishPickerInline
+              dishes={dishes}
+              categories={categories}
+              onMenuDishIds={selected}
+              onAdd={addDishToPickerCourse}
+              onClose={() => setShowSelector(false)}
+              courseName="the menu"
+            />
+          )}
         </div>
       ) : (
-        <p className="text-sm text-muted-foreground">
-          No dishes selected. Load a template or pick dishes individually.
-        </p>
+        <div data-testid="menu-structure" className="border-t border-border">
+          {sections.map((section) => {
+            const subtitle = courseSubtitle(section);
+            return (
+              <div key={section.courseIndex ?? "unassigned"} className="border-b border-border py-3">
+                {!isFlat && (
+                  <div className="flex items-center gap-3 mb-1.5">
+                    {section.courseIndex === null ? (
+                      <span className="text-sm font-semibold text-foreground">On the table</span>
+                    ) : disabled ? (
+                      <span className="text-sm font-semibold text-foreground">{section.name}</span>
+                    ) : (
+                      <input
+                        type="text"
+                        aria-label={`Course ${section.courseIndex + 1} name`}
+                        placeholder="Course name"
+                        value={courses[section.courseIndex].name}
+                        onChange={(e) => renameCourse(section.courseIndex as number, e.target.value)}
+                        className="text-sm font-semibold text-foreground bg-transparent border-b border-transparent hover:border-input focus:border-input focus:outline-none px-0.5 -ml-0.5 w-44"
+                      />
+                    )}
+                    <span
+                      className={`text-sm flex-1 ${subtitle.warn ? "text-warning" : "text-muted-foreground"}`}
+                      data-testid={`subtitle-${section.courseIndex ?? "unassigned"}`}
+                    >
+                      {subtitle.text}
+                    </span>
+                    {!disabled && section.courseIndex !== null && (
+                      <button
+                        type="button"
+                        aria-label={`Remove course ${section.name}`}
+                        onClick={() => dropCourse(section.courseIndex as number)}
+                        className="text-muted-foreground hover:text-destructive"
+                      >
+                        &times;
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {section.dishIds.map((id, i) => {
+                  const dish = dishes.find((d) => d.id === id);
+                  if (!dish) return null;
+                  const offered = section.chosenIds.includes(id);
+                  // The *or* sits between the options, so the pair reads as the
+                  // either/or the caterer is declaring — never separated (AC5).
+                  const showOr = offered && i > 0 && section.chosenIds.includes(section.dishIds[i - 1]);
+                  return (
+                    <div key={id}>
+                      {showOr && (
+                        <div className="text-xs text-muted-foreground italic pl-1 py-0.5">or</div>
+                      )}
+                      {/* `group` drives the hover affordances: the drag handle, the
+                          ↑↓ arrows and (on an unflagged dish) the choice chip only
+                          appear on hover. `focus-within` keeps them reachable by
+                          keyboard — hover-only must never mean mouse-only. */}
+                      <div className={`group flex items-center gap-2 py-1 ${isFlat ? "" : "pl-3"}`}>
+                        {!disabled && !isFlat && (
+                          <span
+                            aria-hidden="true"
+                            className="cursor-grab select-none text-muted-foreground opacity-0 transition-opacity group-hover:opacity-60 group-focus-within:opacity-60"
+                          >
+                            ⠿
+                          </span>
+                        )}
+                        <span className="text-sm text-foreground">{dish.name}</span>
+                        {/* The legacy flag only shows for dishes with no dietary tags —
+                            otherwise the pills already say it, and say it better
+                            (REL-416 AC3). */}
+                        {dish.is_vegetarian && !dish.dietary_tags?.length && (
+                          <span className="text-success text-xs">V</span>
+                        )}
+                        <DietaryTagPills tags={dish.dietary_tags} />
+                        <span className="flex-1" />
+                        {plated && section.courseIndex !== null && !disabled && (
+                          <button
+                            type="button"
+                            aria-label={`${offered ? "Remove" : "Mark"} ${dish.name} as a guest choice`}
+                            onClick={() => markChoice(id)}
+                            className={`text-xs px-2 py-0.5 rounded-full border transition-all ${
+                              offered
+                                ? "bg-primary/10 text-primary border-primary/30"
+                                : "bg-muted text-muted-foreground border-border opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"
+                            }`}
+                          >
+                            {offered ? "guests choose" : "make it a choice"}
+                          </button>
+                        )}
+                        {!disabled && !isFlat && (
+                          <span className="flex items-center opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+                            <button
+                              type="button"
+                              aria-label={`Move ${dish.name} up`}
+                              onClick={() => moveRow(id, -1)}
+                              className="text-muted-foreground hover:text-foreground px-1"
+                            >
+                              &uarr;
+                            </button>
+                            <button
+                              type="button"
+                              aria-label={`Move ${dish.name} down`}
+                              onClick={() => moveRow(id, 1)}
+                              className="text-muted-foreground hover:text-foreground px-1"
+                            >
+                              &darr;
+                            </button>
+                          </span>
+                        )}
+                        {!disabled && (
+                          <button
+                            type="button"
+                            aria-label={`Remove ${dish.name}`}
+                            onClick={() => toggleDish(id)}
+                            className="text-muted-foreground hover:text-destructive px-1"
+                          >
+                            &times;
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {showSelector && pickerCourse === section.courseIndex && !disabled && (
+                  <div className={isFlat ? "" : "pl-3"}>
+                    <DishPickerInline
+                      dishes={dishes}
+                      categories={categories}
+                      onMenuDishIds={selected}
+                      onAdd={addDishToPickerCourse}
+                      onClose={() => setShowSelector(false)}
+                      courseName={section.courseIndex === null ? "the menu" : (section.name || "this course")}
+                    />
+                  </div>
+                )}
+
+                {!disabled && !isFlat && (
+                  <button
+                    type="button"
+                    onClick={() => openPickerFor(section.courseIndex)}
+                    className="text-sm text-primary hover:underline pl-3 mt-1"
+                  >
+                    {showSelector && pickerCourse === section.courseIndex ? "Done" : "+ dish"}
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Footer: add a course, or (flat) add a dish + the running count. */}
+      {!disabled && (
+        <div className="flex items-center gap-4">
+          {isFlat ? (
+            <>
+              <button
+                type="button"
+                onClick={() => openPickerFor(null)}
+                className="text-sm text-primary hover:underline"
+              >
+                {pickerCourse === null && showSelector ? "Done" : "+ Add dish"}
+              </button>
+              {selectedDishes.length > 0 && (
+                <span className="text-sm text-muted-foreground">
+                  {selectedDishes.length} {selectedDishes.length === 1 ? "dish" : "dishes"}
+                </span>
+              )}
+              {selectedDishes.length > 0 && (
+                <button
+                  type="button"
+                  onClick={addCourse}
+                  className="text-sm text-muted-foreground hover:text-foreground"
+                >
+                  Group into courses
+                </button>
+              )}
+            </>
+          ) : (
+            <button type="button" onClick={addCourse} className="text-sm text-primary hover:underline">
+              + Add course
+            </button>
+          )}
+        </div>
       )}
 
       {/* Price per head — always visible & clearable, not gated on dishes (so a
@@ -541,66 +806,6 @@ export default function MenuBuilder({
               {priceLoading ? "Retrying…" : "Retry"}
             </button>
           )}
-        </div>
-      )}
-
-      {/* Dish Selector (expandable) */}
-      {showSelector && !disabled && (
-        <div className="border border-border rounded-lg p-4 bg-muted">
-          <div className="flex items-center justify-between mb-3">
-            <h4 className="text-sm font-medium text-foreground">
-              Select Dishes ({selected.size} selected)
-            </h4>
-            <input
-              type="text"
-              placeholder="Search dishes..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="border border-input rounded px-3 py-1.5 text-sm w-48"
-            />
-          </div>
-          <div className="space-y-3 max-h-72 overflow-y-auto">
-            {grouped.map((group) => {
-              const selectedInCat = group.dishes.filter((d) =>
-                selected.has(d.id)
-              ).length;
-              return (
-                <div key={group.id}>
-                  <h5 className="text-xs font-medium text-muted-foreground mb-1">
-                    {group.display_name}
-                    <span className="text-muted-foreground ml-1">
-                      ({selectedInCat}/{group.dishes.length})
-                    </span>
-                  </h5>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-1">
-                    {group.dishes.map((dish) => {
-                      const isSelected = selected.has(dish.id);
-                      return (
-                        <button
-                          type="button"
-                          key={dish.id}
-                          aria-label={[dish.name, dietaryTagsDescription(dish.dietary_tags)]
-                            .filter(Boolean).join(" — ")}
-                          onClick={() => toggleDish(dish.id)}
-                          className={`text-left text-sm px-2.5 py-1.5 rounded transition-colors ${
-                            isSelected
-                              ? "bg-primary/10 text-primary border border-primary/30"
-                              : "bg-background text-foreground border border-border hover:bg-accent"
-                          }`}
-                        >
-                          {dish.name}
-                          {dish.is_vegetarian && !dish.dietary_tags?.length && (
-                            <span className="ml-1 text-success text-xs">V</span>
-                          )}
-                          <DietaryTagPills tags={dish.dietary_tags} className="ml-1" />
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
         </div>
       )}
 
