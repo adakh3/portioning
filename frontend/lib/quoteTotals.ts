@@ -315,17 +315,58 @@ export function defaultSegmentRemainder(
  * With no breakdown, the whole count is priced at the default segment's multiplier
  * (or 1.0), reducing to `price_per_head × guest_count`.
  */
+/** The one accepted spelling of a rate — the exact mirror of the backend's
+ * `_RATE_RE`. Anchored ASCII digits, optional single dot, no exponent, no sign. */
+const RATE_RE = /^\s*\d+(?:\.\d+)?\s*$/;
+
+/** Nothing priceable is worth more than this per cover — mirrors `MAX_USABLE_RATE`. */
+const MAX_USABLE_RATE = 99999999.99;
+
+/** A finite, non-negative, in-range number, or `null` when the value can't be used
+ * as money. `null` means "fall back", never "free" (REL-449). Mirror of the backend
+ * `_usable_rate`.
+ *
+ * Strings go through `RATE_RE` rather than bare `Number()`, because `Number`'s
+ * coercion table and `Decimal`'s parser accept different languages, and every
+ * disagreement is money one side charges and the other doesn't:
+ * `Number("  ")`, `Number(false)` and `Number([])` are all **0** — which would price
+ * a cover at zero where the backend falls back to the multiplier — while
+ * `Decimal("1_000")`, `Decimal("١٢٣")` and `Decimal("５")` all parse, storing an
+ * amount the customer's preview never showed. Both halves are closed by insisting
+ * on one plain spelling. */
+export function usableRate(value: number | string | null | undefined): number | null {
+  if (value == null || value === "") return null;
+  if (typeof value === "number") {
+    return Number.isFinite(value) && value >= 0 && value <= MAX_USABLE_RATE ? value : null;
+  }
+  if (typeof value !== "string" || !RATE_RE.test(value)) return null;
+  const n = Number(value);
+  return Number.isFinite(n) && n >= 0 && n <= MAX_USABLE_RATE ? n : null;
+}
+
 /** The per-cover price for a segment, rounded to cents — mirror of the backend
  * `segment_effective_rate`. A per-segment `override` (flat/custom rate) wins;
- * else `round(base price × multiplier)`. */
+ * else `round(base price × multiplier)`.
+ *
+ * Always **finite and non-negative** (REL-449). Bad input is refused at the API, so
+ * nothing here should ever be junk — but a rate is money, and this also has to hold
+ * for rows already in the database.
+ *
+ * Unusable input **falls back; it never makes a cover free.** An unusable override
+ * is ignored (the segment reverts to its multiplier), and an unusable multiplier
+ * reverts to `1.0` — full price. Flooring to zero instead would turn a bad config
+ * value into a silent discount, which is the failure mode a caterer would never
+ * spot. The one thing always refused is a negative, which would otherwise pay the
+ * customer to attend. */
 export function segmentEffectiveRate(
   pricePerHead: number | string | null | undefined,
   priceMultiplier: string | number | null | undefined,
   override?: string | number | null,
 ): number {
-  if (override != null && override !== "") return round2(Number(override));
-  const mult = priceMultiplier == null ? 1 : Number(priceMultiplier);
-  return round2((Number(pricePerHead) || 0) * mult);
+  const o = usableRate(override);
+  if (o !== null) return round2(o);
+  const mult = usableRate(priceMultiplier) ?? 1;
+  return round2((usableRate(pricePerHead) ?? 0) * mult);
 }
 
 /** Low-level food sum over already-resolved segment rows — the exact mirror of the

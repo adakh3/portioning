@@ -443,6 +443,157 @@
         }
       ],
       "expected_food": "0.51"
+    },
+    {
+      "name": "rel449_unusable_override_reverts_to_multiplier_negative",
+      "_why": "A negative per-segment override must never pay the customer to attend. It is refused at the API; the engines IGNORE it and the segment reverts to its multiplier — falling back, never making the cover free. 90 adults @10 + 10 kids @5 (0.5x) = 950.00.",
+      "price_per_head": "10",
+      "segments": [
+        {
+          "count": 90,
+          "price_multiplier": "1.0"
+        },
+        {
+          "count": 10,
+          "price_multiplier": "0.5",
+          "price_override": "-1000"
+        }
+      ],
+      "expected_food": "950.00"
+    },
+    {
+      "name": "rel449_unusable_override_reverts_to_multiplier_junk",
+      "_why": "A non-numeric override must not poison the sum with NaN. Ignored, so kids revert to 0.5x: 90 adults @10 + 10 kids @5 = 950.00.",
+      "price_per_head": "10",
+      "segments": [
+        {
+          "count": 90,
+          "price_multiplier": "1.0"
+        },
+        {
+          "count": 10,
+          "price_multiplier": "0.5",
+          "price_override": "abc"
+        }
+      ],
+      "expected_food": "950.00"
+    },
+    {
+      "name": "rel449_unusable_multiplier_reverts_to_full_price_junk",
+      "_why": "A non-numeric multiplier is bad org config, not typing. It reverts to 1.0 — FULL price — because flooring to zero would turn a config error into a silent discount nobody would spot. 90 @10 + 10 @10 = 1000.00.",
+      "price_per_head": "10",
+      "segments": [
+        {
+          "count": 90,
+          "price_multiplier": "1.0"
+        },
+        {
+          "count": 10,
+          "price_multiplier": "abc"
+        }
+      ],
+      "expected_food": "1000.00"
+    },
+    {
+      "name": "rel449_unusable_multiplier_reverts_to_full_price_negative",
+      "_why": "A negative multiplier must not subtract from the food total, and must not make the segment free either. Reverts to 1.0: 90 @10 + 10 @10 = 1000.00.",
+      "price_per_head": "10",
+      "segments": [
+        {
+          "count": 90,
+          "price_multiplier": "1.0"
+        },
+        {
+          "count": 10,
+          "price_multiplier": "-1.0"
+        }
+      ],
+      "expected_food": "1000.00"
+    },
+    {
+      "name": "rel449_comped_segment_override_of_zero_applies",
+      "_why": "Zero is a REAL, chosen rate, not 'no override'. Both engines must keep it (neither may use truthiness). 90 adults @10 + 10 kids @0 = 900.00.",
+      "price_per_head": "10",
+      "segments": [
+        {
+          "count": 90,
+          "price_multiplier": "1.0"
+        },
+        {
+          "count": 10,
+          "price_multiplier": "0.5",
+          "price_override": "0"
+        }
+      ],
+      "expected_food": "900.00"
+    },
+    {
+      "name": "rel449_half_cent_override_rounds_half_up_in_both",
+      "_why": "12.345/head must round the SAME way in both engines and in the DB write. HALF_UP -> 12.35 (the column would round HALF_EVEN to 12.34, which is why the API quantizes before storing). 90 @10 + 10 @12.35 = 1023.50.",
+      "price_per_head": "10",
+      "segments": [
+        {
+          "count": 90,
+          "price_multiplier": "1.0"
+        },
+        {
+          "count": 10,
+          "price_multiplier": "0.5",
+          "price_override": "12.345"
+        }
+      ],
+      "expected_food": "1023.50"
+    },
+    {
+      "name": "rel449_whitespace_override_is_not_a_free_cover",
+      "_why": "Number('  ') is 0 in JS while Decimal refuses it — so a bare Number() would price this cover FREE on the frontend and at the multiplier on the backend. Both must fall back: 90 @10 + 10 @5 (0.5x) = 950.00.",
+      "price_per_head": "10",
+      "segments": [
+        {
+          "count": 90,
+          "price_multiplier": "1.0"
+        },
+        {
+          "count": 10,
+          "price_multiplier": "0.5",
+          "price_override": "   "
+        }
+      ],
+      "expected_food": "950.00"
+    },
+    {
+      "name": "rel449_exotic_digits_override_is_not_a_rate",
+      "_why": "Decimal parses '1_000' and full-width/Arabic-Indic digits; Number() does not. Accepting them would store money the preview never showed. Both fall back to the multiplier: 90 @10 + 10 @5 = 950.00.",
+      "price_per_head": "10",
+      "segments": [
+        {
+          "count": 90,
+          "price_multiplier": "1.0"
+        },
+        {
+          "count": 10,
+          "price_multiplier": "0.5",
+          "price_override": "1_000"
+        }
+      ],
+      "expected_food": "950.00"
+    },
+    {
+      "name": "rel449_absurd_price_per_head_does_not_explode",
+      "_why": "Decimal('1e400').is_finite() is True (JS gives Infinity), so an unbounded quantize raises InvalidOperation. Out-of-range base price falls back to 0; the kids override still stands: 90 @0 + 10 @7 = 70.00.",
+      "price_per_head": "1e400",
+      "segments": [
+        {
+          "count": 90,
+          "price_multiplier": "1.0"
+        },
+        {
+          "count": 10,
+          "price_multiplier": "0.5",
+          "price_override": "7"
+        }
+      ],
+      "expected_food": "70.00"
     }
   ],
   "meal_audience_cases": [

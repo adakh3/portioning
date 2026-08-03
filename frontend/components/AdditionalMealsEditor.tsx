@@ -224,6 +224,16 @@ export default function AdditionalMealsEditor({
                 priceRoundingStep={priceRoundingStep}
                 disabled={!editing}
               />
+              {editing && (
+                /* The main meal splits its price by guest type; an extra meal charges
+                   one rate to everyone it serves (REL-426 AC3 deferred per-segment
+                   rates on extras). Say so, or the asymmetry with the Main Meal card
+                   reads as a missing feature rather than a deliberate one. */
+                <p className="text-xs text-muted-foreground">
+                  One flat rate for everyone this meal serves — guest types aren&apos;t
+                  priced separately on extra meals.
+                </p>
+              )}
             </div>
           ))}
         </div>

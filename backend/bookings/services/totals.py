@@ -3,8 +3,9 @@
 Do not re-implement this math anywhere else (serializers, views, models): call
 `compute_booking_totals`. See docs/CODE_MAINTENANCE.md.
 """
+import re
 from dataclasses import dataclass
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal, ROUND_HALF_UP, InvalidOperation
 
 TWO_PLACES = Decimal('0.01')
 
@@ -15,14 +16,73 @@ def _round2(x):
     return Decimal(x).quantize(TWO_PLACES, rounding=ROUND_HALF_UP)
 
 
+# Nothing priceable is worth more than this per cover. Bounding here (not just in
+# the API validator) keeps ``segment_effective_rate`` the unconditional guard its
+# docstring claims to be: ``Decimal('1e400').is_finite()`` is True — unlike JS,
+# where it's Infinity — so without a magnitude bound, ``quantize`` raises the very
+# InvalidOperation this was written to eliminate.
+MAX_USABLE_RATE = Decimal('99999999.99')
+
+# The ONE accepted spelling of a money string, shared with the API validator
+# (events.models.parse_segment_rate imports this) and mirrored by RATE_RE in
+# frontend/lib/quoteTotals.ts. `[0-9]` not `\d`: Python's `\d` is Unicode-aware and
+# would match "١٢٣"/"５", which Decimal parses and JS Number does not.
+RATE_RE = re.compile(r'^\s*(-?)([0-9]+(?:\.[0-9]+)?)\s*$')
+
+
+def _usable_rate(value):
+    """A finite, non-negative, in-range Decimal, or ``None`` when the value can't be
+    used as money. ``None`` means "fall back", never "free" (REL-449).
+
+    Strings must match ``RATE_RE`` rather than going straight to ``Decimal``: the two
+    parsers accept different languages, and every disagreement is money one engine
+    charges and the other doesn't. ``Decimal`` takes ``"1_000"`` (Python separators)
+    and Unicode digits like ``"١٢٣"``/``"５"``; JS ``Number`` takes none of those but
+    turns ``"  "``, ``false`` and ``[]`` into ``0``. Insisting on one plain spelling
+    on both sides closes both halves.
+    """
+    if value is None or value == '' or isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float, Decimal)):
+        try:
+            d = Decimal(str(value))
+        except (InvalidOperation, ValueError, TypeError):
+            return None
+    elif isinstance(value, str):
+        if not RATE_RE.match(value):
+            return None
+        d = Decimal(value.strip())
+    else:
+        return None
+    if not d.is_finite() or d < 0 or d > MAX_USABLE_RATE:
+        return None
+    return d
+
+
 def segment_effective_rate(price_per_head, price_multiplier, override=None):
     """The per-cover price for a segment, rounded to cents. A per-segment
     ``override`` (a flat/custom per-head set on the booking) wins; otherwise it's
-    ``round(price_per_head × price_multiplier)`` (e.g. Kids at 0.5 → $5.00)."""
-    if override is not None:
-        return _round2(Decimal(str(override)))
-    mult = Decimal(str(price_multiplier if price_multiplier is not None else 1))
-    return _round2(Decimal(price_per_head or 0) * mult)
+    ``round(price_per_head × price_multiplier)`` (e.g. Kids at 0.5 → $5.00).
+
+    Always **finite and non-negative** (REL-449). Bad input is refused at the API
+    (see ``guest_counts_error``), so nothing here should ever be junk — but a rate
+    is money, and this also has to hold for rows already in the database.
+
+    Unusable input **falls back; it never makes a cover free.** An unusable override
+    is ignored (the segment reverts to its multiplier), and an unusable multiplier
+    reverts to ``1.0`` — full price. Flooring to zero instead would turn a bad
+    config value into a silent discount, which is the failure mode a caterer would
+    never spot. The one thing that is always refused is a negative, which would
+    otherwise pay the customer to attend.
+    """
+    o = _usable_rate(override)
+    if o is not None:
+        return _round2(o)
+    mult = _usable_rate(price_multiplier)
+    if mult is None:
+        mult = Decimal('1')
+    base = _usable_rate(price_per_head) or Decimal('0')
+    return _round2(base * mult)
 
 
 def segment_food_total(price_per_head, segments):
