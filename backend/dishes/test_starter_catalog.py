@@ -76,3 +76,38 @@ class StarterCatalogTests(TestCase):
         result = calculate_portions(dish_ids, {'gents': 50, 'ladies': 50}, org=org)
         self.assertTrue(result['portions'])  # produced per-dish portions
         self.assertGreater(result['totals']['total_food_weight_grams'], 0)
+
+    def test_the_wedding_template_arrives_coursed_and_the_buffet_flat(self):
+        """The two starters are deliberately different shapes.
+
+        A caterer meets both states of the booking's menu card on day one: a flat
+        list, and one already grouped into courses. Before this, every seeded
+        template was course-less, so the template→booking course carry-over
+        (REL-417) had nothing to carry.
+        """
+        org = seed('Shapes Co')
+
+        flat = MenuTemplate.objects.get(organisation=org, name='Corporate Lunch Buffet')
+        self.assertEqual(flat.courses.count(), 0)
+        self.assertTrue(all(p.course_id is None for p in flat.portions.all()))
+
+        coursed = MenuTemplate.objects.get(organisation=org, name='Wedding Reception Dinner')
+        self.assertEqual(
+            list(coursed.courses.values_list('name', flat=True)),
+            ['Starter', 'Main', 'Dessert'],
+        )
+        by_course = {}
+        for p in coursed.portions.select_related('dish', 'course'):
+            by_course.setdefault(p.course.name if p.course else None, set()).add(p.dish.name)
+        self.assertEqual(by_course['Starter'], {'Bruschetta', 'Caesar Salad'})
+        self.assertEqual(by_course['Main'], {
+            'Roast Beef', 'Baked Salmon', 'Mashed Potatoes', 'Roasted Seasonal Vegetables'})
+        self.assertEqual(by_course['Dessert'], {'New York Cheesecake'})
+        # One dish is deliberately un-coursed — the booking renders it "On the table".
+        self.assertEqual(by_course[None], {'Dinner Rolls'})
+
+    def test_courses_are_per_org_and_not_duplicated_on_reseed(self):
+        org = seed('Reseed Co')
+        call_command('seed_starter_catalog', '--org', 'Reseed Co', verbosity=0)
+        coursed = MenuTemplate.objects.get(organisation=org, name='Wedding Reception Dinner')
+        self.assertEqual(coursed.courses.count(), 3)
