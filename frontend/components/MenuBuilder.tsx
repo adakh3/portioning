@@ -41,8 +41,13 @@ function DropSection({
   );
 }
 
-/** One dish row, draggable by its handle. The handle (not the whole row) carries the
- * listeners so the choice chip and the ✕ stay clickable.
+/** One dish row. The WHOLE ROW is the drag target, not just the ⠿ — grabbing the dish
+ * name is what a person actually does, and a hover-revealed handle is a small target
+ * to find and an easy one to miss. The ⠿ stays as the visible hint that the row moves.
+ *
+ * Buttons inside the row (the choice chip, the ✕) opt out of starting a drag, so they
+ * still click. dnd-kit's PointerSensor calls preventDefault on the pointerdown it
+ * claims, which would otherwise swallow those clicks.
  *
  * ↑/↓ on the focused handle move the dish to the previous/next course. That is a hand
  * -rolled key handler rather than dnd-kit's KeyboardSensor, for the reason
@@ -62,29 +67,41 @@ function DragRow({
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: String(dishId), disabled: !draggable,
   });
+  const rowListeners = draggable
+    ? {
+        ...listeners,
+        onPointerDown: (e: React.PointerEvent) => {
+          if ((e.target as HTMLElement).closest("button")) return;
+          listeners?.onPointerDown?.(e);
+        },
+      }
+    : {};
   return (
     <div
       ref={setNodeRef}
+      {...rowListeners}
       className={`group flex items-center gap-2 py-1 ${indent ? "pl-3" : ""} ${
-        isDragging ? "opacity-40" : ""
-      }`}
+        draggable ? "cursor-grab active:cursor-grabbing" : ""
+      } ${isDragging ? "opacity-40" : ""}`}
     >
       {draggable && (
-        <button
-          type="button"
-          aria-label={`Move ${dishName} to another course — drag, or use the arrow keys`}
+        // A span, not a button: buttons opt out of dragging above, and this one is
+        // the drag hint itself. role/tabIndex keep it focusable for the arrow keys.
+        <span
+          // dnd-kit's attributes supply role="button" and tabIndex, so the span is
+          // focusable for the arrow keys without setting them twice.
           {...attributes}
-          {...listeners}
+          aria-label={`Move ${dishName} to another course — drag, or use the arrow keys`}
           onKeyDown={(e) => {
             if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
             e.preventDefault();
             e.stopPropagation();
             onKeyMove(dishId, e.key === "ArrowUp" ? -1 : 1);
           }}
-          className="cursor-grab select-none text-muted-foreground opacity-0 transition-opacity group-hover:opacity-60 group-focus-within:opacity-60 focus:opacity-60"
+          className="select-none text-muted-foreground opacity-0 transition-opacity group-hover:opacity-60 group-focus-within:opacity-60 focus:opacity-60"
         >
           ⠿
-        </button>
+        </span>
       )}
       {children}
     </div>

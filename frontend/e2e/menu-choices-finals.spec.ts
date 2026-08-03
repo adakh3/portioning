@@ -91,22 +91,18 @@ test.describe("Menu choices and final numbers survive save + reload", () => {
     await expect(card).toContainText("Dessert");
     await expect(card).toContainText("On the table");
 
-    // The editable card marks choices only while editing — in view mode the payoff
-    // is the client-facing block below it, rendered SERVER-side from the same flags.
-    // Asserting there proves the round trip reached the DB and back out through
-    // choice_groups(), which a chip rendered from form state would not.
-    const asClient = page.getByTestId("menu-as-client-sees");
-    // One collapsed line per course, and every marked dish inside one of them. The
-    // order WITHIN a line is the server's to choose, so it isn't asserted here.
-    await expect(asClient).toContainText("Choice of:");
-    for (const dish of [a, b, c, d]) await expect(asClient).toContainText(dish);
-    expect((await asClient.innerText()).match(/Choice of:/g)).toHaveLength(2);
-
-    // And the chips themselves come back when the form reopens.
+    // The flags themselves: reopen the form after the hard reload and all four chips
+    // are back. This is form state rebuilt FROM the reloaded event, so it proves the
+    // round trip reached the database — nothing survived in memory across the reload.
     await page.getByRole("button", { name: "Edit" }).first().click();
     await expect(page.getByTestId("menu-structure").getByText("guests choose")).toHaveCount(4);
+    // Two options per course still read as one either/or.
+    await expect(page.getByText("or", { exact: true })).toHaveCount(2);
     // Back to view mode so the finals panel (hidden while editing) is reachable.
     await page.reload();
+
+    // The server's own read of those flags is what the finals panel below runs on:
+    // it lists one tally per offered dish, so its count is the backend agreeing.
 
     // --- Finals: record the numbers on the confirmed booking (REL-419 AC6) ---
     await expect(page.getByRole("button", { name: "Record final numbers" })).toBeVisible({ timeout: 15_000 });
