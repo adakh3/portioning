@@ -15,7 +15,9 @@ from .models import Event, EventStatus, EventPayment
 from users.mixins import (
     get_request_org, apply_org_filter, get_org_object_or_404, is_superuser_without_org,
 )
-from .serializers import EventSerializer, EventListSerializer, EventPaymentSerializer
+from .serializers import (
+    EventSerializer, EventListSerializer, EventPaymentSerializer, EventFinalsSerializer,
+)
 
 
 class EventPDFView(APIView):
@@ -138,6 +140,26 @@ class EventDetailView(generics.RetrieveUpdateDestroyAPIView):
             'payments', 'payments__received_by',
         )
         return apply_org_filter(qs, self.request)
+
+
+class EventFinalsView(APIView):
+    """POST /api/events/<pk>/finals/ — record the final numbers (REL-419).
+
+    One save for the guarantee, its due date and the per-entrée tallies, and the only
+    endpoint that validates the tallies against the guarantee. Returns the full event
+    so the caller picks up the freshly derived `finals_status` without a second fetch.
+    """
+
+    def post(self, request, pk):
+        event = get_org_object_or_404(
+            Event.objects.prefetch_related('dish_comments', 'dish_comments__dish'),
+            request, pk=pk,
+        )
+        serializer = EventFinalsSerializer(data=request.data, event=event)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        event.refresh_from_db()
+        return Response(EventSerializer(event, context={'request': request}).data)
 
 
 class EventCalculateView(APIView):

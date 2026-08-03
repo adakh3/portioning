@@ -2,7 +2,7 @@
 // previewed live while editing, and so the whole quote saves in one PATCH.
 // The server (bookings/models/quotes.py: recalculate_totals + QuoteLineItem.save)
 // remains the source of truth on save.
-import { EventMealData, CourseData } from "@/lib/api";
+import { EventMealData, CourseData, MenuChoices } from "@/lib/api";
 import type { TimelineEntryValue } from "@/components/BookingTimelineField";
 import { formatCurrency } from "@/lib/utils";
 
@@ -530,6 +530,7 @@ export function buildQuoteSavePayload(
   timelineEntries: TimelineEntryValue[] = [],
   courses: CourseData[] = [],
   dishCourses: Record<string, number> = {},
+  menuChoices: MenuChoices = {},
 ) {
   return {
     primary_contact: editData.primary_contact ? Number(editData.primary_contact) : null,
@@ -563,6 +564,9 @@ export function buildQuoteSavePayload(
     based_on_template: menuData.based_on_template,
     courses,
     dish_courses: dishCourses,
+    // Which dishes are offered as an entrée choice (REL-419). Always sent so
+    // un-ticking the last one clears it; the counts stay null until finals.
+    menu_choices: menuChoices,
     line_items: buildLineItemsPayload(lineItems),
     additional_meals: buildMealsPayload(meals, editData.guest_count, editData.segment_counts, segmentMeta),
     timeline_entries: buildTimelineEntriesPayload(timelineEntries),
@@ -593,9 +597,6 @@ export interface EventSaveInput {
   guest_count: number;
   segment_counts: Record<string, number>; // explicit per-segment inputs (default derived)
   segment_prices: Record<string, string>; // per-segment per-head overrides (blank = use multiplier)
-  guaranteed_count: number | null;
-  final_count: number | null;
-  final_count_due: string;
   big_eaters: boolean;
   big_eaters_percentage: number;
   setup_time: string;
@@ -618,12 +619,18 @@ export function buildEventSavePayload(
   segmentMeta: GuestSegmentMeta[] = [],
   courses: CourseData[] = [],
   dishCourses: Record<string, number> = {},
+  menuChoices: MenuChoices = {},
 ) {
   return {
     name: v.name,
     date: v.date,
     courses,
     dish_courses: dishCourses,
+    // Offered entrée choices (REL-419), `{dish_id: tally or null}`. The finals panel
+    // owns the tallies, but they ride along here UNCHANGED — the map is authoritative
+    // server-side, so dropping them from an ordinary event save would wipe recorded
+    // finals. The editor never edits a count, only which dishes are offered.
+    menu_choices: menuChoices,
     is_b2b: v.is_b2b,
     account: v.is_b2b ? v.account : null,
     primary_contact: v.primary_contact,
@@ -641,9 +648,6 @@ export function buildEventSavePayload(
     setup_instructions: v.setup_instructions,
     guest_count: v.guest_count,
     guest_counts: buildGuestCountsPayload(v.guest_count, v.segment_counts, segmentMeta, v.segment_prices),
-    guaranteed_count: v.guaranteed_count,
-    final_count: v.final_count,
-    final_count_due: v.final_count_due || null,
     big_eaters: v.big_eaters,
     big_eaters_percentage: v.big_eaters_percentage,
     setup_time: v.setup_time || null,

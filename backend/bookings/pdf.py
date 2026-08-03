@@ -439,14 +439,20 @@ def _grand_total_bar(cells, col_widths):
 
 def _dish_table(dish_names, s):
     """A 2-column dish list table (shared by the main menu and each additional
-    meal's menu)."""
+    meal's menu).
+
+    Dish names are free user text and every Paragraph is parsed as reportlab's
+    mini-markup, so they are escaped: a dish called ``Beef </b> oops`` used to raise
+    ``ValueError: Parse error`` and take the whole download down with it, and one
+    called ``Salmon <b>Deluxe</b>`` silently rendered as bold.
+    """
     half = math.ceil(len(dish_names) / 2)
     col1, col2 = dish_names[:half], dish_names[half:]
     MENU_COL_W = CONTENT_W * 0.50
     rows = []
     for i in range(half):
-        right = Paragraph(col2[i], s['body']) if i < len(col2) else Paragraph('', s['body'])
-        rows.append([Paragraph(col1[i], s['body']), right])
+        right = Paragraph(_esc(col2[i]), s['body']) if i < len(col2) else Paragraph('', s['body'])
+        rows.append([Paragraph(_esc(col1[i]), s['body']), right])
     t = Table(rows, colWidths=[MENU_COL_W, MENU_COL_W])
     style = [
         ('VALIGN', (0, 0), (-1, -1), 'TOP'), ('TOPPADDING', (0, 0), (-1, -1), 3),

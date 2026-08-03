@@ -33,15 +33,45 @@ def booking_menu_courses(booking):
     ``name=''`` group holds unassigned dishes), or ``None`` when the booking defines no
     courses (surfaces then fall back to the flat/category menu, course-less byte-
     identical). Shared by the presentation dict AND the event PDF (which bypasses
-    presentation). Service style is booking-level, not per-course (REL-417)."""
-    from events.models import resolve_booking_menu
+    presentation). Service style is booking-level, not per-course (REL-417).
+
+    Dishes offered as a choice collapse into ONE line — ``Choice of: A / B / C``
+    (REL-419 AC12–AC14) — so the contract reads the way a US catering contract reads:
+    the client picks one, and the per-head price is the same either way. This is the
+    single place that rendering exists, which is what keeps the sign page, both PDFs
+    and the in-app pages saying the same thing.
+    """
+    from events.models import resolve_booking_menu, choice_groups
     groups = resolve_booking_menu(booking)
     if not groups:
         return None
-    return [
-        {'name': g['course'].name if g['course'] else '', 'items': g['dish_names']}
-        for g in groups
-    ]
+    # Read the flags through `choice_groups`, never the raw rows: it is the one place
+    # that decides a flag counts (plated, and the dish is in a course), so the contract
+    # can't say "Choice of" about a booking the finals panel doesn't tally.
+    offered = {
+        dish_id for group in choice_groups(booking) for dish_id in group['dish_ids']
+    }
+    out = []
+    for g in groups:
+        pairs = list(zip(g['dish_ids'], g['dish_names']))
+        chosen_ids = [dish_id for dish_id, _ in pairs if dish_id in offered]
+        chosen_names = [name for dish_id, name in pairs if dish_id in offered]
+        # One offered dish is not a choice — "Choice of: Filet Mignon" would be a
+        # silly thing to put in a contract. The editor warns about it; here it simply
+        # reads as the ordinary dish it is.
+        if len(chosen_ids) < 2:
+            chosen_ids = []
+        items = []
+        for dish_id, name in pairs:
+            if dish_id not in offered or not chosen_ids:
+                items.append(name)
+            elif dish_id == chosen_ids[0]:
+                # The choice line takes the position of the FIRST offered dish, so a
+                # course listing a fixed item then a choice keeps its running order.
+                # Keyed on the id, not the name — two dishes can share a name.
+                items.append(f"Choice of: {' / '.join(chosen_names)}")
+        out.append({'name': g['course'].name if g['course'] else '', 'items': items})
+    return out
 
 
 def booking_presentation(booking, signature=None):

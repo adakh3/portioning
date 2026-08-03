@@ -10,6 +10,7 @@ import { useOrgLocale } from "@/lib/orgLocale";
 import { statusColor } from "@/lib/statusColors";
 import { useQueryState } from "@/lib/useQueryState";
 import { Button } from "@/components/ui/button";
+import FinalsPill from "@/components/FinalsPill";
 import { Avatar } from "@/components/ui/avatar";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -216,9 +217,14 @@ function EventsContent() {
                     <TableCell className="text-right font-medium whitespace-nowrap">{formatCurrency(e.total, cs)}</TableCell>
                     <TableCell className="whitespace-nowrap text-muted-foreground text-xs">{formatDate(e.created_at, dateFormat)}</TableCell>
                     <TableCell>
-                      <span className={cn("inline-block rounded-full px-2.5 py-0.5 text-xs font-medium uppercase tracking-wide", statusColor(EVENT_STATUS_COLOR[e.status]).pill)}>
-                        {e.status_display || e.status}
-                      </span>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className={cn("inline-block rounded-full px-2.5 py-0.5 text-xs font-medium uppercase tracking-wide", statusColor(EVENT_STATUS_COLOR[e.status]).pill)}>
+                          {e.status_display || e.status}
+                        </span>
+                        {/* Finals reminder — the same derived pill as the event page,
+                            so an overdue guarantee is visible without opening it. */}
+                        <FinalsPill status={e.finals_status} dueDate={e.final_count_due} dateFormat={dateFormat} />
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
