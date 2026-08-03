@@ -1,5 +1,6 @@
+import re
 import uuid
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 
 from django.conf import settings
 from django.core.validators import MinValueValidator, MaxValueValidator
@@ -84,11 +85,71 @@ def sync_legacy_guest_counts(booking, organisation, gents, ladies, guest_count):
             BookingGuestCount.objects.filter(segment=seg, **parent).delete()
 
 
+# A per-head rate is stored as DecimalField(max_digits=10, decimal_places=2), so
+# anything from 0 to 99,999,999.99 fits. Beyond that the DB write itself fails.
+MAX_SEGMENT_RATE = Decimal('99999999.99')
+TWO_PLACES_RATE = Decimal('0.01')
+
+# The ONE accepted spelling of a rate — imported from the money engine, not
+# redefined, so the API validator and the maths can never drift apart. Deliberately
+# far narrower than what ``Decimal`` will swallow; see its definition in
+# bookings.services.totals for why.
+from bookings.services.totals import RATE_RE as _RATE_RE  # noqa: E402
+
+
+def parse_segment_rate(raw):
+    """``(Decimal | None, error | None)`` for a submitted per-segment rate (REL-449).
+
+    The single place that decides what a per-head override may be — and what it is
+    worth — shared by the API validator and the write path so they can never
+    disagree. ``None``/blank is "no override" and is valid. Anything else must be a
+    plainly-written, non-negative amount that fits the column, and is returned
+    **already quantized to cents, HALF_UP**.
+
+    Quantizing here is the point, not a detail. The column is ``decimal_places=2``,
+    so Django rounds on write using HALF_EVEN — the opposite of the HALF_UP both
+    engines are deliberately aligned on. A rate of ``12.345`` previewed as ``12.35``
+    and stored as ``12.34``, so the saved booking was a cent lighter than the quote
+    the customer saw. Rounding to the stored precision *before* anyone prices
+    anything keeps the preview and the saved total the same number.
+
+    Before this, ``Decimal(str(raw))`` was called straight on the payload: ``"abc"``
+    and ``"1e400"`` raised ``InvalidOperation`` out of the serializer as an unhandled
+    **500**, and a negative rate sailed through to make the food total negative —
+    caught, if at all, only by the subtotal guard, which then blamed discounts that
+    didn't exist.
+    """
+    if raw is None or raw == '':
+        return None, None
+    if isinstance(raw, bool):  # True would otherwise read as 1
+        return None, 'must be a number'
+    if isinstance(raw, (int, float, Decimal)):
+        text = f'{raw:f}' if isinstance(raw, Decimal) else repr(raw)
+    elif isinstance(raw, str):
+        text = raw
+    else:
+        return None, 'must be a number'
+    match = _RATE_RE.match(text)
+    if not match:
+        return None, 'must be a number'
+    sign, digits = match.groups()
+    value = Decimal(digits)
+    if sign == '-' and value != 0:
+        return None, 'cannot be negative'
+    if value > MAX_SEGMENT_RATE:
+        return None, f'cannot be more than {MAX_SEGMENT_RATE}'
+    # Quantize to the stored precision, HALF_UP, and normalise -0 to 0 so nothing
+    # can render "$-0.00" on a customer-facing quote.
+    return value.quantize(TWO_PLACES_RATE, rounding=ROUND_HALF_UP) + Decimal('0'), None
+
+
 def guest_counts_error(organisation, guest_count, raw_counts):
     """Validation guard for a submitted breakdown: return an error message when the
     explicit **in-count** segments sum to more than ``guest_count`` (a negative
-    remainder), else ``None``. Additional-cover segments (``counts_toward_total=
-    False``, e.g. Vendors) are ignored — they never reconcile against the count.
+    remainder), or when any row's per-head rate isn't a usable amount, else
+    ``None``. Additional-cover segments (``counts_toward_total=False``, e.g.
+    Vendors) are ignored for the count check — they never reconcile against the
+    count — but their **rate** is still validated.
     """
     if not raw_counts:
         return None
@@ -98,9 +159,24 @@ def guest_counts_error(organisation, guest_count, raw_counts):
         seg = segs.get((row.get('segment') or '').lower())
         if seg is not None and seg.counts_toward_total:
             in_count += int(row.get('count') or 0)
+    # The count check stays FIRST, as it always was — adding the rate check must not
+    # silently change which error a caterer sees for a payload that fails both.
     if in_count > (guest_count or 0):
         return (f'The breakdown ({in_count}) is more than the guest count '
                 f'({guest_count or 0}).')
+    for row in raw_counts:
+        seg = segs.get((row.get('segment') or '').lower())
+        # Only rows that would actually store a rate: `write_booking_segments` skips
+        # an unknown segment and any row with count 0, so validating those would 400
+        # on a value that was going to be discarded anyway.
+        if seg is None or int(row.get('count') or 0) <= 0:
+            continue
+        # Name the segment in the message: "Kids price per head cannot be negative"
+        # points at the box that's wrong, instead of the subtotal guard's phantom
+        # discount (REL-449 AC1).
+        _, rate_error = parse_segment_rate(row.get('price_per_head'))
+        if rate_error:
+            return f'{seg.name} price per head {rate_error}.'
     return None
 
 
@@ -127,8 +203,11 @@ def write_booking_segments(booking, raw_counts):
         elif name == 'ladies':
             ladies = count
         if count > 0:
-            raw_price = row.get('price_per_head')
-            override = Decimal(str(raw_price)) if raw_price not in (None, '') else None
+            # Parse through the shared guard, so this path can't store what the API
+            # validator rejects — and can't raise InvalidOperation as a 500 either.
+            # An unusable value becomes "no override" (fall back to the multiplier)
+            # rather than a stored rate nobody chose (REL-449 AC2).
+            override, _ = parse_segment_rate(row.get('price_per_head'))
             # The default in-count segment (Adults) always uses the base price/head —
             # never an override — so the stored total can't diverge from the preview.
             # Guard here (not just the UI) so the raw API / AI-agent write path can't

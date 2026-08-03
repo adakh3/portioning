@@ -41,6 +41,7 @@ import MenuAsClientSees from "@/components/MenuAsClientSees";
 import FinalNumbersPanel from "@/components/FinalNumbersPanel";
 import FinalsPill from "@/components/FinalsPill";
 import GuestCountField, { GuestCountValue } from "@/components/GuestCountField";
+import SegmentRatesField from "@/components/SegmentRatesField";
 import BookingTimelineField, { TimelineEntryValue } from "@/components/BookingTimelineField";
 import BookingDetailsForm, { BookingDetailsValue } from "@/components/BookingDetailsForm";
 import AssigneePicker from "@/components/AssigneePicker";
@@ -816,50 +817,6 @@ export default function EventDetailPage() {
         </CardContent>
       </Card>
 
-      {/* Timeline Section */}
-      <Card>
-        <CardContent className="p-6">
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Timeline</h2>
-            {editing ? (
-              <BookingTimelineField
-                eventDate={formDate}
-                timeFormat={timeFormat}
-                value={{ setup_time: formSetupTime, guest_arrival_time: formArrivalTime, meal_time: formMealTime, end_time: formEndTime }}
-                onChange={(patch) => {
-                  if (patch.setup_time !== undefined) setFormSetupTime(patch.setup_time);
-                  if (patch.guest_arrival_time !== undefined) setFormArrivalTime(patch.guest_arrival_time);
-                  if (patch.meal_time !== undefined) setFormMealTime(patch.meal_time);
-                  if (patch.end_time !== undefined) setFormEndTime(patch.end_time);
-                }}
-                entries={formTimeline}
-                onEntriesChange={setFormTimeline}
-                presets={timelinePresets}
-                meals={timelineMealRows(formAdditionalMeals)}
-              />
-            ) : (event!.timeline_entries || []).length > 0 ? (
-              /* The booking's own run-of-show replaces the four legacy slots. */
-              <dl className="space-y-1">
-                {(event!.timeline_entries || []).map((entry) => (
-                  <InfoRow key={entry.id} label={formatTime(entry.time.slice(0, 5), timeFormat)}
-                    value={entry.label} />
-                ))}
-              </dl>
-            ) : (event!.setup_time || event!.guest_arrival_time || event!.meal_time || event!.end_time) ? (
-              /* The four legacy slots show only on a booking that actually has
-                 them — they're how old bookings stored their times, not an empty
-                 shape every new event should carry. */
-              <dl className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <InfoRow label="Setup Time" value={formatDateTime(event!.setup_time)} />
-                <InfoRow label="Guest Arrival" value={formatDateTime(event!.guest_arrival_time)} />
-                <InfoRow label="Meal Time" value={formatDateTime(event!.meal_time)} />
-                <InfoRow label="End Time" value={formatDateTime(event!.end_time)} />
-              </dl>
-            ) : (
-              <p className="text-sm text-muted-foreground">No timeline set.</p>
-            )}
-        </CardContent>
-      </Card>
-
       {/* Guests — entered once; every meal draws from this */}
       <Card>
         <CardContent className="p-6">
@@ -869,7 +826,6 @@ export default function EventDetailPage() {
               <GuestCountField
                 value={{ guest_count: formGuestCount, segment_counts: formSegmentCounts, segment_prices: formSegmentPrices, big_eaters: formBigEaters, big_eaters_percentage: formBigEatersPercent }}
                 onChange={applyGuestPatch}
-                pricePerHead={formPricePerHead}
               />
               {hasVendorDoubleEntry(formSegmentCounts, formAdditionalMeals, segmentMeta) && (
                 <div role="alert" className="mt-2 flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
@@ -939,6 +895,16 @@ export default function EventDetailPage() {
                 disabled={true}
               />
             )}
+            {editing && (
+              /* Per-segment rates sit beside the Price/head they derive from, not in
+                 the Guests card which is filled in before pricing (REL-428). */
+              <SegmentRatesField
+                segmentPrices={formSegmentPrices}
+                onChange={(patch) => setFormSegmentPrices(patch.segment_prices)}
+                pricePerHead={formPricePerHead}
+                currencySymbol={settings.currency_symbol}
+              />
+            )}
         </CardContent>
       </Card>
 
@@ -999,6 +965,51 @@ export default function EventDetailPage() {
         segmentCounts={editing ? formSegmentCounts : Object.fromEntries((event!.guest_counts ?? []).map((r) => [r.segment, r.count]))}
         segmentMeta={segmentMeta}
       />
+
+      {/* Timeline Section — below the meals: the run-of-show is built around the
+          meal times, so it reads after you've said what's being served (REL-430). */}
+      <Card>
+        <CardContent className="p-6">
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Timeline</h2>
+            {editing ? (
+              <BookingTimelineField
+                eventDate={formDate}
+                timeFormat={timeFormat}
+                value={{ setup_time: formSetupTime, guest_arrival_time: formArrivalTime, meal_time: formMealTime, end_time: formEndTime }}
+                onChange={(patch) => {
+                  if (patch.setup_time !== undefined) setFormSetupTime(patch.setup_time);
+                  if (patch.guest_arrival_time !== undefined) setFormArrivalTime(patch.guest_arrival_time);
+                  if (patch.meal_time !== undefined) setFormMealTime(patch.meal_time);
+                  if (patch.end_time !== undefined) setFormEndTime(patch.end_time);
+                }}
+                entries={formTimeline}
+                onEntriesChange={setFormTimeline}
+                presets={timelinePresets}
+                meals={timelineMealRows(formAdditionalMeals)}
+              />
+            ) : (event!.timeline_entries || []).length > 0 ? (
+              /* The booking's own run-of-show replaces the four legacy slots. */
+              <dl className="space-y-1">
+                {(event!.timeline_entries || []).map((entry) => (
+                  <InfoRow key={entry.id} label={formatTime(entry.time.slice(0, 5), timeFormat)}
+                    value={entry.label} />
+                ))}
+              </dl>
+            ) : (event!.setup_time || event!.guest_arrival_time || event!.meal_time || event!.end_time) ? (
+              /* The four legacy slots show only on a booking that actually has
+                 them — they're how old bookings stored their times, not an empty
+                 shape every new event should carry. */
+              <dl className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <InfoRow label="Setup Time" value={formatDateTime(event!.setup_time)} />
+                <InfoRow label="Guest Arrival" value={formatDateTime(event!.guest_arrival_time)} />
+                <InfoRow label="Meal Time" value={formatDateTime(event!.meal_time)} />
+                <InfoRow label="End Time" value={formatDateTime(event!.end_time)} />
+              </dl>
+            ) : (
+              <p className="text-sm text-muted-foreground">No timeline set.</p>
+            )}
+        </CardContent>
+      </Card>
 
       {/* Add-on items (arrangements, beverages, rentals, custom) */}
       <Card>

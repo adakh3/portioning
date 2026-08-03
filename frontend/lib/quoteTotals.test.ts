@@ -217,7 +217,11 @@ const golden = JSON.parse(
   segment_food_cases: {
     name: string;
     price_per_head: string;
-    segments: { count: number; price_multiplier: string }[];
+    // `price_override` MUST be in this type. It was missing, and the runtime JSON
+    // carried it anyway — so a refactor that mapped these rows would have silently
+    // dropped every override while all the override cases still passed (each
+    // expects the ignored-override value). The type is part of the parity contract.
+    segments: { count: number; price_multiplier: string; price_override?: string }[];
     expected_food: string;
   }[];
   meal_audience_cases: {

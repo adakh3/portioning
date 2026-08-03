@@ -16,6 +16,7 @@ import CoursesEditor from "@/components/CoursesEditor";
 import MenuChoicesEditor from "@/components/MenuChoicesEditor";
 import MenuAsClientSees from "@/components/MenuAsClientSees";
 import GuestCountField, { GuestCountValue } from "@/components/GuestCountField";
+import SegmentRatesField from "@/components/SegmentRatesField";
 import BookingTimelineField, { TimelineEntryValue } from "@/components/BookingTimelineField";
 import BookingDetailsForm, { BookingDetailsValue } from "@/components/BookingDetailsForm";
 import AssigneePicker from "@/components/AssigneePicker";
@@ -518,23 +519,6 @@ export default function QuoteDetailPage() {
             </CardContent>
           </Card>
 
-          {/* Timeline */}
-          <Card>
-            <CardContent className="p-6">
-              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Timeline</h2>
-              <BookingTimelineField
-                eventDate={createData.event_date}
-                timeFormat={timeFormat}
-                value={{ setup_time: createData.setup_time, guest_arrival_time: createData.guest_arrival_time, meal_time: createData.meal_time, end_time: createData.end_time }}
-                onChange={(patch) => setCreateData((prev) => ({ ...prev, ...patch }))}
-                entries={createTimeline}
-                onEntriesChange={setCreateTimeline}
-                presets={timelinePresets}
-                meals={timelineMealRows(createMeals)}
-              />
-            </CardContent>
-          </Card>
-
           {/* Guests — entered once; every meal draws from this */}
           <Card>
             <CardContent className="p-6">
@@ -542,7 +526,6 @@ export default function QuoteDetailPage() {
               <GuestCountField
                 value={{ guest_count: createData.guest_count, segment_counts: createData.segment_counts, segment_prices: createData.segment_prices, big_eaters: createData.big_eaters, big_eaters_percentage: createData.big_eaters_percentage }}
                 onChange={(patch) => setCreateData((prev) => ({ ...prev, ...patch }))}
-                pricePerHead={createData.price_per_head}
               />
               {hasVendorDoubleEntry(createData.segment_counts, createMeals, segmentMeta) && (
                 <div role="alert" className="mt-2 flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
@@ -567,6 +550,14 @@ export default function QuoteDetailPage() {
                 onPricePerHeadChange={(val) => setCreateData((prev) => ({ ...prev, price_per_head: val }))}
                 currencySymbol={cs}
                 priceRoundingStep={Number(settings.price_rounding_step) || 50}
+              />
+              {/* Per-segment rates live beside the Price/head they derive from, not
+                  in the Guests card which is filled in before pricing (REL-428). */}
+              <SegmentRatesField
+                segmentPrices={createData.segment_prices}
+                onChange={(patch) => setCreateData((prev) => ({ ...prev, ...patch }))}
+                pricePerHead={createData.price_per_head}
+                currencySymbol={cs}
               />
             </CardContent>
           </Card>
@@ -595,6 +586,24 @@ export default function QuoteDetailPage() {
             selectedDishIds={menuData.dish_ids}
             editing
           />
+
+          {/* Timeline — below the meals: the run-of-show is built around the meal
+              times, so it reads after you've said what's being served (REL-430). */}
+          <Card>
+            <CardContent className="p-6">
+              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Timeline</h2>
+              <BookingTimelineField
+                eventDate={createData.event_date}
+                timeFormat={timeFormat}
+                value={{ setup_time: createData.setup_time, guest_arrival_time: createData.guest_arrival_time, meal_time: createData.meal_time, end_time: createData.end_time }}
+                onChange={(patch) => setCreateData((prev) => ({ ...prev, ...patch }))}
+                entries={createTimeline}
+                onEntriesChange={setCreateTimeline}
+                presets={timelinePresets}
+                meals={timelineMealRows(createMeals)}
+              />
+            </CardContent>
+          </Card>
 
           {/* Menu choices — plated only: what the guest gets to pick between. */}
           {createData.service_style === "plated" && (
@@ -1031,25 +1040,6 @@ export default function QuoteDetailPage() {
         </Card>
       )}
 
-      {/* Timeline (editing) */}
-      {editing && (
-        <Card>
-          <CardContent className="p-6">
-            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Timeline</h2>
-            <BookingTimelineField
-              eventDate={editData.event_date}
-              timeFormat={timeFormat}
-              value={{ setup_time: editData.setup_time, guest_arrival_time: editData.guest_arrival_time, meal_time: editData.meal_time, end_time: editData.end_time }}
-              onChange={(patch) => setEditData((prev) => ({ ...prev, ...patch }))}
-              entries={editTimeline}
-              onEntriesChange={setEditTimeline}
-              presets={timelinePresets}
-              meals={timelineMealRows(editMeals)}
-            />
-          </CardContent>
-        </Card>
-      )}
-
       {/* Guests — entered once; every meal draws from this */}
       {editing && (
         <Card>
@@ -1058,7 +1048,6 @@ export default function QuoteDetailPage() {
             <GuestCountField
               value={{ guest_count: editData.guest_count, segment_counts: editData.segment_counts, segment_prices: editData.segment_prices, big_eaters: editData.big_eaters, big_eaters_percentage: editData.big_eaters_percentage }}
               onChange={(patch) => setEditData((prev) => ({ ...prev, ...patch }))}
-              pricePerHead={editData.price_per_head}
             />
             {hasVendorDoubleEntry(editData.segment_counts, editMeals, segmentMeta) && (
               <div role="alert" className="mt-2 flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
@@ -1086,7 +1075,18 @@ export default function QuoteDetailPage() {
               currencySymbol={cs}
               priceRoundingStep={Number(settings.price_rounding_step) || 50}
             />
-          ) : (
+          ) : null}
+          {editing && (
+            /* Per-segment rates sit beside the Price/head they derive from, not in
+               the Guests card which is filled in before pricing (REL-428). */
+            <SegmentRatesField
+              segmentPrices={editData.segment_prices}
+              onChange={(patch) => setEditData((prev) => ({ ...prev, ...patch }))}
+              pricePerHead={editData.price_per_head}
+              currencySymbol={cs}
+            />
+          )}
+          {!editing && (
             <MenuBuilder
               selectedDishIds={q.dishes || []}
               basedOnTemplate={q.based_on_template || null}
@@ -1153,6 +1153,26 @@ export default function QuoteDetailPage() {
           selectedDishIds={editing ? menuData.dish_ids : (q.dishes || [])}
           editing={editing}
         />
+      )}
+
+      {/* Timeline (editing) — below the meals: the run-of-show is built around the
+          meal times, so it reads after you've said what's being served (REL-430). */}
+      {editing && (
+        <Card>
+          <CardContent className="p-6">
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Timeline</h2>
+            <BookingTimelineField
+              eventDate={editData.event_date}
+              timeFormat={timeFormat}
+              value={{ setup_time: editData.setup_time, guest_arrival_time: editData.guest_arrival_time, meal_time: editData.meal_time, end_time: editData.end_time }}
+              onChange={(patch) => setEditData((prev) => ({ ...prev, ...patch }))}
+              entries={editTimeline}
+              onEntriesChange={setEditTimeline}
+              presets={timelinePresets}
+              meals={timelineMealRows(editMeals)}
+            />
+          </CardContent>
+        </Card>
       )}
 
       {/* Menu choices — plated only: what the guest gets to pick between. */}
