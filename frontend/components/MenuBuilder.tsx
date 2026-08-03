@@ -53,6 +53,11 @@ interface Props {
   plated?: boolean;
   /** "Plated dinner", "Buffet", … — the header subtitle's first word. */
   serviceStyleLabel?: string;
+  /** A hearty-eater crowd eats more per head, so it COSTS more per head — the
+   * suggested rate is computed from the portions the engine would actually cook.
+   * A fixed price TIER is a contracted rate and is deliberately unaffected. */
+  bigEaters?: boolean;
+  bigEatersPercentage?: number;
   onStructureChange?: (v: {
     courses: CourseData[];
     dishCourses: Record<string, number>;
@@ -77,6 +82,8 @@ export default function MenuBuilder({
   menuChoices = {},
   plated = false,
   serviceStyleLabel,
+  bigEaters = false,
+  bigEatersPercentage = 20,
   onStructureChange,
   pricePerHead,
   onPricePerHeadChange,
@@ -112,8 +119,6 @@ export default function MenuBuilder({
   const [priceLoading, setPriceLoading] = useState(false);
   const [priceError, setPriceError] = useState<string | null>(null);
 
-  // Extra food % markup
-  const [extraFoodPercent, setExtraFoodPercent] = useState(0);
 
   // Sync with external prop changes
   useEffect(() => {
@@ -136,19 +141,12 @@ export default function MenuBuilder({
     };
   }, [guestCount, templateId, dishesModified, templatePriceTiers, priceRoundingStep]);
 
-  // Apply extra food % markup to a base price
-  const applyExtra = (base: number) => {
-    const marked = base * (1 + extraFoodPercent / 100);
-    return roundToStep(marked, priceRoundingStep);
-  };
-
   // Determine active price for parent notification
   const activePrice = useMemo(() => {
-    if (tierPrice) return applyExtra(tierPrice.price);
-    if (calculatedPrice) return applyExtra(calculatedPrice.price);
+    if (tierPrice) return tierPrice.price;
+    if (calculatedPrice) return calculatedPrice.price;
     return null;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tierPrice, calculatedPrice, extraFoodPercent]);
+  }, [tierPrice, calculatedPrice]);
 
   // Esc closes the dish picker — one of its three ways out (AC8b).
   useEffect(() => {
@@ -159,6 +157,14 @@ export default function MenuBuilder({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [showSelector]);
+
+  // A hearty-eater change means more (or less) food per head, so the rate computed
+  // from the old portions is stale — drop it and let the debounced calc re-run.
+  const firstAppetiteRun = useRef(true);
+  useEffect(() => {
+    if (firstAppetiteRun.current) { firstAppetiteRun.current = false; return; }
+    setCalculatedPrice(null);
+  }, [bigEaters, bigEatersPercentage]);
 
   // Track last auto-filled price so we only overwrite when user hasn't manually edited
   const lastAutoFilledRef = useRef<string>("");
@@ -345,6 +351,8 @@ export default function MenuBuilder({
         const result: PriceEstimateResult = await api.priceEstimate({
           dish_ids: dishIds,
           guest_count: guestCount,
+          big_eaters: bigEaters,
+          big_eaters_percentage: bigEatersPercentage,
         });
         setCalculatedPrice({
           price: roundToStep(result.price_per_head, priceRoundingStep),
@@ -372,7 +380,8 @@ export default function MenuBuilder({
     }, 400);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [guestCount, selected, tierPrice, calculatedPrice, templateId, dishesModified]);
+  }, [guestCount, selected, tierPrice, calculatedPrice, templateId, dishesModified,
+      bigEaters, bigEatersPercentage]);
 
   const handleSave = async () => {
     if (!onSave) return;
@@ -739,21 +748,6 @@ export default function MenuBuilder({
                     use it
                   </button>
                 )}
-                <label className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-                  Extra food
-                  <input
-                    type="number"
-                    min={0}
-                    max={100}
-                    step={5}
-                    value={extraFoodPercent || ""}
-                    onChange={(e) => setExtraFoodPercent(Number(e.target.value) || 0)}
-                    placeholder="0"
-                    disabled={disabled}
-                    className="w-14 border border-input rounded px-1.5 py-0.5 text-xs text-center"
-                  />
-                  %
-                </label>
               </>
             )}
 

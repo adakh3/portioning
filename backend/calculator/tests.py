@@ -130,8 +130,11 @@ class TestPriceEstimateView(CalculatorViewTestBase):
         expected = sum(p["grams_per_person"] * spg.get(p["dish_id"], 0)
                        for p in result["portions"])
         step = OrgSettings.for_org(org).price_rounding_step
-        if step > 1:
-            expected = round(expected / step) * step
+        if step > 1 and expected > 0:
+            # Mirrors the view's floor: a real price never rounds down to nothing.
+            # Without it a cheap menu against the legacy step of 50 returned 0.00,
+            # which is indistinguishable from "couldn't price this".
+            expected = max(round(expected / step) * step, step)
         expected = round(expected, 2)
 
         res = self.client.post("/api/price-estimate/", {"dish_ids": self.dish_ids,

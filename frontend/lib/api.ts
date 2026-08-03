@@ -1374,7 +1374,13 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  priceEstimate: (data: { dish_ids: number[]; guest_count: number }) =>
+  priceEstimate: (data: {
+    dish_ids: number[];
+    guest_count: number;
+    // A hearty-eater crowd is more food per head, so it is a higher rate per head.
+    big_eaters?: boolean;
+    big_eaters_percentage?: number;
+  }) =>
     fetchApi<PriceEstimateResult>("/price-estimate/", {
       method: "POST",
       body: JSON.stringify(data),
