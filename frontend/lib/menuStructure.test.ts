@@ -1,5 +1,5 @@
 import {
-  assignDish, courseSubtitle, menuSections, moveDish, removeCourse, toggleChoice,
+  assignDish, courseWarning, menuSections, moveDish, removeCourse, toggleChoice,
 } from "./menuStructure";
 import type { CourseData } from "@/lib/api";
 
@@ -57,35 +57,25 @@ describe("menuSections", () => {
   });
 });
 
-describe("courseSubtitle", () => {
-  it("reads as the declared choice, counting the sides", () => {  // AC5
-    const [entree] = sections({ "1": null, "2": null });
-    expect(courseSubtitle(entree)).toEqual({
-      text: "guests choose 1 of 2, with 1 side", warn: false,
-    });
-  });
-
-  it("drops the sides clause when the course is all options", () => {
-    const out = menuSections([1, 2], COURSES, DISH_COURSES, { "1": null, "2": null }, true);
-    expect(courseSubtitle(out[0]).text).toBe("guests choose 1 of 2");
-  });
-
-  it("warns on a single option without blocking anything", () => {  // AC7
+describe("courseWarning", () => {
+  it("warns on a single option — it looks like a choice but isn't one", () => {  // AC7
     const [entree] = sections({ "1": null });
-    expect(courseSubtitle(entree)).toEqual({
-      text: "a choice needs two options", warn: true,
-    });
+    expect(courseWarning(entree)).toBe("a choice needs two options");
   });
 
-  it("falls back to a plain dish count", () => {
-    const [entree, , table] = sections();
-    expect(courseSubtitle(entree).text).toBe("3 dishes");
-    expect(courseSubtitle(table).text).toBe("1 dish");
+  it("says nothing once there are two options", () => {
+    const [entree] = sections({ "1": null, "2": null });
+    expect(courseWarning(entree)).toBeNull();
   });
 
-  it("never shows a choice line on a non-plated booking", () => {  // AC8
-    const [entree] = sections({ "1": null, "2": null }, false);
-    expect(courseSubtitle(entree).text).toBe("3 dishes");
+  it("says nothing for a course with no options at all", () => {
+    const [entree] = sections();
+    expect(courseWarning(entree)).toBeNull();
+  });
+
+  it("never warns on a non-plated booking — it has no choices to get wrong", () => {  // AC8
+    const [entree] = sections({ "1": null }, false);
+    expect(courseWarning(entree)).toBeNull();
   });
 });
 

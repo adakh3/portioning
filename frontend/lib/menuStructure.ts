@@ -62,27 +62,19 @@ export function menuSections(
   return sections;
 }
 
-export type CourseSubtitle = { text: string; warn: boolean };
-
 /**
- * The live line under a course title. Two offered dishes read as the choice the
- * caterer is declaring ("guests choose 1 of 2, with 2 sides"); exactly one reads as
- * a warning, because a choice of one is 150 guests all served the same thing (AC7).
- * Save is never blocked on it.
+ * The line under a course title. Owner call (2026-08-03): the informational subtitles
+ * ("guests choose 1 of 2, with 2 sides", "3 dishes") are gone — the *or* between the
+ * options already says what the course does, and a dish count is noise next to a list
+ * you can see.
+ *
+ * What survives is the one state you can't read off the rows: a course with exactly
+ * ONE option, which looks like a choice but serves every guest the same thing (AC7).
+ * It is a warning, never a blocker, and it disappears the moment a second option is
+ * marked. `null` means render nothing.
  */
-export function courseSubtitle(section: MenuSection): CourseSubtitle {
-  const total = section.dishIds.length;
-  const chosen = section.chosenIds.length;
-  const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
-
-  if (chosen === 1) return { text: "a choice needs two options", warn: true };
-  if (chosen >= 2) {
-    const sides = total - chosen;
-    const base = `guests choose 1 of ${chosen}`;
-    const suffix = sides > 0 ? `, with ${count(sides, "side", "sides")}` : "";
-    return { text: `${base}${suffix}`, warn: false };
-  }
-  return { text: count(total, "dish", "dishes"), warn: false };
+export function courseWarning(section: MenuSection): string | null {
+  return section.chosenIds.length === 1 ? "a choice needs two options" : null;
 }
 
 /**

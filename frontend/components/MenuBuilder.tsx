@@ -7,7 +7,7 @@ import { formatCurrency } from "@/lib/utils";
 import DietaryTagPills from "@/components/DietaryTagPills";
 import DishPickerInline from "@/components/DishPickerInline";
 import {
-  assignDish, courseSubtitle, menuSections, moveDish, removeCourse, toggleChoice,
+  assignDish, courseWarning, menuSections, moveDish, removeCourse, toggleChoice,
 } from "@/lib/menuStructure";
 
 interface CalculatedPrice {
@@ -96,6 +96,9 @@ export default function MenuBuilder({
    * (or the whole menu when the booking has no courses). Scoping the picker is what
    * removes the old second step of assigning a dish after picking it (AC8b). */
   const [pickerCourse, setPickerCourse] = useState<number | null>(null);
+  /** The dish being dragged, and the row it would land above — the insertion line. */
+  const [dragging, setDragging] = useState<number | null>(null);
+  const [dropBefore, setDropBefore] = useState<{ course: number | null; dishId: number | null } | null>(null);
 
   // Track if changes have been made
   const [dirty, setDirty] = useState(false);
@@ -240,6 +243,16 @@ export default function MenuBuilder({
 
   const markChoice = (dishId: number) =>
     emit({ menuChoices: toggleChoice(menuChoices, dishId) });
+
+  /** Drop the dragged dish into `course`. Same rule as the arrows: landing in a
+   * different course clears the flag, so nothing arrives pre-marked as an option. */
+  const dropOn = (course: number | null) => {
+    const dishId = dragging;
+    setDragging(null);
+    setDropBefore(null);
+    if (dishId === null) return;
+    putInCourse(dishId, course);
+  };
 
   /** Open the picker for a course, or close it if that course's trigger is clicked
    * again — the trigger reads "Done" while open, one of the three ways out (AC8b). */
@@ -463,9 +476,14 @@ export default function MenuBuilder({
       ) : (
         <div data-testid="menu-structure" className="border-t border-border">
           {sections.map((section) => {
-            const subtitle = courseSubtitle(section);
+            const warning = courseWarning(section);
             return (
-              <div key={section.courseIndex ?? "unassigned"} className="border-b border-border py-3">
+              <div
+                key={section.courseIndex ?? "unassigned"}
+                onDragOver={(e) => { if (dragging !== null) e.preventDefault(); }}
+                onDrop={(e) => { e.preventDefault(); dropOn(section.courseIndex); }}
+                className="border-b border-border py-3"
+              >
                 {!isFlat && (
                   <div className="flex items-center gap-3 mb-1.5">
                     {section.courseIndex === null ? (
@@ -482,11 +500,10 @@ export default function MenuBuilder({
                         className="text-sm font-semibold text-foreground bg-transparent border-b border-transparent hover:border-input focus:border-input focus:outline-none px-0.5 -ml-0.5 w-44"
                       />
                     )}
-                    <span
-                      className={`text-sm flex-1 ${subtitle.warn ? "text-warning" : "text-muted-foreground"}`}
-                      data-testid={`subtitle-${section.courseIndex ?? "unassigned"}`}
-                    >
-                      {subtitle.text}
+                    {/* Only the single-option state gets a line: it is the one thing
+                        you can't read off the rows themselves (AC7). */}
+                    <span className="flex-1 text-sm text-warning">
+                      {warning}
                     </span>
                     {!disabled && section.courseIndex !== null && (
                       <button
@@ -517,7 +534,24 @@ export default function MenuBuilder({
                           ↑↓ arrows and (on an unflagged dish) the choice chip only
                           appear on hover. `focus-within` keeps them reachable by
                           keyboard — hover-only must never mean mouse-only. */}
-                      <div className={`group flex items-center gap-2 py-1 ${isFlat ? "" : "pl-3"}`}>
+                      {/* The insertion line: where the dragged row would land. */}
+                      {dropBefore?.course === section.courseIndex && dropBefore?.dishId === id && (
+                        <div className="h-0.5 bg-primary rounded-full mx-3" data-testid="drop-line" />
+                      )}
+                      <div
+                        draggable={!disabled && !isFlat}
+                        onDragStart={() => setDragging(id)}
+                        onDragEnd={() => { setDragging(null); setDropBefore(null); }}
+                        onDragOver={(e) => {
+                          if (dragging === null || dragging === id) return;
+                          e.preventDefault();
+                          setDropBefore({ course: section.courseIndex, dishId: id });
+                        }}
+                        onDrop={(e) => { e.preventDefault(); dropOn(section.courseIndex); }}
+                        className={`group flex items-center gap-2 py-1 ${isFlat ? "" : "pl-3"} ${
+                          dragging === id ? "opacity-40" : ""
+                        }`}
+                      >
                         {!disabled && !isFlat && (
                           <span
                             aria-hidden="true"
