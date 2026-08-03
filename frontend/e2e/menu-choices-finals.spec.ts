@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import { login } from "./helpers";
 
 /** 90 days out, as YYYY-MM-DD. */
@@ -9,18 +9,22 @@ function futureDate(): string {
 }
 
 /**
- * Menu choices + the finals lifecycle (REL-419). The mocked suite proves the wiring;
- * only a real round-trip proves the native checkbox / number / date inputs fire and
- * that BOTH halves survive a save + reload (AC11):
- *   - the offered-choice flags, marked at proposal time;
+ * Menu choices + the finals lifecycle (REL-419), driven through the one Menu card
+ * (REL-451 AC13). The mocked suite proves the wiring; only a real round-trip proves
+ * the chips / number / date inputs fire and that BOTH halves survive a save + reload:
+ *   - the offered-choice flags, marked at proposal time on a row inside its course;
  *   - the final guarantee + per-dish tallies, recorded weeks later in the panel.
- * It also proves the derived pill flips to green off real persisted data (AC6) and
- * that the PER-COURSE sum validation blocks a bad save (AC7).
+ * It also proves the derived pill flips to green off real persisted data (REL-419 AC6)
+ * and that the PER-COURSE sum validation blocks a bad save (REL-419 AC7).
  */
 test.describe("Menu choices and final numbers survive save + reload", () => {
   test.beforeEach(async ({ page }) => {
     await login(page);
   });
+
+  /** Every dish row's ✕ — excludes the course ✕ and the choice chip. */
+  const dishRows = (page: Page) =>
+    page.getByLabel(/^Remove (?!course )(?!.*as a guest choice$)/);
 
   test("offered choices persist, then the finals panel records tallies per course", async ({ page }) => {
     // --- Proposal: a plated event offering a choice in TWO courses ---
@@ -32,7 +36,7 @@ test.describe("Menu choices and final numbers survive save + reload", () => {
     // day, and chasing only applies while the booking is still ahead.
     await page.getByLabel("Event date").fill(futureDate());
 
-    // Plated is what surfaces the Menu Choices card at all (AC1). Confirmed at
+    // Plated is what surfaces the choice affordances at all (AC8). Confirmed at
     // creation because an existing event's status is read-only on this page — and
     // the finals panel only applies to a confirmed booking.
     await page.getByLabel("Service Style").selectOption("plated");
@@ -41,41 +45,70 @@ test.describe("Menu choices and final numbers survive save + reload", () => {
     const tpl = page.getByLabel("Load from template");
     await tpl.waitFor({ state: "visible" });
     await tpl.selectOption({ index: 1 });
-    await expect(page.getByText(/Menu \(\d+ dishes\)/)).toBeVisible({ timeout: 10_000 });
+    await expect(dishRows(page).first()).toBeVisible({ timeout: 10_000 });
+
+    // Take the menu in its loaded order, then place the first four by name. More
+    // dishes than that stay unassigned on purpose — AC13 wants an "On the table"
+    // dish in the round trip too.
+    const names = (await dishRows(page).evaluateAll((els) =>
+      els.map((e) => e.getAttribute("aria-label")!.replace("Remove ", "")),
+    ));
+    expect(names.length).toBeGreaterThanOrEqual(5);
+    const [a, b, c, d] = names;
 
     // Two courses, so the choices group — and so finals validate per course.
-    await page.getByRole("button", { name: "+ Add course" }).click();
+    await page.getByRole("button", { name: "Group into courses" }).click();
     await page.getByLabel("Course 1 name").fill("Entrée");
     await page.getByRole("button", { name: "+ Add course" }).click();
     await page.getByLabel("Course 2 name").fill("Dessert");
 
-    const assigns = page.getByLabel(/^Course for /);
-    expect(await assigns.count()).toBeGreaterThanOrEqual(4);
-    // First two dishes → Entrée, next two → Dessert.
-    await assigns.nth(0).selectOption("0");
-    await assigns.nth(1).selectOption("0");
-    await assigns.nth(2).selectOption("1");
-    await assigns.nth(3).selectOption("1");
+    // Sections render [Entrée, Dessert, On the table], so one "up" hops a dish from
+    // the unassigned list into Dessert and a second carries it on into Entrée.
+    for (const dish of [a, b]) {
+      await page.getByLabel(`Move ${dish} up`).click();
+      await page.getByLabel(`Move ${dish} up`).click();
+    }
+    for (const dish of [c, d]) {
+      await page.getByLabel(`Move ${dish} up`).click();
+    }
+    await expect(page.getByText("On the table")).toBeVisible();
 
-    // The card is its own thing, below Courses, and explains itself up front.
-    const card = page.getByTestId("menu-choices");
-    await expect(card).toBeVisible();
-    await expect(card).toContainText("the guest picks from what you offer");
-
-    // Tick both dishes in each course.
-    const boxes = card.getByLabel(/^Offer .* as a choice$/);
-    const firstName = ((await boxes.nth(0).getAttribute("aria-label")) || "")
-      .replace(/^Offer | as a choice$/g, "");
-    for (let i = 0; i < 4; i++) await boxes.nth(i).check();
+    // Mark both options in each course. The chip is the whole interaction — no
+    // separate card, no second assignment step.
+    for (const dish of [a, b, c, d]) {
+      await page.getByLabel(`Mark ${dish} as a guest choice`).click();
+    }
+    // Two options per course read as one either/or, so there are exactly two *or*s.
+    await expect(page.getByText("or", { exact: true })).toHaveCount(2);
 
     await page.getByRole("button", { name: "Create Event" }).click();
     await page.waitForURL(/\/events\/\d+$/, { timeout: 15_000 });
 
-    // Reload: the flags came back from the database, not from React state (AC11).
+    // Reload: the structure came back from the database, not from React state.
     await page.reload();
-    await expect(page.getByTestId("menu-choices")).toContainText(firstName);
+    const card = page.getByTestId("menu-structure");
+    await expect(card).toContainText("Entrée", { timeout: 15_000 });
+    await expect(card).toContainText("Dessert");
+    await expect(card).toContainText("On the table");
 
-    // --- Finals: record the numbers on the confirmed booking (AC6) ---
+    // The editable card marks choices only while editing — in view mode the payoff
+    // is the client-facing block below it, rendered SERVER-side from the same flags.
+    // Asserting there proves the round trip reached the DB and back out through
+    // choice_groups(), which a chip rendered from form state would not.
+    const asClient = page.getByTestId("menu-as-client-sees");
+    // One collapsed line per course, and every marked dish inside one of them. The
+    // order WITHIN a line is the server's to choose, so it isn't asserted here.
+    await expect(asClient).toContainText("Choice of:");
+    for (const dish of [a, b, c, d]) await expect(asClient).toContainText(dish);
+    expect((await asClient.innerText()).match(/Choice of:/g)).toHaveLength(2);
+
+    // And the chips themselves come back when the form reopens.
+    await page.getByRole("button", { name: "Edit" }).first().click();
+    await expect(page.getByTestId("menu-structure").getByText("guests choose")).toHaveCount(4);
+    // Back to view mode so the finals panel (hidden while editing) is reachable.
+    await page.reload();
+
+    // --- Finals: record the numbers on the confirmed booking (REL-419 AC6) ---
     await expect(page.getByRole("button", { name: "Record final numbers" })).toBeVisible({ timeout: 15_000 });
     await page.getByRole("button", { name: "Record final numbers" }).click();
     await page.getByLabel("Final guarantee").fill("50");
@@ -85,7 +118,7 @@ test.describe("Menu choices and final numbers survive save + reload", () => {
     await expect(tallies).toHaveCount(4);
 
     // Fill the first course correctly and leave the second blank: only the SECOND
-    // course complains, and a blank group still blocks the save (AC7).
+    // course complains, and a blank group still blocks the save (REL-419 AC7).
     await tallies.nth(0).fill("30");
     await tallies.nth(1).fill("20");
     await expect(panel.getByRole("alert")).toHaveCount(1);
