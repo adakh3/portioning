@@ -99,6 +99,9 @@ describe("Event form — the run-of-show reaches the payload", () => {
     fireEvent.change(screen.getByLabelText("Guest Count"), { target: { value: "50" } });
     // The prefill lays this org's presets out in day order (staff arrive well
     // before cake cutting) even though the preset list isn't in that order.
+    // The day is built AROUND the meal time, so it has to exist first —
+    // building with no anchor is now refused rather than defaulted to 18:30.
+    fireEvent.change(screen.getByLabelText("Meal Time"), { target: { value: "18:30" } });
     fireEvent.click(screen.getByText("+ Build a run-of-show"));
     expect(await screen.findByLabelText("Step 1 label")).toHaveValue("Staff arrive");
 

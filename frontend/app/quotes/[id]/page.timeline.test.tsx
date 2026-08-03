@@ -87,7 +87,10 @@ describe("Quote form — the run-of-show reaches the payload", () => {
 
     fireEvent.change(screen.getByLabelText("Guest Count"), { target: { value: "40" } });
     // One click lays out the standard day from this org's presets (here just
-    // cocktail hour + dinner service), anchored on the 18:30 default.
+    // cocktail hour + dinner service), anchored on the meal time above.
+    // The day is built AROUND the meal time, so it has to exist first —
+    // building with no anchor is now refused rather than defaulted to 18:30.
+    fireEvent.change(screen.getByLabelText("Meal Time"), { target: { value: "18:30" } });
     fireEvent.click(screen.getByText("+ Build a run-of-show"));
     expect(await screen.findByLabelText("Step 1 label")).toHaveValue("Cocktail hour");
 
@@ -123,6 +126,9 @@ describe("Quote form — the run-of-show reaches the payload", () => {
     render(<QuotePage />);
 
     fireEvent.change(screen.getByLabelText("Guest Count"), { target: { value: "40" } });
+    // The day is built AROUND the meal time, so it has to exist first —
+    // building with no anchor is now refused rather than defaulted to 18:30.
+    fireEvent.change(screen.getByLabelText("Meal Time"), { target: { value: "18:30" } });
     fireEvent.click(screen.getByText("+ Build a run-of-show"));
     fireEvent.click(await screen.findByText("+ Add step"));
     fireEvent.click(screen.getByText("Create Quote"));

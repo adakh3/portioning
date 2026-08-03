@@ -67,6 +67,14 @@ export default function SegmentRatesField({
     return Number.isFinite(r) ? r.toFixed(2) : null;
   };
 
+  /** "×0.5" for a segment priced off a multiplier, or null at ×1 (and when the
+   * segment has none) — where showing it would only add noise. */
+  const multiplierText = (s: GuestSegmentMeta): string | null => {
+    const m = usableRate(s.price_multiplier);
+    if (m === null || m === 1) return null;
+    return `×${String(m)}`;
+  };
+
   const rowCls = "flex items-center justify-between gap-3";
   const nameCls = "text-sm text-foreground";
 
@@ -99,6 +107,13 @@ export default function SegmentRatesField({
           <div key={s.name} className={rowCls}>
             <span className={nameCls}>
               {s.name}
+              {/* Show the multiplier that PRODUCED the greyed-out number in the box.
+                  Without it the placeholder is an unexplained figure, and the only
+                  hint was a sentence about "the guest type's multiplier" that never
+                  said what the multiplier was. Hidden at ×1, where it says nothing. */}
+              {multiplierText(s) && (
+                <span className="ml-1.5 text-xs text-muted-foreground">{multiplierText(s)}</span>
+              )}
               {!s.counts_toward_total && (
                 <span className="ml-1.5 text-xs text-muted-foreground">(extra cover)</span>
               )}
@@ -118,8 +133,7 @@ export default function SegmentRatesField({
         ))}
       </div>
       <p className="mt-2 text-xs text-muted-foreground">
-        Blank uses the guest type&apos;s multiplier of the price per head above. Type a
-        number to charge that guest type a flat rate instead.
+        Leave blank to charge the rate shown. Type a number to override it.
       </p>
     </div>
   );
