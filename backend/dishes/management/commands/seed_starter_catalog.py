@@ -174,6 +174,27 @@ class Command(BaseCommand):
                 )
             for min_guests, price in tiers:
                 MenuTemplatePriceTier.objects.create(menu=menu, min_guests=min_guests, price_per_head=price)
+        elif courses and not menu.courses.exists():
+            # An org seeded BEFORE courses existed keeps a template that predates
+            # them, and `created` is False forever after — so a re-seed would never
+            # add them and the coursed shape would only ever appear on brand-new
+            # orgs. Backfill, but ONLY when the template has no courses of its own:
+            # an org that has since grouped this menu its own way keeps that.
+            self._add_courses(menu, courses, portions)
+
+    def _add_courses(self, menu, courses, portions):
+        """Add the starter courses to an existing template and file its dishes into
+        them. Dishes the org has added since are left where they are (unassigned)."""
+        course_rows = {
+            course_name: MenuCourse.objects.create(menu=menu, name=course_name, sort_order=i)
+            for i, course_name in enumerate(courses)
+        }
+        wanted = {row[0]: row[2] for row in portions if len(row) > 2}
+        for portion in menu.portions.select_related('dish'):
+            course_name = wanted.get(portion.dish.name)
+            if course_name:
+                portion.course = course_rows[course_name]
+                portion.save(update_fields=['course'])
 
     # ── Add-ons ── (name, category, unit, price, taxable, featured)
     def _addons(self):

@@ -428,16 +428,21 @@ export default function MenuBuilder({
       {/* Template Picker */}
       <div className="flex items-center gap-3 flex-wrap">
         <div className="relative">
+          {/* Shows the template the menu came from, rather than always reading
+              "Load from template…" with the answer on a separate line below. The
+              dropdown is the obvious place to look for "which menu is this?". */}
           <select
             aria-label="Load from template"
-            value=""
+            value={templateId ?? ""}
             onChange={(e) => {
               if (e.target.value) handleLoadTemplate(Number(e.target.value));
             }}
             disabled={disabled}
             className="h-9 appearance-none rounded-md border border-input bg-background pl-3 pr-9 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <option value="">Load from template…</option>
+            {/* Only a prompt, never a destination: picking it back would read as
+                "clear the menu", which is what Clear All is for. */}
+            <option value="" disabled={templateId !== null}>Load from template…</option>
             {templates.map((t) => (
               <option key={t.id} value={t.id}>
                 {t.name} ({t.dish_count} dishes)
@@ -469,10 +474,12 @@ export default function MenuBuilder({
         )}
       </div>
 
-      {/* Template indicator */}
-      {templateName && (
+      {/* Only the part the dropdown can't say: that the menu has since been
+          edited, so it no longer matches the template it came from. The template's
+          NAME now lives in the dropdown itself. */}
+      {templateName && dishesModified && (
         <p className="text-xs text-muted-foreground">
-          Based on template: <span className="font-medium">{templateName}</span>
+          Edited since loading <span className="font-medium">{templateName}</span>.
         </p>
       )}
 

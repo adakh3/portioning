@@ -111,3 +111,39 @@ class StarterCatalogTests(TestCase):
         call_command('seed_starter_catalog', '--org', 'Reseed Co', verbosity=0)
         coursed = MenuTemplate.objects.get(organisation=org, name='Wedding Reception Dinner')
         self.assertEqual(coursed.courses.count(), 3)
+
+    def test_backfills_courses_onto_a_template_seeded_before_they_existed(self):
+        """An org seeded before courses existed keeps a course-less template
+        forever, because `created` is False on every re-seed. Without a backfill
+        the coursed shape would only ever reach brand-new orgs."""
+        org = seed('Legacy Co')
+        coursed = MenuTemplate.objects.get(organisation=org, name='Wedding Reception Dinner')
+        # Simulate the pre-courses state.
+        coursed.portions.update(course=None)
+        coursed.courses.all().delete()
+        self.assertEqual(coursed.courses.count(), 0)
+
+        call_command('seed_starter_catalog', '--org', 'Legacy Co', verbosity=0)
+
+        self.assertEqual(
+            list(coursed.courses.values_list('name', flat=True)),
+            ['Starter', 'Main', 'Dessert'],
+        )
+        placed = {p.dish.name: (p.course.name if p.course else None)
+                  for p in coursed.portions.select_related('dish', 'course')}
+        self.assertEqual(placed['Roast Beef'], 'Main')
+        self.assertEqual(placed['New York Cheesecake'], 'Dessert')
+        self.assertIsNone(placed['Dinner Rolls'])
+
+    def test_backfill_never_overrides_an_orgs_own_grouping(self):
+        """If the org has already grouped this menu its own way, that is theirs."""
+        org = seed('Curated Courses Co')
+        coursed = MenuTemplate.objects.get(organisation=org, name='Wedding Reception Dinner')
+        coursed.courses.all().delete()
+        from menus.models import MenuCourse
+        mine = MenuCourse.objects.create(menu=coursed, name='Our own course', sort_order=0)
+        coursed.portions.update(course=mine)
+
+        call_command('seed_starter_catalog', '--org', 'Curated Courses Co', verbosity=0)
+
+        self.assertEqual(list(coursed.courses.values_list('name', flat=True)), ['Our own course'])
