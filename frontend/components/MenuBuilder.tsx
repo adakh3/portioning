@@ -165,11 +165,10 @@ export default function MenuBuilder({
 
   // Auto-fill price/head when suggested price changes
   useEffect(() => {
-    if (activePrice === null || !onPricePerHeadChange) return;
+    // `> 0` matters: the engine returns 0 when it can't price the menu, and
+    // auto-filling that would silently zero what the caterer charges.
+    if (activePrice === null || activePrice <= 0 || !onPricePerHeadChange) return;
     const newVal = activePrice.toFixed(2);
-    // Already showing this value — do nothing. Without this guard the parent's
-    // onPricePerHeadChange (a fresh closure each render that always builds a new
-    // state object) would re-fire this effect forever → "Maximum update depth".
     // Already showing this value — do nothing. Without this guard the parent's
     // onPricePerHeadChange (a fresh closure each render that always builds a new
     // state object) would re-fire this effect forever → "Maximum update depth".
@@ -392,6 +391,22 @@ export default function MenuBuilder({
   const isTemplate = !!templateId;
   const showTierPrice = hasGuestCount && isTemplate && !dishesModified && tierPrice !== null;
   const showCalculateButton = hasGuestCount && hasDishes && !showTierPrice;
+
+  /** The suggested rate, or null when there isn't one worth showing.
+   *
+   * `activePrice` is 0 whenever the engine can't price the menu — an unpriced
+   * catalogue, or a guest split it doesn't recognise. Showing "suggested 0.00" next
+   * to a real rate reads as a contradiction, and auto-filling it would quietly zero
+   * what the caterer charges, so 0 counts as "no suggestion" rather than as an answer.
+   */
+  const suggestion = activePrice !== null && activePrice > 0 ? activePrice : null;
+  const suggestionNote = showTierPrice && tierPrice
+    ? `${tierPrice.label} tier`
+    : calculatedPrice?.source === "template_adjusted"
+      ? `${calculatedPrice.tierLabel} tier ${(calculatedPrice.totalAdjustment ?? 0) >= 0 ? "+" : ""}${formatCurrency(calculatedPrice.totalAdjustment ?? 0, currencySymbol)}`
+      : calculatedPrice?.source === "computed"
+        ? "computed from engine"
+        : null;
 
   if (loading) {
     return <p className="text-sm text-muted-foreground">Loading menu options...</p>;
@@ -652,150 +667,122 @@ export default function MenuBuilder({
         </div>
       )}
 
-      {/* Price per head — always visible & clearable, not gated on dishes (so a
-          no-menu booking can set or zero it; the dish-based helpers below only
-          suggest a value). */}
+      {/* The rate: ONE bar. The price you charge is the input; what the engine
+          suggests sits beside it as a hint, because a suggestion is advice about the
+          field, not a second thing to read. It used to be a separate full-width bar
+          below, which read as two prices for the same booking.
+
+          Always visible & clearable, not gated on dishes — a no-menu booking can
+          still set or zero a rate; the dish-based helpers only ever suggest. */}
       {onPricePerHeadChange && (
-        <div className="flex items-center gap-3 bg-muted border border-border rounded-lg px-4 py-2.5">
-          <label className="inline-flex items-center gap-1.5 text-sm">
-            <span className="text-muted-foreground">Price/head</span>
-            <span className="text-muted-foreground">{currencySymbol}</span>
-            <input
-              type="number"
-              step="0.01"
-              min={0}
-              value={pricePerHead || ""}
-              onChange={(e) => onPricePerHeadChange(e.target.value)}
-              placeholder="0.00"
-              disabled={disabled}
-              className="w-24 border border-input rounded px-2 py-1 text-sm text-right"
-            />
-          </label>
-          {!hasDishes && (
-            <span className="text-xs text-muted-foreground">No menu selected — set a price per head, or pick dishes for a suggestion.</span>
+        <div className="rounded-lg border border-border bg-muted px-4 py-2.5 space-y-1.5">
+          <div className="flex items-center gap-3 flex-wrap">
+            <label className="inline-flex items-center gap-1.5 text-sm">
+              <span className="text-muted-foreground">Price/head</span>
+              <span className="text-muted-foreground">{currencySymbol}</span>
+              <input
+                type="number"
+                step="0.01"
+                min={0}
+                value={pricePerHead || ""}
+                onChange={(e) => onPricePerHeadChange(e.target.value)}
+                placeholder="0.00"
+                disabled={disabled}
+                className="w-24 border border-input rounded px-2 py-1 text-sm text-right"
+              />
+            </label>
+
+            {!hasDishes && (
+              <span className="text-xs text-muted-foreground">
+                No menu selected — set a price per head, or pick dishes for a suggestion.
+              </span>
+            )}
+
+            {/* A suggestion worth showing. Zero is never worth showing: the engine
+                returns it when it can't price the menu, and "suggested 0.00" beside a
+                real rate reads as a contradiction rather than as "no answer". */}
+            {hasDishes && suggestion !== null && (
+              <>
+                <span className="text-sm font-medium text-success">
+                  suggested {formatCurrency(suggestion, currencySymbol)}/head
+                </span>
+                {suggestionNote && (
+                  <span className="text-xs text-success/80">({suggestionNote})</span>
+                )}
+                {calculatedPrice?.hasUnpriced && (
+                  <span className="inline-flex items-center bg-warning/15 text-warning text-xs font-medium px-2 py-0.5 rounded">
+                    Some dishes unpriced
+                  </span>
+                )}
+                {!disabled && pricePerHead !== suggestion.toFixed(2) && (
+                  <button
+                    type="button"
+                    onClick={() => onPricePerHeadChange(suggestion.toFixed(2))}
+                    className="text-xs text-primary hover:underline"
+                  >
+                    use it
+                  </button>
+                )}
+                <label className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                  Extra food
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    step={5}
+                    value={extraFoodPercent || ""}
+                    onChange={(e) => setExtraFoodPercent(Number(e.target.value) || 0)}
+                    placeholder="0"
+                    disabled={disabled}
+                    className="w-14 border border-input rounded px-1.5 py-0.5 text-xs text-center"
+                  />
+                  %
+                </label>
+              </>
+            )}
+
+            {/* Nothing to suggest yet — say why, or offer to work it out. */}
+            {hasDishes && suggestion === null && !hasGuestCount && (
+              <span className="text-xs text-muted-foreground">
+                Enter guest count to see suggested pricing
+              </span>
+            )}
+            {hasDishes && suggestion === null && showCalculateButton && !disabled && (
+              <button
+                type="button"
+                onClick={handleCalculateRate}
+                disabled={priceLoading}
+                className="text-xs text-primary hover:underline disabled:opacity-50"
+              >
+                {priceLoading
+                  ? "Calculating…"
+                  : isTemplate && dishesModified
+                    ? "Menu changed — suggest a rate"
+                    : "Suggest a rate"}
+              </button>
+            )}
+          </div>
+
+          {/* Per-dish adjustments behind a template-adjusted suggestion. */}
+          {suggestion !== null && calculatedPrice?.breakdown && calculatedPrice.breakdown.length > 0 && (
+            <div className="flex flex-wrap gap-2 text-xs">
+              {calculatedPrice.breakdown.map((item, i) => (
+                <span
+                  key={i}
+                  className={`px-2 py-0.5 rounded ${
+                    item.type === "addition"
+                      ? "bg-warning/10 text-warning border border-warning/20"
+                      : "bg-info/10 text-info border border-info/20"
+                  }`}
+                >
+                  {item.amount >= 0 ? "+" : ""}{formatCurrency(item.amount, currencySymbol)} {item.dish}
+                </span>
+              ))}
+            </div>
           )}
         </div>
       )}
 
-      {/* Pricing Summary Bar */}
-      {hasDishes && (
-        <>
-          {!hasGuestCount ? (
-            /* No guest count */
-            <div className="flex items-center gap-3 bg-muted border border-border rounded-lg px-4 py-2.5">
-              <span className="text-sm text-muted-foreground">
-                Enter guest count to see suggested pricing
-              </span>
-            </div>
-          ) : showTierPrice && tierPrice ? (
-            /* Template, unmodified, has tier */
-            <div className="flex items-center gap-3 flex-wrap bg-success/10 border border-success/20 rounded-lg px-4 py-2.5">
-              <span className="text-sm font-medium text-success">
-                {formatCurrency(applyExtra(tierPrice.price), currencySymbol)}/head
-              </span>
-              <span className="text-xs text-success/80">
-                ({tierPrice.label} tier)
-              </span>
-              <label className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-                Extra food
-                <input
-                  type="number"
-                  min={0}
-                  max={100}
-                  step={5}
-                  value={extraFoodPercent || ""}
-                  onChange={(e) => setExtraFoodPercent(Number(e.target.value) || 0)}
-                  placeholder="0"
-                  className="w-14 border border-input rounded px-1.5 py-0.5 text-xs text-center"
-                />
-                %
-              </label>
-            </div>
-          ) : showCalculateButton ? (
-            /* Need to calculate */
-            <div className="flex items-center gap-3 flex-wrap bg-muted border border-border rounded-lg px-4 py-2.5">
-              {calculatedPrice ? (
-                <div className="flex flex-col gap-1.5 w-full">
-                  <div className="flex items-center gap-3 flex-wrap">
-                    <span className="text-sm font-medium text-success">
-                      {formatCurrency(applyExtra(calculatedPrice.price), currencySymbol)}/head
-                    </span>
-                    {calculatedPrice.hasUnpriced && (
-                      <span className="inline-flex items-center bg-warning/15 text-warning text-xs font-medium px-2 py-0.5 rounded">
-                        Some dishes unpriced
-                      </span>
-                    )}
-                    {calculatedPrice.source === "template_adjusted" && (
-                      <span className="text-xs text-success/80">
-                        ({calculatedPrice.tierLabel} tier {calculatedPrice.totalAdjustment !== undefined && calculatedPrice.totalAdjustment >= 0 ? "+" : ""}{formatCurrency(calculatedPrice.totalAdjustment ?? 0, currencySymbol)})
-                      </span>
-                    )}
-                    {calculatedPrice.source === "computed" && (
-                      <span className="text-xs text-success/80">(computed from engine)</span>
-                    )}
-                    <label className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-                      Extra food
-                      <input
-                        type="number"
-                        min={0}
-                        max={100}
-                        step={5}
-                        value={extraFoodPercent || ""}
-                        onChange={(e) => setExtraFoodPercent(Number(e.target.value) || 0)}
-                        placeholder="0"
-                        className="w-14 border border-input rounded px-1.5 py-0.5 text-xs text-center"
-                      />
-                      %
-                    </label>
-                  </div>
-                  {calculatedPrice.breakdown && calculatedPrice.breakdown.length > 0 && (
-                    <div className="flex flex-wrap gap-2 text-xs">
-                      {calculatedPrice.breakdown.map((item, i) => (
-                        <span
-                          key={i}
-                          className={`px-2 py-0.5 rounded ${
-                            item.type === "addition"
-                              ? "bg-warning/10 text-warning border border-warning/20"
-                              : "bg-info/10 text-info border border-info/20"
-                          }`}
-                        >
-                          {item.amount >= 0 ? "+" : ""}{formatCurrency(item.amount, currencySymbol)} {item.dish}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <>
-                  <button
-                    type="button"
-                    onClick={handleCalculateRate}
-                    disabled={priceLoading || disabled}
-                    className="border border-primary/30 text-primary bg-background px-4 py-1.5 rounded text-sm font-medium hover:bg-primary/5 disabled:opacity-50"
-                  >
-                    {priceLoading ? (
-                      <span className="inline-flex items-center gap-2">
-                        <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                        </svg>
-                        Calculating...
-                      </span>
-                    ) : (
-                      "Calculate Rate"
-                    )}
-                  </button>
-                  <span className="text-xs text-muted-foreground">
-                    {isTemplate && dishesModified
-                      ? "Menu modified — click to recalculate"
-                      : "Click to compute price from engine"}
-                  </span>
-                </>
-              )}
-            </div>
-          ) : null}
-        </>
-      )}
 
       {/* Pricing error (engine/price-estimate failure) */}
       {priceError && (

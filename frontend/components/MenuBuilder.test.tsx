@@ -43,8 +43,12 @@ describe("MenuBuilder — price errors are surfaced", () => {
       .mockRejectedValueOnce(new Error("Calculation error: boom"))
       .mockResolvedValueOnce({ price_per_head: 2000, has_unpriced: false });
 
+    // onPricePerHeadChange is what both pages pass in edit mode, and since the rate
+    // is one bar the suggestion lives inside it — a booking with no price field to
+    // fill has nothing to suggest into.
     render(
-      <MenuBuilder selectedDishIds={[1]} basedOnTemplate={null} guestCount={100} priceRoundingStep={50} />
+      <MenuBuilder selectedDishIds={[1]} basedOnTemplate={null} guestCount={100} priceRoundingStep={50}
+        onPricePerHeadChange={() => {}} />
     );
 
     // The debounced auto-calc fires priceEstimate, which rejects — and the
@@ -57,7 +61,25 @@ describe("MenuBuilder — price errors are surfaced", () => {
     await waitFor(() =>
       expect(screen.queryByText("Calculation error: boom")).not.toBeInTheDocument()
     );
-    expect(await screen.findByText(/\/head/)).toBeInTheDocument();
+    // The recovered rate comes back as the inline suggestion beside the price field.
+    expect(await screen.findByText(/^suggested/)).toBeInTheDocument();
+  });
+
+  it("hides a zero suggestion instead of contradicting the real rate", async () => {
+    // The engine returns 0 when it can't price the menu — an unpriced catalogue, or
+    // a guest split it doesn't recognise. "suggested 0.00" beside a real rate reads
+    // as a contradiction, and auto-filling it would silently zero what is charged.
+    h.priceEstimate.mockResolvedValue({ price_per_head: 0, has_unpriced: false });
+    const onChange = vi.fn();
+    render(
+      <MenuBuilder selectedDishIds={[1]} basedOnTemplate={null} guestCount={100}
+        priceRoundingStep={50} pricePerHead="52.00" onPricePerHeadChange={onChange} />
+    );
+    await waitFor(() => expect(h.priceEstimate).toHaveBeenCalled());
+    expect(screen.queryByText(/^suggested/)).not.toBeInTheDocument();
+    // The rate the caterer set is untouched.
+    expect(screen.getByDisplayValue("52.00")).toBeInTheDocument();
+    expect(onChange).not.toHaveBeenCalled();
   });
 
   it("shows the price-per-head input even with no dishes selected", () => {
