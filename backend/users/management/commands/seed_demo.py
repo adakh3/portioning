@@ -37,6 +37,10 @@ DEMO_USERS = [
     ("rep2@demo.test", "Sam", "Sales", "salesperson", "Sales123!"),
 ]
 
+# The org whose logins keep the plain @demo.test addresses — docs, the e2e helper and
+# habit all point at it. Every other seeded org gets its own @<slug>.test logins.
+DEFAULT_ORG_NAME = "Demo Co"
+
 # rep email -> (monthly target, this-month closed revenue) — drives dashboard attainment
 DEMO_TARGETS = {
     "rep@demo.test": (Decimal("1000000"), Decimal("1200000")),   # 120%
@@ -48,11 +52,20 @@ class Command(BaseCommand):
     help = "Seed a deterministic demo org, logins and commission data (idempotent)."
 
     def add_arguments(self, parser):
-        parser.add_argument("--org", default="Demo Co", help="Organisation name to seed into.")
+        parser.add_argument("--org", default=DEFAULT_ORG_NAME, help="Organisation name to seed into.")
+        parser.add_argument(
+            "--profile", default="plated", choices=["plated", "buffet"],
+            help=(
+                "What kind of caterer to seed. 'buffet' is a buffet-first, "
+                "high-volume operator (big head counts, no plated choices) — use it "
+                "to check a change works for a caterer who never plates."
+            ),
+        )
 
     @transaction.atomic
     def handle(self, *args, **options):
         org_name = options["org"]
+        profile = options["profile"]
         org, created = Organisation.objects.get_or_create(
             name=org_name, defaults={"slug": slugify(org_name) or "demo-co"},
         )
@@ -170,18 +183,26 @@ class Command(BaseCommand):
         )
 
         # Users (idempotent; passwords always reset so logins are deterministic).
+        #
+        # Each org gets its OWN logins. A User's email is unique account-wide, so
+        # seeding a second org used to re-home owner@demo.test onto it and silently
+        # orphan the first — you could only ever be inside whichever org was seeded
+        # last. The default org keeps @demo.test (docs, e2e and muscle memory all use
+        # it); any other org gets @<slug>.test.
+        domain = "demo.test" if org_name == DEFAULT_ORG_NAME else f"{org.slug}.test"
         users = {}
         for email, first, last, role, password in DEMO_USERS:
+            scoped = f"{email.split('@')[0]}@{domain}"
             u, _ = User.objects.get_or_create(
-                email=email,
+                email=scoped,
                 defaults={"first_name": first, "last_name": last, "role": role, "organisation": org},
             )
             u.first_name, u.last_name, u.role, u.organisation = first, last, role, org
             u.is_active = True
             u.set_password(password)
             u.save()
-            users[email] = u
-        self.stdout.write(self.style.SUCCESS(f"Seeded {len(users)} users"))
+            users[email] = u  # keyed by the CANONICAL email, so DEMO_TARGETS still matches
+        self.stdout.write(self.style.SUCCESS(f"Seeded {len(users)} users on @{domain}"))
 
         # Wipe demo-tagged transactional rows so a re-run rebuilds identical state.
         Event.objects.filter(organisation=org, name__startswith=DEMO_TAG).delete()
@@ -211,10 +232,14 @@ class Command(BaseCommand):
                 organisation=org, name=f"{DEMO_TAG} {rep.first_name}'s event",
                 guest_count=100, gents=50, ladies=50, event_date=today, assigned_to=rep,
                 status="confirmed", total=this_month_revenue,
+                service_style="buffet" if profile == "buffet" else "",
             )
         self.stdout.write(self.style.SUCCESS(
             f"Seeded targets ({n_periods} monthly cells/rep) + events for {len(rep_emails)} reps"
         ))
+
+        if profile == "buffet":
+            self._seed_buffet_bookings(org, users["rep@demo.test"], today)
 
         # A few leads per rep across the org's statuses, for the pipeline dashboard.
         statuses = list(
@@ -236,9 +261,58 @@ class Command(BaseCommand):
             self.stdout.write(self.style.SUCCESS(f"Seeded sample leads across {len(statuses[:5])} statuses"))
 
         self.stdout.write("")
-        self.stdout.write(self.style.MIGRATE_HEADING("Demo logins:"))
+        self.stdout.write(self.style.MIGRATE_HEADING(f"Demo logins for {org_name}:"))
         for email, _f, _l, role, password in DEMO_USERS:
-            self.stdout.write(f"  {email:20} {password:12} ({role})")
+            scoped = f"{email.split('@')[0]}@{domain}"
+            self.stdout.write(f"  {scoped:34} {password:12} ({role})")
+
+    def _seed_buffet_bookings(self, org, rep, today):
+        """Two menus a buffet-first caterer would actually build.
+
+        A caterer who never plates still needs the menu card to work, and their two
+        shapes are the ones a plated demo never produces: a long flat dish list with
+        no courses at all, and the same food broken into stations. Both are buffet,
+        so neither shows a guest choice — that is the point of having them.
+        """
+        from events.models import BookingCourse, EventDishComment
+        from dishes.models import Dish
+
+        dishes = list(Dish.objects.filter(organisation=org).order_by("id")[:9])
+        if not dishes:
+            self.stdout.write(self.style.WARNING("No dishes in this org — skipped buffet menus."))
+            return
+
+        # 1. The flat one: no courses, so the card is a plain list (REL-451 AC8).
+        flat = Event.objects.create(
+            organisation=org, name=f"{DEMO_TAG} Corporate lunch buffet",
+            guest_count=400, event_date=today, assigned_to=rep,
+            status="confirmed", service_style="buffet", price_per_head=Decimal("38.00"),
+        )
+        flat.dishes.set(dishes)
+        for d in dishes:
+            EventDishComment.objects.get_or_create(event=flat, dish=d)
+
+        # 2. The same food as stations — courses on a buffet are legitimate, and this
+        #    is the booking that proves the card doesn't treat them as plated-only.
+        stations = Event.objects.create(
+            organisation=org, name=f"{DEMO_TAG} Wedding buffet — stations",
+            guest_count=650, event_date=today, assigned_to=rep,
+            status="confirmed", service_style="buffet", price_per_head=Decimal("52.00"),
+        )
+        stations.dishes.set(dishes)
+        course_rows = [
+            BookingCourse.objects.create(event=stations, name=name, sort_order=i)
+            for i, name in enumerate(["Salad Station", "Hot Buffet", "Dessert Table"])
+        ]
+        for i, d in enumerate(dishes):
+            # Three per station, and anything left over stays un-coursed so the
+            # "On the table" section has something real in it.
+            course = course_rows[i // 3] if i < 9 else None
+            EventDishComment.objects.get_or_create(event=stations, dish=d, defaults={"course": course})
+
+        self.stdout.write(self.style.SUCCESS(
+            "Seeded 2 buffet menus: a flat 400-guest list and a 650-guest stations menu"
+        ))
 
     def _plan(self, org, name, *, model, flat_rate, is_default=False, bands=None):
         plan, _ = CommissionPlan.objects.get_or_create(

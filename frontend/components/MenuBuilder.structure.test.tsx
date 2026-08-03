@@ -131,6 +131,21 @@ describe("MenuBuilder — courses as structure (AC2, AC4)", () => {
     expect(screen.getByLabelText(chip("Baked Salmon"))).toBeInTheDocument();
   });
 
+  it("moves a dish out of the MIDDLE of a course, not just off its ends", async () => {
+    // ↑/↓ mean previous/next course, not "one row". When they only fired at a
+    // section boundary, a dish buried in a long list could not be moved until every
+    // dish above it had been moved first.
+    render(<Harness
+      courses={[{ name: "Entrée", sort_order: 0 }, { name: "Dessert", sort_order: 1 }]}
+      dishIds={[1, 2, 3, 4]}
+      dishCourses={{ "1": 0, "2": 0, "3": 0, "4": 1 }}
+    />);
+    // Baked Salmon sits between Roast Beef and Mashed Potatoes.
+    fireEvent.click(screen.getByLabelText("Move Baked Salmon down"));
+    await waitFor(() =>
+      expect(rowOrder()).toEqual(["Roast Beef", "Mashed Potatoes", "Baked Salmon", "Cheesecake"]));
+  });
+
   it("draws no insertion line for a drag within one course", async () => {
     // Order within a course isn't part of the save payload, so a same-course drop
     // can't reorder anything — the line would promise a move that never happens.

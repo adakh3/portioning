@@ -99,9 +99,15 @@ export function courseWarning(section: MenuSection): string | null {
 }
 
 /**
- * Move one dish up or down through the flattened running order, hopping into the
- * neighbouring course when it steps past a section's end (AC2) — the keyboard and
- * touch path for the same thing dragging does.
+ * Move one dish into the previous or next section (AC2) — the keyboard and touch
+ * path for the same thing dragging does.
+ *
+ * ↑ and ↓ mean "the course before / after this one", NOT "one row". Position within
+ * a course is deliberately not a thing they can change: dish order inside a course
+ * isn't part of the save payload (documents render dishes in the order they were
+ * added), so a row-by-row nudge would look like it worked and vanish on reload.
+ * Reading them as course moves also means a dish buried in the middle of a long
+ * list moves in one press, instead of only once every dish above it has been moved.
  *
  * Returns the next `dishCourses` and `menuChoices`. Landing in a different course
  * clears the dish's choice flag: nothing arrives pre-marked as an option in a course
@@ -116,11 +122,6 @@ export function moveDish(
 ): { dishCourses: Record<string, number>; menuChoices: MenuChoices } {
   const from = sections.findIndex((s) => s.dishIds.includes(dishId));
   if (from === -1) return { dishCourses, menuChoices };
-  const section = sections[from];
-  const at = section.dishIds.indexOf(dishId);
-  const steppingOut =
-    (direction === -1 && at === 0) || (direction === 1 && at === section.dishIds.length - 1);
-  if (!steppingOut) return { dishCourses, menuChoices };  // reorder within a course is drag's job
 
   const target = sections[from + direction];
   if (!target) return { dishCourses, menuChoices };
