@@ -41,7 +41,19 @@ test.describe("Booking timeline persists end-to-end", () => {
    * the DB and back into the form.
    */
   test("new quote: a run-of-show survives save + reload, in order", async ({ page }) => {
+    // "+ Build a run-of-show" reads the org's Timeline Steps out of SWR at CLICK
+    // time. Click before they land and it seeds ONE blank row — and nothing
+    // re-populates it, so the assertion below can never recover. That is a real
+    // 1-in-N CI flake (REL-442), not a hypothetical.
+    //
+    // So gate the click on the request, not on the click's own result. The
+    // waiter is registered BEFORE the navigation that triggers it, otherwise
+    // this line would just be a second race.
+    const presetsLoaded = page.waitForResponse(
+      (r) => r.url().includes("/bookings/timeline-presets/") && r.ok(),
+    );
     await page.goto("/quotes/new");
+    await presetsLoaded;
 
     await page.getByLabel("Customer", { exact: false }).selectOption({ label: "Aisha Khan" });
     await page.getByLabel("Guest Count").fill("30");

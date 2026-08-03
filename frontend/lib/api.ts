@@ -166,6 +166,20 @@ export interface CourseData {
   sort_order: number;
 }
 
+/** Which dishes are offered as an entrée choice (REL-419), `{dish_id: tally}`. The
+ * tally is null until the finals arrive — on a quote it is always null. */
+export type MenuChoices = Record<string, number | null>;
+
+/** A course of the menu as the CLIENT sees it, rendered server-side: offered dishes
+ * are already collapsed into one "Choice of: A / B / C" line (REL-419 AC13). The same
+ * shape the sign page and both PDFs render, so the in-app page can't drift from the
+ * contract. `null` when the booking defines no courses. */
+export type MenuLineGroup = { name: string; items: string[] };
+
+/** Derived finals state of a confirmed event (REL-419) — never a stored column.
+ * `null` when there is nothing to chase (unconfirmed, or no due date set). */
+export type FinalsStatus = "awaiting" | "due_soon" | "overdue" | "recorded" | null;
+
 /** One row of a booking's event-day run-of-show. `time` is 24h "HH:MM:SS" as the
  * API stores it; a booking with no entries falls back to its four legacy time
  * fields. */
@@ -488,6 +502,8 @@ export interface Quote {
   dish_names: string[];
   courses: CourseData[];
   dish_courses: Record<string, number>;
+  menu_choices: MenuChoices;
+  menu_lines: MenuLineGroup[] | null;
   based_on_template: number | null;
   notes: string;
   internal_notes: string;
@@ -770,6 +786,8 @@ export interface EventData {
   dishes: number[];
   courses: CourseData[];
   dish_courses: Record<string, number>;
+  menu_choices: MenuChoices;
+  menu_lines: MenuLineGroup[] | null;
   based_on_template: number | null;
   notes: string;
   kitchen_instructions: string;
@@ -825,6 +843,8 @@ export interface EventData {
   guaranteed_count: number | null;
   final_count: number | null;
   final_count_due: string | null;
+  /** Derived on the backend from (confirmed + final_count vs final_count_due). */
+  finals_status: FinalsStatus;
   // Nested
   source_quote_id: number | null;
   contact_phone: string | null;
@@ -1279,7 +1299,7 @@ export interface PublicBooking {
   menu: { category: string; items: string[] }[];
   // Absent/null on a course-less booking, which renders the flat menu unchanged
   // (REL-417 AC4) — the sign page guards on it, so it is optional here too.
-  menu_courses?: { name: string; items: string[] }[] | null; // REL-417
+  menu_courses?: MenuLineGroup[] | null; // REL-417 grouping, REL-419 "Choice of"
   additional_meals: { label: string; guest_count: number; price_per_head: string | null; items: string[] }[];
   line_items: { description: string; category: string; quantity: string; unit: string; line_total: string }[];
   price_per_head: string | null;
@@ -1398,6 +1418,21 @@ export const api = {
     fetchApi<void>(`/events/${id}/`, { method: "DELETE" }),
   calculateEvent: (id: number) =>
     fetchApi<CalculationResult>(`/events/${id}/calculate/`, { method: "POST" }),
+  /** Record final numbers (REL-419): guarantee + due date + per-entrée tallies in one
+   * save. The only endpoint that checks the tallies add up to the guarantee. */
+  recordEventFinals: (
+    id: number,
+    data: {
+      final_count: number;
+      final_count_due?: string | null;
+      guaranteed_count?: number | null;
+      choice_counts?: Record<string, number>;
+    },
+  ) =>
+    fetchApi<EventData>(`/events/${id}/finals/`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   exportPDF: async (data: {
     dish_ids: number[];
     guests: GuestMix;

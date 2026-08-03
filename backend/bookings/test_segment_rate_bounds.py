@@ -309,7 +309,7 @@ class LegacyNegativeRateMigrationTests(TestCase):
 
         # Run the migration's own function against the live models.
         import importlib
-        mod = importlib.import_module('events.migrations.0036_clear_unusable_segment_rates'.replace('0036', '0036'))
+        mod = importlib.import_module('events.migrations.0037_clear_unusable_segment_rates')
         mod.clear_unusable_rates(global_apps, connection.schema_editor())
         self.assertIsNone(BookingGuestCount.objects.get(pk=row.pk).price_per_head)
 

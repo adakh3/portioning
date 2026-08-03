@@ -107,7 +107,7 @@ export default function BookingDetailsForm({
       </div>
       <div>
         <label className="block text-sm font-medium text-foreground mb-1">Service Style</label>
-        <select value={value.service_style} onChange={(e) => onChange({ service_style: e.target.value })} className={selectClass}>
+        <select aria-label="Service Style" value={value.service_style} onChange={(e) => onChange({ service_style: e.target.value })} className={selectClass}>
           <option value="">-- Select --</option>
           {serviceStyles.map((ss) => <option key={ss.value} value={ss.value}>{ss.label}</option>)}
         </select>

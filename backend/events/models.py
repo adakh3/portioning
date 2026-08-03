@@ -297,7 +297,7 @@ def resolve_booking_menu(booking):
 def write_booking_courses(booking, courses_data, dish_courses):
     """Replace a booking's courses and (re)assign dishes to them.
 
-    ``courses_data`` is an ordered list of ``{'name','service_style','sort_order'}``;
+    ``courses_data`` is an ordered list of ``{'name','sort_order'}``;
     ``dish_courses`` maps ``dish_id -> course index`` (into ``courses_data``). Courses
     are replaced wholesale; each listed dish's per-dish row is upserted with its
     course (preserving any ``comment``/``portion_grams``); dishes not listed are
@@ -324,7 +324,157 @@ def write_booking_courses(booking, courses_data, dish_courses):
             assigned[did] = created[idx]
     for dish_id, course in assigned.items():
         Model.objects.update_or_create(dish_id=dish_id, defaults={'course': course}, **parent)
-    Model.objects.filter(**parent).exclude(dish_id__in=assigned.keys()).update(course=None)
+    # Losing its course also drops the dish's choice flag (REL-419): a choice belongs
+    # to a course — without one there is no group for it to be an alternative within,
+    # and nothing for the finals tallies to add up against. Clearing it here keeps the
+    # stored data honest; the readers ignore such a flag anyway (booking_offers_choices).
+    Model.objects.filter(**parent).exclude(dish_id__in=assigned.keys()).update(
+        course=None, is_choice=False, choice_count=None,
+    )
+
+
+def write_menu_choices(booking, menu_choices):
+    """Replace which of a booking's dishes are offered as a menu choice (REL-419).
+
+    A choice belongs to a course: the entrée is the usual one, but a plated dinner can
+    just as well offer a choice of dessert, so nothing here is entrée-specific.
+
+    ``menu_choices`` maps ``dish_id -> count or None``: every listed dish is flagged
+    ``is_choice``; its value becomes ``choice_count`` (null at proposal time,
+    a tally once finals land). Dishes not listed are un-flagged and their count
+    cleared. Only dishes actually on the booking are accepted, so a stale/foreign
+    dish_id in the raw payload is ignored — never a stray or cross-org row. Sums are
+    never validated here: that check belongs to the finals panel alone (AC7/AC8).
+
+    Raises ``ValueError`` on a payload that isn't ``{int-ish: int-ish or None}`` so the
+    caller can turn it into a 400 — the raw client payload reaches this untyped.
+    """
+    parent = {'event': booking} if isinstance(booking, Event) else {'quote': booking}
+    Model = dish_comment_model(booking)
+    valid_dish_ids = set(booking.dishes.values_list('id', flat=True))
+    if menu_choices is None:
+        menu_choices = {}
+    if not isinstance(menu_choices, dict):
+        raise ValueError('menu_choices must be an object of {dish_id: count or null}.')
+    wanted = {}
+    for dish_id, count in menu_choices.items():
+        try:
+            did = int(dish_id)
+            value = None if count is None else int(count)
+        except (TypeError, ValueError):
+            raise ValueError(
+                'menu_choices must map a dish id to a whole number or null.'
+            )
+        if value is not None and value < 0:
+            raise ValueError('A menu-choice tally cannot be negative.')
+        if did in valid_dish_ids:
+            wanted[did] = value
+    for dish_id, count in wanted.items():
+        Model.objects.update_or_create(
+            dish_id=dish_id,
+            defaults={'is_choice': True, 'choice_count': count},
+            **parent,
+        )
+    Model.objects.filter(**parent).exclude(dish_id__in=wanted.keys()).update(
+        is_choice=False, choice_count=None,
+    )
+
+
+def read_menu_choices(booking):
+    """``{dish_id: count or None}`` for every dish flagged as a menu choice —
+    the exact shape ``write_menu_choices`` accepts, so a read→write round-trip
+    (including the quote→event conversion) is lossless."""
+    return {
+        str(r.dish_id): r.choice_count
+        for r in booking.dish_comments.all() if r.is_choice
+    }
+
+
+# The service style that offers the guest a choice. A choice only exists on a plated
+# dinner — on a buffet or family-style booking the guest picks at the line or the
+# table, so there is nothing to offer in advance and nothing to tally.
+PLATED_SERVICE_STYLE = 'plated'
+
+
+def booking_offers_choices(booking):
+    """Whether this booking's menu choices mean anything at all (REL-419).
+
+    Gates every READ of the flags — the client-facing rendering and the finals sum
+    alike — so a flag left behind by an earlier edit can never leak. Two ways that
+    happens, both reachable: the booking is switched off plated (the Menu-choices card
+    disappears, taking the only way to untick with it), or the dish is moved out of its
+    course (a choice with no course has nothing to sum against). Ignoring such a flag
+    on read is what makes those states harmless rather than a corrupt contract.
+    """
+    return (getattr(booking, 'service_style', '') or '') == PLATED_SERVICE_STYLE
+
+
+def choice_groups(booking):
+    """A booking's offered choices grouped BY COURSE (REL-419).
+
+    Returns ``[{'course_id', 'course_name', 'dish_ids'}]`` in course order. Only
+    courses that actually offer a choice appear, and only on a plated booking.
+
+    Grouping is what makes the finals sum correct: each course's choices are offered
+    to every guest, so each must add up to the guarantee **on its own**. Summing them
+    together would demand 300 covers from a 150-guest booking that offers a choice of
+    main *and* of dessert.
+
+    A flagged dish with NO course is not a choice — there is no group for it to belong
+    to, so it is skipped rather than forming a phantom group the finals panel would
+    then demand tallies for.
+    """
+    if not booking_offers_choices(booking):
+        return []
+    rows = [r for r in booking.dish_comments.all() if r.is_choice and r.course_id]
+    if not rows:
+        return []
+    by_course = {}
+    for r in rows:
+        by_course.setdefault(r.course_id, []).append(r.dish_id)
+    order = {c.id: i for i, c in enumerate(booking.courses.all())}
+    names = {c.id: c.name for c in booking.courses.all()}
+    groups = [
+        {'course_id': cid, 'course_name': names.get(cid), 'dish_ids': sorted(dish_ids)}
+        for cid, dish_ids in by_course.items()
+    ]
+    # Course order, then the unassigned group (sorts last — no course to order by).
+    groups.sort(key=lambda g: order.get(g['course_id'], len(order)))
+    return groups
+
+
+# How far ahead of the due date the finals reminder turns amber. Finals typically
+# land 2–4 weeks out, so a fortnight is the point where chasing starts.
+FINALS_DUE_SOON_DAYS = 14
+
+
+def finals_status(event, today=None):
+    """The event's finals state, DERIVED — never stored (REL-419 AC10).
+
+    ``recorded`` once ``final_count`` is filled; otherwise, when a due date is set,
+    ``overdue`` past it, ``due_soon`` inside the fortnight before it, and ``awaiting``
+    while it is still comfortably ahead. ``None`` — no pill at all — for anything that
+    can't be chased: an unconfirmed or cancelled booking, or one with no due date.
+
+    Chasing stops once the event is under way (there is nothing left to ask the client
+    for on the day), but a recorded guarantee keeps showing right through the event.
+    """
+    if event.status not in FINALS_STATUSES:
+        return None
+    if event.final_count is not None:
+        return 'recorded'
+    # Nothing left to chase once the event is under way.
+    if event.status != EventStatus.CONFIRMED:
+        return None
+    due = event.final_count_due
+    if not due:
+        return None
+    today = today or timezone.localdate()
+    if due < today:
+        return 'overdue'
+    if (due - today).days <= FINALS_DUE_SOON_DAYS:
+        return 'due_soon'
+    return 'awaiting'
 
 
 class MealAudience(models.TextChoices):
@@ -378,6 +528,15 @@ class EventStatus(models.TextChoices):
     IN_PROGRESS = 'in_progress', 'In Progress'
     COMPLETED = 'completed', 'Completed'
     CANCELLED = 'cancelled', 'Cancelled'
+
+
+# Statuses a booking must be in for finals to mean anything. `in_progress` and
+# `completed` are here because an event auto-advances to them on its own day: gating
+# on `confirmed` alone would make the recorded numbers — the ones the kitchen cooks
+# to — vanish from the screen on exactly the morning they matter.
+FINALS_STATUSES = (
+    EventStatus.CONFIRMED, EventStatus.IN_PROGRESS, EventStatus.COMPLETED,
+)
 
 
 EVENT_STATUS_TRANSITIONS = {
@@ -522,6 +681,12 @@ class Event(OrgScopedModel, models.Model):
         return self.public_token
 
     @property
+    def finals_status(self):
+        """Derived finals state (REL-419) — see ``finals_status()``. A property, not a
+        column: the answer changes with the calendar, so storing it would go stale."""
+        return finals_status(self)
+
+    @property
     def latest_signature(self):
         return self.signatures.order_by('-signed_at').first()
 
@@ -622,9 +787,10 @@ class EventConstraintOverride(models.Model):
 
 class BookingCourse(models.Model):
     """An ordered course on a quote OR an event (exactly one) — Starter / Entrée /
-    Dessert — each with its own service style. Dishes are assigned to a course via
-    the per-dish rows (EventDishComment / QuoteDishComment). Additive & optional: a
-    booking with no courses renders exactly as before (implicit single course)."""
+    Dessert. Courses are grouping only: the service style is booking-level, not
+    per-course. Dishes are assigned to a course via the per-dish rows
+    (EventDishComment / QuoteDishComment). Additive & optional: a booking with no
+    courses renders exactly as before (implicit single course)."""
     quote = models.ForeignKey(
         'bookings.Quote', null=True, blank=True,
         on_delete=models.CASCADE, related_name='courses',
@@ -661,6 +827,12 @@ class EventDishComment(models.Model):
     course = models.ForeignKey(
         'events.BookingCourse', null=True, blank=True, on_delete=models.SET_NULL, related_name='+',
     )
+    # Entrée-choice lifecycle (REL-419). `is_choice` is set at PROPOSAL time —
+    # this dish is one of the entrées the guest may pick — and is priced per head
+    # regardless of who picks what. `choice_count` is the tally that arrives with the
+    # final guarantee weeks later; null until then, and never validated at quote time.
+    is_choice = models.BooleanField(default=False)
+    choice_count = models.PositiveIntegerField(null=True, blank=True)
 
     class Meta:
         unique_together = ('event', 'dish')
@@ -680,6 +852,11 @@ class QuoteDishComment(models.Model):
     course = models.ForeignKey(
         'events.BookingCourse', null=True, blank=True, on_delete=models.SET_NULL, related_name='+',
     )
+    # Mirrors EventDishComment (REL-419). On a quote only `is_choice` is ever
+    # set — the tallies arrive at finals, on the event — but the column exists on both
+    # so the flag survives the quote→event conversion through one shared code path.
+    is_choice = models.BooleanField(default=False)
+    choice_count = models.PositiveIntegerField(null=True, blank=True)
 
     class Meta:
         unique_together = ('quote', 'dish')

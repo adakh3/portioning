@@ -46,7 +46,10 @@ def noop_reverse(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('events', '0035_alter_event_gratuity_pct_and_more'),
+        # Renumbered 0036 -> 0037 when this branch was updated from main: REL-419's
+        # 0036 landed first, so the graph had two leaves. Data-only migration, so
+        # ordering behind it is safe — nothing here depends on that schema change.
+        ('events', '0036_eventdishcomment_choice_count_and_more'),
     ]
 
     operations = [
