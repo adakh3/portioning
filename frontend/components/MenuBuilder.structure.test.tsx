@@ -311,3 +311,30 @@ describe("MenuBuilder — the course-scoped dish picker (AC8b)", () => {
     await waitFor(() => expect(screen.queryByTestId("dish-picker")).not.toBeInTheDocument());
   });
 });
+
+describe("MenuBuilder — an additional meal has no courses to manage", () => {
+  it("offers no + Add course when nobody owns the course state", () => {
+    // AdditionalMealsEditor renders this card with no `courses`/`onStructureChange`,
+    // because an extra meal genuinely cannot have courses: BookingCourse links to a
+    // Quote or an Event, never a BookingMeal. The button used to render there and
+    // do nothing when clicked.
+    render(
+      <MenuBuilder
+        selectedDishIds={[1, 2]}
+        basedOnTemplate={null}
+        onChange={() => {}}
+        pricePerHead="20.00"
+        onPricePerHeadChange={() => {}}
+      />,
+    );
+    expect(screen.queryByText("+ Add course")).not.toBeInTheDocument();
+    // The dish list itself still works — that is all an extra meal needs.
+    expect(screen.getByText("+ Add dish")).toBeInTheDocument();
+    expect(screen.getByText("2 dishes")).toBeInTheDocument();
+  });
+
+  it("still offers it on a booking that does own them", () => {
+    render(<Harness courses={[]} dishCourses={{}} />);
+    expect(screen.getByText("+ Add course")).toBeInTheDocument();
+  });
+});

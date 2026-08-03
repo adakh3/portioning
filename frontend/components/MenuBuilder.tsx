@@ -227,6 +227,13 @@ export default function MenuBuilder({
   /** No courses at all → the card is a plain list (AC8): no headers, no scaffolding. */
   const isFlat = courses.length === 0;
 
+  /** Courses need an owner: the page holds them and puts them in the save payload.
+   * The card is also used for an ADDITIONAL MEAL, which has no course state to own
+   * — `BookingCourse` links to a Quote or an Event, never a `BookingMeal`, and
+   * `BookingMealDishComment` has no course FK. Without this the extra-meal card
+   * showed "+ Add course" and clicking it did nothing at all. */
+  const canEditCourses = !!onStructureChange;
+
   const addCourse = () =>
     emit({ courses: [...courses, { name: "", sort_order: courses.length }] });
 
@@ -658,19 +665,21 @@ export default function MenuBuilder({
                   the courses first and filling them after is how a caterer outlines a
                   dinner, and it is the only route to a course on a booking with no
                   dishes yet. */}
-              <button
-                type="button"
-                onClick={addCourse}
-                className="text-sm text-primary hover:underline"
-              >
-                + Add course
-              </button>
+              {canEditCourses && (
+                <button
+                  type="button"
+                  onClick={addCourse}
+                  className="text-sm text-primary hover:underline"
+                >
+                  + Add course
+                </button>
+              )}
             </>
-          ) : (
+          ) : canEditCourses ? (
             <button type="button" onClick={addCourse} className="text-sm text-primary hover:underline">
               + Add course
             </button>
-          )}
+          ) : null}
         </div>
       )}
 
