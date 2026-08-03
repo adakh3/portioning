@@ -7,106 +7,9 @@ import { formatCurrency } from "@/lib/utils";
 import DietaryTagPills from "@/components/DietaryTagPills";
 import DishPickerInline from "@/components/DishPickerInline";
 import {
-  DndContext, DragOverlay, PointerSensor, closestCenter,
-  useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent,
-} from "@dnd-kit/core";
-import {
-  assignDish, courseWarning, menuSections, moveDish, removeCourse, toggleChoice,
+  assignDish, courseWarning, menuSections, removeCourse, toggleChoice,
 } from "@/lib/menuStructure";
 
-/** A course (or the unassigned section) as a drop target. While a dish is in the
- * air every section outlines itself, and the one under the cursor fills in — the
- * marker is the course you'd land in, because landing in a course is the only thing
- * a drop decides. Order within a course isn't part of the save payload, so there is
- * no insertion point to point at. */
-function DropSection({
-  courseIndex, dragging, children,
-}: {
-  courseIndex: number | null;
-  dragging: boolean;
-  children: React.ReactNode;
-}) {
-  const { setNodeRef, isOver } = useDroppable({ id: `section-${courseIndex ?? "unassigned"}` });
-  return (
-    <div
-      ref={setNodeRef}
-      data-testid={`drop-section-${courseIndex ?? "unassigned"}`}
-      data-over={isOver ? "true" : undefined}
-      className={`border-b border-border py-3 rounded-md transition-colors ${
-        dragging ? "outline-dashed outline-1 outline-offset-2 outline-border" : ""
-      } ${isOver ? "bg-primary/5 outline-primary outline-2" : ""}`}
-    >
-      {children}
-    </div>
-  );
-}
-
-/** One dish row. The WHOLE ROW is the drag target, not just the ⠿ — grabbing the dish
- * name is what a person actually does, and a hover-revealed handle is a small target
- * to find and an easy one to miss. The ⠿ stays as the visible hint that the row moves.
- *
- * Buttons inside the row (the choice chip, the ✕) opt out of starting a drag, so they
- * still click. dnd-kit's PointerSensor calls preventDefault on the pointerdown it
- * claims, which would otherwise swallow those clicks.
- *
- * ↑/↓ on the focused handle move the dish to the previous/next course. That is a hand
- * -rolled key handler rather than dnd-kit's KeyboardSensor, for the reason
- * BookingTimelineField gives: the sensor's drag-and-measure loop needs layout, so it
- * can't be driven in jsdom and is flaky in Playwright. This is the same move, it is
- * testable, and it means removing the ↑↓ BUTTONS didn't remove non-mouse access. */
-function DragRow({
-  dishId, dishName, draggable, indent, onKeyMove, children,
-}: {
-  dishId: number;
-  dishName: string;
-  draggable: boolean;
-  indent: boolean;
-  onKeyMove: (dishId: number, direction: -1 | 1) => void;
-  children: React.ReactNode;
-}) {
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
-    id: String(dishId), disabled: !draggable,
-  });
-  const rowListeners = draggable
-    ? {
-        ...listeners,
-        onPointerDown: (e: React.PointerEvent) => {
-          if ((e.target as HTMLElement).closest("button")) return;
-          listeners?.onPointerDown?.(e);
-        },
-      }
-    : {};
-  return (
-    <div
-      ref={setNodeRef}
-      {...rowListeners}
-      className={`group flex items-center gap-2 py-1 ${indent ? "pl-3" : ""} ${
-        draggable ? "cursor-grab active:cursor-grabbing" : ""
-      } ${isDragging ? "opacity-40" : ""}`}
-    >
-      {draggable && (
-        // A span, not a button: buttons opt out of dragging above, and this one is
-        // the drag hint itself. role/tabIndex keep it focusable for the arrow keys.
-        <span
-          // dnd-kit's attributes supply role="button" and tabIndex, so the span is
-          // focusable for the arrow keys without setting them twice.
-          {...attributes}
-          aria-label={`Move ${dishName} to another course — drag, or use the arrow keys`}
-          onKeyDown={(e) => {
-            if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
-            e.preventDefault();
-            e.stopPropagation();
-            onKeyMove(dishId, e.key === "ArrowUp" ? -1 : 1);
-          }}
-          className="select-none text-muted-foreground opacity-0 transition-opacity group-hover:opacity-60 group-focus-within:opacity-60 focus:opacity-60"
-        >
-          ⠿
-        </span>
-      )}
-      {children}
-    </div>
-  );
-}
 
 interface CalculatedPrice {
   price: number;
@@ -194,8 +97,6 @@ export default function MenuBuilder({
    * (or the whole menu when the booking has no courses). Scoping the picker is what
    * removes the old second step of assigning a dish after picking it (AC8b). */
   const [pickerCourse, setPickerCourse] = useState<number | null>(null);
-  /** The dish being dragged, and the row it would land above — the insertion line. */
-  const [dragging, setDragging] = useState<number | null>(null);
 
   // Track if changes have been made
   const [dirty, setDirty] = useState(false);
@@ -334,23 +235,6 @@ export default function MenuBuilder({
     emit({ courses: courses.map((c, i) => (i === idx ? { ...c, name } : c)) });
 
   const dropCourse = (idx: number) => emit(removeCourse(idx, courses, dishCourses, menuChoices));
-
-  // Drag a dish into another course — the same @dnd-kit setup the leads kanban uses
-  // to move a card between columns, which is the identical problem. PointerSensor
-  // covers mouse and touch; KeyboardSensor makes the handle operable without either.
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
-
-  /** The keyboard path for the same move — see DragRow. */
-  const moveRow = (dishId: number, direction: -1 | 1) =>
-    emit(moveDish(dishId, direction, sections, dishCourses, menuChoices));
-
-  const handleDragEnd = (e: DragEndEvent) => {
-    const dishId = Number(e.active.id);
-    setDragging(null);
-    if (!e.over) return;
-    const target = String(e.over.id).replace("section-", "");
-    putInCourse(dishId, target === "unassigned" ? null : Number(target));
-  };
 
   const putInCourse = (dishId: number, courseIndex: number | null) =>
     emit(assignDish(dishId, courseIndex, dishCourses, menuChoices));
@@ -601,21 +485,13 @@ export default function MenuBuilder({
           )}
         </div>
       ) : (
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragStart={(e) => setDragging(Number(e.active.id))}
-          onDragCancel={() => setDragging(null)}
-          onDragEnd={handleDragEnd}
-        >
         <div data-testid="menu-structure" className="border-t border-border">
           {sections.map((section) => {
             const warning = courseWarning(section);
             return (
-              <DropSection
+              <div
                 key={section.courseIndex ?? "unassigned"}
-                courseIndex={section.courseIndex}
-                dragging={dragging !== null}
+                className="border-b border-border py-3"
               >
                 {!isFlat && (
                   <div className="flex items-center gap-3 mb-1.5">
@@ -643,7 +519,10 @@ export default function MenuBuilder({
                         type="button"
                         aria-label={`Remove course ${section.name}`}
                         onClick={() => dropCourse(section.courseIndex as number)}
-                        className="text-muted-foreground hover:text-destructive"
+                        // Same px-1 as the dish rows' ✕ — without it the two ✕
+                        // columns sit 4px apart, because the padding shifts the
+                        // glyph inside a button whose right edge is already aligned.
+                        className="text-muted-foreground hover:text-destructive px-1"
                       >
                         &times;
                       </button>
@@ -667,13 +546,7 @@ export default function MenuBuilder({
                           (on an unflagged dish) the choice chip only appear on hover.
                           `focus-within` keeps them reachable by keyboard — hover-only
                           must never mean mouse-only. */}
-                      <DragRow
-                        dishId={id}
-                        dishName={dish.name}
-                        draggable={!disabled && !isFlat}
-                        indent={!isFlat}
-                        onKeyMove={moveRow}
-                      >
+                      <div className={`group flex items-center gap-2 py-1 ${isFlat ? "" : "pl-3"}`}>
                         <span className="text-sm text-foreground">{dish.name}</span>
                         {/* The legacy flag only shows for dishes with no dietary tags —
                             otherwise the pills already say it, and say it better
@@ -707,7 +580,7 @@ export default function MenuBuilder({
                             &times;
                           </button>
                         )}
-                      </DragRow>
+                      </div>
                     </div>
                   );
                 })}
@@ -734,20 +607,10 @@ export default function MenuBuilder({
                     {showSelector && pickerCourse === section.courseIndex ? "Done" : "+ dish"}
                   </button>
                 )}
-              </DropSection>
+              </div>
             );
           })}
         </div>
-        {/* The dish travels with the cursor, so it's obvious what is being moved
-            while the target course highlights underneath it. */}
-        <DragOverlay dropAnimation={null}>
-          {dragging !== null && (
-            <div className="rounded-md border border-primary bg-background px-3 py-1 text-sm shadow-lg">
-              {dishes.find((d) => d.id === dragging)?.name}
-            </div>
-          )}
-        </DragOverlay>
-        </DndContext>
       )}
 
       {/* Footer: add a course, or (flat) add a dish + the running count. */}

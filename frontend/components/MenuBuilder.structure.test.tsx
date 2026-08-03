@@ -116,67 +116,20 @@ describe("MenuBuilder — courses as structure (AC2, AC4)", () => {
     expect(rowOrder()).toEqual(["Roast Beef", "Baked Salmon", "Mashed Potatoes"]);
   });
 
-  it("hops a dish into the neighbouring course with the arrows, clearing its flag", async () => {
+  it("offers no way to move a dish — placement is the picker's job", () => {
+    // Owner call (2026-08-03): dragging and the ↑↓ buttons are both gone. A dish is
+    // placed by adding it from the target course's "+ dish", and taken out with its
+    // ✕ — there is no separate move affordance to find or explain.
     render(<Harness
       courses={[{ name: "Entrée", sort_order: 0 }, { name: "Dessert", sort_order: 1 }]}
       dishIds={[1, 2, 4]}
       dishCourses={{ "1": 0, "2": 0, "4": 1 }}
-      menuChoices={{ "1": null, "2": null }}
     />);
-    // Salmon is the last row of Entrée; stepping down lands it in Dessert.
-    fireEvent.keyDown(screen.getByLabelText("Move Baked Salmon to another course — drag, or use the arrow keys"), { key: "ArrowDown" });
-    // Nothing arrives in a course pre-marked as one of its options, so the flag goes.
-    await waitFor(() =>
-      expect(screen.queryByLabelText(unchip("Baked Salmon"))).not.toBeInTheDocument());
-    expect(screen.getByLabelText(chip("Baked Salmon"))).toBeInTheDocument();
-  });
-
-  it("moves a dish out of the MIDDLE of a course, not just off its ends", async () => {
-    // ↑/↓ mean previous/next course, not "one row". When they only fired at a
-    // section boundary, a dish buried in a long list could not be moved until every
-    // dish above it had been moved first.
-    render(<Harness
-      courses={[{ name: "Entrée", sort_order: 0 }, { name: "Dessert", sort_order: 1 }]}
-      dishIds={[1, 2, 3, 4]}
-      dishCourses={{ "1": 0, "2": 0, "3": 0, "4": 1 }}
-    />);
-    // Baked Salmon sits between Roast Beef and Mashed Potatoes.
-    fireEvent.keyDown(screen.getByLabelText("Move Baked Salmon to another course — drag, or use the arrow keys"), { key: "ArrowDown" });
-    await waitFor(() =>
-      expect(rowOrder()).toEqual(["Roast Beef", "Mashed Potatoes", "Baked Salmon", "Cheesecake"]));
-  });
-
-  it("gives every course a drop target and every dish a drag handle", () => {
-    // The drag itself is @dnd-kit measuring real element rects, so jsdom can't drive
-    // it (the reason BookingTimelineField tests its keyboard path instead). What is
-    // testable here is that the pieces a drop needs are rendered: one target per
-    // section — including "On the table" — and a handle on each row. The move those
-    // produce is the same putInCourse the keyboard tests above already prove, and the
-    // real drag is covered by hand in a browser.
-    render(<Harness
-      courses={[{ name: "Entrée", sort_order: 0 }, { name: "Dessert", sort_order: 1 }]}
-      dishIds={[1, 2, 4, 5]}
-      dishCourses={{ "1": 0, "2": 0, "4": 1 }}
-    />);
-    expect(screen.getByTestId("drop-section-0")).toBeInTheDocument();
-    expect(screen.getByTestId("drop-section-1")).toBeInTheDocument();
-    expect(screen.getByTestId("drop-section-unassigned")).toBeInTheDocument();
-    for (const dish of ["Roast Beef", "Baked Salmon", "Cheesecake", "Dinner Rolls"]) {
-      expect(
-        screen.getByLabelText(`Move ${dish} to another course — drag, or use the arrow keys`),
-      ).toBeInTheDocument();
-    }
-    // The ↑↓ BUTTONS are gone — the handle is the only move affordance (owner call).
-    expect(screen.queryByLabelText(/^Move .* up$/)).not.toBeInTheDocument();
-    expect(screen.queryByLabelText(/^Move .* down$/)).not.toBeInTheDocument();
-  });
-
-  it("drops the On the table section when it empties", async () => {
-    render(<Harness dishIds={[1, 2]} dishCourses={{ "1": 0 }} />);
-    expect(screen.getByText("On the table")).toBeInTheDocument();
-    // Step the unassigned dish back up into the course above it.
-    fireEvent.keyDown(screen.getByLabelText("Move Baked Salmon to another course — drag, or use the arrow keys"), { key: "ArrowUp" });
-    await waitFor(() => expect(screen.queryByText("On the table")).not.toBeInTheDocument());
+    expect(screen.queryByLabelText(/^Move /)).not.toBeInTheDocument();
+    expect(screen.queryByText("⠿")).not.toBeInTheDocument();
+    // Every row still has its own ✕, and each course its "+ dish".
+    expect(rowOrder()).toEqual(["Roast Beef", "Baked Salmon", "Cheesecake"]);
+    expect(screen.getAllByText("+ dish")).toHaveLength(2);
   });
 });
 

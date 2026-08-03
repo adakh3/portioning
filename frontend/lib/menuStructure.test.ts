@@ -1,5 +1,5 @@
 import {
-  assignDish, courseWarning, menuSections, moveDish, removeCourse, toggleChoice,
+  assignDish, courseWarning, menuSections, removeCourse, toggleChoice,
 } from "./menuStructure";
 import type { CourseData } from "@/lib/api";
 
@@ -79,41 +79,6 @@ describe("courseWarning", () => {
   });
 });
 
-describe("moveDish", () => {
-  it("hops into the next course when stepping past the end", () => {  // AC2
-    const out = moveDish(3, 1, sections(), DISH_COURSES, {});
-    expect(out.dishCourses["3"]).toBe(1);
-  });
-
-  it("hops into the previous course when stepping past the start", () => {
-    const out = moveDish(4, -1, sections(), DISH_COURSES, {});
-    expect(out.dishCourses["4"]).toBe(0);
-  });
-
-  it("lands in the unassigned section past the last course", () => {
-    const out = moveDish(4, 1, sections(), DISH_COURSES, {});
-    expect(out.dishCourses["4"]).toBeUndefined();
-  });
-
-  it("clears the choice flag when the dish changes course", () => {  // AC2
-    const choices = { "1": null, "2": null };
-    // 2 is last of the offered pair; stepping down moves it out of Entrée.
-    const secs = sections(choices);
-    const last = secs[0].dishIds.at(-1)!;
-    const out = moveDish(last, 1, secs, DISH_COURSES, choices);
-    expect(out.menuChoices[last]).toBeUndefined();
-  });
-
-  it("does nothing at the very top or very bottom of the menu", () => {
-    const secs = sections();
-    expect(moveDish(1, -1, secs, DISH_COURSES, {}).dishCourses).toEqual(DISH_COURSES);
-    expect(moveDish(5, 1, secs, DISH_COURSES, {}).dishCourses).toEqual(DISH_COURSES);
-  });
-
-  it("ignores a dish that isn't on the menu", () => {
-    expect(moveDish(99, 1, sections(), DISH_COURSES, {}).dishCourses).toEqual(DISH_COURSES);
-  });
-});
 
 describe("assignDish", () => {
   it("moves a dish into a course and clears its flag", () => {

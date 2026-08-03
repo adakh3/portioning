@@ -98,41 +98,6 @@ export function courseWarning(section: MenuSection): string | null {
   return section.chosenIds.length === 1 ? "a choice needs two options" : null;
 }
 
-/**
- * Move one dish into the previous or next section (AC2) — the keyboard and touch
- * path for the same thing dragging does.
- *
- * ↑ and ↓ mean "the course before / after this one", NOT "one row". Position within
- * a course is deliberately not a thing they can change: dish order inside a course
- * isn't part of the save payload (documents render dishes in the order they were
- * added), so a row-by-row nudge would look like it worked and vanish on reload.
- * Reading them as course moves also means a dish buried in the middle of a long
- * list moves in one press, instead of only once every dish above it has been moved.
- *
- * Returns the next `dishCourses` and `menuChoices`. Landing in a different course
- * clears the dish's choice flag: nothing arrives pre-marked as an option in a course
- * whose choice the caterer hasn't declared.
- */
-export function moveDish(
-  dishId: number,
-  direction: -1 | 1,
-  sections: MenuSection[],
-  dishCourses: Record<string, number>,
-  menuChoices: MenuChoices,
-): { dishCourses: Record<string, number>; menuChoices: MenuChoices } {
-  const from = sections.findIndex((s) => s.dishIds.includes(dishId));
-  if (from === -1) return { dishCourses, menuChoices };
-
-  const target = sections[from + direction];
-  if (!target) return { dishCourses, menuChoices };
-
-  const nextCourses = { ...dishCourses };
-  if (target.courseIndex === null) delete nextCourses[dishId];
-  else nextCourses[dishId] = target.courseIndex;
-
-  return { dishCourses: nextCourses, menuChoices: clearChoice(menuChoices, dishId) };
-}
-
 /** Drop the dish's offered flag — used whenever it lands in a different course. */
 export function clearChoice(menuChoices: MenuChoices, dishId: number): MenuChoices {
   if (menuChoices[dishId] === undefined) return menuChoices;

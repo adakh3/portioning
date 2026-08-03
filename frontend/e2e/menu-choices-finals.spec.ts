@@ -22,9 +22,20 @@ test.describe("Menu choices and final numbers survive save + reload", () => {
     await login(page);
   });
 
-  /** Every dish row's ✕ — excludes the course ✕ and the choice chip. */
-  const dishRows = (page: Page) =>
-    page.getByLabel(/^Remove (?!course )(?!.*as a guest choice$)/);
+  /** Add the first addable dish from `course`'s picker; returns its name. `nth` is
+   * which "+ dish" trigger to use, i.e. which course section. */
+  async function addDishTo(page: Page, course: string, nth: number): Promise<string> {
+    await page.getByRole("button", { name: "+ dish" }).nth(nth).click();
+    const picker = page.getByRole("group", { name: `Add a dish to ${course}` });
+    const row = picker.getByRole("button", { name: new RegExp(`add to ${course}$`) }).first();
+    const name = (await row.getAttribute("aria-label"))!.split(" — ")[0];
+    await row.click();
+    // The picker stays open after an add, and its trigger then reads "Done" — which
+    // shifts the "+ dish" indices for the next call. Esc closes it (AC8b).
+    await page.keyboard.press("Escape");
+    await expect(picker).toHaveCount(0);
+    return name;
+  }
 
   test("offered choices persist, then the finals panel records tallies per course", async ({ page }) => {
     // --- Proposal: a plated event offering a choice in TWO courses ---
@@ -42,35 +53,20 @@ test.describe("Menu choices and final numbers survive save + reload", () => {
     await page.getByLabel("Service Style").selectOption("plated");
     await page.getByLabel("Status").selectOption("confirmed");
 
-    const tpl = page.getByLabel("Load from template");
-    await tpl.waitFor({ state: "visible" });
-    await tpl.selectOption({ index: 1 });
-    await expect(dishRows(page).first()).toBeVisible({ timeout: 10_000 });
-
-    // Take the menu in its loaded order, then place the first four by name. More
-    // dishes than that stay unassigned on purpose — AC13 wants an "On the table"
-    // dish in the round trip too.
-    const names = (await dishRows(page).evaluateAll((els) =>
-      els.map((e) => e.getAttribute("aria-label")!.replace("Remove ", "")),
-    ));
-    expect(names.length).toBeGreaterThanOrEqual(5);
-    const [a, b, c, d] = names;
-
-    // Two courses, so the choices group — and so finals validate per course.
-    await page.getByRole("button", { name: "+ Add course" }).click();
-    await page.getByLabel("Course 1 name").fill("Entrée");
-    await page.getByRole("button", { name: "+ Add course" }).click();
-    await page.getByLabel("Course 2 name").fill("Dessert");
-
-    // Sections render [Entrée, Dessert, On the table], so one "up" hops a dish from
-    // the unassigned list into Dessert and a second carries it on into Entrée.
-    for (const dish of [a, b]) {
-      await page.getByLabel(`Move ${dish} to another course — drag, or use the arrow keys`).press("ArrowUp");
-      await page.getByLabel(`Move ${dish} to another course — drag, or use the arrow keys`).press("ArrowUp");
+    // Three courses: two that offer a choice (so finals validate per course), and a
+    // throwaway third whose deletion is how a dish ends up unassigned — there is no
+    // move affordance, and AC13 wants an "On the table" dish in the round trip.
+    for (const [i, name] of [[1, "Entrée"], [2, "Dessert"], [3, "Extras"]] as const) {
+      await page.getByRole("button", { name: "+ Add course" }).click();
+      await page.getByLabel(`Course ${i} name`).fill(name);
     }
-    for (const dish of [c, d]) {
-      await page.getByLabel(`Move ${dish} to another course — drag, or use the arrow keys`).press("ArrowUp");
-    }
+
+    const [a, b] = [await addDishTo(page, "Entrée", 0), await addDishTo(page, "Entrée", 0)];
+    const [c, d] = [await addDishTo(page, "Dessert", 1), await addDishTo(page, "Dessert", 1)];
+    await addDishTo(page, "Extras", 2);
+
+    // Deleting the course drops its dish into "On the table" rather than a neighbour.
+    await page.getByLabel("Remove course Extras").click();
     await expect(page.getByText("On the table")).toBeVisible();
 
     // Mark both options in each course. The chip is the whole interaction — no
@@ -98,11 +94,10 @@ test.describe("Menu choices and final numbers survive save + reload", () => {
     await expect(page.getByTestId("menu-structure").getByText("guests choose")).toHaveCount(4);
     // Two options per course still read as one either/or.
     await expect(page.getByText("or", { exact: true })).toHaveCount(2);
-    // Back to view mode so the finals panel (hidden while editing) is reachable.
+    // Back to view mode so the finals panel (hidden while editing) is reachable. Its
+    // tally count below is the SERVER's own read of the same flags, through
+    // choice_groups() — the backend agreeing with what the card just showed.
     await page.reload();
-
-    // The server's own read of those flags is what the finals panel below runs on:
-    // it lists one tally per offered dish, so its count is the backend agreeing.
 
     // --- Finals: record the numbers on the confirmed booking (REL-419 AC6) ---
     await expect(page.getByRole("button", { name: "Record final numbers" })).toBeVisible({ timeout: 15_000 });

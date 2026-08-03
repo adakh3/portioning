@@ -163,20 +163,6 @@ describe("Quote — the one Menu card at proposal", () => {
     expect(payload.menu_choices).toEqual({});
   });
 
-  it("moving a dish to another course clears its choice flag", async () => {  // AC2, AC10
-    h.quote.menu_choices = { "11": null, "12": null };
-    h.quote.courses = [{ name: "Entrée", sort_order: 0 }, { name: "Dessert", sort_order: 1 }];
-    const payload = await saveAfter(async () => {
-      // ↓ on the handle moves Salmon out of Entrée and into the next course.
-      fireEvent.keyDown(
-        await screen.findByLabelText("Move Salmon to another course — drag, or use the arrow keys"),
-        { key: "ArrowDown" },
-      );
-    });
-    expect(payload.dish_courses).toEqual({ "11": 0, "12": 1 });
-    // Nothing arrives in a course pre-marked as one of its options.
-    expect(payload.menu_choices).toEqual({ "11": null });
-  });
 
   it("shows no choice affordance when the service style is not plated", async () => {  // AC8
     h.quote.service_style = "buffet";
