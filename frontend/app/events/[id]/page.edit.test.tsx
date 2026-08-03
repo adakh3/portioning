@@ -20,7 +20,8 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => ({ get: () => null }),
 }));
 
-vi.mock("@/components/MenuBuilder", () => ({ default: () => null }));
+// MenuBuilder is NOT mocked here: since REL-451 it IS the menu card, so the course
+// sections and the choice chips these tests drive live inside it.
 vi.mock("@/components/DealWonDialog", () => ({ default: () => null }));
 vi.mock("@/lib/auth", () => ({
   useAuth: () => ({ user: { id: 7, first_name: "Sam", last_name: "Sales", role: "salesperson" } }),
@@ -78,7 +79,14 @@ vi.mock("@/lib/hooks", () => ({
   useFormatDateTime: () => (v: string | null) => v ?? "-",
   useEventTypes: () => ({ data: [{ id: 1, value: "wedding", label: "Wedding" }] }),
   useServiceStyles: () => ({ data: [] }),
-  useDishes: () => ({ data: [{ id: 11, name: "Bruschetta" }, { id: 12, name: "Roast Beef" }, { id: 13, name: "Cheesecake" }] }),
+  useDishes: () => ({ data: [
+    { id: 11, name: "Bruschetta", category: 1, dietary_tags: [] },
+    { id: 12, name: "Roast Beef", category: 1, dietary_tags: [] },
+    { id: 13, name: "Cheesecake", category: 2, dietary_tags: [] },
+  ] }),
+  // The one card owns the dish picker and the template list (REL-451).
+  useCategories: () => ({ data: [{ id: 1, name: "Mains" }, { id: 2, name: "Desserts" }] }),
+  useMenus: () => ({ data: [], isLoading: false }),
   useMealTypes: () => ({ data: [] }),
   useTimelinePresets: () => ({ data: [] }),
   useProductLines: () => ({ data: [{ id: 5, name: "Catering", is_active: true, colour: "#000", round_robin_index: 0 }] }),
@@ -87,7 +95,12 @@ vi.mock("@/lib/hooks", () => ({
 vi.mock("@/lib/api", () => ({
   api: {
     updateEvent: (...args: unknown[]) => { h.updateEvent(...args); return Promise.resolve({ id: 8 }); },
+    // The card debounces a suggested rate once it has dishes + a guest count.
+    priceEstimate: () => Promise.resolve({ price_per_head: 50, has_unpriced: false }),
+    menuPriceCheck: () => Promise.resolve({ adjusted_price: 50, tier_label: "", breakdown: [], total_adjustment: 0 }),
+    getMenu: () => Promise.resolve({ portions: [], courses: [], dish_courses: {}, price_tiers: [] }),
   },
+  collectErrorMessages: () => [],
 }));
 
 import EventDetailPage from "./page";
@@ -126,22 +139,35 @@ describe("Event edit — saving the form must not destroy what it never edited",
     expect(payload.menu_choices).toEqual({ "12": 90, "13": null });
   });
 
-  it("marking another dish as an entrée choice keeps the existing tally intact", async () => {  // REL-419
+  it("marking another dish as a guest choice keeps the existing tally intact", async () => {  // REL-451 AC5/AC10
     render(<EventDetailPage />);
     fireEvent.click(await screen.findByText("Edit"));
-    fireEvent.click(await screen.findByLabelText("Offer Bruschetta as a choice"));
+    fireEvent.click(await screen.findByLabelText("Mark Bruschetta as a guest choice"));
     fireEvent.click(await screen.findByText("Save"));
     await waitFor(() => expect(h.updateEvent).toHaveBeenCalledTimes(1));
     const payload = h.updateEvent.mock.calls[0][1] as Record<string, unknown>;
     expect(payload.menu_choices).toEqual({ "11": null, "12": 90, "13": null });
   });
 
-  it("offers the dish→course dropdowns, which need the booking's dishes in edit mode", async () => {
+  it("renders the booking's dishes inside their courses in edit mode", async () => {  // REL-451 AC2/AC4/AC12
     render(<EventDetailPage />);
     fireEvent.click(await screen.findByText("Edit"));
-    // Empty menu state meant CoursesEditor had nothing assignable and rendered none.
-    expect(await screen.findByLabelText("Course for Bruschetta")).toBeTruthy();
-    expect(await screen.findByLabelText("Course for Roast Beef")).toBeTruthy();
+    // The course titles are the rename fields, hydrated from the event.
+    expect(await screen.findByLabelText("Course 1 name")).toHaveValue("Starter");
+    expect(await screen.findByLabelText("Course 2 name")).toHaveValue("Main");
+    // One row per dish, and the un-coursed one sits under "On the table".
+    expect(screen.getAllByLabelText("Remove Bruschetta")).toHaveLength(1);
+    expect(screen.getAllByLabelText("Remove Roast Beef")).toHaveLength(1);
+    expect(screen.getByText("On the table")).toBeInTheDocument();
+  });
+
+  it("does not offer the menu-only Save for a structure edit", async () => {  // REL-451
+    // "Save Menu" posts dish_ids alone — courses and choices ride in the page's main
+    // save, so lighting it up on a structure edit would show a Save that dropped them.
+    render(<EventDetailPage />);
+    fireEvent.click(await screen.findByText("Edit"));
+    fireEvent.click(await screen.findByLabelText("Mark Bruschetta as a guest choice"));
+    expect(screen.queryByText("Save Menu")).not.toBeInTheDocument();
   });
 
   it("never writes the finals numbers on an ordinary save (REL-419)", async () => {

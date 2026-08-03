@@ -217,7 +217,10 @@ export default function MenuBuilder({
     dishCourses: Record<string, number>;
     menuChoices: MenuChoices;
   }>) => {
-    setDirty(true);
+    // Deliberately does NOT set `dirty`. That flag surfaces this card's own "Save
+    // Menu" button, which posts `dish_ids` alone — structure rides in the page's
+    // main save instead. Lighting it up here would show a Save that silently
+    // dropped the course and choice edits it appeared to be saving.
     onStructureChange?.({ courses, dishCourses, menuChoices, ...v });
   };
 
@@ -398,6 +401,17 @@ export default function MenuBuilder({
 
   return (
     <div className="space-y-4">
+      {/* What this menu is being served as. It reads as context, but it's also the
+          one thing that decides whether choices are offered at all (AC8) — so
+          naming it here is what makes the card's plated-only behaviour legible. */}
+      {(serviceStyleLabel || guestCount) && (
+        <p data-testid="menu-service-line" className="-mt-2 text-sm text-muted-foreground">
+          {[serviceStyleLabel, guestCount ? `${guestCount} guests` : null]
+            .filter(Boolean)
+            .join(" · ")}
+        </p>
+      )}
+
       {/* Template Picker */}
       <div className="flex items-center gap-3 flex-wrap">
         <div className="relative">
@@ -456,8 +470,11 @@ export default function MenuBuilder({
       {/* The menu as one structure: courses containing dishes, with the guest
           choice marked inside the course (REL-451). A course-less booking is a plain
           list — no headers, no empty scaffolding. */}
-      {selectedDishes.length === 0 ? (
+      {selectedDishes.length === 0 && isFlat ? (
         <div>
+          {/* Only when there is no structure at all. Courses without dishes still
+              render their sections, so an outlined menu can be filled course by
+              course from the "+ dish" trigger inside each one. */}
           <p className="text-sm text-muted-foreground">
             No dishes yet. Load a template or add dishes.
           </p>
@@ -663,15 +680,16 @@ export default function MenuBuilder({
                   {selectedDishes.length} {selectedDishes.length === 1 ? "dish" : "dishes"}
                 </span>
               )}
-              {selectedDishes.length > 0 && (
-                <button
-                  type="button"
-                  onClick={addCourse}
-                  className="text-sm text-muted-foreground hover:text-foreground"
-                >
-                  Group into courses
-                </button>
-              )}
+              {/* Offered even on an empty menu: naming the courses first and filling
+                  them after is how a caterer outlines a plated dinner, and it is the
+                  only route to a course on a booking that has no dishes yet. */}
+              <button
+                type="button"
+                onClick={addCourse}
+                className="text-sm text-muted-foreground hover:text-foreground"
+              >
+                Group into courses
+              </button>
             </>
           ) : (
             <button type="button" onClick={addCourse} className="text-sm text-primary hover:underline">

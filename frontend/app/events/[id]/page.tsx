@@ -35,8 +35,7 @@ import BookingTotalsCard from "@/components/BookingTotalsCard";
 import AddOnItemsEditor from "@/components/AddOnItemsEditor";
 import MenuBuilder from "@/components/MenuBuilder";
 import AdditionalMealsEditor from "@/components/AdditionalMealsEditor";
-import CoursesEditor from "@/components/CoursesEditor";
-import MenuChoicesEditor from "@/components/MenuChoicesEditor";
+import { isPlated } from "@/lib/menuStructure";
 import MenuAsClientSees from "@/components/MenuAsClientSees";
 import FinalNumbersPanel from "@/components/FinalNumbersPanel";
 import FinalsPill from "@/components/FinalsPill";
@@ -137,7 +136,18 @@ export default function EventDetailPage() {
   // the event and echoed back on save so the finals panel's numbers survive an
   // ordinary edit of the menu.
   const [formMenuChoices, setFormMenuChoices] = useState<MenuChoices>({});
-
+  /** The one Menu card reports all three together (REL-451) — courses, the dish→course
+   * map and the choice flags move as one structure, so a dish changing course can clear
+   * its flag in the same update rather than in two racing setStates. */
+  const handleStructureChange = ({ courses, dishCourses, menuChoices }: {
+    courses: CourseData[];
+    dishCourses: Record<string, number>;
+    menuChoices: MenuChoices;
+  }) => {
+    setFormCourses(courses);
+    setFormDishCourses(dishCourses);
+    setFormMenuChoices(menuChoices);
+  };
 
   // Form fields (used in edit mode)
   const [formDate, setFormDate] = useState(isNew ? todayISO() : "");
@@ -907,6 +917,12 @@ export default function EventDetailPage() {
                   basedOnTemplate={menuData.based_on_template}
                   onChange={setMenuData}
                   onLoadCourses={(courses, dishCourses) => { setFormCourses(courses); setFormDishCourses(dishCourses); }}
+                  courses={formCourses}
+                  dishCourses={formDishCourses}
+                  menuChoices={formMenuChoices}
+                  plated={isPlated(formServiceStyle)}
+                  serviceStyleLabel={serviceStyleLabels[formServiceStyle]}
+                  onStructureChange={handleStructureChange}
                   pricePerHead={formPricePerHead}
                   onPricePerHeadChange={setFormPricePerHead}
                   guestCount={totalGuests}
@@ -918,6 +934,12 @@ export default function EventDetailPage() {
                   basedOnTemplate={event!.based_on_template}
                   onSave={handleMenuSave}
                   onLoadCourses={(courses, dishCourses) => { setFormCourses(courses); setFormDishCourses(dishCourses); }}
+                  courses={formCourses}
+                  dishCourses={formDishCourses}
+                  menuChoices={formMenuChoices}
+                  plated={isPlated(formServiceStyle)}
+                  serviceStyleLabel={serviceStyleLabels[formServiceStyle]}
+                  onStructureChange={handleStructureChange}
                   pricePerHead={formPricePerHead}
                   onPricePerHeadChange={setFormPricePerHead}
                   guestCount={totalGuests}
@@ -932,6 +954,11 @@ export default function EventDetailPage() {
                 selectedDishIds={event!.dishes}
                 basedOnTemplate={event!.based_on_template}
                 onSave={handleMenuSave}
+                courses={formCourses}
+                dishCourses={formDishCourses}
+                menuChoices={formMenuChoices}
+                plated={isPlated(event!.service_style)}
+                serviceStyleLabel={serviceStyleLabels[event!.service_style]}
                 pricePerHead={formPricePerHead}
                 onPricePerHeadChange={undefined}
                 guestCount={event!.guest_count}
@@ -941,30 +968,6 @@ export default function EventDetailPage() {
             )}
         </CardContent>
       </Card>
-
-      {/* Courses (Starter/Entrée/Dessert + service style) — groups the main menu */}
-      {(editing || formCourses.length > 0) && (
-        <CoursesEditor
-          courses={formCourses}
-          dishCourses={formDishCourses}
-          onChange={({ courses, dishCourses }) => { setFormCourses(courses); setFormDishCourses(dishCourses); }}
-          selectedDishIds={editing ? menuData.dish_ids : (event?.dishes || [])}
-          editing={editing}
-        />
-      )}
-
-      {/* Menu choices — plated only: what the guest gets to pick between. */}
-      {formServiceStyle === "plated"
-        && (editing || Object.keys(formMenuChoices).length > 0) && (
-        <MenuChoicesEditor
-          courses={formCourses}
-          dishCourses={formDishCourses}
-          menuChoices={formMenuChoices}
-          onChange={setFormMenuChoices}
-          selectedDishIds={editing ? menuData.dish_ids : (event?.dishes || [])}
-          editing={editing}
-        />
-      )}
 
       {/* Final numbers — the guarantee + per-entrée tallies, and the only place the
           two are checked against each other (REL-419). Confirmed onwards: nothing to

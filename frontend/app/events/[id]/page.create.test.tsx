@@ -13,7 +13,8 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => ({ get: () => null }),
 }));
 
-vi.mock("@/components/MenuBuilder", () => ({ default: () => null }));
+// MenuBuilder is NOT mocked here: since REL-451 it IS the menu card, so the course
+// affordance this test drives lives inside it.
 vi.mock("@/components/DealWonDialog", () => ({ default: () => null }));
 vi.mock("@/lib/auth", () => ({
   useAuth: () => ({ user: { id: 7, first_name: "Sam", last_name: "Sales", role: "salesperson" } }),
@@ -40,6 +41,9 @@ vi.mock("@/lib/hooks", () => ({
   useEventTypes: () => ({ data: [{ id: 1, value: "wedding", label: "Wedding" }] }),
   useServiceStyles: () => ({ data: [] }),
   useDishes: () => ({ data: [] }),
+  // The one card owns the dish picker and the template list (REL-451).
+  useCategories: () => ({ data: [] }),
+  useMenus: () => ({ data: [], isLoading: false }),
   useMealTypes: () => ({ data: [] }),
   useTimelinePresets: () => ({ data: [] }),
   useProductLines: () => ({ data: [{ id: 5, name: "Catering", is_active: true, colour: "#000", round_robin_index: 0 }] }),
@@ -48,7 +52,11 @@ vi.mock("@/lib/hooks", () => ({
 vi.mock("@/lib/api", () => ({
   api: {
     createEvent: (...args: unknown[]) => { h.createEvent(...args); return Promise.resolve({ id: 55 }); },
+    priceEstimate: () => Promise.resolve({ price_per_head: 0, has_unpriced: false }),
+    menuPriceCheck: () => Promise.resolve({ adjusted_price: 0, tier_label: "", breakdown: [], total_adjustment: 0 }),
+    getMenu: () => Promise.resolve({ portions: [], courses: [], dish_courses: {}, price_tiers: [] }),
   },
+  collectErrorMessages: () => [],
 }));
 
 import EventCreatePage from "./page";
@@ -61,7 +69,9 @@ describe("Event create — guest split + anchored timeline reach the payload", (
     fireEvent.click(screen.getByText("select-customer"));
     fireEvent.change(screen.getByLabelText("Guest Count"), { target: { value: "40" } });
 
-    fireEvent.click(screen.getByText("+ Add course"));
+    // A course-less booking is a flat list, so the first course comes from the
+    // flat-mode affordance (REL-451 AC8) rather than "+ Add course".
+    fireEvent.click(screen.getByText("Group into courses"));
     fireEvent.change(screen.getByLabelText("Course 1 name"), { target: { value: "Starter" } });
 
     fireEvent.click(screen.getByText("Create Event"));

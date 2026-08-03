@@ -19,6 +19,27 @@ export type MenuSection = {
   chosenIds: number[];
 };
 
+/**
+ * Whether this service style lets the caterer offer the guest a choice.
+ *
+ * Plated is the only style where each guest is committed to an *individual*
+ * portion, so the split has to be known before the day. Every other seeded style
+ * either lets the guest pick at the point of service (buffet, stations, passed)
+ * or shares platters (family style), and drop-off has no service at all.
+ *
+ * This DELIBERATELY MIRRORS the backend: `PLATED_SERVICE_STYLE` / `is_plated_service`
+ * in `backend/events/models.py`, which `choice_groups()` uses to decide what the
+ * contract renders. The card must not offer a flag the API will ignore — a choice
+ * marked on a buffet would save onto the row and then render nowhere.
+ *
+ * It is a slug check on an org-editable list, which is its known weakness: a style
+ * added as "Plated (duet)" gets no choice affordances. The durable fix is a
+ * per-style flag on `ServiceStyleOption` (data, not code); it needs a backend change
+ * this frontend-only ticket doesn't carry, so both pages route through here to keep
+ * that swap a one-liner on this side.
+ */
+export const isPlated = (serviceStyle: string | null | undefined) => serviceStyle === "plated";
+
 const isOffered = (choices: MenuChoices, dishId: number) =>
   choices[dishId] !== undefined;
 
