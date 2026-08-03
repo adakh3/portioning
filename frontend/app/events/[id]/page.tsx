@@ -453,22 +453,6 @@ export default function EventDetailPage() {
     }
   };
 
-  const handleMenuSave = async (data: { dish_ids: number[]; based_on_template: number | null }) => {
-    if (!event) return;
-    setSaving(true);
-    try {
-      await api.updateEvent(event.id, {
-        dish_ids: data.dish_ids,
-        based_on_template: data.based_on_template,
-      });
-      await mutateEvent();
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Save failed");
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const handleAddShift = async () => {
     if (!event || newShiftRole === "" || !newShiftStart || !newShiftEnd) return;
     setSaving(true);
@@ -929,10 +913,16 @@ export default function EventDetailPage() {
                   currencySymbol={settings.currency_symbol}
                 />
               ) : (
+                // One save, like the quote page: the card reports dish edits through
+                // onChange and the page's main Save sends them alongside the courses
+                // and choice flags. It used to instant-save via onSave, which since
+                // REL-451 would split one edit across two buttons — the structure
+                // reaching page state at once while dish_ids waited for "Save Menu",
+                // so removing a dish destroyed its tally while keeping the dish.
                 <MenuBuilder
-                  selectedDishIds={event!.dishes}
-                  basedOnTemplate={event!.based_on_template}
-                  onSave={handleMenuSave}
+                  selectedDishIds={menuData.dish_ids}
+                  basedOnTemplate={menuData.based_on_template}
+                  onChange={setMenuData}
                   onLoadCourses={(courses, dishCourses) => { setFormCourses(courses); setFormDishCourses(dishCourses); }}
                   courses={formCourses}
                   dishCourses={formDishCourses}
@@ -950,13 +940,15 @@ export default function EventDetailPage() {
             ) : event!.dishes.length === 0 ? (
               <p className="text-sm text-muted-foreground">No menu selected.</p>
             ) : (
+              // Read-only, so it reads the SAVED event rather than form state — which
+              // is hydrated by an effect and would render one flat, course-less frame
+              // before the real structure arrived.
               <MenuBuilder
                 selectedDishIds={event!.dishes}
                 basedOnTemplate={event!.based_on_template}
-                onSave={handleMenuSave}
-                courses={formCourses}
-                dishCourses={formDishCourses}
-                menuChoices={formMenuChoices}
+                courses={event!.courses || []}
+                dishCourses={event!.dish_courses || {}}
+                menuChoices={event!.menu_choices || {}}
                 plated={isPlated(event!.service_style)}
                 serviceStyleLabel={serviceStyleLabels[event!.service_style]}
                 pricePerHead={formPricePerHead}

@@ -24,12 +24,25 @@ vi.mock("@/lib/hooks", () => ({
     { id: 1, display_name: "Mains", display_order: 1 },
     { id: 2, display_name: "Desserts", display_order: 2 },
   ] }),
-  useMenus: () => ({ data: [], isLoading: false }),
+  useMenus: () => ({ data: [{ id: 7, name: "Autumn Plated", dish_count: 2 }], isLoading: false }),
 }));
 
 vi.mock("@/lib/api", async (importActual) => {
   const actual = await importActual<typeof import("@/lib/api")>();
-  return { ...actual, api: { priceEstimate: h.priceEstimate } };
+  return {
+    ...actual,
+    api: {
+      priceEstimate: h.priceEstimate,
+      // Template 7 puts both dishes in a course of its own — a different course from
+      // the one the booking had them in, which is what must clear the flags.
+      getMenu: () => Promise.resolve({
+        portions: [{ dish_id: 1 }, { dish_id: 2 }],
+        courses: [{ name: "Mains", sort_order: 0 }],
+        dish_courses: { "1": 0, "2": 0 },
+        price_tiers: [],
+      }),
+    },
+  };
 });
 
 import MenuBuilder from "./MenuBuilder";
@@ -118,6 +131,19 @@ describe("MenuBuilder — courses as structure (AC2, AC4)", () => {
     expect(screen.getByLabelText(chip("Baked Salmon"))).toBeInTheDocument();
   });
 
+  it("draws no insertion line for a drag within one course", async () => {
+    // Order within a course isn't part of the save payload, so a same-course drop
+    // can't reorder anything — the line would promise a move that never happens.
+    render(<Harness />);
+    const potatoes = screen.getByText("Mashed Potatoes").closest("div[draggable]")!;
+    const beef = screen.getByText("Roast Beef").closest("div[draggable]")!;
+    fireEvent.dragStart(potatoes);
+    fireEvent.dragOver(beef);
+    expect(screen.queryByTestId("drop-line")).not.toBeInTheDocument();
+    fireEvent.drop(beef);
+    expect(rowOrder()).toEqual(["Roast Beef", "Baked Salmon", "Mashed Potatoes"]);
+  });
+
   it("moves a dish by dragging it onto another course, clearing its flag", async () => {
     render(<Harness
       courses={[{ name: "Entrée", sort_order: 0 }, { name: "Dessert", sort_order: 1 }]}
@@ -190,6 +216,52 @@ describe("MenuBuilder — marking the guest's choice (AC5, AC6, AC7)", () => {
     expect(screen.getByText("On the table")).toBeInTheDocument();
     expect(screen.queryByLabelText(chip("Baked Salmon"))).not.toBeInTheDocument();
     expect(screen.getByLabelText(chip("Roast Beef"))).toBeInTheDocument();
+  });
+});
+
+describe("MenuBuilder — the structure follows the dishes", () => {
+  it("takes courses and flags with the menu when it is cleared", async () => {
+    // A course assignment or choice flag pointing at a dish no longer on the booking
+    // is a stale key in the save payload.
+    const seen: Array<{ dishCourses: Record<string, number>; menuChoices: MenuChoices }> = [];
+    render(
+      <MenuBuilder
+        selectedDishIds={[1, 2]}
+        basedOnTemplate={null}
+        onChange={() => {}}
+        courses={[{ name: "Entrée", sort_order: 0 }]}
+        dishCourses={{ "1": 0, "2": 0 }}
+        menuChoices={{ "1": null, "2": null }}
+        plated
+        onStructureChange={(v) => seen.push(v)}
+      />,
+    );
+    fireEvent.click(screen.getByText("Clear All"));
+    await waitFor(() => expect(seen.length).toBeGreaterThan(0));
+    expect(seen.at(-1)!.dishCourses).toEqual({});
+    expect(seen.at(-1)!.menuChoices).toEqual({});
+  });
+
+  it("drops the choice flags when a template rewrites the courses", async () => {
+    // Loading a template reassigns every dish, which is the same thing dragging a
+    // dish across courses does — and that clears the flag (AC2). Keeping it would
+    // leave a dish marked as an option in a course nobody declared one for.
+    const seen: MenuChoices[] = [];
+    render(
+      <MenuBuilder
+        selectedDishIds={[1, 2]}
+        basedOnTemplate={null}
+        onChange={() => {}}
+        courses={[{ name: "Entrée", sort_order: 0 }]}
+        dishCourses={{ "1": 0, "2": 0 }}
+        menuChoices={{ "1": null, "2": null }}
+        plated
+        onStructureChange={(v) => seen.push(v.menuChoices)}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText("Load from template"), { target: { value: "7" } });
+    await waitFor(() => expect(seen.length).toBeGreaterThan(0));
+    expect(seen.at(-1)).toEqual({});
   });
 });
 

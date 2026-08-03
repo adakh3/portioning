@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 
 // The EVENT *edit* page had no page-level test at all — only create and timeline —
 // which is exactly how a save could silently wipe the menu of an existing event.
@@ -83,6 +83,8 @@ vi.mock("@/lib/hooks", () => ({
     { id: 11, name: "Bruschetta", category: 1, dietary_tags: [] },
     { id: 12, name: "Roast Beef", category: 1, dietary_tags: [] },
     { id: 13, name: "Cheesecake", category: 2, dietary_tags: [] },
+    // In the catalogue but NOT on this booking — the picker's addable case.
+    { id: 14, name: "Tiramisu", category: 2, dietary_tags: [] },
   ] }),
   // The one card owns the dish picker and the template list (REL-451).
   useCategories: () => ({ data: [{ id: 1, name: "Mains" }, { id: 2, name: "Desserts" }] }),
@@ -168,6 +170,39 @@ describe("Event edit — saving the form must not destroy what it never edited",
     fireEvent.click(await screen.findByText("Edit"));
     fireEvent.click(await screen.findByLabelText("Mark Bruschetta as a guest choice"));
     expect(screen.queryByText("Save Menu")).not.toBeInTheDocument();
+  });
+
+  it("removing a dish takes it out of dish_ids, not just its course and tally", async () => {  // REL-451
+    // The regression this pins: the card reported structure edits to page state at
+    // once but dish edits only through a separate menu-only save. Removing Roast Beef
+    // then pressing the page's Save sent dish_ids STILL containing it while its
+    // choice tally (90) and course had already been stripped — the dish survived and
+    // its recorded numbers did not.
+    render(<EventDetailPage />);
+    fireEvent.click(await screen.findByText("Edit"));
+    fireEvent.click(await screen.findByLabelText("Remove Roast Beef"));
+    fireEvent.click(await screen.findByText("Save"));
+    await waitFor(() => expect(h.updateEvent).toHaveBeenCalledTimes(1));
+    const payload = h.updateEvent.mock.calls[0][1] as Record<string, unknown>;
+    expect(payload.dish_ids).toEqual([11, 13]);
+    expect(payload.dish_courses).toEqual({ "11": 0 });
+    expect(payload.menu_choices).toEqual({ "13": null });
+  });
+
+  it("adds a dish into the course its picker was opened from, in one save", async () => {  // REL-451 AC8b
+    render(<EventDetailPage />);
+    fireEvent.click(await screen.findByText("Edit"));
+    // Tiramisu isn't on the booking; add it to "Main" (course index 1) from that
+    // course's own picker — no second assignment step, no second save.
+    fireEvent.click(screen.getAllByText("+ dish")[1]);
+    const picker = await screen.findByTestId("dish-picker");
+    fireEvent.click(within(picker).getByLabelText(/^Tiramisu.*add to Main$/));
+    fireEvent.click(await screen.findByText("Save"));
+    await waitFor(() => expect(h.updateEvent).toHaveBeenCalledTimes(1));
+    const payload = h.updateEvent.mock.calls[0][1] as Record<string, unknown>;
+    // The dish reaches dish_ids AND lands in the course it was added from.
+    expect(payload.dish_ids).toEqual([11, 12, 13, 14]);
+    expect(payload.dish_courses).toEqual({ "11": 0, "12": 1, "14": 1 });
   });
 
   it("never writes the finals numbers on an ordinary save (REL-419)", async () => {

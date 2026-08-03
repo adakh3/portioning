@@ -238,6 +238,10 @@ export default function MenuBuilder({
 
   const dropCourse = (idx: number) => emit(removeCourse(idx, courses, dishCourses, menuChoices));
 
+  /** Which section a dish is currently rendered in — null for "On the table". */
+  const sectionOfDish = (dishId: number) =>
+    sections.find((s) => s.dishIds.includes(dishId))?.courseIndex ?? null;
+
   const moveRow = (dishId: number, direction: -1 | 1) =>
     emit(moveDish(dishId, direction, sections, dishCourses, menuChoices));
 
@@ -299,6 +303,15 @@ export default function MenuBuilder({
       // Carry the template's courses onto the booking (REL-417 AC6). Always fire —
       // a course-less template clears any stale courses from a previously-loaded one.
       onLoadCourses?.(detail.courses || [], detail.dish_courses || {});
+      // A template rewrites which course every dish is in, so the flags cannot
+      // survive it: the same rule as dragging a dish across courses (AC2). Keeping
+      // them would leave a dish marked "guests choose" in a course the caterer never
+      // declared a choice for — and often a lone option, warning about itself.
+      onStructureChange?.({
+        courses: detail.courses || [],
+        dishCourses: detail.dish_courses || {},
+        menuChoices: {},
+      });
     } catch (e) {
       setPriceError(errorText(e) || "Couldn't load that template.");
     }
@@ -314,6 +327,10 @@ export default function MenuBuilder({
     setCalculatedPrice(null);
     setPriceError(null);
     onChange?.({ dish_ids: [], based_on_template: null });
+    // The structure goes with the dishes, for the same reason removing a single dish
+    // clears its own: a course assignment or choice flag pointing at a dish that is
+    // no longer on the booking is a stale key in the save payload.
+    onStructureChange?.({ courses, dishCourses: {}, menuChoices: {} });
   };
 
   const handleCalculateRate = async () => {
@@ -441,14 +458,10 @@ export default function MenuBuilder({
             <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
           </svg>
         </div>
-        <button
-          type="button"
-          onClick={() => setShowSelector(!showSelector)}
-          disabled={disabled}
-          className="h-9 border border-input text-foreground bg-background px-3 rounded-md text-sm font-medium hover:bg-accent disabled:opacity-50"
-        >
-          {showSelector ? "Hide Dish Picker" : "Pick Individual Dishes"}
-        </button>
+        {/* No top-level "Pick Individual Dishes": the picker is course-scoped now
+            (AC8b), so it opens from the "+ dish" inside the section it adds to. A
+            global trigger had no course to belong to — with every dish assigned there
+            was no unassigned section to render it in, and it did nothing at all. */}
         {selected.size > 0 && !disabled && (
           <button
             type="button"
@@ -561,6 +574,11 @@ export default function MenuBuilder({
                         onDragEnd={() => { setDragging(null); setDropBefore(null); }}
                         onDragOver={(e) => {
                           if (dragging === null || dragging === id) return;
+                          // Only across courses. Order WITHIN a course isn't part of
+                          // the save payload (dishes render in add order), so drawing
+                          // an insertion line for a same-course drag would promise a
+                          // reorder that the drop can't perform.
+                          if (sectionOfDish(dragging) === section.courseIndex) return;
                           e.preventDefault();
                           setDropBefore({ course: section.courseIndex, dishId: id });
                         }}
