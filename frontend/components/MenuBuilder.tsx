@@ -1,10 +1,15 @@
 "use client";
 
 import { useEffect, useState, useMemo, useRef } from "react";
-import { api, collectErrorMessages, MenuTemplateDetail, CourseData, PriceTier, PriceCheckResult, PriceCheckBreakdownItem, PriceEstimateResult } from "@/lib/api";
+import { api, collectErrorMessages, MenuTemplateDetail, CourseData, MenuChoices, PriceTier, PriceCheckResult, PriceCheckBreakdownItem, PriceEstimateResult } from "@/lib/api";
 import { useDishes, useCategories, useMenus } from "@/lib/hooks";
 import { formatCurrency } from "@/lib/utils";
-import DietaryTagPills, { dietaryTagsDescription } from "@/components/DietaryTagPills";
+import DietaryTagPills from "@/components/DietaryTagPills";
+import DishPickerInline from "@/components/DishPickerInline";
+import {
+  assignDish, courseWarning, menuSections, removeCourse, toggleChoice,
+} from "@/lib/menuStructure";
+
 
 interface CalculatedPrice {
   price: number;
@@ -36,6 +41,23 @@ interface Props {
   /** REL-417: when a template with courses is loaded, its course structure is
    * surfaced so the booking can carry it over (AC6). */
   onLoadCourses?: (courses: CourseData[], dishCourses: Record<string, number>) => void;
+  /** The menu's structure (REL-451). Courses contain dishes, and on a plated booking
+   * a dish inside a course can be marked as one of the guest's options — one card,
+   * one thought. Owned by the page (it goes in the single save payload); this
+   * component reads it and reports edits through `onStructureChange`. */
+  courses?: CourseData[];
+  dishCourses?: Record<string, number>;
+  menuChoices?: MenuChoices;
+  /** Choice affordances are plated-only; buffet/family style keep the flags but
+   * never show them (AC8). */
+  plated?: boolean;
+  /** "Plated dinner", "Buffet", … — the header subtitle's first word. */
+  serviceStyleLabel?: string;
+  onStructureChange?: (v: {
+    courses: CourseData[];
+    dishCourses: Record<string, number>;
+    menuChoices: MenuChoices;
+  }) => void;
   pricePerHead?: string;
   onPricePerHeadChange?: (value: string) => void;
   currencySymbol?: string;
@@ -50,6 +72,12 @@ export default function MenuBuilder({
   onSave,
   onChange,
   onLoadCourses,
+  courses = [],
+  dishCourses = {},
+  menuChoices = {},
+  plated = false,
+  serviceStyleLabel,
+  onStructureChange,
   pricePerHead,
   onPricePerHeadChange,
   currencySymbol = "",
@@ -65,6 +93,10 @@ export default function MenuBuilder({
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState("");
   const [showSelector, setShowSelector] = useState(false);
+  /** Which course the open picker adds into — `null` means the unassigned section
+   * (or the whole menu when the booking has no courses). Scoping the picker is what
+   * removes the old second step of assigning a dish after picking it (AC8b). */
+  const [pickerCourse, setPickerCourse] = useState<number | null>(null);
 
   // Track if changes have been made
   const [dirty, setDirty] = useState(false);
@@ -118,16 +150,25 @@ export default function MenuBuilder({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tierPrice, calculatedPrice, extraFoodPercent]);
 
+  // Esc closes the dish picker — one of its three ways out (AC8b).
+  useEffect(() => {
+    if (!showSelector) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setShowSelector(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [showSelector]);
+
   // Track last auto-filled price so we only overwrite when user hasn't manually edited
   const lastAutoFilledRef = useRef<string>("");
 
   // Auto-fill price/head when suggested price changes
   useEffect(() => {
-    if (activePrice === null || !onPricePerHeadChange) return;
+    // `> 0` matters: the engine returns 0 when it can't price the menu, and
+    // auto-filling that would silently zero what the caterer charges.
+    if (activePrice === null || activePrice <= 0 || !onPricePerHeadChange) return;
     const newVal = activePrice.toFixed(2);
-    // Already showing this value — do nothing. Without this guard the parent's
-    // onPricePerHeadChange (a fresh closure each render that always builds a new
-    // state object) would re-fire this effect forever → "Maximum update depth".
     // Already showing this value — do nothing. Without this guard the parent's
     // onPricePerHeadChange (a fresh closure each render that always builds a new
     // state object) would re-fire this effect forever → "Maximum update depth".
@@ -155,7 +196,75 @@ export default function MenuBuilder({
     setDishesModified(true);
     setCalculatedPrice(null);
     setPriceError(null);
+    // A dish leaving the menu takes its course assignment and choice flag with it —
+    // otherwise a stale entry would point at a dish that isn't on the booking.
+    if (!next.has(id) && onStructureChange) {
+      const nextCourses = { ...dishCourses };
+      delete nextCourses[id];
+      const nextChoices = { ...menuChoices };
+      delete nextChoices[id];
+      onStructureChange({ courses, dishCourses: nextCourses, menuChoices: nextChoices });
+    }
     onChange?.({ dish_ids: Array.from(next), based_on_template: templateId });
+  };
+
+  // ---- Menu structure (REL-451) ----
+  const emit = (v: Partial<{
+    courses: CourseData[];
+    dishCourses: Record<string, number>;
+    menuChoices: MenuChoices;
+  }>) => {
+    // Deliberately does NOT set `dirty`. That flag surfaces this card's own "Save
+    // Menu" button, which posts `dish_ids` alone — structure rides in the page's
+    // main save instead. Lighting it up here would show a Save that silently
+    // dropped the course and choice edits it appeared to be saving.
+    onStructureChange?.({ courses, dishCourses, menuChoices, ...v });
+  };
+
+  const dishIdsInOrder = selectedDishIds.filter((id) => selected.has(id))
+    .concat(Array.from(selected).filter((id) => !selectedDishIds.includes(id)));
+  const sections = menuSections(dishIdsInOrder, courses, dishCourses, menuChoices, plated);
+  /** No courses at all → the card is a plain list (AC8): no headers, no scaffolding. */
+  const isFlat = courses.length === 0;
+
+  const addCourse = () =>
+    emit({ courses: [...courses, { name: "", sort_order: courses.length }] });
+
+  const renameCourse = (idx: number, name: string) =>
+    emit({ courses: courses.map((c, i) => (i === idx ? { ...c, name } : c)) });
+
+  const dropCourse = (idx: number) => emit(removeCourse(idx, courses, dishCourses, menuChoices));
+
+  const putInCourse = (dishId: number, courseIndex: number | null) =>
+    emit(assignDish(dishId, courseIndex, dishCourses, menuChoices));
+
+  const markChoice = (dishId: number) =>
+    emit({ menuChoices: toggleChoice(menuChoices, dishId) });
+
+  /** Open the picker for a course, or close it if that course's trigger is clicked
+   * again — the trigger reads "Done" while open, one of the three ways out (AC8b). */
+  const openPickerFor = (courseIndex: number | null) => {
+    if (showSelector && pickerCourse === courseIndex) {
+      setShowSelector(false);
+      return;
+    }
+    setPickerCourse(courseIndex);
+    setShowSelector(true);
+    setSearch("");
+  };
+
+  /** Add a dish straight into the course the picker was opened for. */
+  const addDishToPickerCourse = (dishId: number) => {
+    if (selected.has(dishId)) return;  // already on the menu — the row reads "on menu"
+    const next = new Set(selected);
+    next.add(dishId);
+    setSelected(next);
+    setDirty(true);
+    setDishesModified(true);
+    setCalculatedPrice(null);
+    setPriceError(null);
+    onChange?.({ dish_ids: Array.from(next), based_on_template: templateId });
+    if (pickerCourse !== null) putInCourse(dishId, pickerCourse);
   };
 
   const handleLoadTemplate = async (tid: number) => {
@@ -174,6 +283,15 @@ export default function MenuBuilder({
       // Carry the template's courses onto the booking (REL-417 AC6). Always fire —
       // a course-less template clears any stale courses from a previously-loaded one.
       onLoadCourses?.(detail.courses || [], detail.dish_courses || {});
+      // A template rewrites which course every dish is in, so the flags cannot
+      // survive it: the same rule as dragging a dish across courses (AC2). Keeping
+      // them would leave a dish marked "guests choose" in a course the caterer never
+      // declared a choice for — and often a lone option, warning about itself.
+      onStructureChange?.({
+        courses: detail.courses || [],
+        dishCourses: detail.dish_courses || {},
+        menuChoices: {},
+      });
     } catch (e) {
       setPriceError(errorText(e) || "Couldn't load that template.");
     }
@@ -189,6 +307,10 @@ export default function MenuBuilder({
     setCalculatedPrice(null);
     setPriceError(null);
     onChange?.({ dish_ids: [], based_on_template: null });
+    // The structure goes with the dishes, for the same reason removing a single dish
+    // clears its own: a course assignment or choice flag pointing at a dish that is
+    // no longer on the booking is a stale key in the save payload.
+    onStructureChange?.({ courses, dishCourses: {}, menuChoices: {} });
   };
 
   const handleCalculateRate = async () => {
@@ -263,18 +385,6 @@ export default function MenuBuilder({
   const selectedDishes = dishes.filter((d) => selected.has(d.id));
   const templateName = templates.find((t) => t.id === templateId)?.name;
 
-  // Grouped dishes for selector
-  const filtered = dishes.filter((d) =>
-    d.name.toLowerCase().includes(search.toLowerCase())
-  );
-  const grouped = categories
-    .sort((a, b) => a.display_order - b.display_order)
-    .map((cat) => ({
-      ...cat,
-      dishes: filtered.filter((d) => d.category === cat.id),
-    }))
-    .filter((g) => g.dishes.length > 0);
-
   // Determine pricing bar state
   const hasDishes = selected.size > 0;
   const hasGuestCount = !!guestCount && guestCount > 0;
@@ -282,12 +392,39 @@ export default function MenuBuilder({
   const showTierPrice = hasGuestCount && isTemplate && !dishesModified && tierPrice !== null;
   const showCalculateButton = hasGuestCount && hasDishes && !showTierPrice;
 
+  /** The suggested rate, or null when there isn't one worth showing.
+   *
+   * `activePrice` is 0 whenever the engine can't price the menu — an unpriced
+   * catalogue, or a guest split it doesn't recognise. Showing "suggested 0.00" next
+   * to a real rate reads as a contradiction, and auto-filling it would quietly zero
+   * what the caterer charges, so 0 counts as "no suggestion" rather than as an answer.
+   */
+  const suggestion = activePrice !== null && activePrice > 0 ? activePrice : null;
+  const suggestionNote = showTierPrice && tierPrice
+    ? `${tierPrice.label} tier`
+    : calculatedPrice?.source === "template_adjusted"
+      ? `${calculatedPrice.tierLabel} tier ${(calculatedPrice.totalAdjustment ?? 0) >= 0 ? "+" : ""}${formatCurrency(calculatedPrice.totalAdjustment ?? 0, currencySymbol)}`
+      : calculatedPrice?.source === "computed"
+        ? "computed from engine"
+        : null;
+
   if (loading) {
     return <p className="text-sm text-muted-foreground">Loading menu options...</p>;
   }
 
   return (
     <div className="space-y-4">
+      {/* What this menu is being served as. It reads as context, but it's also the
+          one thing that decides whether choices are offered at all (AC8) — so
+          naming it here is what makes the card's plated-only behaviour legible. */}
+      {(serviceStyleLabel || guestCount) && (
+        <p data-testid="menu-service-line" className="-mt-2 text-sm text-muted-foreground">
+          {[serviceStyleLabel, guestCount ? `${guestCount} guests` : null]
+            .filter(Boolean)
+            .join(" · ")}
+        </p>
+      )}
+
       {/* Template Picker */}
       <div className="flex items-center gap-3 flex-wrap">
         <div className="relative">
@@ -317,14 +454,10 @@ export default function MenuBuilder({
             <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
           </svg>
         </div>
-        <button
-          type="button"
-          onClick={() => setShowSelector(!showSelector)}
-          disabled={disabled}
-          className="h-9 border border-input text-foreground bg-background px-3 rounded-md text-sm font-medium hover:bg-accent disabled:opacity-50"
-        >
-          {showSelector ? "Hide Dish Picker" : "Pick Individual Dishes"}
-        </button>
+        {/* No top-level "Pick Individual Dishes": the picker is course-scoped now
+            (AC8b), so it opens from the "+ dish" inside the section it adds to. A
+            global trigger had no course to belong to — with every dish assigned there
+            was no unassigned section to render it in, and it did nothing at all. */}
         {selected.size > 0 && !disabled && (
           <button
             type="button"
@@ -343,189 +476,313 @@ export default function MenuBuilder({
         </p>
       )}
 
-      {/* Current Menu (dish names only) */}
-      {selectedDishes.length > 0 ? (
+      {/* The menu as one structure: courses containing dishes, with the guest
+          choice marked inside the course (REL-451). A course-less booking is a plain
+          list — no headers, no empty scaffolding. */}
+      {selectedDishes.length === 0 && isFlat ? (
         <div>
-          <h4 className="text-sm font-medium text-foreground mb-2">
-            Menu ({selectedDishes.length} dishes)
-          </h4>
-          <div className="flex flex-wrap gap-2">
-            {selectedDishes.map((dish) => (
-              <span
-                key={dish.id}
-                className="inline-flex items-center gap-1.5 bg-primary/10 text-primary border border-primary/20 px-2.5 py-1 rounded-full text-sm"
-              >
-                {dish.name}
-                {/* The legacy flag only shows for dishes with no dietary tags —
-                    otherwise the pills already say it, and say it better. */}
-                {dish.is_vegetarian && !dish.dietary_tags?.length && (
-                  <span className="text-success text-xs">V</span>
-                )}
-                <DietaryTagPills tags={dish.dietary_tags} />
-                {!disabled && (
-                  <button
-                    type="button"
-                    onClick={() => toggleDish(dish.id)}
-                    className="text-primary/60 hover:text-primary ml-0.5"
-                    title="Remove"
-                  >
-                    &times;
-                  </button>
-                )}
-              </span>
-            ))}
-          </div>
+          {/* Only when there is no structure at all. Courses without dishes still
+              render their sections, so an outlined menu can be filled course by
+              course from the "+ dish" trigger inside each one. */}
+          <p className="text-sm text-muted-foreground">
+            No dishes yet. Load a template or add dishes.
+          </p>
+          {/* Nothing on the menu means no section to anchor the picker to. */}
+          {showSelector && !disabled && (
+            <DishPickerInline
+              dishes={dishes}
+              categories={categories}
+              onMenuDishIds={selected}
+              onAdd={addDishToPickerCourse}
+              onClose={() => setShowSelector(false)}
+              courseName="the menu"
+            />
+          )}
         </div>
       ) : (
-        <p className="text-sm text-muted-foreground">
-          No dishes selected. Load a template or pick dishes individually.
-        </p>
+        <div data-testid="menu-structure" className="border-t border-border">
+          {sections.map((section) => {
+            const warning = courseWarning(section);
+            return (
+              <div
+                key={section.courseIndex ?? "unassigned"}
+                className="border-b border-border py-3"
+              >
+                {!isFlat && (
+                  <div className="flex items-center gap-3 mb-1.5">
+                    {section.courseIndex === null ? (
+                      <span className="text-sm font-semibold text-foreground">On the table</span>
+                    ) : disabled ? (
+                      <span className="text-sm font-semibold text-foreground">{section.name}</span>
+                    ) : (
+                      <input
+                        type="text"
+                        aria-label={`Course ${section.courseIndex + 1} name`}
+                        placeholder="Course name"
+                        value={courses[section.courseIndex].name}
+                        onChange={(e) => renameCourse(section.courseIndex as number, e.target.value)}
+                        className="text-sm font-semibold text-foreground bg-transparent border-b border-transparent hover:border-input focus:border-input focus:outline-none px-0.5 -ml-0.5 w-44"
+                      />
+                    )}
+                    {/* Only the single-option state gets a line: it is the one thing
+                        you can't read off the rows themselves (AC7). */}
+                    <span className="flex-1 text-sm text-warning">
+                      {warning}
+                    </span>
+                    {!disabled && section.courseIndex !== null && (
+                      <button
+                        type="button"
+                        aria-label={`Remove course ${section.name}`}
+                        onClick={() => dropCourse(section.courseIndex as number)}
+                        // Same px-1 as the dish rows' ✕ — without it the two ✕
+                        // columns sit 4px apart, because the padding shifts the
+                        // glyph inside a button whose right edge is already aligned.
+                        className="text-muted-foreground hover:text-destructive px-1"
+                      >
+                        &times;
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {section.dishIds.map((id, i) => {
+                  const dish = dishes.find((d) => d.id === id);
+                  if (!dish) return null;
+                  const offered = section.chosenIds.includes(id);
+                  // The *or* sits between the options, so the pair reads as the
+                  // either/or the caterer is declaring — never separated (AC5).
+                  const showOr = offered && i > 0 && section.chosenIds.includes(section.dishIds[i - 1]);
+                  return (
+                    <div key={id}>
+                      {showOr && (
+                        <div className="text-xs text-muted-foreground italic pl-1 py-0.5">or</div>
+                      )}
+                      {/* `group` drives the hover affordances: the drag handle and
+                          (on an unflagged dish) the choice chip only appear on hover.
+                          `focus-within` keeps them reachable by keyboard — hover-only
+                          must never mean mouse-only. */}
+                      <div className={`group flex items-center gap-2 py-1 ${isFlat ? "" : "pl-3"}`}>
+                        <span className="text-sm text-foreground">{dish.name}</span>
+                        {/* The legacy flag only shows for dishes with no dietary tags —
+                            otherwise the pills already say it, and say it better
+                            (REL-416 AC3). */}
+                        {dish.is_vegetarian && !dish.dietary_tags?.length && (
+                          <span className="text-success text-xs">V</span>
+                        )}
+                        <DietaryTagPills tags={dish.dietary_tags} />
+                        <span className="flex-1" />
+                        {plated && section.courseIndex !== null && !disabled && (
+                          <button
+                            type="button"
+                            aria-label={`${offered ? "Remove" : "Mark"} ${dish.name} as a guest choice`}
+                            onClick={() => markChoice(id)}
+                            className={`text-xs px-2 py-0.5 rounded-full border transition-all ${
+                              offered
+                                ? "bg-primary/10 text-primary border-primary/30"
+                                : "bg-muted text-muted-foreground border-border opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"
+                            }`}
+                          >
+                            {offered ? "guests choose" : "make it a choice"}
+                          </button>
+                        )}
+                        {!disabled && (
+                          <button
+                            type="button"
+                            aria-label={`Remove ${dish.name}`}
+                            onClick={() => toggleDish(id)}
+                            className="text-muted-foreground hover:text-destructive px-1"
+                          >
+                            &times;
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {showSelector && pickerCourse === section.courseIndex && !disabled && (
+                  <div className={isFlat ? "" : "pl-3"}>
+                    <DishPickerInline
+                      dishes={dishes}
+                      categories={categories}
+                      onMenuDishIds={selected}
+                      onAdd={addDishToPickerCourse}
+                      onClose={() => setShowSelector(false)}
+                      courseName={section.courseIndex === null ? "the menu" : (section.name || "this course")}
+                    />
+                  </div>
+                )}
+
+                {!disabled && !isFlat && (
+                  <button
+                    type="button"
+                    onClick={() => openPickerFor(section.courseIndex)}
+                    className="text-sm text-primary hover:underline pl-3 mt-1"
+                  >
+                    {showSelector && pickerCourse === section.courseIndex ? "Done" : "+ dish"}
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
       )}
 
-      {/* Price per head — always visible & clearable, not gated on dishes (so a
-          no-menu booking can set or zero it; the dish-based helpers below only
-          suggest a value). */}
-      {onPricePerHeadChange && (
-        <div className="flex items-center gap-3 bg-muted border border-border rounded-lg px-4 py-2.5">
-          <label className="inline-flex items-center gap-1.5 text-sm">
-            <span className="text-muted-foreground">Price/head</span>
-            <span className="text-muted-foreground">{currencySymbol}</span>
-            <input
-              type="number"
-              step="0.01"
-              min={0}
-              value={pricePerHead || ""}
-              onChange={(e) => onPricePerHeadChange(e.target.value)}
-              placeholder="0.00"
-              disabled={disabled}
-              className="w-24 border border-input rounded px-2 py-1 text-sm text-right"
-            />
-          </label>
-          {!hasDishes && (
-            <span className="text-xs text-muted-foreground">No menu selected — set a price per head, or pick dishes for a suggestion.</span>
+      {/* Footer: add a course, or (flat) add a dish + the running count. */}
+      {!disabled && (
+        <div className="flex items-center gap-4">
+          {isFlat ? (
+            <>
+              <button
+                type="button"
+                onClick={() => openPickerFor(null)}
+                className="text-sm text-primary hover:underline"
+              >
+                {pickerCourse === null && showSelector ? "Done" : "+ Add dish"}
+              </button>
+              {selectedDishes.length > 0 && (
+                <span className="text-sm text-muted-foreground">
+                  {selectedDishes.length} {selectedDishes.length === 1 ? "dish" : "dishes"}
+                </span>
+              )}
+              {/* Same action and same words as the sectioned footer — an earlier
+                  "Group into courses" only described what happens the FIRST time and
+                  read as a different feature. Offered even on an empty menu: naming
+                  the courses first and filling them after is how a caterer outlines a
+                  dinner, and it is the only route to a course on a booking with no
+                  dishes yet. */}
+              <button
+                type="button"
+                onClick={addCourse}
+                className="text-sm text-primary hover:underline"
+              >
+                + Add course
+              </button>
+            </>
+          ) : (
+            <button type="button" onClick={addCourse} className="text-sm text-primary hover:underline">
+              + Add course
+            </button>
           )}
         </div>
       )}
 
-      {/* Pricing Summary Bar */}
-      {hasDishes && (
-        <>
-          {!hasGuestCount ? (
-            /* No guest count */
-            <div className="flex items-center gap-3 bg-muted border border-border rounded-lg px-4 py-2.5">
-              <span className="text-sm text-muted-foreground">
-                Enter guest count to see suggested pricing
+      {/* The rate: ONE bar. The price you charge is the input; what the engine
+          suggests sits beside it as a hint, because a suggestion is advice about the
+          field, not a second thing to read. It used to be a separate full-width bar
+          below, which read as two prices for the same booking.
+
+          Always visible & clearable, not gated on dishes — a no-menu booking can
+          still set or zero a rate; the dish-based helpers only ever suggest. */}
+      {onPricePerHeadChange && (
+        <div className="rounded-lg border border-border bg-muted px-4 py-2.5 space-y-1.5">
+          <div className="flex items-center gap-3 flex-wrap">
+            <label className="inline-flex items-center gap-1.5 text-sm">
+              <span className="text-muted-foreground">Price/head</span>
+              <span className="text-muted-foreground">{currencySymbol}</span>
+              <input
+                type="number"
+                step="0.01"
+                min={0}
+                value={pricePerHead || ""}
+                onChange={(e) => onPricePerHeadChange(e.target.value)}
+                placeholder="0.00"
+                disabled={disabled}
+                className="w-24 border border-input rounded px-2 py-1 text-sm text-right"
+              />
+            </label>
+
+            {!hasDishes && (
+              <span className="text-xs text-muted-foreground">
+                No menu selected — set a price per head, or pick dishes for a suggestion.
               </span>
-            </div>
-          ) : showTierPrice && tierPrice ? (
-            /* Template, unmodified, has tier */
-            <div className="flex items-center gap-3 flex-wrap bg-success/10 border border-success/20 rounded-lg px-4 py-2.5">
-              <span className="text-sm font-medium text-success">
-                {formatCurrency(applyExtra(tierPrice.price), currencySymbol)}/head
-              </span>
-              <span className="text-xs text-success/80">
-                ({tierPrice.label} tier)
-              </span>
-              <label className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-                Extra food
-                <input
-                  type="number"
-                  min={0}
-                  max={100}
-                  step={5}
-                  value={extraFoodPercent || ""}
-                  onChange={(e) => setExtraFoodPercent(Number(e.target.value) || 0)}
-                  placeholder="0"
-                  className="w-14 border border-input rounded px-1.5 py-0.5 text-xs text-center"
-                />
-                %
-              </label>
-            </div>
-          ) : showCalculateButton ? (
-            /* Need to calculate */
-            <div className="flex items-center gap-3 flex-wrap bg-muted border border-border rounded-lg px-4 py-2.5">
-              {calculatedPrice ? (
-                <div className="flex flex-col gap-1.5 w-full">
-                  <div className="flex items-center gap-3 flex-wrap">
-                    <span className="text-sm font-medium text-success">
-                      {formatCurrency(applyExtra(calculatedPrice.price), currencySymbol)}/head
-                    </span>
-                    {calculatedPrice.hasUnpriced && (
-                      <span className="inline-flex items-center bg-warning/15 text-warning text-xs font-medium px-2 py-0.5 rounded">
-                        Some dishes unpriced
-                      </span>
-                    )}
-                    {calculatedPrice.source === "template_adjusted" && (
-                      <span className="text-xs text-success/80">
-                        ({calculatedPrice.tierLabel} tier {calculatedPrice.totalAdjustment !== undefined && calculatedPrice.totalAdjustment >= 0 ? "+" : ""}{formatCurrency(calculatedPrice.totalAdjustment ?? 0, currencySymbol)})
-                      </span>
-                    )}
-                    {calculatedPrice.source === "computed" && (
-                      <span className="text-xs text-success/80">(computed from engine)</span>
-                    )}
-                    <label className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-                      Extra food
-                      <input
-                        type="number"
-                        min={0}
-                        max={100}
-                        step={5}
-                        value={extraFoodPercent || ""}
-                        onChange={(e) => setExtraFoodPercent(Number(e.target.value) || 0)}
-                        placeholder="0"
-                        className="w-14 border border-input rounded px-1.5 py-0.5 text-xs text-center"
-                      />
-                      %
-                    </label>
-                  </div>
-                  {calculatedPrice.breakdown && calculatedPrice.breakdown.length > 0 && (
-                    <div className="flex flex-wrap gap-2 text-xs">
-                      {calculatedPrice.breakdown.map((item, i) => (
-                        <span
-                          key={i}
-                          className={`px-2 py-0.5 rounded ${
-                            item.type === "addition"
-                              ? "bg-warning/10 text-warning border border-warning/20"
-                              : "bg-info/10 text-info border border-info/20"
-                          }`}
-                        >
-                          {item.amount >= 0 ? "+" : ""}{formatCurrency(item.amount, currencySymbol)} {item.dish}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <>
+            )}
+
+            {/* A suggestion worth showing. Zero is never worth showing: the engine
+                returns it when it can't price the menu, and "suggested 0.00" beside a
+                real rate reads as a contradiction rather than as "no answer". */}
+            {hasDishes && suggestion !== null && (
+              <>
+                <span className="text-sm font-medium text-success">
+                  suggested {formatCurrency(suggestion, currencySymbol)}/head
+                </span>
+                {suggestionNote && (
+                  <span className="text-xs text-success/80">({suggestionNote})</span>
+                )}
+                {calculatedPrice?.hasUnpriced && (
+                  <span className="inline-flex items-center bg-warning/15 text-warning text-xs font-medium px-2 py-0.5 rounded">
+                    Some dishes unpriced
+                  </span>
+                )}
+                {!disabled && pricePerHead !== suggestion.toFixed(2) && (
                   <button
                     type="button"
-                    onClick={handleCalculateRate}
-                    disabled={priceLoading || disabled}
-                    className="border border-primary/30 text-primary bg-background px-4 py-1.5 rounded text-sm font-medium hover:bg-primary/5 disabled:opacity-50"
+                    onClick={() => onPricePerHeadChange(suggestion.toFixed(2))}
+                    className="text-xs text-primary hover:underline"
                   >
-                    {priceLoading ? (
-                      <span className="inline-flex items-center gap-2">
-                        <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                        </svg>
-                        Calculating...
-                      </span>
-                    ) : (
-                      "Calculate Rate"
-                    )}
+                    use it
                   </button>
-                  <span className="text-xs text-muted-foreground">
-                    {isTemplate && dishesModified
-                      ? "Menu modified — click to recalculate"
-                      : "Click to compute price from engine"}
-                  </span>
-                </>
-              )}
+                )}
+                <label className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                  Extra food
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    step={5}
+                    value={extraFoodPercent || ""}
+                    onChange={(e) => setExtraFoodPercent(Number(e.target.value) || 0)}
+                    placeholder="0"
+                    disabled={disabled}
+                    className="w-14 border border-input rounded px-1.5 py-0.5 text-xs text-center"
+                  />
+                  %
+                </label>
+              </>
+            )}
+
+            {/* Nothing to suggest yet — say why, or offer to work it out. */}
+            {hasDishes && suggestion === null && !hasGuestCount && (
+              <span className="text-xs text-muted-foreground">
+                Enter guest count to see suggested pricing
+              </span>
+            )}
+            {hasDishes && suggestion === null && showCalculateButton && !disabled && (
+              <button
+                type="button"
+                onClick={handleCalculateRate}
+                disabled={priceLoading}
+                className="text-xs text-primary hover:underline disabled:opacity-50"
+              >
+                {priceLoading
+                  ? "Calculating…"
+                  : isTemplate && dishesModified
+                    ? "Menu changed — suggest a rate"
+                    : "Suggest a rate"}
+              </button>
+            )}
+          </div>
+
+          {/* Per-dish adjustments behind a template-adjusted suggestion. */}
+          {suggestion !== null && calculatedPrice?.breakdown && calculatedPrice.breakdown.length > 0 && (
+            <div className="flex flex-wrap gap-2 text-xs">
+              {calculatedPrice.breakdown.map((item, i) => (
+                <span
+                  key={i}
+                  className={`px-2 py-0.5 rounded ${
+                    item.type === "addition"
+                      ? "bg-warning/10 text-warning border border-warning/20"
+                      : "bg-info/10 text-info border border-info/20"
+                  }`}
+                >
+                  {item.amount >= 0 ? "+" : ""}{formatCurrency(item.amount, currencySymbol)} {item.dish}
+                </span>
+              ))}
             </div>
-          ) : null}
-        </>
+          )}
+        </div>
       )}
+
 
       {/* Pricing error (engine/price-estimate failure) */}
       {priceError && (
@@ -541,66 +798,6 @@ export default function MenuBuilder({
               {priceLoading ? "Retrying…" : "Retry"}
             </button>
           )}
-        </div>
-      )}
-
-      {/* Dish Selector (expandable) */}
-      {showSelector && !disabled && (
-        <div className="border border-border rounded-lg p-4 bg-muted">
-          <div className="flex items-center justify-between mb-3">
-            <h4 className="text-sm font-medium text-foreground">
-              Select Dishes ({selected.size} selected)
-            </h4>
-            <input
-              type="text"
-              placeholder="Search dishes..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="border border-input rounded px-3 py-1.5 text-sm w-48"
-            />
-          </div>
-          <div className="space-y-3 max-h-72 overflow-y-auto">
-            {grouped.map((group) => {
-              const selectedInCat = group.dishes.filter((d) =>
-                selected.has(d.id)
-              ).length;
-              return (
-                <div key={group.id}>
-                  <h5 className="text-xs font-medium text-muted-foreground mb-1">
-                    {group.display_name}
-                    <span className="text-muted-foreground ml-1">
-                      ({selectedInCat}/{group.dishes.length})
-                    </span>
-                  </h5>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-1">
-                    {group.dishes.map((dish) => {
-                      const isSelected = selected.has(dish.id);
-                      return (
-                        <button
-                          type="button"
-                          key={dish.id}
-                          aria-label={[dish.name, dietaryTagsDescription(dish.dietary_tags)]
-                            .filter(Boolean).join(" — ")}
-                          onClick={() => toggleDish(dish.id)}
-                          className={`text-left text-sm px-2.5 py-1.5 rounded transition-colors ${
-                            isSelected
-                              ? "bg-primary/10 text-primary border border-primary/30"
-                              : "bg-background text-foreground border border-border hover:bg-accent"
-                          }`}
-                        >
-                          {dish.name}
-                          {dish.is_vegetarian && !dish.dietary_tags?.length && (
-                            <span className="ml-1 text-success text-xs">V</span>
-                          )}
-                          <DietaryTagPills tags={dish.dietary_tags} className="ml-1" />
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
         </div>
       )}
 

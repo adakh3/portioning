@@ -12,9 +12,7 @@ import { formatDate, todayISO } from "@/lib/dateFormat";
 import { formatCurrency, formatPercent } from "@/lib/utils";
 import MenuBuilder from "@/components/MenuBuilder";
 import AdditionalMealsEditor from "@/components/AdditionalMealsEditor";
-import CoursesEditor from "@/components/CoursesEditor";
-import MenuChoicesEditor from "@/components/MenuChoicesEditor";
-import MenuAsClientSees from "@/components/MenuAsClientSees";
+import { isPlated } from "@/lib/menuStructure";
 import GuestCountField, { GuestCountValue } from "@/components/GuestCountField";
 import SegmentRatesField from "@/components/SegmentRatesField";
 import BookingTimelineField, { TimelineEntryValue } from "@/components/BookingTimelineField";
@@ -72,6 +70,7 @@ export default function QuoteDetailPage() {
   const activeProducts = productLines.filter((p) => p.is_active);
   const { data: eventTypes = [] } = useEventTypes();
   const { data: serviceStyles = [] } = useServiceStyles();
+  const serviceStyleLabels: Record<string, string> = Object.fromEntries(serviceStyles.map((ss) => [ss.value, ss.label]));
   const { data: mealTypes = [] } = useMealTypes();
   const { data: timelinePresets = [] } = useTimelinePresets();
   const { data: allLeads = [] } = useAllLeads();
@@ -546,6 +545,16 @@ export default function QuoteDetailPage() {
                 guestCount={createData.guest_count || undefined}
                 onChange={setMenuData}
                 onLoadCourses={(courses, dishCourses) => { setCreateCourses(courses); setCreateDishCourses(dishCourses); }}
+                courses={createCourses}
+                dishCourses={createDishCourses}
+                menuChoices={createMenuChoices}
+                plated={isPlated(createData.service_style)}
+                serviceStyleLabel={serviceStyleLabels[createData.service_style]}
+                onStructureChange={({ courses, dishCourses, menuChoices }) => {
+                  setCreateCourses(courses);
+                  setCreateDishCourses(dishCourses);
+                  setCreateMenuChoices(menuChoices);
+                }}
                 pricePerHead={createData.price_per_head}
                 onPricePerHeadChange={(val) => setCreateData((prev) => ({ ...prev, price_per_head: val }))}
                 currencySymbol={cs}
@@ -578,15 +587,6 @@ export default function QuoteDetailPage() {
             segmentMeta={segmentMeta}
           />
 
-          {/* Courses — groups the main menu */}
-          <CoursesEditor
-            courses={createCourses}
-            dishCourses={createDishCourses}
-            onChange={({ courses, dishCourses }) => { setCreateCourses(courses); setCreateDishCourses(dishCourses); }}
-            selectedDishIds={menuData.dish_ids}
-            editing
-          />
-
           {/* Timeline — below the meals: the run-of-show is built around the meal
               times, so it reads after you've said what's being served (REL-430). */}
           <Card>
@@ -604,18 +604,6 @@ export default function QuoteDetailPage() {
               />
             </CardContent>
           </Card>
-
-          {/* Menu choices — plated only: what the guest gets to pick between. */}
-          {createData.service_style === "plated" && (
-            <MenuChoicesEditor
-              courses={createCourses}
-              dishCourses={createDishCourses}
-              menuChoices={createMenuChoices}
-              onChange={setCreateMenuChoices}
-              selectedDishIds={menuData.dish_ids}
-              editing
-            />
-          )}
 
           {/* Additional Items */}
           <Card>
@@ -1070,6 +1058,16 @@ export default function QuoteDetailPage() {
               guestCount={editGuestCount}
               onChange={setMenuData}
               onLoadCourses={(courses, dishCourses) => { setEditCourses(courses); setEditDishCourses(dishCourses); }}
+              courses={editCourses}
+              dishCourses={editDishCourses}
+              menuChoices={editMenuChoices}
+              plated={isPlated(editData.service_style)}
+              serviceStyleLabel={serviceStyleLabels[editData.service_style]}
+              onStructureChange={({ courses, dishCourses, menuChoices }) => {
+                setEditCourses(courses);
+                setEditDishCourses(dishCourses);
+                setEditMenuChoices(menuChoices);
+              }}
               pricePerHead={editData.price_per_head}
               onPricePerHeadChange={(val) => setEditData((prev) => ({ ...prev, price_per_head: val }))}
               currencySymbol={cs}
@@ -1092,6 +1090,11 @@ export default function QuoteDetailPage() {
               basedOnTemplate={q.based_on_template || null}
               guestCount={q.guest_count}
               disabled
+              courses={q.courses || []}
+              dishCourses={q.dish_courses || {}}
+              menuChoices={q.menu_choices || {}}
+              plated={isPlated(q.service_style)}
+              serviceStyleLabel={serviceStyleLabels[q.service_style || ""]}
               currencySymbol={cs}
               priceRoundingStep={Number(settings.price_rounding_step) || 50}
             />
@@ -1144,17 +1147,6 @@ export default function QuoteDetailPage() {
         />
       )}
 
-      {/* Courses — groups the main menu */}
-      {(editing || (q.courses || []).length > 0) && (
-        <CoursesEditor
-          courses={editing ? editCourses : (q.courses || [])}
-          dishCourses={editing ? editDishCourses : (q.dish_courses || {})}
-          onChange={({ courses, dishCourses }) => { setEditCourses(courses); setEditDishCourses(dishCourses); }}
-          selectedDishIds={editing ? menuData.dish_ids : (q.dishes || [])}
-          editing={editing}
-        />
-      )}
-
       {/* Timeline (editing) — below the meals: the run-of-show is built around the
           meal times, so it reads after you've said what's being served (REL-430). */}
       {editing && (
@@ -1175,22 +1167,6 @@ export default function QuoteDetailPage() {
         </Card>
       )}
 
-      {/* Menu choices — plated only: what the guest gets to pick between. */}
-      {(editing ? editData.service_style : q.service_style) === "plated"
-        && (editing || Object.keys(q.menu_choices || {}).length > 0) && (
-        <MenuChoicesEditor
-          courses={editing ? editCourses : (q.courses || [])}
-          dishCourses={editing ? editDishCourses : (q.dish_courses || {})}
-          menuChoices={editing ? editMenuChoices : (q.menu_choices || {})}
-          onChange={setEditMenuChoices}
-          selectedDishIds={editing ? menuData.dish_ids : (q.dishes || [])}
-          editing={editing}
-        />
-      )}
-
-      {/* The menu the client reads — server-rendered, "Choice of: …" collapsed
-          (REL-419 AC13). View mode only, for the same reason as the event page. */}
-      {!editing && <MenuAsClientSees menuLines={q.menu_lines} />}
 
       {/* Additional Items */}
       <Card>
