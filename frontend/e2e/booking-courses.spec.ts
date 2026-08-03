@@ -33,13 +33,13 @@ test.describe("Courses survive save + reload end-to-end", () => {
     // list, whose quiet affordance creates the first course (AC8).
     const firstDish = (await dishRows(page).first().getAttribute("aria-label"))!
       .replace("Remove ", "");
-    await page.getByRole("button", { name: "Group into courses" }).click();
+    await page.getByRole("button", { name: "+ Add course" }).click();
     await page.getByLabel("Course 1 name").fill("Starter");
 
     // Every dish is unassigned, so it sits under "On the table"; stepping the first
     // one up hops it into the course above (AC2's keyboard/touch path).
     await expect(page.getByText("On the table")).toBeVisible();
-    await page.getByLabel(`Move ${firstDish} up`).click();
+    await page.getByLabel(`Move ${firstDish} to another course — drag, or use the arrow keys`).press("ArrowUp");
 
     await page.getByRole("button", { name: "Create Event" }).click();
     await page.waitForURL(/\/events\/\d+$/, { timeout: 15_000 });

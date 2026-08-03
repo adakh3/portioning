@@ -167,9 +167,11 @@ describe("Quote — the one Menu card at proposal", () => {
     h.quote.menu_choices = { "11": null, "12": null };
     h.quote.courses = [{ name: "Entrée", sort_order: 0 }, { name: "Dessert", sort_order: 1 }];
     const payload = await saveAfter(async () => {
-      // Beef is top of Entrée; stepping up hops it out into… nothing above, so step
-      // Salmon DOWN out of Entrée and into Dessert instead.
-      fireEvent.click(await screen.findByLabelText("Move Salmon down"));
+      // ↓ on the handle moves Salmon out of Entrée and into the next course.
+      fireEvent.keyDown(
+        await screen.findByLabelText("Move Salmon to another course — drag, or use the arrow keys"),
+        { key: "ArrowDown" },
+      );
     });
     expect(payload.dish_courses).toEqual({ "11": 0, "12": 1 });
     // Nothing arrives in a course pre-marked as one of its options.
@@ -199,7 +201,7 @@ describe("Quote — the one Menu card at proposal", () => {
     h.quote.dish_courses = {};
     render(<QuoteDetailPage />);
     fireEvent.click(screen.getByText("Edit Quote"));
-    expect(await screen.findByText("Group into courses")).toBeInTheDocument();
+    expect(await screen.findByText("+ Add course")).toBeInTheDocument();
     // No headers, no "On the table" scaffolding, no choice chips.
     expect(screen.queryByText("On the table")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Course 1 name")).not.toBeInTheDocument();

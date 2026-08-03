@@ -281,11 +281,14 @@ class Command(BaseCommand):
         if not dishes:
             self.stdout.write(self.style.WARNING("No dishes in this org — skipped buffet menus."))
             return
+        # A booking with no customer can't be saved from the event form ("Customer is
+        # required"), which would make these demo menus look at but not edit.
+        contact = Contact.objects.filter(organisation=org).order_by("id").first()
 
         # 1. The flat one: no courses, so the card is a plain list (REL-451 AC8).
         flat = Event.objects.create(
             organisation=org, name=f"{DEMO_TAG} Corporate lunch buffet",
-            guest_count=400, event_date=today, assigned_to=rep,
+            guest_count=400, event_date=today, assigned_to=rep, primary_contact=contact,
             status="confirmed", service_style="buffet", price_per_head=Decimal("38.00"),
         )
         flat.dishes.set(dishes)
@@ -296,7 +299,7 @@ class Command(BaseCommand):
         #    is the booking that proves the card doesn't treat them as plated-only.
         stations = Event.objects.create(
             organisation=org, name=f"{DEMO_TAG} Wedding buffet — stations",
-            guest_count=650, event_date=today, assigned_to=rep,
+            guest_count=650, event_date=today, assigned_to=rep, primary_contact=contact,
             status="confirmed", service_style="buffet", price_per_head=Decimal("52.00"),
         )
         stations.dishes.set(dishes)

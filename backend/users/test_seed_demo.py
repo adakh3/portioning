@@ -73,6 +73,9 @@ class SeedDemoTests(TestCase):
         self.assertEqual(flat.service_style, "buffet")
         self.assertEqual(flat.courses.count(), 0)
         self.assertGreater(flat.dishes.count(), 0)
+        # Without a customer the event form refuses to save, so these demo menus
+        # would be look-but-don't-touch.
+        self.assertIsNotNone(flat.primary_contact)
 
         stations = Event.objects.get(organisation=org, name__endswith="stations")
         self.assertEqual(stations.service_style, "buffet")

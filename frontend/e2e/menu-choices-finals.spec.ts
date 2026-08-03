@@ -57,7 +57,7 @@ test.describe("Menu choices and final numbers survive save + reload", () => {
     const [a, b, c, d] = names;
 
     // Two courses, so the choices group — and so finals validate per course.
-    await page.getByRole("button", { name: "Group into courses" }).click();
+    await page.getByRole("button", { name: "+ Add course" }).click();
     await page.getByLabel("Course 1 name").fill("Entrée");
     await page.getByRole("button", { name: "+ Add course" }).click();
     await page.getByLabel("Course 2 name").fill("Dessert");
@@ -65,11 +65,11 @@ test.describe("Menu choices and final numbers survive save + reload", () => {
     // Sections render [Entrée, Dessert, On the table], so one "up" hops a dish from
     // the unassigned list into Dessert and a second carries it on into Entrée.
     for (const dish of [a, b]) {
-      await page.getByLabel(`Move ${dish} up`).click();
-      await page.getByLabel(`Move ${dish} up`).click();
+      await page.getByLabel(`Move ${dish} to another course — drag, or use the arrow keys`).press("ArrowUp");
+      await page.getByLabel(`Move ${dish} to another course — drag, or use the arrow keys`).press("ArrowUp");
     }
     for (const dish of [c, d]) {
-      await page.getByLabel(`Move ${dish} up`).click();
+      await page.getByLabel(`Move ${dish} to another course — drag, or use the arrow keys`).press("ArrowUp");
     }
     await expect(page.getByText("On the table")).toBeVisible();
 

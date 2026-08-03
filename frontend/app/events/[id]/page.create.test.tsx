@@ -71,7 +71,7 @@ describe("Event create — guest split + anchored timeline reach the payload", (
 
     // A course-less booking is a flat list, so the first course comes from the
     // flat-mode affordance (REL-451 AC8) rather than "+ Add course".
-    fireEvent.click(screen.getByText("Group into courses"));
+    fireEvent.click(screen.getAllByText("+ Add course")[0]);
     fireEvent.change(screen.getByLabelText("Course 1 name"), { target: { value: "Starter" } });
 
     fireEvent.click(screen.getByText("Create Event"));
