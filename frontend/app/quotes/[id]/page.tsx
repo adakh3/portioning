@@ -18,6 +18,7 @@ import SegmentRatesField from "@/components/SegmentRatesField";
 import BookingTimelineField, { TimelineEntryValue } from "@/components/BookingTimelineField";
 import BookingDetailsForm, { BookingDetailsValue } from "@/components/BookingDetailsForm";
 import AssigneePicker from "@/components/AssigneePicker";
+import SearchableSelect from "@/components/SearchableSelect";
 import { computeQuoteTotals, buildQuoteSavePayload, buildTimelineEntriesPayload, buildGuestCountsPayload, buildMealsPayload, bookingMealRows, timelineMealRows, hasVendorDoubleEntry, segmentFood, segmentFoodRows, LineItemInput, GuestSegmentMeta } from "@/lib/quoteTotals";
 import AddOnItemsEditor from "@/components/AddOnItemsEditor";
 import BookingTotalsCard from "@/components/BookingTotalsCard";
@@ -212,8 +213,9 @@ export default function QuoteDetailPage() {
   const setCreate = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setCreateData({ ...createData, [field]: e.target.value });
 
-  function handleLeadSelect(e: React.ChangeEvent<HTMLSelectElement>) {
-    const leadId = e.target.value;
+  /** Prefill the quote from a lead. Takes the id directly — it never wanted the
+   * event, only `target.value`, and the picker isn't a <select> any more. */
+  function handleLeadSelect(leadId: string) {
     if (!leadId) {
       setCreateData((prev) => ({ ...prev, lead: "" }));
       return;
@@ -441,7 +443,6 @@ export default function QuoteDetailPage() {
     return contact !== undefined ? { ...rest, primary_contact: contact } : rest;
   };
 
-  const selectClass = "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring";
 
   // Create mode
   if (isNew) {
@@ -490,14 +491,26 @@ export default function QuoteDetailPage() {
               <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Event Details</h2>
               <div className="mb-4">
                 <label className="block text-sm font-medium text-foreground mb-1">Link to Lead</label>
-                <select value={createData.lead} onChange={handleLeadSelect} className={selectClass}>
-                  <option value="">-- No lead (standalone quote) --</option>
-                  {leads.map((l) => (
-                    <option key={l.id} value={l.id}>
-                      {l.contact_name}{l.event_type_display ? ` — ${l.event_type_display}` : ""}{l.event_date ? ` (${formatDate(l.event_date, dateFormat)})` : ""}
-                    </option>
-                  ))}
-                </select>
+                {/* Searchable, not a native select: this list is every open lead the
+                    org has, so it grows forever — at fifty it was a screen-height
+                    scroll to hunt for a name. The event type and date move to a
+                    second line, where they disambiguate two leads with the same
+                    contact name instead of padding one long string. */}
+                <SearchableSelect
+                  ariaLabel="Link to Lead"
+                  placeholder="Search leads by name, type or date…"
+                  emptyLabel="-- No lead (standalone quote) --"
+                  value={createData.lead}
+                  onChange={handleLeadSelect}
+                  options={leads.map((l) => ({
+                    value: String(l.id),
+                    label: l.contact_name,
+                    hint: [
+                      l.event_type_display,
+                      l.event_date ? formatDate(l.event_date, dateFormat) : "",
+                    ].filter(Boolean).join(" · "),
+                  }))}
+                />
               </div>
               <BookingDetailsForm
                 value={toBdValue(createData)}
