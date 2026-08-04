@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { login, pickCustomer } from "./helpers";
+import { addAddOn, login, pickCustomer } from "./helpers";
 
 /**
  * The prefetch-cache regression: create a quote, then EDIT it to add an add-on.
@@ -23,9 +23,9 @@ test.describe("Add-ons stay in the saved subtotal after an edit", () => {
     await page.getByRole("button", { name: "Create Quote" }).click();
     await page.waitForURL(/\/quotes\/\d+$/, { timeout: 15_000 });
 
-    // 2) edit → tick the featured catalog add-on (Buffet Station = 10,000).
+    // 2) edit → add the catalog add-on from the picker (Buffet Station = 10,000).
     await page.getByRole("button", { name: "Edit Quote" }).click();
-    await page.getByText("Buffet Station", { exact: true }).click();
+    await addAddOn(page, "Buffet Station");
     await page.getByRole("button", { name: "Save Quote" }).click();
 
     // 3) back in view mode we read the STORED subtotal — it must include the add-on.

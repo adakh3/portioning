@@ -32,3 +32,18 @@ export async function pickFromSearchable(page: Page, label: string, optionName: 
 /** The customer every booking spec needs before it can save. */
 export const pickCustomer = (page: Page, name = "Aisha Khan") =>
   pickFromSearchable(page, "Customer", name);
+
+/**
+ * Add a catalogue add-on through the searchable picker (REL-454).
+ *
+ * `label` is the row/chip as it reads in the picker ("Buffet Station",
+ * "Soft Drinks · 1.5L"); `search` is what to type to find it, which for a variant
+ * chip is the product, not the chip.
+ */
+export async function addAddOn(page: Page, label: string, search = label) {
+  await page.getByRole("button", { name: "+ Add item" }).click();
+  const picker = page.getByTestId("addon-picker");
+  await picker.getByLabel("Search add-ons").fill(search);
+  await picker.getByRole("button", { name: `Add ${label}`, exact: true }).click();
+  await picker.getByRole("button", { name: "Cancel" }).click();
+}

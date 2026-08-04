@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { login, pickCustomer } from "./helpers";
+import { addAddOn, login, pickCustomer } from "./helpers";
 
 /**
  * REL-404: a US org's quote must show a service charge (default 20%) in the
@@ -22,7 +22,7 @@ test.describe("Service charge on a US quote", () => {
     await page.waitForURL(/\/quotes\/\d+$/, { timeout: 15_000 });
 
     await page.getByRole("button", { name: "Edit Quote" }).click();
-    await page.getByText("Buffet Station", { exact: true }).click();
+    await addAddOn(page, "Buffet Station");
     await page.getByRole("button", { name: "Save Quote" }).click();
 
     // View mode: the 20% service charge row + its amount (20% of $10,000).
