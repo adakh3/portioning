@@ -293,6 +293,15 @@ class BEOMenuTests(BEOTestBase):
         self.assertIn("Burrata (contains milk)", text)
         self.assertIn("Filet Mignon (GF)", text)
 
+    def test_courses_with_no_dishes_yet_render_no_menu_header(self):
+        # The menu builder creates a course first and the dishes after, so an event
+        # with empty courses is an ordinary in-progress state — not a reason to print
+        # a MENU heading over blank space.
+        e = self._event()
+        BookingCourse.objects.create(event=e, name="Starter", sort_order=0)
+        BookingCourse.objects.create(event=e, name="Main", sort_order=1)
+        self.assertNotIn("MENU", self._text(e))
+
     def test_course_less_event_renders_the_flat_menu(self):
         # AC4 — no courses defined, so the flat added-order list still renders.
         e = self._event()
@@ -314,6 +323,26 @@ class BEOMenuTests(BEOTestBase):
         self.assertNotIn("choices pending", text)
         # The tallies sit under the Main course, not floating at the top of the menu.
         self.assertLess(text.find("Main"), text.find("60"))
+
+    def test_partly_tallied_course_says_so_instead_of_reading_as_zero(self):
+        # AC7 — the dangerous middle state. With the beef counted and the salmon not,
+        # "Salmon — —" under an otherwise complete-looking block reads as ZERO salmon.
+        # A kitchen that cooks zero salmon because nobody had counted it yet is the
+        # exact failure this section exists to prevent.
+        e = self._tagged_course_event(choice_counts={"Filet Mignon": 60})
+        text = self._text(e)
+        self.assertIn("60", text)
+        self.assertIn("2 of 3 main choices still", text)
+        self.assertIn("incomplete", text)
+
+    def test_tally_lines_carry_the_dietary_suffix_like_the_course_above(self):
+        # AC4/AC7 — the tally block is where covers get counted, so it is precisely
+        # where "which of these is the gluten-free plate?" has to be answerable.
+        e = self._tagged_course_event(choice_counts={
+            "Filet Mignon": 60, "Salmon": 25, "Wild Mushroom Risotto": 15,
+        })
+        text = self._text(e)
+        self.assertIn("Filet Mignon (GF) — 60", text.replace("\n", " "))
 
     def test_pending_line_when_choices_are_offered_but_not_yet_tallied(self):
         # AC7 — silence would read as "no choices", which is the one wrong answer.
@@ -387,6 +416,22 @@ class BEOVendorTests(BEOTestBase):
         text = self._text(e)
         self.assertNotIn("VENDOR MEALS", text)
         self.assertIn("ADDITIONAL MEALS", text)  # the ordinary extra meal still shows
+
+    def test_an_ordinary_extra_meal_shows_its_covers_time_and_own_menu(self):
+        # AC12 — the welcome canapés are a second service the kitchen has to cook and
+        # plate at a different hour; a day-of sheet that lists only the main menu
+        # sends the crew out short.
+        e = self._event()
+        cat = make_category(org=self.org)
+        meal = BookingMeal.objects.create(event=e, label="Welcome canapés",
+                                          guest_count=150, meal_time=_dt(18))
+        meal.dishes.set([make_dish(org=self.org, category=cat, name="Goat Cheese Tartlet")])
+        text = self._text(e)
+        self.assertIn("ADDITIONAL MEALS", text)
+        self.assertIn("Welcome canapés", text)
+        self.assertIn("150 covers", text)
+        self.assertIn("18:00", text)
+        self.assertIn("Goat Cheese Tartlet", text)
 
     def test_a_vendor_meal_is_not_also_listed_as_an_ordinary_extra_meal(self):
         # The two blocks partition the meals — one cover, listed once.
@@ -534,6 +579,35 @@ class BEODoesNotDisturbTheFunctionSheetTests(BEOTestBase):
         self.assertEqual(plain[0]["items"], ["Filet Mignon"])
         tagged = booking_menu_courses(e, with_dietary=True)
         self.assertEqual(tagged[0]["items"], ["Filet Mignon (GF)"])
+
+    def test_the_public_sign_payload_does_not_leak_internal_course_ids(self):
+        # `booking_menu_courses` gained `course_id` for the BEO's in-process use. The
+        # presentation dict is served verbatim on the UNAUTHENTICATED /b/<token> page,
+        # and a BookingCourse pk comes from a sequence shared across every org — so it
+        # is dropped on the way out. Nothing on that page consumes it.
+        from bookings.services.presentation import booking_presentation
+        e = self._event()
+        cat = make_category(org=self.org)
+        dish = make_dish(org=self.org, category=cat, name="Filet Mignon")
+        e.dishes.set([dish])
+        course = BookingCourse.objects.create(event=e, name="Main", sort_order=0)
+        EventDishComment.objects.create(event=e, dish=dish, course=course)
+
+        groups = booking_presentation(e)["menu_courses"]
+        self.assertEqual(groups, [{"name": "Main", "items": ["Filet Mignon"]}])
+        for group in groups:
+            self.assertNotIn("course_id", group)
+
+    def test_the_beo_endpoint_names_the_file_after_the_revision(self):
+        # The browser fetches a blob, and a blob URL carries no Content-Disposition —
+        # so this header is the only way the download can be named after the revision
+        # it actually is (the caller's copy of the event is already one behind).
+        e = self._event()
+        first = self.client.get(f"/api/events/{e.id}/beo/")
+        self.assertIn(f'filename="BEO-{e.id}-Rev1.pdf"', first["Content-Disposition"])
+        BookingSignature.objects.create(event=e, signer_name="Client Co")
+        second = self.client.get(f"/api/events/{e.id}/beo/")
+        self.assertIn(f'filename="BEO-{e.id}-Rev2.pdf"', second["Content-Disposition"])
 
     def test_function_sheet_still_renders_its_totals(self):
         from bookings.pdf import generate_event_pdf

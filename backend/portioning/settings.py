@@ -131,6 +131,11 @@ CORS_ALLOWED_ORIGINS = [
     origin.strip() for origin in os.environ.get('CORS_ALLOWED_ORIGINS', 'http://localhost:3000').split(',')
 ]
 CORS_ALLOW_CREDENTIALS = True
+# A file download is fetched as a blob, and a blob URL carries no Content-Disposition
+# — so `a.download` is the only filename the browser ever sees. Without this the
+# frontend can't read the name the server chose and has to guess one, which is how
+# every BEO revision would have landed as the same "BEO-8.pdf" (REL-444).
+CORS_EXPOSE_HEADERS = ['Content-Disposition']
 
 # CSRF — trust the same origins as CORS, and expose the cookie to the frontend
 CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS[:]

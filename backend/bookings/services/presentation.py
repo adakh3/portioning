@@ -146,7 +146,16 @@ def booking_presentation(booking, signature=None):
     # Menu grouped by COURSE (Starter/Entrée/Dessert + service style) when the booking
     # defines courses; None otherwise so surfaces fall back to the flat/category menu
     # exactly as before (REL-417 AC4). Dishes keep add-order within a course.
-    menu_courses = booking_menu_courses(booking)
+    #
+    # `course_id` is dropped here on purpose. This dict is served verbatim on the
+    # UNAUTHENTICATED /b/<token> sign page, and a BookingCourse pk is an internal key
+    # from a sequence shared across every org — nothing on that page consumes it, so
+    # putting it on the wire for anyone holding a signing link buys nothing. The
+    # in-process callers (the BEO) read it straight off `booking_menu_courses`.
+    _courses = booking_menu_courses(booking)
+    menu_courses = None if _courses is None else [
+        {k: v for k, v in g.items() if k != 'course_id'} for g in _courses
+    ]
 
     additional_meals = [
         {

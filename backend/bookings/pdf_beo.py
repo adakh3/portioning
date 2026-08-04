@@ -222,14 +222,29 @@ def _choice_tally_flowables(tallies, course_id, event, s):
     tally = tallies.get(course_id)
     if not tally:
         return []
-    if not tally['recorded']:
-        pending = f"{tally['course_name'] or 'Menu'} choices pending"
-        if event.final_count_due:
-            pending += f" (due {event.final_count_due.strftime('%d %b %Y')})"
-        return [Paragraph(_esc(pending), s['note_grey']), Spacer(1, 2 * mm)]
+    course = tally['course_name'] or 'Menu'
+    due = (f" (due {event.final_count_due.strftime('%d %b %Y')})"
+           if event.final_count_due else '')
+
+    # Nothing in yet: no rows worth printing, just the fact that they're owed.
+    if tally['missing'] == len(tally['rows']):
+        return [Paragraph(_esc(f'{course} choices pending{due}'), s['note_grey']),
+                Spacer(1, 2 * mm)]
+
     out = []
     for name, count in tally['rows']:
-        out.append(Paragraph(f'{_esc(name)} — <b>{"—" if count is None else count}</b>', s['body']))
+        shown = '—' if count is None else count
+        out.append(Paragraph(f'{_esc(name)} — <b>{shown}</b>', s['body']))
+    if not tally['recorded']:
+        # Some tallied, some not. Without this line the em-dashes read as zero, and
+        # a kitchen that cooks zero salmon because nobody had counted the salmon yet
+        # is the failure this whole section exists to prevent.
+        missing = tally['missing']
+        out.append(Paragraph(
+            _esc(f'{missing} of {len(tally["rows"])} {course.lower()} choices still '
+                 f'to be tallied{due} — the totals above are incomplete.'),
+            s['note_grey'],
+        ))
     return out + [Spacer(1, 2 * mm)]
 
 
@@ -241,7 +256,11 @@ def _menu_flowables(event, s):
 
     dish_names = dish_display_names_in_added_order(event)
     courses = booking_menu_courses(event, with_dietary=True)
-    if not dish_names and not courses:
+    # A booking can have courses with nothing in them yet (the menu builder creates
+    # the course first, the dishes after), and `resolve_booking_menu` returns those
+    # empty groups. Testing the groups rather than their existence is what stops a
+    # MENU header rendering over blank space.
+    if not dish_names and not any(g['items'] for g in (courses or [])):
         return []
 
     out = [_section_header([Paragraph('MENU', s['section_title'])], [CONTENT_W]), Spacer(1, 2 * mm)]

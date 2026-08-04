@@ -31,8 +31,10 @@ def record_beo_issue(event, now=None):
     Signed-ness is read from the event, which is where a signature is canonical
     (a quote's signature lands on its event — see ``bookings/views/public_sign.py``).
 
-    The read-modify-write is locked so two people hitting *Download* at the same
-    moment can't both issue "Rev 3".
+    The read-modify-write takes a row lock so two people hitting *Download* at the
+    same moment can't both issue "Rev 3" — on **Postgres**. Django's SQLite backend
+    reports ``has_select_for_update = False`` and silently drops the clause, so dev
+    and the test suite get no such guarantee; prod is what this protects.
     """
     with transaction.atomic():
         fresh = type(event).objects.select_for_update().get(pk=event.pk)
@@ -122,17 +124,25 @@ def beo_vendor_meals(event):
 def beo_choice_tallies(event):
     """Per-course menu-choice tallies, keyed by course id (AC7).
 
-    ``{course_id: {'course_name', 'rows': [(dish_name, count_or_None)], 'recorded'}}``.
-    ``recorded`` is False while the client still owes us the numbers — the renderer
-    then prints the pending line instead of a breakdown of nulls.
+    ``{course_id: {'course_name', 'rows': [(dish_name, count_or_None)], 'recorded',
+    'missing'}}``.
+
+    ``recorded`` means **every** offered dish in that course has a number, not merely
+    one of them. A course where the beef is tallied and the salmon isn't is the
+    dangerous state: printing ``Salmon — —`` under a heading that looks complete reads
+    as *zero salmon*, when what it means is *nobody knows yet*. ``missing`` counts the
+    untallied dishes so the renderer can say which it is.
 
     Grouped by course rather than hardcoded to the entrée: REL-419 made a choice
     something **any** course can offer (a choice of dessert is as real as a choice
     of main), and each course's tallies add up to the guarantee on their own.
-    Dishes keep menu add-order, so the block reads down in the same order as the
-    course it sits under.
+    Dish names carry their dietary suffix, matching the course list they sit under —
+    the kitchen counting covers is exactly who needs to see which plate is the
+    gluten-free one. Dishes keep menu add-order, so the block reads down in the same
+    order as the course above it.
     """
-    from dishes.ordering import dish_ids_in_added_order
+    from dishes.labels import dietary_suffix
+    from dishes.ordering import dish_ids_in_added_order, tags_for_dish_ids
     from events.models import choice_groups
 
     groups = choice_groups(event)
@@ -140,13 +150,18 @@ def beo_choice_tallies(event):
         return {}
     counts = {r.dish_id: r.choice_count for r in event.dish_comments.all() if r.is_choice}
     names = dict(event.dishes.values_list('id', 'name'))
+    every_dish_id = [dish_id for group in groups for dish_id in group['dish_ids']]
+    tags = tags_for_dish_ids(every_dish_id)
     order = {dish_id: i for i, dish_id in enumerate(dish_ids_in_added_order(event))}
     out = {}
     for group in groups:
         dish_ids = sorted(group['dish_ids'], key=lambda d: order.get(d, len(order)))
+        missing = [d for d in dish_ids if counts.get(d) is None]
         out[group['course_id']] = {
             'course_name': group['course_name'] or '',
-            'rows': [(names.get(dish_id, ''), counts.get(dish_id)) for dish_id in dish_ids],
-            'recorded': any(counts.get(dish_id) is not None for dish_id in dish_ids),
+            'rows': [(names.get(dish_id, '') + dietary_suffix(tags.get(dish_id, [])),
+                      counts.get(dish_id)) for dish_id in dish_ids],
+            'recorded': not missing,
+            'missing': len(missing),
         }
     return out

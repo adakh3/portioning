@@ -1,5 +1,8 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+
+// Bound before anything spies on it — see the beforeEach below.
+const realCreate = document.createElement.bind(document);
 
 // REL-444 AC1 — the BEO download button on the event page. A unit test of
 // `api.downloadEventBEO` would prove the fetch URL and nothing about whether a
@@ -7,8 +10,10 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 const h = vi.hoisted(() => ({
   push: vi.fn(),
   id: "8",
-  downloadEventBEO: vi.fn(() => Promise.resolve(new Blob(["%PDF"]))),
+  downloadEventBEO: vi.fn(() =>
+    Promise.resolve({ blob: new Blob(["%PDF"]), filename: "BEO-8-Rev3.pdf" })),
   downloadEventPDF: vi.fn(() => Promise.resolve(new Blob(["%PDF"]))),
+  anchors: [] as HTMLAnchorElement[],
 }));
 
 vi.mock("next/navigation", () => ({
@@ -86,9 +91,26 @@ describe("Event page — BEO download (REL-444 AC1)", () => {
   beforeEach(() => {
     h.downloadEventBEO.mockClear();
     h.downloadEventPDF.mockClear();
+    h.anchors = [];
     // jsdom has no object-URL plumbing; the click path needs both to exist.
     URL.createObjectURL = vi.fn(() => "blob:beo");
     URL.revokeObjectURL = vi.fn();
+    // Capture the synthetic <a> the download builds, so the saved filename is
+    // assertable — it's the only place the revision reaches the user's disk.
+    // `realCreate` is bound ONCE at module scope: re-reading document.createElement
+    // here would bind the previous test's spy and recurse until the stack blew.
+    vi.spyOn(document, "createElement").mockImplementation(((tag: string, ...rest: []) => {
+      const el = realCreate(tag, ...rest);
+      if (tag === "a") {
+        (el as HTMLAnchorElement).click = vi.fn();
+        h.anchors.push(el as HTMLAnchorElement);
+      }
+      return el;
+    }) as typeof document.createElement);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it("offers a BEO button alongside the function sheet", async () => {
@@ -111,6 +133,30 @@ describe("Event page — BEO download (REL-444 AC1)", () => {
 
     await waitFor(() => expect(h.downloadEventPDF).toHaveBeenCalledWith(8));
     expect(h.downloadEventBEO).not.toHaveBeenCalled();
+  });
+
+  it("saves the file under the server's revision-stamped name", async () => {
+    // The server is the only party that knows which revision this download became —
+    // the page's copy of the event is already one behind. Ignoring its filename is
+    // how every revision would have landed on disk as the same "BEO-8.pdf".
+    render(<EventPage />);
+    fireEvent.click(await screen.findByText("BEO"));
+
+    // The page mounts its own <a>s (nav links); the download one is the one that
+    // actually carries a filename.
+    await waitFor(() => expect(h.anchors.filter((a) => a.download).length).toBe(1));
+    expect(h.anchors.filter((a) => a.download)[0].download).toBe("BEO-8-Rev3.pdf");
+  });
+
+  it("falls back to a plain name when the server sends none", async () => {
+    h.downloadEventBEO.mockResolvedValueOnce({ blob: new Blob(["%PDF"]), filename: "" });
+    render(<EventPage />);
+    fireEvent.click(await screen.findByText("BEO"));
+
+    // The page mounts its own <a>s (nav links); the download one is the one that
+    // actually carries a filename.
+    await waitFor(() => expect(h.anchors.filter((a) => a.download).length).toBe(1));
+    expect(h.anchors.filter((a) => a.download)[0].download).toBe("BEO-8.pdf");
   });
 
   it("surfaces a failed BEO download instead of failing silently", async () => {

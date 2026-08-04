@@ -1684,7 +1684,12 @@ export const api = {
   // The day-of Banquet Event Order — the ops counterpart to the function sheet
   // above, carrying no pricing. Downloading it also issues it: the server bumps the
   // revision counter on a re-issue after signing (REL-444).
-  downloadEventBEO: async (id: number): Promise<Blob> => {
+  //
+  // Returns the server's filename alongside the blob, because it is the only party
+  // that knows which revision this download just became — the caller's copy of the
+  // event is already one behind. Falls back to a plain name if Content-Disposition
+  // isn't readable (it needs CORS_EXPOSE_HEADERS on a cross-origin API).
+  downloadEventBEO: async (id: number): Promise<{ blob: Blob; filename: string }> => {
     const res = await fetch(`${API_BASE}/events/${id}/beo/`, {
       credentials: "include",
       headers: buildHeaders(),
@@ -1693,7 +1698,9 @@ export const api = {
       const text = await res.text();
       throw new Error(sanitizeError(res.status, text));
     }
-    return res.blob();
+    const disposition = res.headers.get("Content-Disposition") || "";
+    const match = /filename="?([^";]+)"?/.exec(disposition);
+    return { blob: await res.blob(), filename: match?.[1] || `BEO-${id}.pdf` };
   },
   getQuoteLineItems: (quoteId: number) =>
     fetchList<QuoteLineItem>(`/bookings/quotes/${quoteId}/items/?page_size=all`),

@@ -51,9 +51,13 @@ class EventBEOView(APIView):
         event = get_org_object_or_404(
             Event.objects.select_related('account', 'venue', 'primary_contact', 'organisation')
             .prefetch_related(
-                'dishes', 'dish_comments', 'courses', 'timeline_entries', 'signatures',
+                'dishes', 'dish_comments', 'courses', 'timeline_entries',
                 'guest_counts__segment',
-                'additional_meals__dishes', 'additional_meals__audience_segment',
+                # `audience_segment` (not `dishes`): the vendor split reads the
+                # segment per meal, while the meal's dish names come from
+                # `dish_display_names_in_added_order`, which goes at the through
+                # table directly and would never touch a prefetched `dishes`.
+                'additional_meals__audience_segment',
                 'shifts__staff_member', 'shifts__role',
                 'equipment_reservations__equipment',
             ),
