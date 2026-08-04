@@ -11,6 +11,8 @@ an org's own edits.
 """
 
 # (value, label) — value is the stored key, label is what users see/edit.
+# A third element, when present, is a dict of extra column defaults for that row
+# (service styles use it for `guests_choose`).
 EVENT_TYPE_DEFAULTS = [
     ('wedding', 'Wedding'),
     ('corporate', 'Corporate Event'),
@@ -37,9 +39,12 @@ SOURCE_DEFAULTS = [
     ('other', 'Other'),
 ]
 
+# Plated is the one starter style where the guest chooses in advance, so it ships
+# with `guests_choose` on. It is only a default: an org that does boxed lunches
+# where each person pre-picks ticks Drop-off too, in Settings (REL-452).
 SERVICE_STYLE_DEFAULTS = [
     ('buffet', 'Buffet'),
-    ('plated', 'Plated'),
+    ('plated', 'Plated', {'guests_choose': True}),
     ('family', 'Family Style'),
     ('stations', 'Food Stations'),
     ('passed', 'Passed Hors d’oeuvres'),
@@ -103,11 +108,13 @@ def seed_choice_defaults(org, only_if_empty=False):
     ):
         if only_if_empty and model.objects.filter(organisation=org).exists():
             continue
-        for sort_order, (value, label) in enumerate(rows):
+        for sort_order, row in enumerate(rows):
+            value, label = row[0], row[1]
+            extra = row[2] if len(row) > 2 else {}
             model.objects.get_or_create(
                 organisation=org,
                 value=value,
-                defaults={'label': label, 'sort_order': sort_order},
+                defaults={'label': label, 'sort_order': sort_order, **extra},
             )
 
     # Timeline steps carry two extra columns — they double as the org's

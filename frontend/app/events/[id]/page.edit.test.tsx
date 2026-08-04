@@ -78,7 +78,9 @@ vi.mock("@/lib/hooks", () => ({
   useDateFormat: () => "MM/DD/YYYY",
   useFormatDateTime: () => (v: string | null) => v ?? "-",
   useEventTypes: () => ({ data: [{ id: 1, value: "wedding", label: "Wedding" }] }),
-  useServiceStyles: () => ({ data: [] }),
+  // The event is plated, and plated is a style whose `guests_choose` is on — that
+  // flag, not the slug, is what makes the choice affordances render.
+  useServiceStyles: () => ({ data: [{ id: 1, value: "plated", label: "Plated", guests_choose: true }] }),
   useDishes: () => ({ data: [
     { id: 11, name: "Bruschetta", category: 1, dietary_tags: [] },
     { id: 12, name: "Roast Beef", category: 1, dietary_tags: [] },

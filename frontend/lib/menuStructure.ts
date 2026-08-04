@@ -15,30 +15,37 @@ export type MenuSection = {
   name: string | null;
   /** Dish ids in render order — offered choices first, then every-plate dishes. */
   dishIds: number[];
-  /** The offered subset, in order. Always empty when the booking isn't plated. */
+  /** The offered subset, in order. Always empty when the booking's style doesn't offer choices. */
   chosenIds: number[];
 };
+
+/** Just enough of a service-style option to answer the question below. */
+export type ServiceStyleFlag = { value: string; guests_choose?: boolean };
 
 /**
  * Whether this service style lets the caterer offer the guest a choice.
  *
- * Plated is the only style where each guest is committed to an *individual*
- * portion, so the split has to be known before the day. Every other seeded style
- * either lets the guest pick at the point of service (buffet, stations, passed)
- * or shares platters (family style), and drop-off has no service at all.
+ * The answer is the ORG'S data, read off its own service-style row (REL-452). The
+ * underlying property is "each guest is committed to an individual portion, so the
+ * split must be known before the day" — true of a plated dinner, and of boxed
+ * lunches where each person pre-picks, but not of a buffet, stations or family
+ * style, where the guest picks at the line or the table.
  *
- * This DELIBERATELY MIRRORS the backend: `PLATED_SERVICE_STYLE` / `is_plated_service`
- * in `backend/events/models.py`, which `choice_groups()` uses to decide what the
- * contract renders. The card must not offer a flag the API will ignore — a choice
- * marked on a buffet would save onto the row and then render nowhere.
+ * This DELIBERATELY MIRRORS the backend: `booking_offers_choices` in
+ * `backend/events/models.py` reads the same column, and `choice_groups()` uses it to
+ * decide what the contract renders. The card must not offer a flag the API will
+ * ignore — a choice marked on a buffet would save onto the row and then render
+ * nowhere.
  *
- * It is a slug check on an org-editable list, which is its known weakness: a style
- * added as "Plated (duet)" gets no choice affordances. The durable fix is a
- * per-style flag on `ServiceStyleOption` (data, not code); it needs a backend change
- * this frontend-only ticket doesn't carry, so both pages route through here to keep
- * that swap a one-liner on this side.
+ * Previously a hardcoded `=== "plated"`, which excluded any style an org added
+ * itself and was invisible to the admin, since slugs are generated from labels and
+ * never shown. An unknown style (or a list still loading) offers nothing, which is
+ * the safe direction: no affordance rather than one the backend will drop.
  */
-export const isPlated = (serviceStyle: string | null | undefined) => serviceStyle === "plated";
+export const guestsChoose = (
+  serviceStyle: string | null | undefined,
+  styles: readonly ServiceStyleFlag[],
+): boolean => !!styles.find((s) => s.value === serviceStyle)?.guests_choose;
 
 const isOffered = (choices: MenuChoices, dishId: number) =>
   choices[dishId] !== undefined;
@@ -50,7 +57,8 @@ const isOffered = (choices: MenuChoices, dishId: number) =>
  * renders in — sections preserve it, except that offered dishes sort to the top of
  * their course so the *or* pair can never be visually separated (AC5).
  *
- * A section is only "choice-bearing" on a plated booking: on buffet or family style
+ * A section is only "choice-bearing" when the style says guests choose: on buffet or
+ * family style
  * the guest picks at the line or the table, so the flags are kept but never shown
  * (AC8) — the same rule the backend applies when it renders the contract.
  */
@@ -59,7 +67,7 @@ export function menuSections(
   courses: CourseData[],
   dishCourses: Record<string, number>,
   menuChoices: MenuChoices,
-  plated: boolean,
+  guestsChoose: boolean,
 ): MenuSection[] {
   const sections: MenuSection[] = [];
   const courseOf = (id: number) => {
@@ -72,7 +80,7 @@ export function menuSections(
     // A choice belongs to a course: an unassigned dish is never an option, however
     // its flag got there (REL-419 left the flag clearable only inside a course).
     const chosenIds =
-      plated && courseIndex !== null ? mine.filter((id) => isOffered(menuChoices, id)) : [];
+      guestsChoose && courseIndex !== null ? mine.filter((id) => isOffered(menuChoices, id)) : [];
     const rest = mine.filter((id) => !chosenIds.includes(id));
     return { courseIndex, name, dishIds: [...chosenIds, ...rest], chosenIds };
   };

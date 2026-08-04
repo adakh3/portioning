@@ -41,16 +41,18 @@ interface Props {
   /** REL-417: when a template with courses is loaded, its course structure is
    * surfaced so the booking can carry it over (AC6). */
   onLoadCourses?: (courses: CourseData[], dishCourses: Record<string, number>) => void;
-  /** The menu's structure (REL-451). Courses contain dishes, and on a plated booking
+  /** The menu's structure (REL-451). Courses contain dishes, and where the style
+   * lets guests choose,
    * a dish inside a course can be marked as one of the guest's options — one card,
    * one thought. Owned by the page (it goes in the single save payload); this
    * component reads it and reports edits through `onStructureChange`. */
   courses?: CourseData[];
   dishCourses?: Record<string, number>;
   menuChoices?: MenuChoices;
-  /** Choice affordances are plated-only; buffet/family style keep the flags but
+  /** Whether this booking's service style lets guests choose (REL-452). Buffet and
+   * family style keep any flags but
    * never show them (AC8). */
-  plated?: boolean;
+  guestsChoose?: boolean;
   /** "Plated dinner", "Buffet", … — the header subtitle's first word. */
   serviceStyleLabel?: string;
   /** A hearty-eater crowd eats more per head, so it COSTS more per head — the
@@ -80,7 +82,7 @@ export default function MenuBuilder({
   courses = [],
   dishCourses = {},
   menuChoices = {},
-  plated = false,
+  guestsChoose = false,
   serviceStyleLabel,
   bigEaters = false,
   bigEatersPercentage = 20,
@@ -229,7 +231,7 @@ export default function MenuBuilder({
 
   const dishIdsInOrder = selectedDishIds.filter((id) => selected.has(id))
     .concat(Array.from(selected).filter((id) => !selectedDishIds.includes(id)));
-  const sections = menuSections(dishIdsInOrder, courses, dishCourses, menuChoices, plated);
+  const sections = menuSections(dishIdsInOrder, courses, dishCourses, menuChoices, guestsChoose);
   /** No courses at all → the card is a plain list (AC8): no headers, no scaffolding. */
   const isFlat = courses.length === 0;
 
@@ -441,7 +443,7 @@ export default function MenuBuilder({
     <div className="space-y-4">
       {/* What this menu is being served as. It reads as context, but it's also the
           one thing that decides whether choices are offered at all (AC8) — so
-          naming it here is what makes the card's plated-only behaviour legible. */}
+          naming it here is what makes the card's choice affordances legible. */}
       {serviceLine ? (
         <p data-testid="menu-service-line" className="-mt-2 text-sm text-muted-foreground">
           {serviceLine}
@@ -606,7 +608,7 @@ export default function MenuBuilder({
                         )}
                         <DietaryTagPills tags={dish.dietary_tags} />
                         <span className="flex-1" />
-                        {plated && section.courseIndex !== null && !disabled && (
+                        {guestsChoose && section.courseIndex !== null && !disabled && (
                           <button
                             type="button"
                             aria-label={`${offered ? "Remove" : "Mark"} ${dish.name} as a guest choice`}

@@ -36,7 +36,22 @@ class SourceOption(ChoiceOptionBase):
 
 
 class ServiceStyleOption(ChoiceOptionBase):
+    """How an org serves food, plus the one behaviour that depends on it."""
     objects = TenantManager()
+
+    # Whether a booking in this style can offer the guest a choice of dish
+    # (REL-452). The real property isn't the style's NAME, it's "each guest is
+    # committed to an individual portion, so the split must be known before the
+    # day" — true of a plated dinner, and of boxed lunches where each person
+    # pre-picks, but not of a buffet or family style where the guest picks at the
+    # line or the table.
+    #
+    # This used to be a hardcoded check for the slug 'plated', which an admin
+    # could neither see nor set: slugs are generated from the label and never
+    # shown, so "Plated (duet)" silently behaved differently from "Plated". Same
+    # reasoning as LeadStatusOption's is_won / is_lost — the flag decouples
+    # behaviour from the name, so orgs can rename and add freely.
+    guests_choose = models.BooleanField(default=False)
 
     class Meta(ChoiceOptionBase.Meta):
         unique_together = [('organisation', 'value')]
