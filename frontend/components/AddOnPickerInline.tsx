@@ -128,8 +128,10 @@ export default function AddOnPickerInline({
                       }`}
                     >
                       <span>{p.name}</span>
+                      {/* A zero base price means "not priced yet", not "free" — the
+                          old checkbox hid it rather than advertising $0.00. */}
                       <span className="ml-auto text-xs text-muted-foreground">
-                        {fmt(price)} {unitLabel(p.default_unit)}
+                        {Number(price) > 0 ? `${fmt(price)} ${unitLabel(p.default_unit)}` : unitLabel(p.default_unit)}
                       </span>
                       <span className="text-xs">
                         {onQuote ? (

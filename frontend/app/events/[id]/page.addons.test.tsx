@@ -118,17 +118,19 @@ const save = async () => {
   return h.updateEvent.mock.calls[0][1] as Record<string, unknown>;
 };
 const picker = () => screen.getByTestId("addon-picker");
+// Each row names itself, so its controls carry short generic labels.
+const line = (i: number) => within(screen.getByTestId(`addon-line-${i}`));
 
 describe("Event edit — add-ons reach the payload in today's shape", () => {
   beforeEach(() => { h.updateEvent.mockClear(); h.push.mockClear(); });
 
   it("hydrates the saved per-guest line, prices it by guest count, re-saves with its id", async () => {
     await startEditing();
-    const row = await screen.findByTestId("addon-line-0");
-    expect(within(row).getByText("Coffee & Tea Service")).toBeInTheDocument();
-    expect(within(row).getByLabelText("Edit price for Coffee & Tea Service")).toHaveTextContent("$6.00 per guest");
+    await screen.findByTestId("addon-line-0");
+    expect(line(0).getByLabelText("Edit name")).toHaveTextContent("Coffee & Tea Service");
+    expect(line(0).getByLabelText("Edit price, unit and category")).toHaveTextContent("$6.00 per guest × 120 guests");
     // 120 guests × $6 — the stored quantity of 1 is not what this line costs (AC3).
-    expect(within(row).getByText("$720.00")).toBeInTheDocument();
+    expect(line(0).getByText("$720.00")).toBeInTheDocument();
 
     const payload = await save();
     expect(payload.line_items).toEqual([
@@ -142,10 +144,11 @@ describe("Event edit — add-ons reach the payload in today's shape", () => {
     fireEvent.click(within(picker()).getByLabelText("Add Soft Drinks · Tins"));
     fireEvent.click(within(picker()).getByText("Cancel"));
 
-    fireEvent.click(screen.getByLabelText("Increase quantity for Soft Drinks · Tins"));
+    fireEvent.click(line(1).getByLabelText("Increase quantity"));
     fireEvent.click(screen.getByText("Custom item"));
-    fireEvent.change(screen.getByLabelText("Description for item 3"), { target: { value: "Coat check" } });
-    fireEvent.change(screen.getByLabelText("Unit price for Coat check"), { target: { value: "100" } });
+    fireEvent.change(line(2).getByLabelText("Name"), { target: { value: "Coat check" } });
+    fireEvent.click(line(2).getByLabelText("Edit price, unit and category"));
+    fireEvent.change(line(2).getByLabelText("Unit price"), { target: { value: "100" } });
 
     const payload = await save();
     expect(payload.line_items).toEqual([
@@ -160,9 +163,10 @@ describe("Event edit — add-ons reach the payload in today's shape", () => {
 
   it("a price typed over the catalogue's reaches the payload", async () => {
     await startEditing();
-    fireEvent.click(await screen.findByLabelText("Edit price for Coffee & Tea Service"));
-    fireEvent.change(screen.getByLabelText("Unit price for Coffee & Tea Service"), { target: { value: "8" } });
-    expect(within(screen.getByTestId("addon-line-0")).getByText("$960.00")).toBeInTheDocument();
+    await screen.findByTestId("addon-line-0");
+    fireEvent.click(line(0).getByLabelText("Edit price, unit and category"));
+    fireEvent.change(line(0).getByLabelText("Unit price"), { target: { value: "8" } });
+    expect(line(0).getByText("$960.00")).toBeInTheDocument();
 
     const payload = await save();
     expect((payload.line_items as Record<string, unknown>[])[0].unit_price).toBe("8");
@@ -170,7 +174,8 @@ describe("Event edit — add-ons reach the payload in today's shape", () => {
 
   it("removing the line sends an empty list", async () => {
     await startEditing();
-    fireEvent.click(await screen.findByLabelText("Remove Coffee & Tea Service"));
+    await screen.findByTestId("addon-line-0");
+    fireEvent.click(line(0).getByLabelText("Remove"));
     const payload = await save();
     expect(payload.line_items).toEqual([]);
   });

@@ -97,6 +97,8 @@ const pickCustomer = () => {
   fireEvent.click(screen.getByText("Jane Doe"));
 };
 const picker = () => screen.getByTestId("addon-picker");
+// Each row names itself, so its controls carry short generic labels.
+const line = (i: number) => within(screen.getByTestId(`addon-line-${i}`));
 
 describe("Quote form — add-ons reach the payload in today's shape", () => {
   beforeEach(() => {
@@ -115,15 +117,16 @@ describe("Quote form — add-ons reach the payload in today's shape", () => {
     fireEvent.click(screen.getByText("Done")); // the trigger closes it again
 
     // Quantity via the stepper, price via the click-to-edit subtitle.
-    fireEvent.click(screen.getByLabelText("Increase quantity for Soft Drinks · 1.5L"));
-    fireEvent.click(screen.getByLabelText("Edit price for Delivery & Setup"));
-    fireEvent.change(screen.getByLabelText("Unit price for Delivery & Setup"), { target: { value: "500" } });
+    fireEvent.click(line(0).getByLabelText("Increase quantity"));
+    fireEvent.click(line(1).getByLabelText("Edit price, unit and category"));
+    fireEvent.change(line(1).getByLabelText("Unit price"), { target: { value: "500" } });
 
     // And an ad-hoc line the catalogue has never heard of.
     fireEvent.click(screen.getByText("Custom item"));
-    fireEvent.change(screen.getByLabelText("Description for item 3"), { target: { value: "Coat check" } });
-    fireEvent.change(screen.getByLabelText("Category for item 3"), { target: { value: "labor" } });
-    fireEvent.change(screen.getByLabelText("Unit price for Coat check"), { target: { value: "100" } });
+    fireEvent.change(line(2).getByLabelText("Name"), { target: { value: "Coat check" } });
+    fireEvent.click(line(2).getByLabelText("Edit price, unit and category"));
+    fireEvent.change(line(2).getByLabelText("Category"), { target: { value: "labor" } });
+    fireEvent.change(line(2).getByLabelText("Unit price"), { target: { value: "100" } });
 
     pickCustomer();
     fireEvent.click(screen.getByText("Create Quote"));
@@ -161,10 +164,10 @@ describe("Quote form — add-ons reach the payload in today's shape", () => {
     fireEvent.click(await screen.findByText("Edit Quote"));
 
     // It reads as a chosen line, priced, not as a ticked catalogue checkbox.
-    const row = await screen.findByTestId("addon-line-0");
-    expect(within(row).getByText("Soft Drinks · 1.5L")).toBeInTheDocument();
-    expect(within(row).getByLabelText("Edit price for Soft Drinks · 1.5L")).toHaveTextContent("$150.00 each");
-    expect(within(row).getByText("$300.00")).toBeInTheDocument();
+    await screen.findByTestId("addon-line-0");
+    expect(line(0).getByLabelText("Edit name")).toHaveTextContent("Soft Drinks · 1.5L");
+    expect(line(0).getByLabelText("Edit price, unit and category")).toHaveTextContent("$150.00 each");
+    expect(line(0).getByText("$300.00")).toBeInTheDocument();
 
     fireEvent.click(screen.getByText("Save Quote"));
     await waitFor(() => expect(h.updateQuote).toHaveBeenCalledTimes(1));
@@ -197,10 +200,39 @@ describe("Quote form — add-ons reach the payload in today's shape", () => {
     h.id = "7";
     render(<QuotePage />);
     fireEvent.click(await screen.findByText("Edit Quote"));
-    fireEvent.click(await screen.findByLabelText("Remove Soft Drinks · 1.5L"));
+    await screen.findByTestId("addon-line-0");
+    fireEvent.click(line(0).getByLabelText("Remove"));
     fireEvent.click(screen.getByText("Save Quote"));
 
     await waitFor(() => expect(h.updateQuote).toHaveBeenCalledTimes(1));
     expect((h.updateQuote.mock.calls[0][1] as Record<string, unknown>).line_items).toEqual([]);
+  });
+
+  it("EDIT: a per-guest line and a discount line reach the payload with their unit and category", async () => {
+    // Two states the quote payload had no coverage for: `per_guest` (whose money the
+    // backend recomputes from guest count) and `discount` (whose total goes negative).
+    // Both are chosen through the line's own unit/category controls.
+    h.id = "7";
+    render(<QuotePage />);
+    fireEvent.click(await screen.findByText("Edit Quote"));
+    await screen.findByTestId("addon-line-0");
+
+    fireEvent.click(line(0).getByLabelText("Edit price, unit and category"));
+    fireEvent.change(line(0).getByLabelText("Unit"), { target: { value: "per_guest" } });
+
+    fireEvent.click(screen.getByText("Custom item"));
+    fireEvent.change(line(1).getByLabelText("Name"), { target: { value: "Loyalty discount" } });
+    fireEvent.click(line(1).getByLabelText("Edit price, unit and category"));
+    fireEvent.change(line(1).getByLabelText("Category"), { target: { value: "discount" } });
+    fireEvent.change(line(1).getByLabelText("Unit price"), { target: { value: "100" } });
+    expect(line(1).getByText("-$100.00")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("Save Quote"));
+    await waitFor(() => expect(h.updateQuote).toHaveBeenCalledTimes(1));
+    const payload = h.updateQuote.mock.calls[0][1] as Record<string, unknown>;
+    expect(payload.line_items).toEqual([
+      { id: 55, variant: 11, category: "beverage", description: "Soft Drinks · 1.5L", quantity: "2", unit: "per_guest", unit_price: "150.00", sort_order: 0 },
+      { variant: null, category: "discount", description: "Loyalty discount", quantity: "1", unit: "each", unit_price: "100", sort_order: 0 },
+    ]);
   });
 });

@@ -26,16 +26,22 @@ test.describe("Add-on lines survive a save and a reload", () => {
 
     await page.getByRole("button", { name: "Edit Quote" }).click();
 
+    // Each row names itself in its group label, so its own controls are short.
+    const row = (i: number) => page.getByTestId(`addon-line-${i}`);
+
     // 1) A variant chip → a line named after product AND variant, qty 12.
     await addAddOn(page, "Soft Drinks · 1.5L", "Soft Drinks");
-    await page.getByLabel("Quantity for Soft Drinks · 1.5L", { exact: true }).fill("12");
-    await expect(page.getByTestId("addon-line-0")).toContainText("$1,800.00");
+    await row(0).getByLabel("Quantity", { exact: true }).fill("12");
+    await expect(row(0)).toContainText("$1,800.00");
 
-    // 2) A custom line the catalogue has never heard of, priced by hand.
+    // 2) A custom line the catalogue has never heard of, priced by hand. It opens
+    //    straight into its name field.
     await page.getByRole("button", { name: "Custom item" }).click();
-    await page.getByLabel("Description for item 2", { exact: true }).fill("Coat check");
-    await page.getByLabel("Unit price for Coat check", { exact: true }).fill("100");
-    await expect(page.getByTestId("addon-line-1")).toContainText("$100.00");
+    await row(1).getByLabel("Name", { exact: true }).fill("Coat check");
+    await row(1).getByLabel("Name", { exact: true }).press("Enter");
+    await row(1).getByRole("button", { name: "Edit price, unit and category" }).click();
+    await row(1).getByLabel("Unit price", { exact: true }).fill("100");
+    await expect(row(1)).toContainText("$100.00");
 
     // 3) The card's own subtotal — and the identical number in the totals card,
     //    which is the parity the two are supposed to keep (AC6).
@@ -57,14 +63,14 @@ test.describe("Add-on lines survive a save and a reload", () => {
     await expect(page.getByText(/Subtotal:\s*\$1,900\.00/)).toBeVisible();
 
     // 5) And back in the editor the lines are whole again — name, quantity, price,
-    //    line total — not just present in a read-only table.
+    //    line total — not just present in a read-only table. The API hands quantities
+    //    and prices back as decimals ("12.00"), which is what the row hydrates from.
     await page.getByRole("button", { name: "Edit Quote" }).click();
-    // The API hands quantities and prices back as decimals ("12.00"), which is what
-    // the stepper and the price field hydrate from.
-    await expect(page.getByLabel("Quantity for Soft Drinks · 1.5L", { exact: true })).toHaveValue("12.00");
-    await expect(page.getByLabel("Edit price for Soft Drinks · 1.5L", { exact: true })).toContainText("$150.00 each");
-    await expect(page.getByTestId("addon-line-0")).toContainText("$1,800.00");
-    await expect(page.getByLabel("Unit price for Coat check", { exact: true })).toHaveValue("100.00");
+    await expect(row(0).getByLabel("Quantity", { exact: true })).toHaveValue("12.00");
+    await expect(row(0).getByRole("button", { name: "Edit price, unit and category" }))
+      .toContainText("$150.00 each");
+    await expect(row(0)).toContainText("$1,800.00");
+    await expect(row(1).getByRole("button", { name: "Edit name" })).toContainText("Coat check");
     await expect(page.getByText("Add-ons subtotal").locator("..")).toContainText("$1,900.00");
 
     // 6) The picker knows the 1.5L is spoken for; its sibling is still free.
