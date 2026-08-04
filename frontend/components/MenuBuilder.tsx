@@ -53,6 +53,11 @@ interface Props {
   plated?: boolean;
   /** "Plated dinner", "Buffet", … — the header subtitle's first word. */
   serviceStyleLabel?: string;
+  /** A hearty-eater crowd eats more per head, so it COSTS more per head — the
+   * suggested rate is computed from the portions the engine would actually cook.
+   * A fixed price TIER is a contracted rate and is deliberately unaffected. */
+  bigEaters?: boolean;
+  bigEatersPercentage?: number;
   onStructureChange?: (v: {
     courses: CourseData[];
     dishCourses: Record<string, number>;
@@ -77,6 +82,8 @@ export default function MenuBuilder({
   menuChoices = {},
   plated = false,
   serviceStyleLabel,
+  bigEaters = false,
+  bigEatersPercentage = 20,
   onStructureChange,
   pricePerHead,
   onPricePerHeadChange,
@@ -112,8 +119,6 @@ export default function MenuBuilder({
   const [priceLoading, setPriceLoading] = useState(false);
   const [priceError, setPriceError] = useState<string | null>(null);
 
-  // Extra food % markup
-  const [extraFoodPercent, setExtraFoodPercent] = useState(0);
 
   // Sync with external prop changes
   useEffect(() => {
@@ -136,19 +141,12 @@ export default function MenuBuilder({
     };
   }, [guestCount, templateId, dishesModified, templatePriceTiers, priceRoundingStep]);
 
-  // Apply extra food % markup to a base price
-  const applyExtra = (base: number) => {
-    const marked = base * (1 + extraFoodPercent / 100);
-    return roundToStep(marked, priceRoundingStep);
-  };
-
   // Determine active price for parent notification
   const activePrice = useMemo(() => {
-    if (tierPrice) return applyExtra(tierPrice.price);
-    if (calculatedPrice) return applyExtra(calculatedPrice.price);
+    if (tierPrice) return tierPrice.price;
+    if (calculatedPrice) return calculatedPrice.price;
     return null;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tierPrice, calculatedPrice, extraFoodPercent]);
+  }, [tierPrice, calculatedPrice]);
 
   // Esc closes the dish picker — one of its three ways out (AC8b).
   useEffect(() => {
@@ -159,6 +157,14 @@ export default function MenuBuilder({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [showSelector]);
+
+  // A hearty-eater change means more (or less) food per head, so the rate computed
+  // from the old portions is stale — drop it and let the debounced calc re-run.
+  const firstAppetiteRun = useRef(true);
+  useEffect(() => {
+    if (firstAppetiteRun.current) { firstAppetiteRun.current = false; return; }
+    setCalculatedPrice(null);
+  }, [bigEaters, bigEatersPercentage]);
 
   // Track last auto-filled price so we only overwrite when user hasn't manually edited
   const lastAutoFilledRef = useRef<string>("");
@@ -226,6 +232,13 @@ export default function MenuBuilder({
   const sections = menuSections(dishIdsInOrder, courses, dishCourses, menuChoices, plated);
   /** No courses at all → the card is a plain list (AC8): no headers, no scaffolding. */
   const isFlat = courses.length === 0;
+
+  /** Courses need an owner: the page holds them and puts them in the save payload.
+   * The card is also used for an ADDITIONAL MEAL, which has no course state to own
+   * — `BookingCourse` links to a Quote or an Event, never a `BookingMeal`, and
+   * `BookingMealDishComment` has no course FK. Without this the extra-meal card
+   * showed "+ Add course" and clicking it did nothing at all. */
+  const canEditCourses = !!onStructureChange;
 
   const addCourse = () =>
     emit({ courses: [...courses, { name: "", sort_order: courses.length }] });
@@ -338,6 +351,8 @@ export default function MenuBuilder({
         const result: PriceEstimateResult = await api.priceEstimate({
           dish_ids: dishIds,
           guest_count: guestCount,
+          big_eaters: bigEaters,
+          big_eaters_percentage: bigEatersPercentage,
         });
         setCalculatedPrice({
           price: roundToStep(result.price_per_head, priceRoundingStep),
@@ -365,7 +380,8 @@ export default function MenuBuilder({
     }, 400);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [guestCount, selected, tierPrice, calculatedPrice, templateId, dishesModified]);
+  }, [guestCount, selected, tierPrice, calculatedPrice, templateId, dishesModified,
+      bigEaters, bigEatersPercentage]);
 
   const handleSave = async () => {
     if (!onSave) return;
@@ -428,16 +444,21 @@ export default function MenuBuilder({
       {/* Template Picker */}
       <div className="flex items-center gap-3 flex-wrap">
         <div className="relative">
+          {/* Shows the template the menu came from, rather than always reading
+              "Load from template…" with the answer on a separate line below. The
+              dropdown is the obvious place to look for "which menu is this?". */}
           <select
             aria-label="Load from template"
-            value=""
+            value={templateId ?? ""}
             onChange={(e) => {
               if (e.target.value) handleLoadTemplate(Number(e.target.value));
             }}
             disabled={disabled}
             className="h-9 appearance-none rounded-md border border-input bg-background pl-3 pr-9 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <option value="">Load from template…</option>
+            {/* Only a prompt, never a destination: picking it back would read as
+                "clear the menu", which is what Clear All is for. */}
+            <option value="" disabled={templateId !== null}>Load from template…</option>
             {templates.map((t) => (
               <option key={t.id} value={t.id}>
                 {t.name} ({t.dish_count} dishes)
@@ -469,10 +490,12 @@ export default function MenuBuilder({
         )}
       </div>
 
-      {/* Template indicator */}
-      {templateName && (
+      {/* Only the part the dropdown can't say: that the menu has since been
+          edited, so it no longer matches the template it came from. The template's
+          NAME now lives in the dropdown itself. */}
+      {templateName && dishesModified && (
         <p className="text-xs text-muted-foreground">
-          Based on template: <span className="font-medium">{templateName}</span>
+          Edited since loading <span className="font-medium">{templateName}</span>.
         </p>
       )}
 
@@ -651,19 +674,21 @@ export default function MenuBuilder({
                   the courses first and filling them after is how a caterer outlines a
                   dinner, and it is the only route to a course on a booking with no
                   dishes yet. */}
-              <button
-                type="button"
-                onClick={addCourse}
-                className="text-sm text-primary hover:underline"
-              >
-                + Add course
-              </button>
+              {canEditCourses && (
+                <button
+                  type="button"
+                  onClick={addCourse}
+                  className="text-sm text-primary hover:underline"
+                >
+                  + Add course
+                </button>
+              )}
             </>
-          ) : (
+          ) : canEditCourses ? (
             <button type="button" onClick={addCourse} className="text-sm text-primary hover:underline">
               + Add course
             </button>
-          )}
+          ) : null}
         </div>
       )}
 
@@ -723,21 +748,6 @@ export default function MenuBuilder({
                     use it
                   </button>
                 )}
-                <label className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-                  Extra food
-                  <input
-                    type="number"
-                    min={0}
-                    max={100}
-                    step={5}
-                    value={extraFoodPercent || ""}
-                    onChange={(e) => setExtraFoodPercent(Number(e.target.value) || 0)}
-                    placeholder="0"
-                    disabled={disabled}
-                    className="w-14 border border-input rounded px-1.5 py-0.5 text-xs text-center"
-                  />
-                  %
-                </label>
               </>
             )}
 

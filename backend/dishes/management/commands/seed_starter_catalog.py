@@ -13,7 +13,7 @@ from django.core.management.base import BaseCommand, CommandError
 
 from users.models import Organisation
 from dishes.models import DietaryTag, DishCategory, Dish
-from menus.models import MenuTemplate, MenuDishPortion, MenuTemplatePriceTier
+from menus.models import MenuTemplate, MenuCourse, MenuDishPortion, MenuTemplatePriceTier
 from bookings.models.addons import AddOnProduct
 from staff.models import LaborRole
 from equipment.models import EquipmentItem
@@ -121,6 +121,17 @@ class Command(BaseCommand):
         return dishes
 
     def _menus(self, dishes):
+        # The two starters are deliberately DIFFERENT SHAPES, because a booking's
+        # menu card has two and a caterer meets both on day one:
+        #
+        #   - the lunch buffet has NO courses — one flat list, which is what a buffet
+        #     usually is and what the card renders when a booking has no structure;
+        #   - the wedding dinner IS coursed, so loading it carries Starter/Main/Dessert
+        #     onto the booking (REL-417) and a plated menu arrives ready to mark a
+        #     guest choice in (REL-451).
+        #
+        # Before this, every seeded template was course-less, so the carry-over had
+        # nothing to carry and the coursed path could only be seen by hand-building it.
         self._menu(dishes, 'Corporate Lunch Buffet',
                    'A crowd-pleasing lunch spread for corporate events.',
                    [('Garden Salad', 85), ('Grilled Chicken Breast', 180),
@@ -129,22 +140,61 @@ class Command(BaseCommand):
                    tiers=[(25, Decimal('32.00')), (50, Decimal('28.00')), (100, Decimal('25.00'))])
         self._menu(dishes, 'Wedding Reception Dinner',
                    'An elegant plated or buffet dinner for weddings.',
-                   [('Bruschetta', 60), ('Caesar Salad', 85), ('Roast Beef', 180),
-                    ('Baked Salmon', 170), ('Mashed Potatoes', 110),
-                    ('Roasted Seasonal Vegetables', 110), ('Dinner Rolls', 1),
-                    ('New York Cheesecake', 90)],
+                   [('Bruschetta', 60, 'Starter'), ('Caesar Salad', 85, 'Starter'),
+                    ('Roast Beef', 180, 'Main'), ('Baked Salmon', 170, 'Main'),
+                    ('Mashed Potatoes', 110, 'Main'),
+                    ('Roasted Seasonal Vegetables', 110, 'Main'),
+                    # No course: the rolls are just on the table, which is also how
+                    # the booking renders an un-coursed dish ("On the table").
+                    ('Dinner Rolls', 1),
+                    ('New York Cheesecake', 90, 'Dessert')],
+                   courses=['Starter', 'Main', 'Dessert'],
                    tiers=[(50, Decimal('75.00')), (100, Decimal('68.00')), (200, Decimal('62.00'))])
 
-    def _menu(self, dishes, name, description, portions, tiers):
+    def _menu(self, dishes, name, description, portions, tiers, courses=()):
+        """Create one template. `portions` rows are (dish, grams) or
+        (dish, grams, course_name); a row with no course stays unassigned."""
         menu, created = MenuTemplate.objects.get_or_create(
             organisation=self.org, name=name,
             defaults={'description': description, 'default_gents': 50, 'default_ladies': 50},
         )
         if created:
-            for dish_name, grams in portions:
-                MenuDishPortion.objects.create(menu=menu, dish=dishes[dish_name], portion_grams=grams)
+            course_rows = {
+                course_name: MenuCourse.objects.create(
+                    menu=menu, name=course_name, sort_order=i,
+                )
+                for i, course_name in enumerate(courses)
+            }
+            for row in portions:
+                dish_name, grams = row[0], row[1]
+                course_name = row[2] if len(row) > 2 else None
+                MenuDishPortion.objects.create(
+                    menu=menu, dish=dishes[dish_name], portion_grams=grams,
+                    course=course_rows.get(course_name),
+                )
             for min_guests, price in tiers:
                 MenuTemplatePriceTier.objects.create(menu=menu, min_guests=min_guests, price_per_head=price)
+        elif courses and not menu.courses.exists():
+            # An org seeded BEFORE courses existed keeps a template that predates
+            # them, and `created` is False forever after — so a re-seed would never
+            # add them and the coursed shape would only ever appear on brand-new
+            # orgs. Backfill, but ONLY when the template has no courses of its own:
+            # an org that has since grouped this menu its own way keeps that.
+            self._add_courses(menu, courses, portions)
+
+    def _add_courses(self, menu, courses, portions):
+        """Add the starter courses to an existing template and file its dishes into
+        them. Dishes the org has added since are left where they are (unassigned)."""
+        course_rows = {
+            course_name: MenuCourse.objects.create(menu=menu, name=course_name, sort_order=i)
+            for i, course_name in enumerate(courses)
+        }
+        wanted = {row[0]: row[2] for row in portions if len(row) > 2}
+        for portion in menu.portions.select_related('dish'):
+            course_name = wanted.get(portion.dish.name)
+            if course_name:
+                portion.course = course_rows[course_name]
+                portion.save(update_fields=['course'])
 
     # ── Add-ons ── (name, category, unit, price, taxable, featured)
     def _addons(self):

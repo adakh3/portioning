@@ -169,8 +169,15 @@ export default function BookingTimelineField({
    * `seed_org_choices`) it falls back to one blank row — the button must never
    * look broken.
    */
+  /** The whole standard day is offsets around the meal time, so without one there
+   * is nothing to build from. It used to fall back to 18:30 silently — a lunch
+   * caterer got a plausible-looking evening day and no hint that the anchor was
+   * invented. Building is gated on this instead. */
+  const mealTimeSet = !!timePart(value.meal_time);
+
   const startRunOfShow = () => {
-    const anchor = timePart(value.meal_time) || DEFAULT_ANCHOR;
+    const anchor = timePart(value.meal_time);
+    if (!anchor) return;
 
     const seeded = presets
       .filter((p) => p.in_standard_day && p.standard_day_offset_minutes != null)
@@ -209,12 +216,17 @@ export default function BookingTimelineField({
         </div>
         {editable && (
           <div>
-            <Button type="button" size="sm" variant="outline" disabled={disabled} onClick={startRunOfShow}>
+            <Button
+              type="button" size="sm" variant="outline"
+              disabled={disabled || !mealTimeSet}
+              onClick={startRunOfShow}
+            >
               + Build a run-of-show
             </Button>
             <p className="mt-1 text-xs text-muted-foreground">
-              Carries these times into a full day built from your Timeline Steps,
-              and replaces the four slots above.
+              {mealTimeSet
+                ? "Carries these times into a full day built from your Timeline Steps, and replaces the four slots above."
+                : "Set a meal time first — the day is built around it."}
             </p>
           </div>
         )}
@@ -233,16 +245,24 @@ export default function BookingTimelineField({
             writes the same `meal_time` column. */}
         <div className="flex flex-wrap items-end gap-3">
           <div className="w-36">{field("meal_time", "Meal Time")}</div>
-          <Button type="button" size="sm" variant="outline" disabled={disabled} onClick={startRunOfShow}>
+          {/* Default size, not `sm`: these sit on one row with the Meal Time field,
+              and `sm` is h-8 against the field's h-9 — a 4px mismatch you can see. */}
+          <Button
+            type="button" variant="outline"
+            disabled={disabled || !mealTimeSet}
+            onClick={startRunOfShow}
+          >
             + Build a run-of-show
           </Button>
-          <Button type="button" size="sm" variant="ghost" disabled={disabled} onClick={addRow}>
+          {/* Adding steps by hand needs no anchor, so it stays available. */}
+          <Button type="button" variant="ghost" disabled={disabled} onClick={addRow}>
             + Add step
           </Button>
         </div>
         <p className="text-xs text-muted-foreground">
-          Builds a standard day from your Timeline Steps around the meal time —
-          delete what doesn&apos;t apply. Or add steps one at a time.
+          {mealTimeSet
+            ? "Builds a standard day from your Timeline Steps around the meal time — delete what doesn’t apply. Or add steps one at a time."
+            : "Set a meal time to build the standard day around — or add steps one at a time."}
         </p>
       </div>
     );

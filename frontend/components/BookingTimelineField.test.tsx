@@ -231,24 +231,45 @@ describe("BookingTimelineField — run-of-show entries", () => {
   it("ignores a step ticked into the day but given no offset", () => {
     const onEntriesChange = vi.fn();
     render(
-      <BookingTimelineField value={base} onChange={() => {}} entries={[]}
+      <BookingTimelineField value={{ ...base, meal_time: "2026-08-01T18:00" }}
+        onChange={() => {}} entries={[]}
         onEntriesChange={onEntriesChange}
         presets={[{ value: "setup", label: "Setup", in_standard_day: true, standard_day_offset_minutes: null }]} />,
     );
     fireEvent.click(screen.getByText("+ Build a run-of-show"));
-    // Unplaceable, so nothing to seed — falls back to a blank row.
-    expect(onEntriesChange).toHaveBeenCalledWith([{ time: "18:30", label: "" }]);
+    // Unplaceable, so nothing to seed — falls back to a blank row on the anchor.
+    expect(onEntriesChange).toHaveBeenCalledWith([{ time: "18:00", label: "" }]);
   });
 
-  it("anchors on 18:30 when the booking has no meal time", () => {
+  it("refuses to build a day with no meal time to hang it off", () => {
+    // It used to anchor silently on 18:30, so a lunch caterer got a plausible-
+    // looking EVENING day and nothing said the anchor was invented. The whole
+    // standard day is offsets around the meal time, so without one there is
+    // nothing to build.
     const onEntriesChange = vi.fn();
     render(
       <BookingTimelineField value={base} onChange={() => {}} entries={[]}
         onEntriesChange={onEntriesChange} presets={fullPresets} />,
     );
+    const build = screen.getByText("+ Build a run-of-show").closest("button")!;
+    expect(build).toBeDisabled();
+    expect(screen.getByText(/Set a meal time to build the standard day around/)).toBeInTheDocument();
+    fireEvent.click(build);
+    expect(onEntriesChange).not.toHaveBeenCalled();
+    // Adding steps by hand needs no anchor, so that stays available.
+    expect(screen.getByText("+ Add step").closest("button")).not.toBeDisabled();
+  });
+
+  it("builds once a meal time is given", () => {
+    const onEntriesChange = vi.fn();
+    render(
+      <BookingTimelineField value={{ ...base, meal_time: "2026-08-01T13:00" }}
+        onChange={() => {}} entries={[]} onEntriesChange={onEntriesChange} presets={fullPresets} />,
+    );
     fireEvent.click(screen.getByText("+ Build a run-of-show"));
     const seeded = onEntriesChange.mock.calls[0][0] as { time: string; label: string }[];
-    expect(seeded.find((r) => r.label === "Dinner service")!.time).toBe("18:30");
+    // The day hangs off the LUNCH time given, not a hardcoded dinner hour.
+    expect(seeded.find((r) => r.label === "Dinner service")!.time).toBe("13:00");
   });
 
   it("never overwrites a legacy time the booking already has", () => {
@@ -328,7 +349,8 @@ describe("BookingTimelineField — run-of-show entries", () => {
     // must still do something visible rather than appear broken.
     const onEntriesChange = vi.fn();
     render(
-      <BookingTimelineField value={base} onChange={() => {}} entries={[]}
+      <BookingTimelineField value={{ ...base, meal_time: "2026-08-01T18:30" }}
+        onChange={() => {}} entries={[]}
         onEntriesChange={onEntriesChange} presets={[]} />,
     );
     fireEvent.click(screen.getByText("+ Build a run-of-show"));

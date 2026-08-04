@@ -549,6 +549,8 @@ export default function QuoteDetailPage() {
                 dishCourses={createDishCourses}
                 menuChoices={createMenuChoices}
                 plated={isPlated(createData.service_style)}
+                bigEaters={createData.big_eaters}
+                bigEatersPercentage={createData.big_eaters_percentage}
                 serviceStyleLabel={serviceStyleLabels[createData.service_style]}
                 onStructureChange={({ courses, dishCourses, menuChoices }) => {
                   setCreateCourses(courses);
@@ -1062,6 +1064,8 @@ export default function QuoteDetailPage() {
               dishCourses={editDishCourses}
               menuChoices={editMenuChoices}
               plated={isPlated(editData.service_style)}
+              bigEaters={editData.big_eaters}
+              bigEatersPercentage={editData.big_eaters_percentage}
               serviceStyleLabel={serviceStyleLabels[editData.service_style]}
               onStructureChange={({ courses, dishCourses, menuChoices }) => {
                 setEditCourses(courses);

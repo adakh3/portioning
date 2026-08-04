@@ -235,8 +235,23 @@ class PriceEstimateView(APIView):
         ladies = guest_count - gents
         guests = {'gents': gents, 'ladies': ladies}
 
+        # A hearty-eater crowd is 20% more food to cook, so it is 20% more food to
+        # pay for — the suggested rate has to know. This was the ONE view that
+        # dropped it: CalculateView, CheckPortionsView and ExportPDFView all pass it
+        # through, so the same menu quoted more food than the estimate priced.
+        big_eaters = bool(request.data.get('big_eaters', False))
         try:
-            result = calculate_portions(dish_ids, guests, org=get_request_org(request))
+            big_eaters_percentage = float(request.data.get('big_eaters_percentage', 20.0))
+        except (ValueError, TypeError):
+            big_eaters_percentage = 20.0
+
+        try:
+            result = calculate_portions(
+                dish_ids, guests,
+                big_eaters=big_eaters,
+                big_eaters_percentage=big_eaters_percentage,
+                org=get_request_org(request),
+            )
         except Exception:
             logger.exception('Portion calculation failed')
             return Response(
@@ -262,11 +277,18 @@ class PriceEstimateView(APIView):
             spg = selling_prices.get(p['dish_id'], 0)
             price_per_head += p['grams_per_person'] * spg
 
-        # Apply rounding step from settings
+        # Apply rounding step from settings.
+        #
+        # Never round a real price down to nothing. The step defaults to 50 (a
+        # rupee-shaped assumption), so a $5.40/head menu became $0.00 — a suggestion
+        # of zero, indistinguishable from "couldn't price this", on a menu that was
+        # priced perfectly well. Country defaults now set a currency-appropriate
+        # step, but existing orgs keep whatever they were created with, so the floor
+        # has to live here too.
         from bookings.models import OrgSettings
         step = OrgSettings.for_org(get_request_org(request)).price_rounding_step
-        if step > 1:
-            price_per_head = round(price_per_head / step) * step
+        if step > 1 and price_per_head > 0:
+            price_per_head = max(round(price_per_head / step) * step, step)
 
         return Response({
             'price_per_head': round(price_per_head, 2),

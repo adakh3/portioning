@@ -860,6 +860,8 @@ export default function EventDetailPage() {
                   dishCourses={formDishCourses}
                   menuChoices={formMenuChoices}
                   plated={isPlated(formServiceStyle)}
+                  bigEaters={formBigEaters}
+                  bigEatersPercentage={formBigEatersPercent}
                   serviceStyleLabel={serviceStyleLabels[formServiceStyle]}
                   onStructureChange={handleStructureChange}
                   pricePerHead={formPricePerHead}
@@ -883,6 +885,8 @@ export default function EventDetailPage() {
                   dishCourses={formDishCourses}
                   menuChoices={formMenuChoices}
                   plated={isPlated(formServiceStyle)}
+                  bigEaters={formBigEaters}
+                  bigEatersPercentage={formBigEatersPercent}
                   serviceStyleLabel={serviceStyleLabels[formServiceStyle]}
                   onStructureChange={handleStructureChange}
                   pricePerHead={formPricePerHead}
