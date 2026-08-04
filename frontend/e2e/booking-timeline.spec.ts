@@ -57,6 +57,9 @@ test.describe("Booking timeline persists end-to-end", () => {
 
     await page.getByLabel("Customer", { exact: false }).selectOption({ label: "Aisha Khan" });
     await page.getByLabel("Guest Count").fill("30");
+    // The day is built AROUND the meal time, so the button stays disabled until
+    // there is one — building with no anchor used to default silently to 18:30.
+    await page.getByLabel("Meal Time").selectOption("18:30");
 
     // One click prefills the standard day from the org's Timeline Steps; then we
     // cut it down to three steps and set them deliberately out of clock order,
