@@ -1,0 +1,547 @@
+"""Render-and-extract tests for the BEO — the day-of Banquet Event Order (REL-444).
+
+Build a real event, render it with ``generate_beo_pdf``, pull the text back out with
+pypdf, and assert what the kitchen/banquet/venue actually see. Golden-style, like
+``bookings/test_pdf_golden.py``: a PDF that builds without raising proves nothing
+about whether the vendor covers made it onto the page.
+
+Traced to the ticket's acceptance criteria — each test names the AC it covers.
+"""
+import datetime
+import io
+from decimal import Decimal
+
+from django.core.management import call_command
+from django.test import TestCase
+from rest_framework.test import APIClient
+
+from tests.base import get_test_user
+from bookings.models.settings import OrgSettings
+from bookings.models.signatures import BookingSignature
+from bookings.pdf_beo import generate_beo_pdf
+from bookings.services.beo import record_beo_issue
+from dishes.models import DietaryTag, DietaryTagKind
+from dishes.tests import make_category, make_dish
+from equipment.models import EquipmentItem, EquipmentReservation
+from events.models import (
+    BookingCourse, BookingGuestCount, BookingMeal, BookingTimelineEntry,
+    Event, EventDishComment, MealAudience,
+)
+from rules.models import GuestSegment
+from staff.models import LaborRole, Shift, StaffMember
+
+try:
+    from pypdf import PdfReader
+    HAVE_PYPDF = True
+except ImportError:  # pragma: no cover - pypdf is a declared dependency
+    HAVE_PYPDF = False
+
+
+def _dt(hour, day=1):
+    return datetime.datetime(2026, 8, day, hour, 0, tzinfo=datetime.timezone.utc)
+
+
+class BEOTestBase(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        call_command("seed_data", verbosity=0)
+
+    def setUp(self):
+        self.user = get_test_user()
+        self.org = self.user.organisation
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
+
+    def _event(self, org=None, **kwargs):
+        defaults = dict(
+            organisation=org or self.org, name="Khan Wedding",
+            event_date=datetime.date(2026, 8, 1), guest_count=100,
+            status="confirmed", event_type="wedding", service_style="plated",
+            price_per_head=Decimal("137.77"),
+        )
+        defaults.update(kwargs)
+        return Event.objects.create(**defaults)
+
+    def _text(self, event):
+        if not HAVE_PYPDF:
+            self.skipTest("pypdf not installed")
+        reader = PdfReader(io.BytesIO(generate_beo_pdf(event)))
+        return "\n".join(p.extract_text() for p in reader.pages)
+
+    def _vendor_segment(self, name="Vendors"):
+        return GuestSegment.objects.create(
+            organisation=self.org, name=name, counts_toward_total=False,
+            price_multiplier=Decimal("0.5000"), sort_order=9,
+        )
+
+    def _adults_segment(self):
+        # A named in-count segment of our own, NOT the seeded default — that one is
+        # called "gents" in this org's seed data, which would make the breakdown
+        # assertions below pass or fail on seed wording rather than on the BEO.
+        return GuestSegment.objects.get_or_create(
+            organisation=self.org, name="Adults",
+            defaults={"counts_toward_total": True, "sort_order": 0},
+        )[0]
+
+
+class BEOSectionTests(BEOTestBase):
+    """AC1, AC3, AC4, AC5, AC8, AC9 — the sections and the order they read in."""
+
+    def _full_event(self):
+        from bookings.models import Contact, Venue
+        e = self._event(
+            guaranteed_count=95, final_count=92,
+            final_count_due=datetime.date(2026, 7, 18),
+            primary_contact=Contact.objects.create(
+                organisation=self.org, name="Jane Doe", phone="555-0199"),
+            venue=Venue.objects.create(
+                organisation=self.org, name="The Grand Hall", city="Austin"),
+            kitchen_instructions="No pork. Halal only.",
+            banquet_instructions="White linen, gold chargers.",
+            setup_instructions="Stage against the north wall.",
+        )
+        BookingTimelineEntry.objects.create(
+            event=e, time=datetime.time(14, 0), label="Load in",
+            date=datetime.date(2026, 7, 31), sort_order=0,
+        )
+        BookingTimelineEntry.objects.create(
+            event=e, time=datetime.time(19, 0), label="Dinner service", sort_order=1,
+        )
+        cat = make_category(org=self.org)
+        starter = make_dish(org=self.org, category=cat, name="Burrata")
+        main = make_dish(org=self.org, category=cat, name="Filet Mignon")
+        e.dishes.set([starter, main])
+        c1 = BookingCourse.objects.create(event=e, name="Starter", sort_order=0)
+        c2 = BookingCourse.objects.create(event=e, name="Main", sort_order=1)
+        EventDishComment.objects.create(event=e, dish=starter, course=c1)
+        EventDishComment.objects.create(event=e, dish=main, course=c2)
+
+        role = LaborRole.objects.create(organisation=self.org, name="Server",
+                                        default_hourly_rate=Decimal("25.00"))
+        staff = StaffMember.objects.create(organisation=self.org, name="Ada Cook")
+        Shift.objects.create(event=e, role=role, staff_member=staff,
+                             start_time=_dt(14), end_time=_dt(23))
+        Shift.objects.create(event=e, role=role, start_time=_dt(16), end_time=_dt(23))
+
+        item = EquipmentItem.objects.create(organisation=self.org, name="Chafing dish",
+                                            stock_quantity=40)
+        EquipmentReservation.objects.create(event=e, equipment=item, quantity_out=12)
+        return e
+
+    def test_every_section_renders_in_ops_order(self):
+        text = self._text(self._full_event())
+
+        # AC1 — the document identifies itself and which copy this is.
+        self.assertIn("BANQUET EVENT ORDER", text)
+        self.assertIn("BEO #", text)
+        self.assertIn("Rev 1", text)
+
+        for header in ["GUEST COUNT", "TIMELINE", "MENU", "STAFFING", "EQUIPMENT",
+                       "KITCHEN INSTRUCTIONS", "BANQUET INSTRUCTIONS",
+                       "SETUP INSTRUCTIONS", "CONTACTS"]:
+            self.assertIn(header, text, f"missing section: {header}")
+
+        # The sheet reads in the order the day runs: who's coming, when, what they
+        # eat, who cooks it, what to load, then the notes and the phone numbers.
+        order = ["GUEST COUNT", "TIMELINE", "MENU", "STAFFING", "EQUIPMENT",
+                 "KITCHEN INSTRUCTIONS", "CONTACTS"]
+        positions = [text.find(h) for h in order]
+        self.assertEqual(positions, sorted(positions), f"sections out of order: {order}")
+
+    def test_timeline_entries_render_with_day_before_date(self):
+        # AC3 — entries win, and a step on another day says so.
+        text = self._text(self._full_event())
+        self.assertIn("Load in", text)
+        self.assertIn("Dinner service", text)
+        self.assertIn("31 Jul", text)  # the load-in is the afternoon before
+        self.assertNotIn("Setup Time:", text)  # legacy slots must NOT also appear
+
+    def test_legacy_times_render_when_there_are_no_entries(self):
+        # AC3 — entries-win-ELSE-legacy, the same rule as the other two surfaces.
+        e = self._event(setup_time=_dt(16), meal_time=_dt(20))
+        text = self._text(e)
+        self.assertIn("Setup Time:", text)
+        self.assertIn("Meal Time:", text)
+
+    def test_guest_breakdown_and_guarantee(self):
+        # AC5 — the in-count breakdown plus where the guarantee stands.
+        e = self._full_event()
+        e.guest_count = 0
+        e.save(update_fields=["guest_count"])
+        adults = self._adults_segment()
+        kids = GuestSegment.objects.create(organisation=self.org, name="Kids",
+                                           portion_multiplier=0.6, sort_order=1)
+        BookingGuestCount.objects.create(event=e, segment=adults, count=80)
+        BookingGuestCount.objects.create(event=e, segment=kids, count=20)
+        text = self._text(e)
+        self.assertIn("Adults", text)
+        self.assertIn("Kids", text)
+        self.assertIn("Total guests:", text)
+        self.assertIn("100", text)  # 80 + 20
+        self.assertIn("Guaranteed count:", text)
+        self.assertIn("Final count:", text)
+        self.assertIn("Final count due:", text)
+
+    def test_additional_covers_sit_outside_the_guest_total(self):
+        # AC5 — vendor covers are real plates but deliberately not guests, so the
+        # sheet has to show both numbers rather than one blended one.
+        e = self._event(guest_count=0)
+        BookingGuestCount.objects.create(event=e, segment=self._adults_segment(), count=100)
+        BookingGuestCount.objects.create(event=e, segment=self._vendor_segment(), count=8)
+        text = self._text(e)
+        self.assertIn("Adults", text)
+        self.assertIn("additional cover", text)
+        self.assertIn("Total guests:", text)
+        self.assertIn("Total covers:", text)
+        # 100 guests, 108 covers — the distinction the block exists for.
+        self.assertIn("108", text)
+
+    def test_guarantee_lines_are_omitted_until_there_is_a_guarantee(self):
+        # AC5 — an empty "Final count:" label would read as a recorded zero.
+        text = self._text(self._event())
+        self.assertIn("GUEST COUNT", text)
+        for absent in ["Guaranteed count:", "Final count:", "Final count due:"]:
+            self.assertNotIn(absent, text)
+
+    def test_empty_sections_are_omitted_rather_than_rendered_blank(self):
+        # AC8/AC9 — a bare event should print no headers it has nothing to fill.
+        text = self._text(self._event())
+        for absent in ["STAFFING", "EQUIPMENT", "MENU", "CONTACTS",
+                       "KITCHEN INSTRUCTIONS", "BANQUET INSTRUCTIONS",
+                       "SETUP INSTRUCTIONS", "ADDITIONAL MEALS", "VENDOR MEALS"]:
+            self.assertNotIn(absent, text, f"empty section rendered anyway: {absent}")
+        # …but it is still a BEO, with the identity and guests that always apply.
+        self.assertIn("BANQUET EVENT ORDER", text)
+        self.assertIn("GUEST COUNT", text)
+
+    def test_staffing_names_the_unassigned_shift(self):
+        # AC8 — an empty slot on the roster has to read as an empty slot.
+        text = self._text(self._full_event())
+        self.assertIn("Ada Cook", text)
+        self.assertIn("Unassigned", text)
+        self.assertIn("Server", text)
+
+    def test_equipment_lists_item_and_quantity(self):
+        text = self._text(self._full_event())  # AC8
+        self.assertIn("Chafing dish", text)
+        self.assertIn("12", text)
+
+    def test_staffing_and_equipment_omitted_when_empty(self):
+        # AC8 — each section disappears rather than printing an empty table.
+        text = self._text(self._event())
+        self.assertNotIn("STAFFING", text)
+        self.assertNotIn("EQUIPMENT", text)
+
+    def test_contacts_render_customer_and_venue(self):
+        # AC9
+        from bookings.models import Contact, Venue
+        venue = Venue.objects.create(
+            organisation=self.org, name="The Grand Hall", address_line1="1 High St",
+            city="Austin", contact_name="Dana Venue", contact_phone="555-0100",
+        )
+        contact = Contact.objects.create(organisation=self.org, name="Jane Doe",
+                                         phone="555-0199", email="jane@example.com")
+        contact.refresh_from_db()  # Contact.save normalises the number to E.164
+        text = self._text(self._event(venue=venue, primary_contact=contact))
+        self.assertIn("CONTACTS", text)
+        self.assertIn("Jane Doe", text)
+        self.assertIn("jane@example.com", text)
+        self.assertIn(contact.phone, text)
+        self.assertIn("The Grand Hall", text)
+        self.assertIn("Dana Venue", text)
+        self.assertIn("555-0100", text)
+
+
+class BEOMenuTests(BEOTestBase):
+    """AC4, AC7 — the menu, its dietary flags, and the choice tallies."""
+
+    def _tagged_course_event(self, choice_counts=None):
+        """A plated event with a Starter and a Main that offers a choice of three."""
+        e = self._event(final_count_due=datetime.date(2026, 7, 18))
+        cat = make_category(org=self.org)
+        gf = DietaryTag.objects.get_or_create(
+            slug="gluten-free", defaults={"label": "Gluten free", "short_label": "GF",
+                                          "kind": DietaryTagKind.DIETARY})[0]
+        milk = DietaryTag.objects.get_or_create(
+            slug="milk", defaults={"label": "Milk", "kind": DietaryTagKind.ALLERGEN})[0]
+        starter = make_dish(org=self.org, category=cat, name="Burrata")
+        starter.dietary_tags.set([milk])
+        beef = make_dish(org=self.org, category=cat, name="Filet Mignon")
+        beef.dietary_tags.set([gf])
+        salmon = make_dish(org=self.org, category=cat, name="Salmon")
+        veg = make_dish(org=self.org, category=cat, name="Wild Mushroom Risotto")
+        e.dishes.set([starter, beef, salmon, veg])
+        c1 = BookingCourse.objects.create(event=e, name="Starter", sort_order=0)
+        c2 = BookingCourse.objects.create(event=e, name="Main", sort_order=1)
+        EventDishComment.objects.create(event=e, dish=starter, course=c1)
+        counts = choice_counts or {}
+        for dish in (beef, salmon, veg):
+            EventDishComment.objects.create(
+                event=e, dish=dish, course=c2, is_choice=True,
+                choice_count=counts.get(dish.name),
+            )
+        return e
+
+    def test_menu_groups_by_course_with_service_style_once_and_dietary_suffixes(self):
+        # AC4
+        text = self._text(self._tagged_course_event())
+        self.assertIn("MENU", text)
+        self.assertIn("Starter", text)
+        self.assertIn("Main", text)
+        self.assertIn("Service style:", text)
+        self.assertEqual(text.count("Service style:"), 1, "service style is booking-level")
+        self.assertIn("Burrata (contains milk)", text)
+        self.assertIn("Filet Mignon (GF)", text)
+
+    def test_course_less_event_renders_the_flat_menu(self):
+        # AC4 — no courses defined, so the flat added-order list still renders.
+        e = self._event()
+        cat = make_category(org=self.org)
+        e.dishes.set([make_dish(org=self.org, category=cat, name="Lamb Biryani")])
+        text = self._text(e)
+        self.assertIn("MENU", text)
+        self.assertIn("Lamb Biryani", text)
+
+    def test_recorded_tallies_render_under_their_course(self):
+        # AC7 — the numbers the kitchen cooks to, beneath the course that offers them.
+        e = self._tagged_course_event(choice_counts={
+            "Filet Mignon": 60, "Salmon": 25, "Wild Mushroom Risotto": 15,
+        })
+        text = self._text(e)
+        self.assertIn("60", text)
+        self.assertIn("25", text)
+        self.assertIn("15", text)
+        self.assertNotIn("choices pending", text)
+        # The tallies sit under the Main course, not floating at the top of the menu.
+        self.assertLess(text.find("Main"), text.find("60"))
+
+    def test_pending_line_when_choices_are_offered_but_not_yet_tallied(self):
+        # AC7 — silence would read as "no choices", which is the one wrong answer.
+        text = self._text(self._tagged_course_event())
+        self.assertIn("Main choices pending", text)
+        self.assertIn("due 18 Jul 2026", text)
+
+    def test_a_stale_choice_flag_on_a_non_plated_booking_renders_nothing(self):
+        # AC7 — switching a booking off plated hides the Menu-choices card, taking the
+        # only way to untick with it, so flags DO get left behind (REL-419). Every read
+        # is gated on the service style; the BEO must be gated too, or the kitchen gets
+        # a "choices pending" line for a buffet nobody will ever tally.
+        e = self._tagged_course_event(choice_counts={"Filet Mignon": 60})
+        e.service_style = "buffet"
+        e.save(update_fields=["service_style"])
+        text = self._text(e)
+        self.assertNotIn("choices pending", text)
+        self.assertNotIn("Choice of:", text)
+        # The dishes themselves are still on the menu — they are ordinary dishes now.
+        self.assertIn("Filet Mignon", text)
+
+    def test_no_choice_block_when_nothing_is_offered(self):
+        # AC7 — a booking with no choices gets no pending line either.
+        e = self._event()
+        cat = make_category(org=self.org)
+        dish = make_dish(org=self.org, category=cat, name="Lamb Biryani")
+        e.dishes.set([dish])
+        course = BookingCourse.objects.create(event=e, name="Main", sort_order=0)
+        EventDishComment.objects.create(event=e, dish=dish, course=course)
+        self.assertNotIn("choices pending", self._text(e))
+
+
+class BEOVendorTests(BEOTestBase):
+    """AC6 — vendor covers, detected without a vendor flag."""
+
+    def test_segment_audience_meal_renders_the_vendor_block(self):
+        e = self._event()
+        vendors = self._vendor_segment()
+        BookingGuestCount.objects.create(event=e, segment=vendors, count=8)
+        cat = make_category(org=self.org)
+        meal = BookingMeal.objects.create(
+            event=e, label="Crew boxes", audience=MealAudience.SEGMENT,
+            audience_segment=vendors, guest_count=8, meal_time=_dt(17),
+        )
+        meal.dishes.set([make_dish(org=self.org, category=cat, name="Chicken Wrap")])
+        text = self._text(e)
+        self.assertIn("VENDOR MEALS", text)
+        self.assertIn("Vendors", text)
+        self.assertIn("Crew boxes", text)
+        self.assertIn("Chicken Wrap", text)
+        self.assertIn("8 covers", text)
+        self.assertIn("17:00", text)  # serve time, because the meal is timed
+
+    def test_additional_covers_row_alone_renders_the_vendor_block(self):
+        # AC6, second signal — vendors are on the guest counts with no meal of their
+        # own, so they eat the main menu and the sheet says so.
+        e = self._event()
+        BookingGuestCount.objects.create(event=e, segment=self._adults_segment(), count=100)
+        BookingGuestCount.objects.create(event=e, segment=self._vendor_segment(), count=6)
+        text = self._text(e)
+        self.assertIn("VENDOR MEALS", text)
+        self.assertIn("6 covers", text)
+        self.assertIn("Served from the main menu", text)
+
+    def test_vendor_block_omitted_when_there_are_no_vendors(self):
+        # AC6 — the block disappears entirely rather than rendering empty.
+        e = self._event()
+        BookingGuestCount.objects.create(event=e, segment=self._adults_segment(), count=100)
+        BookingMeal.objects.create(event=e, label="Welcome drinks", guest_count=100,
+                                   meal_time=_dt(18))
+        text = self._text(e)
+        self.assertNotIn("VENDOR MEALS", text)
+        self.assertIn("ADDITIONAL MEALS", text)  # the ordinary extra meal still shows
+
+    def test_a_vendor_meal_is_not_also_listed_as_an_ordinary_extra_meal(self):
+        # The two blocks partition the meals — one cover, listed once.
+        e = self._event()
+        vendors = self._vendor_segment()
+        BookingGuestCount.objects.create(event=e, segment=vendors, count=8)
+        BookingMeal.objects.create(event=e, label="Crew boxes", audience=MealAudience.SEGMENT,
+                                   audience_segment=vendors, guest_count=8)
+        text = self._text(e)
+        self.assertEqual(text.count("Crew boxes"), 1)
+        self.assertNotIn("ADDITIONAL MEALS", text)
+
+    def test_a_meal_labelled_vendor_is_not_treated_as_one(self):
+        # Free text is not a signal: a custom-count meal called "Vendor lunch" proves
+        # nothing about who eats it, and guessing would put phantom covers on the sheet.
+        e = self._event()
+        BookingMeal.objects.create(event=e, label="Vendor lunch", guest_count=10)
+        self.assertNotIn("VENDOR MEALS", self._text(e))
+
+
+class BEORevisionTests(BEOTestBase):
+    """AC2 — the revision counter."""
+
+    def _sign(self, event):
+        return BookingSignature.objects.create(event=event, signer_name="Client Co")
+
+    def test_first_issue_is_rev_1_with_no_revised_stamp(self):
+        e = self._event()
+        self.assertEqual(e.beo_revision, 0)
+        revision, revised_at = record_beo_issue(e)
+        self.assertEqual(revision, 1)
+        self.assertIsNone(revised_at)
+        self.assertIn("Rev 1", self._text(e))
+
+    def test_unsigned_regeneration_does_not_increment(self):
+        e = self._event()
+        for _ in range(3):
+            record_beo_issue(e)
+        e.refresh_from_db()
+        self.assertEqual(e.beo_revision, 1)
+        self.assertIsNone(e.beo_revised_at)
+        self.assertIn("Rev 1", self._text(e))
+
+    def test_signed_regeneration_increments_and_stamps(self):
+        e = self._event()
+        record_beo_issue(e)          # Rev 1, issued before signing
+        self._sign(e)
+        record_beo_issue(e)
+        e.refresh_from_db()
+        self.assertEqual(e.beo_revision, 2)
+        self.assertIsNotNone(e.beo_revised_at)
+        text = self._text(e)
+        self.assertIn("Rev 2", text)
+        self.assertIn("Revised", text)
+
+    def test_first_issue_after_signing_is_still_rev_1(self):
+        # A first issue is not a revision of anything, even on a signed booking.
+        e = self._event()
+        self._sign(e)
+        self.assertEqual(record_beo_issue(e)[0], 1)
+        self.assertEqual(record_beo_issue(e)[0], 2)
+
+    def test_rendering_alone_never_moves_the_counter(self):
+        e = self._event()
+        record_beo_issue(e)
+        self._sign(e)
+        generate_beo_pdf(e)
+        generate_beo_pdf(e)
+        e.refresh_from_db()
+        self.assertEqual(e.beo_revision, 1)
+
+
+class BEONoPricingTests(BEOTestBase):
+    """AC10 — an ops document carries no money."""
+
+    def test_no_prices_totals_or_currency_anywhere(self):
+        from bookings.models import BookingLineItem
+        e = self._event(is_taxable=True, tax_rate=Decimal("0.0825"))
+        BookingLineItem.objects.create(event=e, category="rental", description="Linens",
+                                       quantity=Decimal("10"), unit="each",
+                                       unit_price=Decimal("42.42"))
+        BookingMeal.objects.create(event=e, label="Welcome drinks", guest_count=100,
+                                   price_per_head=Decimal("19.19"), meal_time=_dt(18))
+        e.recalculate_totals()
+        text = self._text(e)
+        symbol = OrgSettings.for_org(self.org).currency_symbol
+        self.assertNotIn(symbol, text)
+        for forbidden in ["137.77", "42.42", "19.19", "GRAND TOTAL", "Sub Total",
+                          "TOTAL", "Tax", "per head"]:
+            self.assertNotIn(forbidden, text, f"BEO leaked pricing: {forbidden}")
+        # It still says what is being served and to how many — just not for how much.
+        self.assertIn("Welcome drinks", text)
+        self.assertIn("100 covers", text)
+
+
+class BEOEndpointTests(BEOTestBase):
+    """AC1 — the download endpoint."""
+
+    def test_endpoint_returns_a_pdf(self):
+        e = self._event()
+        res = self.client.get(f"/api/events/{e.id}/beo/")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res["Content-Type"], "application/pdf")
+        self.assertTrue(res.content.startswith(b"%PDF"))
+        self.assertIn("BEO-", res["Content-Disposition"])
+
+    def test_endpoint_issues_the_document(self):
+        e = self._event()
+        self.client.get(f"/api/events/{e.id}/beo/")
+        e.refresh_from_db()
+        self.assertEqual(e.beo_revision, 1)
+
+    def test_endpoint_is_org_scoped(self):
+        from users.models import Organisation
+        other = Organisation.objects.create(name="Other Co BEO", slug="other-co-beo")
+        e = self._event(org=other)
+        self.assertEqual(self.client.get(f"/api/events/{e.id}/beo/").status_code, 404)
+
+    def test_endpoint_requires_authentication(self):
+        e = self._event()
+        anon = APIClient()
+        self.assertIn(anon.get(f"/api/events/{e.id}/beo/").status_code, (401, 403))
+
+
+class BEODoesNotDisturbTheFunctionSheetTests(BEOTestBase):
+    """Safety — the client-facing documents are untouched by this slice."""
+
+    def test_menu_courses_default_still_carries_plain_dish_names(self):
+        # `booking_menu_courses` grew a `with_dietary` switch for the BEO; every
+        # existing surface calls it without one and must see exactly what it saw
+        # before (the quote/event PDF goldens depend on it).
+        from bookings.services.presentation import booking_menu_courses
+        e = self._event()
+        cat = make_category(org=self.org)
+        gf = DietaryTag.objects.get_or_create(
+            slug="gluten-free", defaults={"label": "Gluten free", "short_label": "GF",
+                                          "kind": DietaryTagKind.DIETARY})[0]
+        dish = make_dish(org=self.org, category=cat, name="Filet Mignon")
+        dish.dietary_tags.set([gf])
+        e.dishes.set([dish])
+        course = BookingCourse.objects.create(event=e, name="Main", sort_order=0)
+        EventDishComment.objects.create(event=e, dish=dish, course=course)
+
+        plain = booking_menu_courses(e)
+        self.assertEqual(plain[0]["items"], ["Filet Mignon"])
+        tagged = booking_menu_courses(e, with_dietary=True)
+        self.assertEqual(tagged[0]["items"], ["Filet Mignon (GF)"])
+
+    def test_function_sheet_still_renders_its_totals(self):
+        from bookings.pdf import generate_event_pdf
+        e = self._event()
+        e.recalculate_totals()
+        if not HAVE_PYPDF:
+            self.skipTest("pypdf not installed")
+        reader = PdfReader(io.BytesIO(generate_event_pdf(e)))
+        text = "\n".join(p.extract_text() for p in reader.pages)
+        self.assertIn("EVENT FUNCTION SHEET", text)
+        self.assertIn("GRAND TOTAL", text)

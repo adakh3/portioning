@@ -1681,6 +1681,20 @@ export const api = {
     }
     return res.blob();
   },
+  // The day-of Banquet Event Order — the ops counterpart to the function sheet
+  // above, carrying no pricing. Downloading it also issues it: the server bumps the
+  // revision counter on a re-issue after signing (REL-444).
+  downloadEventBEO: async (id: number): Promise<Blob> => {
+    const res = await fetch(`${API_BASE}/events/${id}/beo/`, {
+      credentials: "include",
+      headers: buildHeaders(),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(sanitizeError(res.status, text));
+    }
+    return res.blob();
+  },
   getQuoteLineItems: (quoteId: number) =>
     fetchList<QuoteLineItem>(`/bookings/quotes/${quoteId}/items/?page_size=all`),
   createQuoteLineItem: (quoteId: number, data: Partial<QuoteLineItem>) =>

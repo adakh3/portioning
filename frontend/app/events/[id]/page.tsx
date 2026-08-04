@@ -427,6 +427,23 @@ export default function EventDetailPage() {
     }
   };
 
+  // Both documents download the same way — fetch the blob, click a synthetic link.
+  // Shared so the function sheet and the BEO can't drift on error handling or
+  // forget to revoke the object URL (REL-444).
+  const handleDownload = async (fetchBlob: () => Promise<Blob>, filename: string) => {
+    try {
+      const blob = await fetchBlob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : `Failed to download ${filename}`);
+    }
+  };
+
   const handleStatusTransition = async (newStatus: string) => {
     if (!event) return;
     setSaving(true);
@@ -648,21 +665,23 @@ export default function EventDetailPage() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={async () => {
-                      try {
-                        const blob = await api.downloadEventPDF(event!.id);
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement("a");
-                        a.href = url;
-                        a.download = `Event-${event!.id}.pdf`;
-                        a.click();
-                        URL.revokeObjectURL(url);
-                      } catch (err) {
-                        setError(err instanceof Error ? err.message : "Failed to download PDF");
-                      }
-                    }}
+                    onClick={() => handleDownload(
+                      () => api.downloadEventPDF(event!.id), `Event-${event!.id}.pdf`,
+                    )}
                   >
                     Download PDF
+                  </Button>
+                  {/* The ops sheet the kitchen/banquet/venue work from — same event,
+                      organised for the day and carrying no pricing. */}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    title="Banquet Event Order — the day-of sheet for kitchen, banquet and venue"
+                    onClick={() => handleDownload(
+                      () => api.downloadEventBEO(event!.id), `BEO-${event!.id}.pdf`,
+                    )}
+                  >
+                    BEO
                   </Button>
                   {/* Status transitions */}
                   {event!.status === "tentative" && (

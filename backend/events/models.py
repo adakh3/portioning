@@ -662,6 +662,16 @@ class Event(OrgScopedModel, models.Model):
     final_count = models.IntegerField(null=True, blank=True)
     final_count_due = models.DateField(null=True, blank=True)
 
+    # BEO issue tracking (REL-444). The BEO is the day-of ops document; kitchen,
+    # banquet and the venue all work from it, so they need to know *which* copy
+    # they are holding. 0 = never issued; the first download makes it Rev 1, and
+    # only a re-issue **after the client signed** counts as a revision (see
+    # ``bookings/services/beo.py::record_beo_issue``) — before signing the document
+    # is still being drafted, and bumping the number for every preview would make
+    # the counter meaningless.
+    beo_revision = models.IntegerField(default=0)
+    beo_revised_at = models.DateTimeField(null=True, blank=True)
+
     # Unguessable token for the client-facing (unauthenticated) sign link —
     # used when a booking is created directly as an event (no quote). Only set
     # once the event is sent for signature. See bookings/views/public_sign.py.

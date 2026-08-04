@@ -11,6 +11,8 @@ from rest_framework.response import Response
 from bookings.models import LockedDate
 from bookings.permissions import is_salesperson
 from bookings.pdf import generate_event_pdf
+from bookings.pdf_beo import generate_beo_pdf
+from bookings.services.beo import record_beo_issue
 from .models import Event, EventStatus, EventPayment
 from users.mixins import (
     get_request_org, apply_org_filter, get_org_object_or_404, is_superuser_without_org,
@@ -33,6 +35,35 @@ class EventPDFView(APIView):
         pdf_bytes = generate_event_pdf(event)
         response = HttpResponse(pdf_bytes, content_type='application/pdf')
         response['Content-Disposition'] = f'attachment; filename="Event-{event.pk}.pdf"'
+        return response
+
+
+class EventBEOView(APIView):
+    """GET /api/events/<pk>/beo/ — download the day-of Banquet Event Order (REL-444).
+
+    The ops counterpart to the function sheet above: same event, no money. The
+    download also *issues* the document (``record_beo_issue``), which is why a GET
+    writes — the revision counter tracks copies that have left the building, and the
+    only moment we know one has is when someone takes it.
+    """
+
+    def get(self, request, pk):
+        event = get_org_object_or_404(
+            Event.objects.select_related('account', 'venue', 'primary_contact', 'organisation')
+            .prefetch_related(
+                'dishes', 'dish_comments', 'courses', 'timeline_entries', 'signatures',
+                'guest_counts__segment',
+                'additional_meals__dishes', 'additional_meals__audience_segment',
+                'shifts__staff_member', 'shifts__role',
+                'equipment_reservations__equipment',
+            ),
+            request, pk=pk,
+        )
+        record_beo_issue(event)
+        response = HttpResponse(generate_beo_pdf(event), content_type='application/pdf')
+        response['Content-Disposition'] = (
+            f'attachment; filename="BEO-{event.pk}-Rev{event.beo_revision}.pdf"'
+        )
         return response
 
 
