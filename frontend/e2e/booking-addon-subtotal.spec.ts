@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { login } from "./helpers";
+import { login, pickCustomer } from "./helpers";
 
 /**
  * The prefetch-cache regression: create a quote, then EDIT it to add an add-on.
@@ -18,7 +18,7 @@ test.describe("Add-ons stay in the saved subtotal after an edit", () => {
   test("edit a quote to add a catalog add-on → subtotal includes it after save", async ({ page }) => {
     // 1) create a bare quote (no add-ons yet — this is what poisons the cache).
     await page.goto("/quotes/new");
-    await page.getByLabel("Customer", { exact: false }).selectOption({ label: "Aisha Khan" });
+    await pickCustomer(page);
     await page.getByLabel("Guest Count").fill("100");
     await page.getByRole("button", { name: "Create Quote" }).click();
     await page.waitForURL(/\/quotes\/\d+$/, { timeout: 15_000 });

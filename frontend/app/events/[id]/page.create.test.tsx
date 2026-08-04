@@ -161,4 +161,23 @@ describe("Event create — guest split + anchored timeline reach the payload", (
     expect(payload.service_charge_taxable).toBe(false);  // the flag flows from settings (default state is true)
     expect(payload.gratuity_pct).toBe("0.00");
   });
+
+  // The customer/business pickers are searchable buttons now, so the browser
+  // enforces nothing — these guards are the only thing standing between a
+  // half-filled form and a saved event. Mirrors the quote-form pair.
+  it("refuses to create an event with no customer", async () => {
+    render(<EventCreatePage />);
+    fireEvent.click(screen.getByText("Create Event"));
+    expect(await screen.findByText("Customer is required")).toBeInTheDocument();
+    expect(h.createEvent).not.toHaveBeenCalled();
+  });
+
+  it("refuses a B2B event with no business", async () => {
+    render(<EventCreatePage />);
+    fireEvent.click(screen.getByText("select-customer"));
+    fireEvent.click(screen.getByLabelText("Business booking (B2B)"));
+    fireEvent.click(screen.getByText("Create Event"));
+    expect(await screen.findByText("A business is required for a B2B event")).toBeInTheDocument();
+    expect(h.createEvent).not.toHaveBeenCalled();
+  });
 });

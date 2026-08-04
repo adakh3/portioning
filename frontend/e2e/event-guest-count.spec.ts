@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { login } from "./helpers";
+import { login, pickCustomer } from "./helpers";
 
 /**
  * Guest breakdown (REL-415). seed_demo's "Demo Co" is a US org
@@ -18,7 +18,7 @@ test.describe("Event guest breakdown persists end-to-end (US org)", () => {
   test("count + kids + vendor covers survive a reload; Adults is the derived remainder", async ({ page }) => {
     await page.goto("/events/new");
 
-    await page.getByLabel("Customer", { exact: false }).selectOption({ label: "Aisha Khan" });
+    await pickCustomer(page);
     await page.getByLabel("Guest Count").fill("150");
     // No legacy gents/ladies split control for this org.
     await expect(page.getByRole("checkbox", { name: /gents \/ ladies split/i })).toHaveCount(0);

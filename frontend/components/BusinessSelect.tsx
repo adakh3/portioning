@@ -3,20 +3,20 @@
 import { useState } from "react";
 import { api } from "@/lib/api";
 import { useAccounts } from "@/lib/hooks";
-
-const selectClass =
-  "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring";
+import SearchableSelect from "@/components/SearchableSelect";
 
 /** Business (company) picker with inline "create new". Only real businesses
- * (non-individual) are listed; new ones are created as type "company". */
+ * (non-individual) are listed; new ones are created as type "company".
+ *
+ * Searchable rather than a native select, like the customer picker beside it —
+ * a corporate caterer's account list grows without bound. The requirement is
+ * enforced by the page's submit handler, not an HTML `required`. */
 export default function BusinessSelect({
   value,
   onChange,
-  required,
 }: {
   value: string;
   onChange: (id: string) => void;
-  required?: boolean;
 }) {
   const { data: accounts = [], mutate } = useAccounts();
   const businesses = accounts.filter((a) => a.account_type !== "individual");
@@ -74,10 +74,14 @@ export default function BusinessSelect({
 
   return (
     <div>
-      <select required={required} value={value} onChange={(e) => onChange(e.target.value)} className={selectClass}>
-        <option value="">-- Select business --</option>
-        {businesses.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-      </select>
+      <SearchableSelect
+        ariaLabel="Business"
+        placeholder="Search businesses…"
+        emptyLabel="-- Select business --"
+        value={value}
+        onChange={onChange}
+        options={businesses.map((a) => ({ value: String(a.id), label: a.name }))}
+      />
       <button type="button" onClick={() => setCreating(true)}
         className="mt-1 text-xs text-primary hover:underline">+ New business</button>
     </div>

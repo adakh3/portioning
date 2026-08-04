@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { login } from "./helpers";
+import { login, pickCustomer } from "./helpers";
 
 /**
  * Additional-meal audience (REL-426). seed_demo's "Demo Co" is a US org
@@ -17,7 +17,7 @@ test.describe("Additional-meal audience derives + reflows end-to-end (US org)", 
   test("an 'Everyone' meal derives its count and follows a guest-count change across reload", async ({ page }) => {
     await page.goto("/events/new");
 
-    await page.getByLabel("Customer", { exact: false }).selectOption({ label: "Aisha Khan" });
+    await pickCustomer(page);
     await page.getByLabel("Guest Count").fill("150");
     await page.getByLabel("Vendors", { exact: true }).fill("8"); // 150 guests + 8 covers = 158
 

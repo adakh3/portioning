@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { login } from "./helpers";
+import { login, pickCustomer } from "./helpers";
 
 /**
  * Courses on the one Menu card (REL-417, reworked by REL-451 AC13). A booking's menu
@@ -32,7 +32,7 @@ test.describe("Courses survive save + reload end-to-end", () => {
   test("a course + a dish assignment persist across reload", async ({ page }) => {
     await page.goto("/events/new");
     await page.waitForLoadState("networkidle");
-    await page.getByLabel("Customer", { exact: false }).selectOption({ label: "Aisha Khan" });
+    await pickCustomer(page);
     await page.getByLabel("Guest Count").fill("50");
 
     // Outline first, fill after: a course can be named on an empty menu, and its own
