@@ -110,6 +110,10 @@ describe("Quote create — linking to a lead", () => {
     fireEvent.click(screen.getByText("Rimsha Kiyani"));
     await waitFor(() => expect(screen.getByLabelText("Guest Count")).toHaveValue("80"));
 
+    // A customer is required, and it's the same kind of picker.
+    fireEvent.click(screen.getByLabelText("Customer"));
+    fireEvent.click(screen.getByText("Jane Doe"));
+
     fireEvent.click(screen.getByText("Create Quote"));
     await waitFor(() => expect(h.createQuote).toHaveBeenCalledTimes(1));
     const payload = h.createQuote.mock.calls[0][0] as Record<string, unknown>;

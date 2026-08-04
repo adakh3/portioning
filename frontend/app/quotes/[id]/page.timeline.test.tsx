@@ -75,6 +75,13 @@ vi.mock("@/lib/api", () => ({
 
 import QuotePage from "./page";
 
+// The form requires a customer (the searchable picker replaced a <select required>),
+// so every create test has to pick one before it can submit.
+const pickCustomer = () => {
+  fireEvent.click(screen.getByLabelText("Customer"));
+  fireEvent.click(screen.getByText("Jane Doe"));
+};
+
 describe("Quote form — the run-of-show reaches the payload", () => {
   beforeEach(() => {
     h.createQuote.mockClear();
@@ -97,6 +104,7 @@ describe("Quote form — the run-of-show reaches the payload", () => {
     // Then the caterer nudges one of them — that edit must survive to the payload.
     fireEvent.change(screen.getByLabelText("Step 1 time"), { target: { value: "17:00" } });
 
+    pickCustomer();
     fireEvent.click(screen.getByText("Create Quote"));
 
     await waitFor(() => expect(h.createQuote).toHaveBeenCalledTimes(1));
@@ -112,6 +120,7 @@ describe("Quote form — the run-of-show reaches the payload", () => {
 
     fireEvent.change(screen.getByLabelText("Guest Count"), { target: { value: "40" } });
     fireEvent.change(screen.getByLabelText("Meal Time"), { target: { value: "10:00" } });
+    pickCustomer();
     fireEvent.click(screen.getByText("Create Quote"));
 
     await waitFor(() => expect(h.createQuote).toHaveBeenCalledTimes(1));
@@ -131,6 +140,7 @@ describe("Quote form — the run-of-show reaches the payload", () => {
     fireEvent.change(screen.getByLabelText("Meal Time"), { target: { value: "18:30" } });
     fireEvent.click(screen.getByText("+ Build a run-of-show"));
     fireEvent.click(await screen.findByText("+ Add step"));
+    pickCustomer();
     fireEvent.click(screen.getByText("Create Quote"));
 
     await waitFor(() => expect(h.createQuote).toHaveBeenCalledTimes(1));

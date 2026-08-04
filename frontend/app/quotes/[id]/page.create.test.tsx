@@ -52,6 +52,14 @@ vi.mock("@/lib/api", () => ({
 
 import QuoteCreatePage from "./page";
 
+// The form requires a customer (the searchable picker replaced a <select required>),
+// so every create test has to pick one before it can submit.
+const pickCustomer = () => {
+  fireEvent.click(screen.getByLabelText("Customer"));
+  fireEvent.click(screen.getByText("Jane Doe"));
+};
+
+
 describe("Quote create — guest split, timeline, meals reach the payload", () => {
   beforeEach(() => { h.createQuote.mockClear(); h.push.mockClear(); });
 
@@ -69,6 +77,7 @@ describe("Quote create — guest split, timeline, meals reach the payload", () =
     fireEvent.click(screen.getByText("+ Add Meal"));
     fireEvent.change(await screen.findByLabelText("Additional meal time"), { target: { value: "14:00" } });
 
+    pickCustomer();
     fireEvent.click(screen.getByText("Create Quote"));
 
     await waitFor(() => expect(h.createQuote).toHaveBeenCalledTimes(1));
@@ -92,6 +101,25 @@ describe("Quote create — guest split, timeline, meals reach the payload", () =
     ]);
   });
 
+  // Customer/business used to be enforced by `required` on a native <select>.
+  // The pickers are buttons now, so the browser enforces nothing — these two pin
+  // the guard that replaced it. Without them a quote saves with no customer.
+  it("refuses to create a quote with no customer", async () => {
+    render(<QuoteCreatePage />);
+    fireEvent.click(screen.getByText("Create Quote"));
+    expect(await screen.findByText("Customer is required")).toBeInTheDocument();
+    expect(h.createQuote).not.toHaveBeenCalled();
+  });
+
+  it("refuses a B2B quote with no business", async () => {
+    render(<QuoteCreatePage />);
+    pickCustomer();
+    fireEvent.click(screen.getByLabelText("Business booking (B2B)"));
+    fireEvent.click(screen.getByText("Create Quote"));
+    expect(await screen.findByText("A business is required for a B2B quote")).toBeInTheDocument();
+    expect(h.createQuote).not.toHaveBeenCalled();
+  });
+
   it("seeds the org's default service charge into a new quote's payload", async () => {
     // Mirror of the event-form guard: the quote form must snapshot the org's
     // service-charge default so a US org's 20% reaches api.createQuote.
@@ -99,6 +127,7 @@ describe("Quote create — guest split, timeline, meals reach the payload", () =
 
     fireEvent.change(screen.getByLabelText("Guest Count"), { target: { value: "40" } });
 
+    pickCustomer();
     fireEvent.click(screen.getByText("Create Quote"));
 
     await waitFor(() => expect(h.createQuote).toHaveBeenCalledTimes(1));

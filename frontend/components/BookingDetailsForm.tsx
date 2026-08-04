@@ -69,12 +69,12 @@ export default function BookingDetailsForm({
       </label>
       <div>
         <label className="block text-sm font-medium text-foreground mb-1">Customer *</label>
-        <CustomerSelect required value={value.contact} onChange={(v) => onChange({ contact: v })} />
+        <CustomerSelect value={value.contact} onChange={(v) => onChange({ contact: v })} />
       </div>
       {value.is_b2b && (
         <div>
           <label className="block text-sm font-medium text-foreground mb-1">Business *</label>
-          <BusinessSelect required value={value.account} onChange={(v) => onChange({ account: v })} />
+          <BusinessSelect value={value.account} onChange={(v) => onChange({ account: v })} />
         </div>
       )}
 

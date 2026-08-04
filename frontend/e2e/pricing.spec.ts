@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { login } from "./helpers";
+import { login, pickCustomer } from "./helpers";
 
 /**
  * REL-404: a US org's quote must show a service charge (default 20%) in the
@@ -16,7 +16,7 @@ test.describe("Service charge on a US quote", () => {
   test("a US quote shows a 20% service charge that persists", async ({ page }) => {
     // Create a bare quote, then add a catalog add-on so there's a subtotal.
     await page.goto("/quotes/new");
-    await page.getByLabel("Customer", { exact: false }).selectOption({ label: "Aisha Khan" });
+    await pickCustomer(page);
     await page.getByLabel("Guest Count").fill("100");
     await page.getByRole("button", { name: "Create Quote" }).click();
     await page.waitForURL(/\/quotes\/\d+$/, { timeout: 15_000 });

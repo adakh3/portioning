@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { login } from "./helpers";
+import { login, pickCustomer } from "./helpers";
 
 /** 90 days out, as YYYY-MM-DD. */
 function futureDate(): string {
@@ -41,7 +41,7 @@ test.describe("Menu choices and final numbers survive save + reload", () => {
     // --- Proposal: a plated event offering a choice in TWO courses ---
     await page.goto("/events/new");
     await page.waitForLoadState("networkidle");
-    await page.getByLabel("Customer", { exact: false }).selectOption({ label: "Aisha Khan" });
+    await pickCustomer(page);
     await page.getByLabel("Guest Count").fill("50");
     // A future date: a confirmed event auto-advances to in_progress on its event
     // day, and chasing only applies while the booking is still ahead.

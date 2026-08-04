@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { login } from "./helpers";
+import { login, pickCustomer } from "./helpers";
 
 /**
  * The regression this exists for: a timeline time entered in the form saved as
@@ -17,7 +17,7 @@ test.describe("Booking timeline persists end-to-end", () => {
     await page.goto("/quotes/new");
 
     // A customer is required to save.
-    await page.getByLabel("Customer", { exact: false }).selectOption({ label: "Aisha Khan" });
+    await pickCustomer(page);
 
     await page.getByLabel("Guest Count").fill("30");
 
@@ -55,7 +55,7 @@ test.describe("Booking timeline persists end-to-end", () => {
     await page.goto("/quotes/new");
     await presetsLoaded;
 
-    await page.getByLabel("Customer", { exact: false }).selectOption({ label: "Aisha Khan" });
+    await pickCustomer(page);
     await page.getByLabel("Guest Count").fill("30");
     // The day is built AROUND the meal time, so the button stays disabled until
     // there is one — building with no anchor used to default silently to 18:30.

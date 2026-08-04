@@ -248,6 +248,17 @@ export default function QuoteDetailPage() {
       setError("Please set the event date.");
       return;
     }
+    // Customer and business used to be enforced by `required` on a native
+    // <select>. The pickers are searchable now — buttons, not form controls — so
+    // the requirement lives here, the same way the event form already states it.
+    if (!createData.primary_contact) {
+      setError("Customer is required");
+      return;
+    }
+    if (createData.is_b2b && !createData.account) {
+      setError("A business is required for a B2B quote");
+      return;
+    }
     setSaving(true);
     setError("");
     try {

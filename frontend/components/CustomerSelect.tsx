@@ -3,27 +3,22 @@
 import { useState } from "react";
 import { api } from "@/lib/api";
 import { useContacts } from "@/lib/hooks";
-
-const selectClass =
-  "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring";
+import SearchableSelect from "@/components/SearchableSelect";
 
 /** Customer (person) picker with inline "create new". The new person is created
- * org-wide (no business required) and selected immediately. */
+ * org-wide (no business required) and selected immediately.
+ *
+ * Searchable rather than a native select: the customer list is every person the
+ * org has ever quoted, so it only grows. The requirement is enforced by the page's
+ * submit handler, not an HTML `required` — this isn't a form control. */
 export default function CustomerSelect({
   value,
   onChange,
-  required,
 }: {
   value: string;
   onChange: (id: string) => void;
-  required?: boolean;
 }) {
   const { data: contacts = [], mutate } = useContacts();
-  // Only show the phone as a tiebreaker when two customers share a name.
-  const nameCounts = contacts.reduce<Record<string, number>>((m, c) => {
-    m[c.name] = (m[c.name] || 0) + 1;
-    return m;
-  }, {});
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState({ first_name: "", last_name: "", phone: "", address: "" });
   const [saving, setSaving] = useState(false);
@@ -84,14 +79,17 @@ export default function CustomerSelect({
 
   return (
     <div>
-      <select aria-label="Customer" required={required} value={value} onChange={(e) => onChange(e.target.value)} className={selectClass}>
-        <option value="">-- Select customer --</option>
-        {contacts.map((c) => (
-          <option key={c.id} value={c.id}>
-            {c.name}{nameCounts[c.name] > 1 && c.phone ? ` — ${c.phone}` : ""}
-          </option>
-        ))}
-      </select>
+      {/* The phone rides on the second line for everyone, not just when two people
+          share a name — as a muted hint it costs nothing, and it makes the list
+          searchable by number, which is how a caller is often identified. */}
+      <SearchableSelect
+        ariaLabel="Customer"
+        placeholder="Search customers by name or phone…"
+        emptyLabel="-- Select customer --"
+        value={value}
+        onChange={onChange}
+        options={contacts.map((c) => ({ value: String(c.id), label: c.name, hint: c.phone || undefined }))}
+      />
       <button type="button" onClick={() => setCreating(true)}
         className="mt-1 text-xs text-primary hover:underline">+ New customer</button>
     </div>
