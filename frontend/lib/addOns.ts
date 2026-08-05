@@ -32,9 +32,13 @@ export function unitLabel(unit: string): string {
 }
 
 /** The line description for a catalogue variant. Un-named variants (a product with
- * a single unnamed price) read as just the product. */
+ * a single unnamed price) read as just the product.
+ *
+ * The separator is an em dash because that is what every line saved before REL-454
+ * already uses, and the description is stored — a middle dot here would put two
+ * spellings of the same thing on one booking, and on its PDF (owner's call). */
 export function variantDescription(product: AddOnProduct, variant: AddOnVariant): string {
-  return variant.name ? `${product.name} · ${variant.name}` : product.name;
+  return variant.name ? `${product.name} — ${variant.name}` : product.name;
 }
 
 /** A booking line for a catalogue variant, priced from the catalogue. */

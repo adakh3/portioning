@@ -158,7 +158,7 @@ describe("AddOnItemsEditor — the chosen-lines card", () => {
       <Harness
         initial={[
           waitstaff,
-          { variant: 11, category: "beverage", description: "Soft Drinks · 1.5L", quantity: "2", unit: "each", unit_price: "150.00" },
+          { variant: 11, category: "beverage", description: "Soft Drinks — 1.5L", quantity: "2", unit: "each", unit_price: "150.00" },
           { variant: null, category: "fee", description: "Delivery & Setup", quantity: "1", unit: "flat", unit_price: "450.00" },
         ]}
       />,
@@ -166,14 +166,14 @@ describe("AddOnItemsEditor — the chosen-lines card", () => {
     expect(screen.getByText("Add-ons subtotal").parentElement).toHaveTextContent("$2,510.00");
     fireEvent.click(line(1).getByLabelText("Remove"));
     expect(parse()).toHaveLength(2);
-    expect(screen.queryByText("Soft Drinks · 1.5L")).not.toBeInTheDocument();
+    expect(screen.queryByText("Soft Drinks — 1.5L")).not.toBeInTheDocument();
     expect(screen.getByText("Add-ons subtotal").parentElement).toHaveTextContent("$2,210.00");
   });
 
   it("AC6: the card subtotal is the same number the booking totals card shows", () => {
     const items: LineItemInput[] = [
       waitstaff,
-      { variant: 11, category: "beverage", description: "Soft Drinks · 1.5L", quantity: "3", unit: "each", unit_price: "150.00" },
+      { variant: 11, category: "beverage", description: "Soft Drinks — 1.5L", quantity: "3", unit: "each", unit_price: "150.00" },
       { variant: null, category: "beverage", description: "Coffee & Tea Service", quantity: "1", unit: "per_guest", unit_price: "6.00" },
       { variant: null, category: "discount", description: "Loyalty discount", quantity: "1", unit: "each", unit_price: "100.00" },
     ];
@@ -244,7 +244,7 @@ describe("AddOnItemsEditor — every line stays editable", () => {
     // Lines from non-featured catalogue products used to be fully editable in the old
     // 'other items' table; losing that would have made a $45/hr Bartender unbillable
     // as a flat fee without deleting and retyping it.
-    render(<Harness initial={[{ variant: 71, category: "rental", description: "Chair Covers · Ivory", quantity: "1", unit: "each", unit_price: "4.00" }]} />);
+    render(<Harness initial={[{ variant: 71, category: "rental", description: "Chair Covers — Ivory", quantity: "1", unit: "each", unit_price: "4.00" }]} />);
     fireEvent.click(line(0).getByLabelText("Edit name"));
     fireEvent.change(line(0).getByLabelText("Name"), { target: { value: "Chair covers (ivory), 120" } });
     fireEvent.click(line(0).getByLabelText("Edit price, unit and category"));
@@ -318,7 +318,7 @@ describe("AddOnItemsEditor — the catalogue picker", () => {
     render(<Harness />);
     openPicker();
     fireEvent.change(screen.getByLabelText("Search add-ons"), { target: { value: "tins" } });
-    expect(within(picker()).getByLabelText("Add Soft Drinks · Tins")).toBeInTheDocument();
+    expect(within(picker()).getByLabelText("Add Soft Drinks — Tins")).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Search add-ons"), { target: { value: "zzz" } });
     expect(within(picker()).getByText("No items match.")).toBeInTheDocument();
   });
@@ -356,19 +356,19 @@ describe("AddOnItemsEditor — the catalogue picker", () => {
   it("AC12: a multi-variant product offers a chip per variant, added independently", () => {
     render(<Harness />);
     openPicker();
-    expect(within(picker()).getByLabelText("Add Soft Drinks · 1.5L")).toHaveTextContent("1.5L · $150.00");
-    expect(within(picker()).getByLabelText("Add Soft Drinks · Tins")).toHaveTextContent("Tins · $80.00");
+    expect(within(picker()).getByLabelText("Add Soft Drinks — 1.5L")).toHaveTextContent("1.5L · $150.00");
+    expect(within(picker()).getByLabelText("Add Soft Drinks — Tins")).toHaveTextContent("Tins · $80.00");
 
-    fireEvent.click(within(picker()).getByLabelText("Add Soft Drinks · 1.5L"));
+    fireEvent.click(within(picker()).getByLabelText("Add Soft Drinks — 1.5L"));
     expect(parse()).toEqual([
-      { variant: 11, category: "beverage", description: "Soft Drinks · 1.5L", quantity: "1", unit: "each", unit_price: "150.00" },
+      { variant: 11, category: "beverage", description: "Soft Drinks — 1.5L", quantity: "1", unit: "each", unit_price: "150.00" },
     ]);
-    expect(line(0).getByLabelText("Edit name")).toHaveTextContent("Soft Drinks · 1.5L");
+    expect(line(0).getByLabelText("Edit name")).toHaveTextContent("Soft Drinks — 1.5L");
     expect(line(0).getByLabelText("Edit price, unit and category")).toHaveTextContent("$150.00 each");
 
     // That chip is spent; its sibling is not.
-    expect(within(picker()).getByLabelText("Soft Drinks · 1.5L — already on quote")).toBeDisabled();
-    fireEvent.click(within(picker()).getByLabelText("Add Soft Drinks · Tins"));
+    expect(within(picker()).getByLabelText("Soft Drinks — 1.5L — already on quote")).toBeDisabled();
+    fireEvent.click(within(picker()).getByLabelText("Add Soft Drinks — Tins"));
     expect(parse()).toHaveLength(2);
     expect(parse()[1].variant).toBe(12);
   });
@@ -382,7 +382,7 @@ describe("AddOnItemsEditor — the catalogue picker", () => {
     expect(row).toHaveTextContent("$4.00 each");
     fireEvent.click(row);
     expect(parse()[0]).toEqual({
-      variant: 71, category: "rental", description: "Chair Covers · Ivory",
+      variant: 71, category: "rental", description: "Chair Covers — Ivory",
       quantity: "1", unit: "each", unit_price: "4.00",
     });
     expect(within(picker()).getByLabelText("Chair Covers — already on quote")).toBeDisabled();

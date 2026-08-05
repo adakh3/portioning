@@ -50,7 +50,7 @@ const existingQuote = {
   notes: "", internal_notes: "", food_total: "1000.00",
   line_items: [
     {
-      id: 55, variant: 11, category: "beverage", description: "Soft Drinks · 1.5L",
+      id: 55, variant: 11, category: "beverage", description: "Soft Drinks — 1.5L",
       quantity: "2", unit: "each", unit_price: "150.00", line_total: "300.00", sort_order: 0,
     },
   ],
@@ -112,7 +112,7 @@ describe("Quote form — add-ons reach the payload in today's shape", () => {
     fireEvent.change(screen.getByLabelText("Guest Count"), { target: { value: "40" } });
 
     fireEvent.click(screen.getByText("+ Add item"));
-    fireEvent.click(within(picker()).getByLabelText("Add Soft Drinks · 1.5L"));
+    fireEvent.click(within(picker()).getByLabelText("Add Soft Drinks — 1.5L"));
     fireEvent.click(within(picker()).getByLabelText("Add Delivery & Setup"));
     fireEvent.click(screen.getByText("Done")); // the trigger closes it again
 
@@ -138,7 +138,7 @@ describe("Quote form — add-ons reach the payload in today's shape", () => {
     // so there is no `sort_order` here — unchanged by this work, and pinned so a
     // future tidy-up of that asymmetry is a deliberate decision rather than a slip.
     expect(payload.line_items).toEqual([
-      { variant: 11, category: "beverage", description: "Soft Drinks · 1.5L", quantity: "2", unit: "each", unit_price: "150.00" },
+      { variant: 11, category: "beverage", description: "Soft Drinks — 1.5L", quantity: "2", unit: "each", unit_price: "150.00" },
       { variant: null, category: "fee", description: "Delivery & Setup", quantity: "1", unit: "flat", unit_price: "500" },
       { variant: null, category: "labor", description: "Coat check", quantity: "1", unit: "each", unit_price: "100" },
     ]);
@@ -165,7 +165,7 @@ describe("Quote form — add-ons reach the payload in today's shape", () => {
 
     // It reads as a chosen line, priced, not as a ticked catalogue checkbox.
     await screen.findByTestId("addon-line-0");
-    expect(line(0).getByLabelText("Edit name")).toHaveTextContent("Soft Drinks · 1.5L");
+    expect(line(0).getByLabelText("Edit name")).toHaveTextContent("Soft Drinks — 1.5L");
     expect(line(0).getByLabelText("Edit price, unit and category")).toHaveTextContent("$150.00 each");
     expect(line(0).getByText("$300.00")).toBeInTheDocument();
 
@@ -174,7 +174,7 @@ describe("Quote form — add-ons reach the payload in today's shape", () => {
     const payload = h.updateQuote.mock.calls[0][1] as Record<string, unknown>;
     // The id is what lets the backend reconcile instead of recreating the row.
     expect(payload.line_items).toEqual([
-      { id: 55, variant: 11, category: "beverage", description: "Soft Drinks · 1.5L", quantity: "2", unit: "each", unit_price: "150.00", sort_order: 0 },
+      { id: 55, variant: 11, category: "beverage", description: "Soft Drinks — 1.5L", quantity: "2", unit: "each", unit_price: "150.00", sort_order: 0 },
     ]);
   });
 
@@ -184,15 +184,15 @@ describe("Quote form — add-ons reach the payload in today's shape", () => {
     fireEvent.click(await screen.findByText("Edit Quote"));
     fireEvent.click(screen.getByText("+ Add item"));
 
-    expect(within(picker()).getByLabelText("Soft Drinks · 1.5L — already on quote")).toBeDisabled();
-    fireEvent.click(within(picker()).getByLabelText("Add Soft Drinks · Tins"));
+    expect(within(picker()).getByLabelText("Soft Drinks — 1.5L — already on quote")).toBeDisabled();
+    fireEvent.click(within(picker()).getByLabelText("Add Soft Drinks — Tins"));
 
     fireEvent.click(screen.getByText("Save Quote"));
     await waitFor(() => expect(h.updateQuote).toHaveBeenCalledTimes(1));
     const payload = h.updateQuote.mock.calls[0][1] as Record<string, unknown>;
     expect(payload.line_items).toEqual([
-      { id: 55, variant: 11, category: "beverage", description: "Soft Drinks · 1.5L", quantity: "2", unit: "each", unit_price: "150.00", sort_order: 0 },
-      { variant: 12, category: "beverage", description: "Soft Drinks · Tins", quantity: "1", unit: "each", unit_price: "80.00", sort_order: 0 },
+      { id: 55, variant: 11, category: "beverage", description: "Soft Drinks — 1.5L", quantity: "2", unit: "each", unit_price: "150.00", sort_order: 0 },
+      { variant: 12, category: "beverage", description: "Soft Drinks — Tins", quantity: "1", unit: "each", unit_price: "80.00", sort_order: 0 },
     ]);
   });
 
@@ -231,7 +231,7 @@ describe("Quote form — add-ons reach the payload in today's shape", () => {
     await waitFor(() => expect(h.updateQuote).toHaveBeenCalledTimes(1));
     const payload = h.updateQuote.mock.calls[0][1] as Record<string, unknown>;
     expect(payload.line_items).toEqual([
-      { id: 55, variant: 11, category: "beverage", description: "Soft Drinks · 1.5L", quantity: "2", unit: "per_guest", unit_price: "150.00", sort_order: 0 },
+      { id: 55, variant: 11, category: "beverage", description: "Soft Drinks — 1.5L", quantity: "2", unit: "per_guest", unit_price: "150.00", sort_order: 0 },
       { variant: null, category: "discount", description: "Loyalty discount", quantity: "1", unit: "each", unit_price: "100", sort_order: 0 },
     ]);
   });

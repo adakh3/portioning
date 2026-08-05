@@ -141,7 +141,7 @@ describe("Event edit — add-ons reach the payload in today's shape", () => {
   it("adds a catalogue variant and a custom line, and both save in the old shape", async () => {
     await startEditing();
     fireEvent.click(screen.getByText("+ Add item"));
-    fireEvent.click(within(picker()).getByLabelText("Add Soft Drinks · Tins"));
+    fireEvent.click(within(picker()).getByLabelText("Add Soft Drinks — Tins"));
     fireEvent.click(within(picker()).getByText("Cancel"));
 
     fireEvent.click(line(1).getByLabelText("Increase quantity"));
@@ -153,7 +153,7 @@ describe("Event edit — add-ons reach the payload in today's shape", () => {
     const payload = await save();
     expect(payload.line_items).toEqual([
       { id: 71, variant: null, category: "beverage", description: "Coffee & Tea Service", quantity: "1", unit: "per_guest", unit_price: "6.00", sort_order: 0 },
-      { variant: 12, category: "beverage", description: "Soft Drinks · Tins", quantity: "2", unit: "each", unit_price: "80.00", sort_order: 0 },
+      { variant: 12, category: "beverage", description: "Soft Drinks — Tins", quantity: "2", unit: "each", unit_price: "80.00", sort_order: 0 },
       { variant: null, category: "fee", description: "Coat check", quantity: "1", unit: "each", unit_price: "100", sort_order: 0 },
     ]);
     for (const li of payload.line_items as Record<string, unknown>[]) {

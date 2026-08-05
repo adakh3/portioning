@@ -30,7 +30,7 @@ test.describe("Add-on lines survive a save and a reload", () => {
     const row = (i: number) => page.getByTestId(`addon-line-${i}`);
 
     // 1) A variant chip → a line named after product AND variant, qty 12.
-    await addAddOn(page, "Soft Drinks · 1.5L", "Soft Drinks");
+    await addAddOn(page, "Soft Drinks — 1.5L", "Soft Drinks");
     await row(0).getByLabel("Quantity", { exact: true }).fill("12");
     await expect(row(0)).toContainText("$1,800.00");
 
@@ -52,13 +52,13 @@ test.describe("Add-on lines survive a save and a reload", () => {
 
     // Saved and stored: view mode reads the backend's own numbers, so this is the
     // server agreeing with the preview, not the preview agreeing with itself.
-    await expect(page.getByText("Soft Drinks · 1.5L")).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText("Soft Drinks — 1.5L")).toBeVisible({ timeout: 10_000 });
     await expect(page.getByText("Coat check")).toBeVisible();
     await expect(page.getByText(/Subtotal:\s*\$1,900\.00/)).toBeVisible();
 
     // 4) Hard reload — nothing in memory survives this.
     await page.goto(quoteUrl);
-    await expect(page.getByText("Soft Drinks · 1.5L")).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText("Soft Drinks — 1.5L")).toBeVisible({ timeout: 10_000 });
     await expect(page.getByText("Coat check")).toBeVisible();
     await expect(page.getByText(/Subtotal:\s*\$1,900\.00/)).toBeVisible();
 
@@ -77,7 +77,7 @@ test.describe("Add-on lines survive a save and a reload", () => {
     await page.getByRole("button", { name: "+ Add item" }).click();
     const picker = page.getByTestId("addon-picker");
     await picker.getByLabel("Search add-ons").fill("Soft Drinks");
-    await expect(picker.getByRole("button", { name: "Soft Drinks · 1.5L — already on quote" })).toBeDisabled();
-    await expect(picker.getByRole("button", { name: "Add Soft Drinks · Tins", exact: true })).toBeEnabled();
+    await expect(picker.getByRole("button", { name: "Soft Drinks — 1.5L — already on quote" })).toBeDisabled();
+    await expect(picker.getByRole("button", { name: "Add Soft Drinks — Tins", exact: true })).toBeEnabled();
   });
 });
