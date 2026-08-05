@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Pencil } from "lucide-react";
 import { useAddOnProducts } from "@/lib/hooks";
 import { LineItemInput, lineItemTotal } from "@/lib/quoteTotals";
 import { formatCurrency } from "@/lib/utils";
@@ -131,11 +132,17 @@ export default function AddOnItemsEditor({
                       // Same height and text offset as the input it swaps with:
                       // otherwise finishing a name reflows the row and whatever you
                       // reach for next has already moved out from under the click.
-                      className="-ml-2 flex h-7 max-w-full items-center px-2 text-left text-sm text-foreground hover:underline"
+                      className="group/name -ml-2 flex h-7 max-w-full items-center gap-1 px-2 text-left text-sm text-foreground"
                     >
-                      <span className="truncate">
+                      {/* A dashed rule at REST, not on hover: a field you can only
+                          discover by hovering it is a field most people never find. */}
+                      <span className="truncate border-b border-dashed border-muted-foreground/40 group-hover/name:border-foreground">
                         {name || <span className="italic text-muted-foreground">Name this item</span>}
                       </span>
+                      <Pencil
+                        aria-hidden="true"
+                        className="h-3 w-3 shrink-0 text-muted-foreground/50 group-hover/name:text-foreground"
+                      />
                     </button>
                   )}
 
@@ -188,12 +195,18 @@ export default function AddOnItemsEditor({
                       type="button"
                       aria-label="Edit price, unit and category"
                       onClick={() => setEditingDetails(i)}
-                      className="text-xs text-muted-foreground hover:text-foreground hover:underline"
+                      className="group/price flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
                     >
-                      {fmt(it.unit_price || 0)} {unitLabel(it.unit)}
-                      {/* The quantity is not what a per-guest line costs, so the
-                          subtitle says what it IS multiplied by. */}
-                      {it.unit === "per_guest" && ` × ${guestCount} guests`}
+                      <span className="border-b border-dashed border-muted-foreground/40 group-hover/price:border-foreground">
+                        {fmt(it.unit_price || 0)} {unitLabel(it.unit)}
+                        {/* The quantity is not what a per-guest line costs, so the
+                            subtitle says what it IS multiplied by. */}
+                        {it.unit === "per_guest" && ` × ${guestCount} guests`}
+                      </span>
+                      <Pencil
+                        aria-hidden="true"
+                        className="h-3 w-3 shrink-0 text-muted-foreground/50 group-hover/price:text-foreground"
+                      />
                     </button>
                   )}
                 </div>
