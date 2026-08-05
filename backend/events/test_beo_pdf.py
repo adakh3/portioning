@@ -19,7 +19,7 @@ from tests.base import get_test_user
 from bookings.models.settings import OrgSettings
 from bookings.models.signatures import BookingSignature
 from bookings.pdf_beo import generate_beo_pdf
-from bookings.services.beo import record_beo_issue
+from bookings.services.beo import issue_beo_revision
 from dishes.models import DietaryTag, DietaryTagKind
 from dishes.tests import make_category, make_dish
 from equipment.models import EquipmentItem, EquipmentReservation
@@ -555,53 +555,78 @@ class BEOVendorTests(BEOTestBase):
 
 
 class BEORevisionTests(BEOTestBase):
-    """AC2 — the revision counter."""
+    """AC2 — the revision number, which moves only on purpose."""
 
-    def _sign(self, event):
-        return BookingSignature.objects.create(event=event, signer_name="Client Co")
-
-    def test_first_issue_is_rev_1_with_no_revised_stamp(self):
+    def test_an_event_starts_at_rev_1(self):
+        # The original issue is not a revision of anything, so nobody has to do
+        # anything to get Rev 1.
         e = self._event()
-        self.assertEqual(e.beo_revision, 0)
-        revision, revised_at = record_beo_issue(e)
-        self.assertEqual(revision, 1)
-        self.assertIsNone(revised_at)
-        self.assertIn("Rev 1", self._text(e))
+        self.assertEqual(e.beo_revision, 1)
+        self.assertIsNone(e.beo_revised_at)
+        text = self._text(e)
+        self.assertIn("Rev 1", text)
+        self.assertNotIn("Revised", text)
 
-    def test_unsigned_regeneration_does_not_increment(self):
+    def test_downloading_never_moves_the_number(self):
+        # THE regression this whole design exists for. Printing one copy each for the
+        # kitchen, the captain and the venue used to hand out three identical sheets
+        # numbered Rev 3, 4 and 5 — and the captain would chase a change that never
+        # happened. Ten downloads, one revision.
         e = self._event()
-        for _ in range(3):
-            record_beo_issue(e)
+        BookingSignature.objects.create(event=e, signer_name="Client Co")
+        for _ in range(10):
+            res = self.client.get(f"/api/events/{e.id}/beo/")
+            self.assertEqual(res.status_code, 200)
         e.refresh_from_db()
         self.assertEqual(e.beo_revision, 1)
         self.assertIsNone(e.beo_revised_at)
-        self.assertIn("Rev 1", self._text(e))
 
-    def test_signed_regeneration_increments_and_stamps(self):
+    def test_issuing_a_revision_increments_and_stamps(self):
         e = self._event()
-        record_beo_issue(e)          # Rev 1, issued before signing
-        self._sign(e)
-        record_beo_issue(e)
-        e.refresh_from_db()
-        self.assertEqual(e.beo_revision, 2)
-        self.assertIsNotNone(e.beo_revised_at)
+        revision, revised_at = issue_beo_revision(e)
+        self.assertEqual(revision, 2)
+        self.assertIsNotNone(revised_at)
         text = self._text(e)
         self.assertIn("Rev 2", text)
         self.assertIn("Revised", text)
 
-    def test_first_issue_after_signing_is_still_rev_1(self):
-        # A first issue is not a revision of anything, even on a signed booking.
+    def test_issuing_repeatedly_climbs_one_at_a_time(self):
         e = self._event()
-        self._sign(e)
-        self.assertEqual(record_beo_issue(e)[0], 1)
-        self.assertEqual(record_beo_issue(e)[0], 2)
+        self.assertEqual(issue_beo_revision(e)[0], 2)
+        self.assertEqual(issue_beo_revision(e)[0], 3)
+        e.refresh_from_db()
+        self.assertEqual(e.beo_revision, 3)
 
-    def test_rendering_alone_never_moves_the_counter(self):
+    def test_rendering_alone_never_moves_the_number(self):
         e = self._event()
-        record_beo_issue(e)
-        self._sign(e)
         generate_beo_pdf(e)
         generate_beo_pdf(e)
+        e.refresh_from_db()
+        self.assertEqual(e.beo_revision, 1)
+
+    def test_the_revise_endpoint_bumps_and_returns_the_event(self):
+        e = self._event()
+        res = self.client.post(f"/api/events/{e.id}/beo/revise/")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.json()["beo_revision"], 2)
+        self.assertIsNotNone(res.json()["beo_revised_at"])
+        e.refresh_from_db()
+        self.assertEqual(e.beo_revision, 2)
+
+    def test_the_revise_endpoint_is_org_scoped(self):
+        from users.models import Organisation
+        other = Organisation.objects.create(name="Other Co Rev", slug="other-co-rev")
+        e = self._event(org=other)
+        self.assertEqual(self.client.post(f"/api/events/{e.id}/beo/revise/").status_code, 404)
+        e.refresh_from_db()
+        self.assertEqual(e.beo_revision, 1)  # and it did NOT bump
+
+    def test_the_revision_is_not_writable_through_the_ordinary_event_api(self):
+        # Only the revise endpoint moves it — otherwise an ordinary edit could
+        # silently renumber a document the kitchen is holding.
+        e = self._event()
+        res = self.client.patch(f"/api/events/{e.id}/", {"beo_revision": 99}, format="json")
+        self.assertEqual(res.status_code, 200)
         e.refresh_from_db()
         self.assertEqual(e.beo_revision, 1)
 
@@ -639,12 +664,6 @@ class BEOEndpointTests(BEOTestBase):
         self.assertEqual(res["Content-Type"], "application/pdf")
         self.assertTrue(res.content.startswith(b"%PDF"))
         self.assertIn("BEO-", res["Content-Disposition"])
-
-    def test_endpoint_issues_the_document(self):
-        e = self._event()
-        self.client.get(f"/api/events/{e.id}/beo/")
-        e.refresh_from_db()
-        self.assertEqual(e.beo_revision, 1)
 
     def test_endpoint_is_org_scoped(self):
         from users.models import Organisation
@@ -707,9 +726,13 @@ class BEODoesNotDisturbTheFunctionSheetTests(BEOTestBase):
         e = self._event()
         first = self.client.get(f"/api/events/{e.id}/beo/")
         self.assertIn(f'filename="BEO-{e.id}-Rev1.pdf"', first["Content-Disposition"])
-        BookingSignature.objects.create(event=e, signer_name="Client Co")
-        second = self.client.get(f"/api/events/{e.id}/beo/")
-        self.assertIn(f'filename="BEO-{e.id}-Rev2.pdf"', second["Content-Disposition"])
+        # Downloading again names the same file — nothing changed, so nothing is stale.
+        again = self.client.get(f"/api/events/{e.id}/beo/")
+        self.assertIn(f'filename="BEO-{e.id}-Rev1.pdf"', again["Content-Disposition"])
+        # Issue a revision, and only then does the name move.
+        self.client.post(f"/api/events/{e.id}/beo/revise/")
+        after = self.client.get(f"/api/events/{e.id}/beo/")
+        self.assertIn(f'filename="BEO-{e.id}-Rev2.pdf"', after["Content-Disposition"])
 
     def test_function_sheet_still_renders_its_totals(self):
         from bookings.pdf import generate_event_pdf

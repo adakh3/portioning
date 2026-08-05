@@ -451,6 +451,21 @@ export default function EventDetailPage() {
     }
   };
 
+  // Deliberate, and separate from the download for that reason: this is what tells
+  // everyone holding a printed sheet that theirs is stale (REL-444).
+  const handleIssueBEORevision = async () => {
+    if (!event) return;
+    setSaving(true);
+    try {
+      await api.issueBEORevision(event.id);
+      await mutateEvent();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed to issue a new BEO revision");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleStatusTransition = async (newStatus: string) => {
     if (!event) return;
     setSaving(true);
@@ -686,16 +701,26 @@ export default function EventDetailPage() {
                     Download PDF
                   </Button>
                   {/* The ops sheet the kitchen/banquet/venue work from — same event,
-                      organised for the day and carrying no pricing. */}
+                      organised for the day and carrying no pricing. Downloading is a
+                      pure read; the revision beside it moves only on purpose. */}
                   <Button
                     variant="outline"
                     size="sm"
-                    title="Banquet Event Order — the day-of sheet for kitchen, banquet and venue"
+                    title={`Banquet Event Order (Rev ${event!.beo_revision ?? 1}) — the day-of sheet for kitchen, banquet and venue`}
                     onClick={() => handleDownload(
                       () => api.downloadEventBEO(event!.id), `BEO-${event!.id}.pdf`,
                     )}
                   >
-                    BEO
+                    BEO {event!.beo_revision ? `· Rev ${event!.beo_revision}` : ""}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={saving}
+                    title="Issue a new BEO revision — tells kitchen, banquet and venue that the copy they hold is out of date. Use it when something on the day actually changed, not to reprint."
+                    onClick={handleIssueBEORevision}
+                  >
+                    New revision
                   </Button>
                   {/* Status transitions */}
                   {event!.status === "tentative" && (

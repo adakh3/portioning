@@ -15,9 +15,12 @@ class Migration(migrations.Migration):
             name='beo_revised_at',
             field=models.DateTimeField(blank=True, null=True),
         ),
+        # Every existing event backfills to Rev 1 — the original issue, which is not
+        # a revision of anything. Edited in place rather than stacked as a second
+        # migration because this one has never been merged or deployed.
         migrations.AddField(
             model_name='event',
             name='beo_revision',
-            field=models.IntegerField(default=0),
+            field=models.IntegerField(default=1),
         ),
     ]

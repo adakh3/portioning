@@ -13,6 +13,7 @@ const h = vi.hoisted(() => ({
   downloadEventBEO: vi.fn(() =>
     Promise.resolve({ blob: new Blob(["%PDF"]), filename: "BEO-8-Rev3.pdf" })),
   downloadEventPDF: vi.fn(() => Promise.resolve(new Blob(["%PDF"]))),
+  issueBEORevision: vi.fn(() => Promise.resolve({ id: 8, beo_revision: 4 })),
   anchors: [] as HTMLAnchorElement[],
 }));
 
@@ -40,6 +41,7 @@ const existingEvent = {
   created_by: 7, created_by_name: "Sam Sales",
   event_type: "wedding", meal_type: "", service_style: "plated", booking_date: "",
   price_per_head: "40.00", status: "confirmed", status_display: "Confirmed",
+  beo_revision: 3, beo_revised_at: "2026-08-01T10:00:00Z",
   is_taxable: false, tax_rate: "0.0000", subtotal: "2000.00", tax_amount: "0.00", total: "2000.00",
   service_charge_pct: "0", service_charge_taxable: true, service_charge: "0.00",
   gratuity_pct: "0", gratuity: "0.00",
@@ -82,15 +84,20 @@ vi.mock("@/lib/api", () => ({
     updateEvent: () => Promise.resolve({ id: 8 }),
     downloadEventBEO: h.downloadEventBEO,
     downloadEventPDF: h.downloadEventPDF,
+    issueBEORevision: h.issueBEORevision,
   },
 }));
 
 import EventPage from "./page";
 
+/** The BEO button now shows its revision ("BEO · Rev 3"), so match the prefix. */
+const findBEOButton = () => screen.findByRole("button", { name: /^BEO/ });
+
 describe("Event page — BEO download (REL-444 AC1)", () => {
   beforeEach(() => {
     h.downloadEventBEO.mockClear();
     h.downloadEventPDF.mockClear();
+    h.issueBEORevision.mockClear();
     h.anchors = [];
     // jsdom has no object-URL plumbing; the click path needs both to exist.
     URL.createObjectURL = vi.fn(() => "blob:beo");
@@ -116,12 +123,12 @@ describe("Event page — BEO download (REL-444 AC1)", () => {
   it("offers a BEO button alongside the function sheet", async () => {
     render(<EventPage />);
     await screen.findByText("Download PDF");
-    expect(screen.getByText("BEO")).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^BEO/ })).toBeTruthy();
   });
 
   it("downloads THIS event's BEO, not the function sheet", async () => {
     render(<EventPage />);
-    fireEvent.click(await screen.findByText("BEO"));
+    fireEvent.click(await findBEOButton());
 
     await waitFor(() => expect(h.downloadEventBEO).toHaveBeenCalledWith(8));
     expect(h.downloadEventPDF).not.toHaveBeenCalled();
@@ -140,7 +147,7 @@ describe("Event page — BEO download (REL-444 AC1)", () => {
     // the page's copy of the event is already one behind. Ignoring its filename is
     // how every revision would have landed on disk as the same "BEO-8.pdf".
     render(<EventPage />);
-    fireEvent.click(await screen.findByText("BEO"));
+    fireEvent.click(await findBEOButton());
 
     // The page mounts its own <a>s (nav links); the download one is the one that
     // actually carries a filename.
@@ -151,7 +158,7 @@ describe("Event page — BEO download (REL-444 AC1)", () => {
   it("falls back to a plain name when the server sends none", async () => {
     h.downloadEventBEO.mockResolvedValueOnce({ blob: new Blob(["%PDF"]), filename: "" });
     render(<EventPage />);
-    fireEvent.click(await screen.findByText("BEO"));
+    fireEvent.click(await findBEOButton());
 
     // The page mounts its own <a>s (nav links); the download one is the one that
     // actually carries a filename.
@@ -159,10 +166,41 @@ describe("Event page — BEO download (REL-444 AC1)", () => {
     expect(h.anchors.filter((a) => a.download)[0].download).toBe("BEO-8.pdf");
   });
 
+  it("shows which revision the current sheet is", async () => {
+    render(<EventPage />);
+    expect((await findBEOButton()).textContent).toContain("Rev 3");
+  });
+
+  it("downloading a copy never issues a revision", async () => {
+    // The whole point of splitting the two: printing a second copy for the venue
+    // must not tell the kitchen that its copy went stale.
+    render(<EventPage />);
+    fireEvent.click(await findBEOButton());
+
+    await waitFor(() => expect(h.downloadEventBEO).toHaveBeenCalled());
+    expect(h.issueBEORevision).not.toHaveBeenCalled();
+  });
+
+  it("issues a revision only from its own button, and never downloads", async () => {
+    render(<EventPage />);
+    fireEvent.click(await screen.findByText("New revision"));
+
+    await waitFor(() => expect(h.issueBEORevision).toHaveBeenCalledWith(8));
+    expect(h.downloadEventBEO).not.toHaveBeenCalled();
+  });
+
+  it("surfaces a failed revision instead of failing silently", async () => {
+    h.issueBEORevision.mockRejectedValueOnce(new Error("Event not found"));
+    render(<EventPage />);
+    fireEvent.click(await screen.findByText("New revision"));
+
+    expect(await screen.findByText(/Event not found/)).toBeTruthy();
+  });
+
   it("surfaces a failed BEO download instead of failing silently", async () => {
     h.downloadEventBEO.mockRejectedValueOnce(new Error("Event not found"));
     render(<EventPage />);
-    fireEvent.click(await screen.findByText("BEO"));
+    fireEvent.click(await findBEOButton());
 
     expect(await screen.findByText(/Event not found/)).toBeTruthy();
   });

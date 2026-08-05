@@ -12,7 +12,7 @@ from bookings.models import LockedDate
 from bookings.permissions import is_salesperson
 from bookings.pdf import generate_event_pdf
 from bookings.pdf_beo import generate_beo_pdf
-from bookings.services.beo import record_beo_issue
+from bookings.services.beo import issue_beo_revision
 from .models import Event, EventStatus, EventPayment
 from users.mixins import (
     get_request_org, apply_org_filter, get_org_object_or_404, is_superuser_without_org,
@@ -41,10 +41,9 @@ class EventPDFView(APIView):
 class EventBEOView(APIView):
     """GET /api/events/<pk>/beo/ — download the day-of Banquet Event Order (REL-444).
 
-    The ops counterpart to the function sheet above: same event, no money. The
-    download also *issues* the document (``record_beo_issue``), which is why a GET
-    writes — the revision counter tracks copies that have left the building, and the
-    only moment we know one has is when someone takes it.
+    The ops counterpart to the function sheet above: same event, no money. A pure
+    read — printing a second copy for the venue must not tell the kitchen its own
+    copy went stale. Moving the revision is ``EventBEORevisionView`` below.
     """
 
     def get(self, request, pk):
@@ -64,12 +63,26 @@ class EventBEOView(APIView):
             ),
             request, pk=pk,
         )
-        record_beo_issue(event)
         response = HttpResponse(generate_beo_pdf(event), content_type='application/pdf')
         response['Content-Disposition'] = (
             f'attachment; filename="BEO-{event.pk}-Rev{event.beo_revision}.pdf"'
         )
         return response
+
+
+class EventBEORevisionView(APIView):
+    """POST /api/events/<pk>/beo/revise/ — issue the next BEO revision (REL-444).
+
+    Deliberate, and separate from the download for that reason: the number tells
+    everyone holding a printed sheet that theirs is out of date, and only a person
+    knows when that's true. Returns the full event so the caller picks up the new
+    revision without a second fetch.
+    """
+
+    def post(self, request, pk):
+        event = get_org_object_or_404(Event.objects.all(), request, pk=pk)
+        issue_beo_revision(event)
+        return Response(EventSerializer(event, context={'request': request}).data)
 
 
 def _auto_advance_event_statuses(org=None):

@@ -28,11 +28,12 @@ test.describe("Event BEO", () => {
     await expect(page.getByRole("button", { name: "Download PDF" })).toBeVisible({ timeout: 15_000 });
   }
 
-  test("the BEO button downloads a PDF", async ({ page }) => {
+  test("the BEO button downloads a PDF, and downloading twice keeps one revision", async ({ page }) => {
     await openAnEvent(page);
 
+    const beo = page.getByRole("button", { name: /^BEO/ });
     const downloadPromise = page.waitForEvent("download", { timeout: 20_000 });
-    await page.getByRole("button", { name: "BEO", exact: true }).click();
+    await beo.click();
     const download = await downloadPromise;
 
     // Revision-stamped, which only works because the server's Content-Disposition
@@ -44,6 +45,13 @@ test.describe("Event BEO", () => {
     const path = await download.path();
     const { readFileSync } = await import("node:fs");
     expect(readFileSync(path!).subarray(0, 4).toString()).toBe("%PDF");
+
+    // Print a second copy for the venue — it must be the SAME revision. A download
+    // that renumbered the document would tell whoever holds the first copy that
+    // theirs is stale, over a change that never happened.
+    const second = page.waitForEvent("download", { timeout: 20_000 });
+    await beo.click();
+    expect((await second).suggestedFilename()).toBe(download.suggestedFilename());
   });
 
   test("the header controls never overlap each other", async ({ page }) => {

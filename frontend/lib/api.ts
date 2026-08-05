@@ -1682,8 +1682,9 @@ export const api = {
     return res.blob();
   },
   // The day-of Banquet Event Order — the ops counterpart to the function sheet
-  // above, carrying no pricing. Downloading it also issues it: the server bumps the
-  // revision counter on a re-issue after signing (REL-444).
+  // above, carrying no pricing. Downloading NEVER moves the revision: printing a
+  // second copy for the venue must not tell the kitchen its copy went stale. Use
+  // `issueBEORevision` when something actually changed (REL-444).
   //
   // Returns the server's filename alongside the blob, because it is the only party
   // that knows which revision this download just became — the caller's copy of the
@@ -1702,6 +1703,10 @@ export const api = {
     const match = /filename="?([^";]+)"?/.exec(disposition);
     return { blob: await res.blob(), filename: match?.[1] || `BEO-${id}.pdf` };
   },
+  // Bump the BEO to its next revision — a deliberate "this changed, everyone's copy
+  // is stale" act, which is exactly why it isn't a side effect of downloading.
+  issueBEORevision: (id: number) =>
+    fetchApi<EventData>(`/events/${id}/beo/revise/`, { method: "POST" }),
   getQuoteLineItems: (quoteId: number) =>
     fetchList<QuoteLineItem>(`/bookings/quotes/${quoteId}/items/?page_size=all`),
   createQuoteLineItem: (quoteId: number, data: Partial<QuoteLineItem>) =>

@@ -12,41 +12,32 @@ from django.db import transaction
 from django.utils import timezone
 
 
-def record_beo_issue(event, now=None):
-    """Stamp a BEO download onto the event; return ``(revision, revised_at)``.
+def issue_beo_revision(event, now=None):
+    """Move the BEO to its next revision; return ``(revision, revised_at)``.
 
-    The counter answers one question for the kitchen: *is the sheet in my hand the
-    current one?* So it only moves when the answer can change for someone who
-    already has a copy:
+    A **deliberate** act, never a side effect of downloading. The number answers one
+    question for whoever holds a printed sheet — *has this changed since I got it?* —
+    and only a person knows the answer. An earlier version bumped on every download,
+    so printing three copies for the kitchen, the captain and the venue produced three
+    identical sheets numbered Rev 3, 4 and 5, and the captain would chase a change that
+    never happened.
 
-    * never issued (``beo_revision == 0``) → **Rev 1**, no revised-at stamp; a first
-      issue is not a revision of anything;
-    * re-issued while **unsigned** → unchanged. The booking is still being drafted
-      and nobody downstream is working from it yet, so bumping on every preview
-      would burn through revision numbers and make them meaningless (AC2);
-    * re-issued **after the client signed** → +1, stamped with the time. This is the
-      case the counter exists for: the terms are fixed, copies are out, and a change
-      has to announce itself.
+    So: download as many copies as you like at the current revision; when you actually
+    change something the crew must know about, issue a new one. Rev 1 is the original
+    and needs no action — an event is born at it.
 
-    Signed-ness is read from the event, which is where a signature is canonical
-    (a quote's signature lands on its event — see ``bookings/views/public_sign.py``).
-
-    The read-modify-write takes a row lock so two people hitting *Download* at the
-    same moment can't both issue "Rev 3" — on **Postgres**. Django's SQLite backend
-    reports ``has_select_for_update = False`` and silently drops the clause, so dev
-    and the test suite get no such guarantee; prod is what this protects.
+    The read-modify-write takes a row lock so two people issuing at the same moment
+    can't both mint "Rev 3" — on **Postgres**. Django's SQLite backend reports
+    ``has_select_for_update = False`` and silently drops the clause, so dev and the
+    test suite get no such guarantee; prod is what this protects.
     """
     with transaction.atomic():
         fresh = type(event).objects.select_for_update().get(pk=event.pk)
-        if fresh.beo_revision == 0:
-            fresh.beo_revision = 1
-            fresh.save(update_fields=['beo_revision'])
-        elif fresh.latest_signature is not None:
-            fresh.beo_revision += 1
-            fresh.beo_revised_at = now or timezone.now()
-            fresh.save(update_fields=['beo_revision', 'beo_revised_at'])
+        fresh.beo_revision = (fresh.beo_revision or 1) + 1
+        fresh.beo_revised_at = now or timezone.now()
+        fresh.save(update_fields=['beo_revision', 'beo_revised_at'])
         revision, revised_at = fresh.beo_revision, fresh.beo_revised_at
-    # Keep the caller's instance honest — it is the one about to be rendered.
+    # Keep the caller's instance honest — it may be rendered next.
     event.beo_revision, event.beo_revised_at = revision, revised_at
     return revision, revised_at
 

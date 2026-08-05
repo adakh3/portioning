@@ -662,14 +662,18 @@ class Event(OrgScopedModel, models.Model):
     final_count = models.IntegerField(null=True, blank=True)
     final_count_due = models.DateField(null=True, blank=True)
 
-    # BEO issue tracking (REL-444). The BEO is the day-of ops document; kitchen,
-    # banquet and the venue all work from it, so they need to know *which* copy
-    # they are holding. 0 = never issued; the first download makes it Rev 1, and
-    # only a re-issue **after the client signed** counts as a revision (see
-    # ``bookings/services/beo.py::record_beo_issue``) — before signing the document
-    # is still being drafted, and bumping the number for every preview would make
-    # the counter meaningless.
-    beo_revision = models.IntegerField(default=0)
+    # BEO revision (REL-444). The BEO is the day-of ops document; kitchen, banquet
+    # and the venue all work from it, so the number answers one question for whoever
+    # is holding a printed copy: *has this changed since I got it?*
+    #
+    # Which is why **downloading never moves it**. Printing three copies for the
+    # kitchen, the captain and the venue would otherwise hand out three identical
+    # sheets numbered Rev 3, 4 and 5, and the captain would go chasing a change that
+    # never happened. Bumping is a deliberate act — see
+    # ``bookings/services/beo.py::issue_beo_revision``.
+    #
+    # Every event starts at Rev 1: the original issue is not a revision of anything.
+    beo_revision = models.IntegerField(default=1)
     beo_revised_at = models.DateTimeField(null=True, blank=True)
 
     # Unguessable token for the client-facing (unauthenticated) sign link —

@@ -109,7 +109,7 @@ def _header_flowables(event, s):
     ]
     # BEO number is the event's own id (a per-org sequence is deferred) — stable for
     # the life of the booking, which is the only property the kitchen needs from it.
-    ident = f'BEO #{event.pk} · Rev {event.beo_revision or 1}'
+    ident = f'BEO #{event.pk} · Rev {event.beo_revision or 1}'  # `or 1` guards a pre-migration 0
     if event.beo_revised_at:
         ident += f' · Revised {event.beo_revised_at.strftime("%d %b %Y, %H:%M")}'
     out.append(Paragraph(ident, s['body_bold']))
