@@ -49,9 +49,10 @@ class EventBEOView(APIView):
 
     def get(self, request, pk):
         event = get_org_object_or_404(
-            Event.objects.select_related('account', 'venue', 'primary_contact', 'organisation')
+            Event.objects.select_related('account', 'venue', 'primary_contact',
+                                         'organisation', 'assigned_to', 'created_by')
             .prefetch_related(
-                'dishes', 'dish_comments', 'courses', 'timeline_entries',
+                'dishes', 'dish_comments', 'courses', 'timeline_entries', 'line_items',
                 'guest_counts__segment',
                 # `audience_segment` (not `dishes`): the vendor split reads the
                 # segment per meal, while the meal's dish names come from

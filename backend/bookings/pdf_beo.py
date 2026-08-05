@@ -22,8 +22,8 @@ from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, 
 from bookings.models.settings import OrgSettings
 from bookings.models.choices import EventTypeOption, ServiceStyleOption, MealTypeOption
 from bookings.pdf import (
-    BG_SUBTLE, BORDER_LIGHT, CONTENT_W, LEGACY_PDF_LABELS, MARGIN,
-    _choice_label, _dish_table, _dt_fmt, _esc, _section_header, _styles,
+    BG_SUBTLE, BORDER_LIGHT, CATEGORY_LABELS, CONTENT_W, LEGACY_PDF_LABELS, MARGIN,
+    UNIT_LABELS, _choice_label, _dish_table, _dt_fmt, _esc, _section_header, _styles,
 )
 from bookings.services.beo import beo_choice_tallies, beo_guest_breakdown, beo_vendor_meals
 from bookings.services.timeline import booking_timeline, format_timeline_row
@@ -60,6 +60,30 @@ def _grid(title, header_cells, rows, col_widths, s):
         style.append(('LINEBELOW', (0, i), (-1, i), 0.25, BORDER_LIGHT))
     body.setStyle(TableStyle(style))
     return out + [head, body, Spacer(1, 6 * mm)]
+
+
+def _adhoc_venue_address(event):
+    """The one-line address of a venue typed straight onto the booking.
+
+    `venue_address` is the old freeform field; `venue_city`/`venue_state`/`venue_zip`
+    were added alongside it for US addresses. Rendering only the first drops the
+    city and ZIP off a sheet whose whole job is telling a van where to go.
+    """
+    parts = [event.venue_address, event.venue_city, event.venue_state, event.venue_zip]
+    return ', '.join(p.strip() for p in parts if p and p.strip())
+
+
+def _quantity_text(item):
+    """"5 × Each", "150 × Per Guest" — the count and unit, never the money.
+
+    Trailing zeros are stripped so a quantity stored as ``5.00`` reads as ``5``;
+    nobody loads "5.00 chafing dishes".
+    """
+    qty = item.quantity.normalize() if hasattr(item.quantity, 'normalize') else item.quantity
+    qty = f'{qty:f}' if hasattr(qty, 'is_signed') else str(qty)
+    if '.' in qty:
+        qty = qty.rstrip('0').rstrip('.')
+    return f'{qty} × {UNIT_LABELS.get(item.unit, item.unit)}'
 
 
 def _shift_window(shift, time_format):
@@ -115,9 +139,9 @@ def _info_block_flowables(event, s):
             parts.append(', '.join(addr))
         left_rows.append([Paragraph('Venue:', s['info_label']),
                           Paragraph(_esc(' — '.join(parts)), s['info_value'])])
-    elif event.venue_address:
+    elif _adhoc_venue_address(event):
         left_rows.append([Paragraph('Venue:', s['info_label']),
-                          Paragraph(_esc(event.venue_address), s['info_value'])])
+                          Paragraph(_esc(_adhoc_venue_address(event)), s['info_value'])])
 
     LEFT_W = CONTENT_W * 0.52
     left = Table(left_rows, colWidths=[LEFT_W * 0.28, LEFT_W * 0.72])
@@ -190,6 +214,12 @@ def _guest_flowables(event, s):
         rows.append(('Final count:', str(event.final_count)))
     if event.final_count_due:
         rows.append(('Final count due:', event.final_count_due.strftime('%d %B %Y')))
+    if event.big_eaters:
+        # The client's copy deliberately never says this (calling a customer's guests
+        # big eaters is not a thing to put in writing), but it scales every portion the
+        # kitchen cooks — so on the ops sheet it has to be visible.
+        pct = event.big_eaters_percentage or 0
+        rows.append(('Portions:', f'Big eaters — all portions +{pct:g}%'))
     return [
         _section_header([Paragraph('GUEST COUNT', s['section_title'])], [CONTENT_W]),
         _label_value_table(rows, s),
@@ -372,6 +402,74 @@ def _equipment_flowables(event, s):
                  [CONTENT_W * 0.75, CONTENT_W * 0.25], s)
 
 
+# Categories that describe a *thing to deliver or a person to roster* rather than a
+# pure money line. A fee or a discount has nothing to load into the van, so listing it
+# on an ops sheet is noise — and on a document that carries no amounts, a row reading
+# just "Service fee" tells the crew nothing at all.
+DELIVERABLE_ADDON_CATEGORIES = ('food', 'beverage', 'rental', 'labor')
+
+
+def _addon_flowables(event, s):
+    """Add-ons as things to bring, not money.
+
+    Add-ons are sold as priced line items, but they are also the only record of a lot
+    of real deliverables: "20 gold chargers", "5 × Waiter". Nothing turns them into an
+    `EquipmentReservation` or a `Shift` — those are separate tables filled in by hand —
+    so without this the crew loading the van never learns the chargers were sold.
+    Quantities and units only; the rates stay on the contract (AC10).
+    """
+    items = [i for i in event.line_items.all()
+             if i.category in DELIVERABLE_ADDON_CATEGORIES]
+    if not items:
+        return []
+    rows = [(CATEGORY_LABELS.get(i.category, i.category), i.description, _quantity_text(i))
+            for i in items]
+    return _grid('ADD-ONS & EXTRAS', ['CATEGORY', 'ITEM', 'QTY'], rows,
+                 [CONTENT_W * 0.18, CONTENT_W * 0.57, CONTENT_W * 0.25], s)
+
+
+def _venue_logistics_flowables(event, s):
+    """Getting in, and what's there when you do (dock, kitchen, power, house rules).
+
+    Standard BEO content and the questions a crew actually rings about. It lives on the
+    Venue record, so it is filled in once and reused by every booking there. Omitted
+    unless the venue actually says something — a lone "Kitchen access: No" default
+    would be a claim nobody made.
+    """
+    venue = event.venue
+    if not venue:
+        return []
+    rows = []
+    if venue.loading_notes and venue.loading_notes.strip():
+        rows.append(('Load-in / access:', venue.loading_notes.strip()))
+    rows.append(('Kitchen on site:', 'Yes' if venue.kitchen_access else 'No'))
+    if venue.power_water_notes and venue.power_water_notes.strip():
+        rows.append(('Power & water:', venue.power_water_notes.strip()))
+    if venue.rules and venue.rules.strip():
+        rows.append(('Venue rules:', venue.rules.strip()))
+    if len(rows) == 1 and not venue.kitchen_access:
+        return []
+    return [
+        _section_header([Paragraph('VENUE ACCESS', s['section_title'])], [CONTENT_W]),
+        _label_value_table(rows, s, label_w=0.22),
+        Spacer(1, 6 * mm),
+    ]
+
+
+def _notes_flowables(event, s):
+    """The booking's general notes — the context that isn't specifically kitchen,
+    banquet or setup, but that whoever runs the day still needs."""
+    text = (event.notes or '').strip()
+    if not text:
+        return []
+    out = [_section_header([Paragraph('EVENT NOTES', s['section_title'])], [CONTENT_W]),
+           Spacer(1, 2 * mm)]
+    for para in text.split('\n'):
+        if para.strip():
+            out.append(Paragraph(_esc(para.strip()), s['note']))
+    return out + [Spacer(1, 6 * mm)]
+
+
 def _instruction_flowables(event, s):
     """Kitchen / banquet / setup free text, each omitted when blank (AC9)."""
     out = []
@@ -414,8 +512,17 @@ def _contact_flowables(event, s):
             rows.append(('Venue phone:', venue.contact_phone))
         if venue.contact_email:
             rows.append(('Venue email:', venue.contact_email))
-    elif event.venue_address:
-        rows.append(('Venue address:', event.venue_address))
+    else:
+        adhoc = _adhoc_venue_address(event)
+        if adhoc:
+            rows.append(('Venue address:', adhoc))
+    # Who the crew rings at the office when the day goes sideways — the salesperson
+    # who owns this booking knows what was promised.
+    owner = event.assigned_to or event.created_by
+    if owner:
+        rows.append(('Event owner:', owner.get_full_name() or owner.email))
+        if owner.email and owner.get_full_name():
+            rows.append(('Owner email:', owner.email))
     if not rows:
         return []
     return [
@@ -452,6 +559,9 @@ def generate_beo_pdf(event):
     elements += _vendor_flowables(event, s, time_format)
     elements += _staffing_flowables(event, s, time_format)
     elements += _equipment_flowables(event, s)
+    elements += _addon_flowables(event, s)
+    elements += _venue_logistics_flowables(event, s)
+    elements += _notes_flowables(event, s)
     elements += _instruction_flowables(event, s)
     elements += _contact_flowables(event, s)
 

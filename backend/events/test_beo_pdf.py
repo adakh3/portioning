@@ -208,7 +208,8 @@ class BEOSectionTests(BEOTestBase):
         text = self._text(self._event())
         for absent in ["STAFFING", "EQUIPMENT", "MENU", "CONTACTS",
                        "KITCHEN INSTRUCTIONS", "BANQUET INSTRUCTIONS",
-                       "SETUP INSTRUCTIONS", "ADDITIONAL MEALS", "VENDOR MEALS"]:
+                       "SETUP INSTRUCTIONS", "ADDITIONAL MEALS", "VENDOR MEALS",
+                       "ADD-ONS & EXTRAS", "VENUE ACCESS", "EVENT NOTES"]:
             self.assertNotIn(absent, text, f"empty section rendered anyway: {absent}")
         # …but it is still a BEO, with the identity and guests that always apply.
         self.assertIn("BANQUET EVENT ORDER", text)
@@ -250,6 +251,107 @@ class BEOSectionTests(BEOTestBase):
         self.assertIn("The Grand Hall", text)
         self.assertIn("Dana Venue", text)
         self.assertIn("555-0100", text)
+
+
+class BEOOpsDetailTests(BEOTestBase):
+    """AC13–AC17 — the things the form captures that the crew needs on the day."""
+
+    def test_addons_render_as_things_to_bring_not_money(self):
+        # AC13 — an add-on is the ONLY record of a lot of real deliverables: nothing
+        # turns "20 gold chargers" into an EquipmentReservation, so without this the
+        # crew loading the van never learns they were sold.
+        from bookings.models import BookingLineItem
+        e = self._event()
+        BookingLineItem.objects.create(event=e, category="rental", description="Gold chargers",
+                                       quantity=Decimal("20.00"), unit="each",
+                                       unit_price=Decimal("4.50"))
+        BookingLineItem.objects.create(event=e, category="labor", description="Waiter",
+                                       quantity=Decimal("5"), unit="per_hour",
+                                       unit_price=Decimal("28.00"))
+        text = self._text(e)
+        self.assertIn("ADD-ONS & EXTRAS", text)
+        self.assertIn("Gold chargers", text)
+        self.assertIn("20 × Each", text)       # not "20.00" — nobody loads 20.00 chargers
+        self.assertIn("Waiter", text)
+        self.assertIn("5 × Per Hour", text)
+        for money in ["4.50", "28.00", "90.00"]:
+            self.assertNotIn(money, text, "the add-on block leaked a price")
+
+    def test_pure_money_addons_are_left_off(self):
+        # AC13 — a fee or a discount has nothing to load or roster, and on a document
+        # with no amounts a bare "Service fee" row tells the crew nothing.
+        from bookings.models import BookingLineItem
+        e = self._event()
+        BookingLineItem.objects.create(event=e, category="fee", description="Travel fee",
+                                       quantity=Decimal("1"), unit="flat",
+                                       unit_price=Decimal("120.00"))
+        BookingLineItem.objects.create(event=e, category="discount", description="Loyalty discount",
+                                       quantity=Decimal("1"), unit="flat",
+                                       unit_price=Decimal("-50.00"))
+        text = self._text(e)
+        self.assertNotIn("ADD-ONS & EXTRAS", text)
+        self.assertNotIn("Travel fee", text)
+        self.assertNotIn("Loyalty discount", text)
+
+    def test_venue_access_block_renders_the_logistics(self):
+        # AC14 — the questions a crew actually rings about.
+        from bookings.models import Venue
+        venue = Venue.objects.create(
+            organisation=self.org, name="The Grand Hall",
+            loading_notes="Dock on the river side; van park bay 4.",
+            kitchen_access=True, power_water_notes="Three 32A outlets backstage.",
+            rules="Music off at 23:30. No open flame.",
+        )
+        text = self._text(self._event(venue=venue))
+        self.assertIn("VENUE ACCESS", text)
+        self.assertIn("Dock on the river side", text)
+        self.assertIn("Kitchen on site:", text)
+        self.assertIn("Yes", text)
+        self.assertIn("32A outlets", text)
+        self.assertIn("Music off at 23:30", text)
+
+    def test_venue_access_block_omitted_when_the_venue_says_nothing(self):
+        # AC14 — a lone "Kitchen on site: No" is a default, not a fact anyone asserted.
+        from bookings.models import Venue
+        venue = Venue.objects.create(organisation=self.org, name="Bare Venue")
+        self.assertNotIn("VENUE ACCESS", self._text(self._event(venue=venue)))
+
+    def test_big_eaters_uplift_is_visible_to_the_kitchen(self):
+        # AC15 — it scales every portion cooked. The CLIENT's function sheet must
+        # still never mention it (asserted in events/test_event_pdf.py).
+        e = self._event(big_eaters=True, big_eaters_percentage=20)
+        text = self._text(e)
+        self.assertIn("Big eaters", text)
+        self.assertIn("+20%", text)
+
+    def test_no_big_eaters_line_when_the_flag_is_off(self):
+        self.assertNotIn("Big eaters", self._text(self._event(big_eaters=False)))
+
+    def test_event_notes_render_as_their_own_block(self):
+        # AC16
+        e = self._event(notes="Bride's father is coeliac — seat 12A.")
+        text = self._text(e)
+        self.assertIn("EVENT NOTES", text)
+        self.assertIn("coeliac", text)
+
+    def test_event_owner_is_reachable_from_the_contacts_block(self):
+        # AC17 — who site crew ring at the office when the day goes sideways.
+        e = self._event(assigned_to=self.user)
+        text = self._text(e)
+        self.assertIn("Event owner:", text)
+        self.assertIn(self.user.get_full_name() or self.user.email, text)
+
+    def test_an_adhoc_venue_keeps_its_city_state_and_zip(self):
+        # A van needs the whole address. `venue_address` is the old freeform field and
+        # the US parts live in their own columns — rendering only the first drops the
+        # city and ZIP off the one document whose job is saying where to go.
+        e = self._event(venue=None, venue_address="400 River Rd",
+                        venue_city="Austin", venue_state="TX", venue_zip="78701")
+        text = self._text(e)
+        self.assertIn("400 River Rd", text)
+        self.assertIn("Austin", text)
+        self.assertIn("TX", text)
+        self.assertIn("78701", text)
 
 
 class BEOMenuTests(BEOTestBase):
