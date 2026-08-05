@@ -29,8 +29,20 @@ test.describe("Add-on lines survive a save and a reload", () => {
     // Each row names itself in its group label, so its own controls are short.
     const row = (i: number) => page.getByTestId(`addon-line-${i}`);
 
-    // 1) A variant chip → a line named after product AND variant, qty 12.
+    // 1) A variant chip → a line named after product AND variant, billed per unit
+    //    at qty 12.
+    //
+    //    The unit is set explicitly rather than inherited from the catalogue. A
+    //    product's `default_unit` depends on how the org was seeded — in a fresh
+    //    database the starter catalogue creates "Soft Drinks" as `per_guest` and
+    //    `seed_demo`'s get_or_create then only adds its variants — so a spec that
+    //    assumed `each` passed on a long-lived dev DB and failed in CI on $15,000
+    //    (a correct per-guest total). Setting it here makes the spec independent of
+    //    seeding history and exercises the unit control at the same time.
     await addAddOn(page, "Soft Drinks — 1.5L", "Soft Drinks");
+    await row(0).getByRole("button", { name: "Edit price, unit and category" }).click();
+    await row(0).getByLabel("Unit", { exact: true }).selectOption("each");
+    await row(0).getByRole("button", { name: "Done" }).click();
     await row(0).getByLabel("Quantity", { exact: true }).fill("12");
     await expect(row(0)).toContainText("$1,800.00");
 
