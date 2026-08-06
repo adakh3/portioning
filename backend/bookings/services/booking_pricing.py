@@ -13,9 +13,11 @@ from decimal import Decimal
 
 from bookings.services.totals import PricingInput, price_booking
 
-# Written by `store_pricing_result` on every recalculate. Everything else about a
-# booking's money is derived from these, never typed.
-STORED_MONEY_FIELDS = ('subtotal', 'service_charge', 'tax_amount', 'gratuity', 'total')
+# Written by `store_pricing_result` on every recalculate, in one save(). Everything
+# else about a booking's money is derived from these, never typed.
+STORED_MONEY_FIELDS = (
+    'subtotal', 'service_charge', 'tax_amount', 'gratuity', 'total', 'pricing_snapshot',
+)
 
 
 def pricing_input_for(booking, line_items=None):
@@ -98,11 +100,18 @@ def price_and_store(booking, extra_update_fields=()):
 
 
 def store_pricing_result(booking, result, extra_update_fields=()):
-    """Write the engine's answer onto the booking. The ONLY writer of these five."""
+    """Write the engine's answer onto the booking. The ONLY writer of these fields.
+
+    The five columns and the snapshot go in ONE `save()` on purpose. Written
+    separately they could diverge — a failure between the two writes would leave a
+    booking whose stored total and whose rendered document disagree, which is the
+    exact class of bug this epic exists to end.
+    """
     totals = result.totals
     booking.subtotal = totals['subtotal']
     booking.service_charge = totals['service_charge']
     booking.tax_amount = totals['tax_amount']
     booking.gratuity = totals['gratuity']
     booking.total = totals['total']
+    booking.pricing_snapshot = result.to_dict()
     booking.save(update_fields=list(STORED_MONEY_FIELDS) + list(extra_update_fields))

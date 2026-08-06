@@ -160,6 +160,42 @@ total — from raw inputs. No caller does arithmetic of its own.
 `Event` into that plain input and stores the result. Both models' `recalculate_totals`
 are one call to it, so a quote and the event it becomes cannot compute differently.
 
+## The single write path
+
+`store_pricing_result` is the **only** writer of a booking's money. It writes the five
+columns *and* `pricing_snapshot` in one `save()` — separately, a failure between the
+two would leave a booking whose stored total and whose rendered document disagree.
+
+Everything that can change money reaches it through `recalculate_totals`:
+
+| Writer | How it gets there |
+|---|---|
+| DRF serializers (quote + event create/update) | call `recalculate_totals` |
+| `BookingLineItem.save()` / `.delete()` | call it on the parent booking |
+| Quote acceptance and lead conversion | `booking_carry` sets the inputs, then `recalculate_totals` |
+| Django admin | `BookingMoneyAdminMixin.save_model` / `save_related` |
+| Reconciliation `--apply` | calls `recalculate_totals` |
+| **Finals endpoint** (`events/serializers.py`) | **exempt by design** — it records tallies, not money |
+
+`pricing_snapshot` is NULL only for rows written before REL-464; it fills on the next
+recompute, and surfaces fall back to their previous behaviour while it is NULL.
+
+## The invariants
+
+- **DB check constraint** on both tables: `total` equals
+  `subtotal + service_charge + tax_amount + gratuity`, within **half a cent**.
+  Not exact equality: the constraint is evaluated by the database, and SQLite (dev +
+  CI) gives `DecimalField` NUMERIC affinity — it stores these as IEEE doubles and adds
+  them as floats, so `14201.20 + 1171.60` comes back as `15372.800000000001` and an
+  exact check rejects numbers that are correct to the cent. Postgres NUMERIC is exact
+  and would have passed, which is the worst case: a constraint that holds in prod and
+  fails everywhere it is tested. Real drift is at least a whole cent.
+- **Guest-count invariant** (REL-459): the default in-count segment is always
+  `guest_count` minus the explicit in-count rows, enforced in `write_booking_segments`.
+- **`reconcile_booking_totals`** re-prices every booking and reports any row whose
+  stored columns or snapshot disagree with the engine; exits 1 on any diff, so a
+  scheduled run can gate. `--apply` refuses any booking a client has already seen.
+
 ## The contract — when you touch totals math
 
 Any change to the totals rule must update **all of these together**, or a test

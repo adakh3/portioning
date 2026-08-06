@@ -14,6 +14,15 @@ from users.model_mixins import OrgScopedModel
 from bookings.models.finance import PaymentMethod
 
 
+# The four parts an event's total is made of — the twin of the Quote expression.
+# Defined here rather than imported so `events` keeps no import-time dependency on
+# `bookings.models.quotes` (which imports from events in turn).
+_TOTAL_PARTS = (
+    models.F('subtotal') + models.F('service_charge')
+    + models.F('tax_amount') + models.F('gratuity')
+)
+
+
 def resolve_legacy_segments(organisation, guest_count, gents, ladies, has_split):
     """Build the N-segment guest mix for a booking that has no per-segment
     ``BookingGuestCount`` rows, from its legacy gents/ladies columns.
@@ -703,6 +712,9 @@ class Event(OrgScopedModel, models.Model):
         help_text='Gratuity as a percentage of the subtotal (post-tax, never taxed)')
     gratuity = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
     total = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+    # The engine's COMPLETE answer — see the twin field on Quote for why both the
+    # columns and the JSON exist.
+    pricing_snapshot = models.JSONField(null=True, blank=True, default=None)
 
     # Timeline
     setup_time = models.DateTimeField(null=True, blank=True)
@@ -736,6 +748,18 @@ class Event(OrgScopedModel, models.Model):
 
     class Meta:
         ordering = ['-event_date']
+        constraints = [
+            # Mirror of the quote invariant — see Quote.Meta for why it is a
+            # half-cent band rather than exact equality (SQLite adds DecimalFields
+            # as floats, so correct-to-the-cent numbers fail an exact check).
+            models.CheckConstraint(
+                name='event_total_is_the_sum_of_its_parts',
+                condition=(
+                    models.Q(total__gte=_TOTAL_PARTS - Decimal('0.005'))
+                    & models.Q(total__lte=_TOTAL_PARTS + Decimal('0.005'))
+                ),
+            ),
+        ]
 
     def __str__(self):
         return f"{self.name} ({self.event_date})"
