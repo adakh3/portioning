@@ -11,6 +11,8 @@ from rest_framework.response import Response
 from bookings.models import LockedDate
 from bookings.permissions import is_salesperson
 from bookings.pdf import generate_event_pdf
+from bookings.pdf_beo import generate_beo_pdf
+from bookings.services.beo import issue_beo_revision
 from .models import Event, EventStatus, EventPayment
 from users.mixins import (
     get_request_org, apply_org_filter, get_org_object_or_404, is_superuser_without_org,
@@ -34,6 +36,53 @@ class EventPDFView(APIView):
         response = HttpResponse(pdf_bytes, content_type='application/pdf')
         response['Content-Disposition'] = f'attachment; filename="Event-{event.pk}.pdf"'
         return response
+
+
+class EventBEOView(APIView):
+    """GET /api/events/<pk>/beo/ — download the day-of Banquet Event Order (REL-444).
+
+    The ops counterpart to the function sheet above: same event, no money. A pure
+    read — printing a second copy for the venue must not tell the kitchen its own
+    copy went stale. Moving the revision is ``EventBEORevisionView`` below.
+    """
+
+    def get(self, request, pk):
+        event = get_org_object_or_404(
+            Event.objects.select_related('account', 'venue', 'primary_contact',
+                                         'organisation', 'assigned_to', 'created_by')
+            .prefetch_related(
+                'dishes', 'dish_comments', 'courses', 'timeline_entries', 'line_items',
+                'guest_counts__segment',
+                # `audience_segment` (not `dishes`): the vendor split reads the
+                # segment per meal, while the meal's dish names come from
+                # `dish_display_names_in_added_order`, which goes at the through
+                # table directly and would never touch a prefetched `dishes`.
+                'additional_meals__audience_segment',
+                'shifts__staff_member', 'shifts__role',
+                'equipment_reservations__equipment',
+            ),
+            request, pk=pk,
+        )
+        response = HttpResponse(generate_beo_pdf(event), content_type='application/pdf')
+        response['Content-Disposition'] = (
+            f'attachment; filename="BEO-{event.pk}-Rev{event.beo_revision}.pdf"'
+        )
+        return response
+
+
+class EventBEORevisionView(APIView):
+    """POST /api/events/<pk>/beo/revise/ — issue the next BEO revision (REL-444).
+
+    Deliberate, and separate from the download for that reason: the number tells
+    everyone holding a printed sheet that theirs is out of date, and only a person
+    knows when that's true. Returns the full event so the caller picks up the new
+    revision without a second fetch.
+    """
+
+    def post(self, request, pk):
+        event = get_org_object_or_404(Event.objects.all(), request, pk=pk)
+        issue_beo_revision(event)
+        return Response(EventSerializer(event, context={'request': request}).data)
 
 
 def _auto_advance_event_statuses(org=None):

@@ -217,6 +217,9 @@ class EventSerializer(OrgScopedModelSerializer):
                   'big_eaters', 'big_eaters_percentage',
                   'dishes', 'dish_ids', 'based_on_template', 'notes',
                   'courses', 'dish_courses', 'menu_choices', 'menu_lines', 'finals_status',
+                  # Which BEO copy exists (REL-444). Read-only: the counter moves only
+                  # when the document is actually issued, never by editing the event.
+                  'beo_revision', 'beo_revised_at',
                   'kitchen_instructions', 'banquet_instructions', 'setup_instructions',
                   'constraint_override', 'dish_comments', 'line_items', 'created_at',
                   # Booking fields
@@ -250,7 +253,8 @@ class EventSerializer(OrgScopedModelSerializer):
         # recorded. `EventFinalsSerializer` writes them on the model directly.
         read_only_fields = ['created_at', 'subtotal', 'tax_amount', 'total',
                             'service_charge', 'gratuity', 'created_by',
-                            'guaranteed_count', 'final_count', 'final_count_due']
+                            'guaranteed_count', 'final_count', 'final_count_due',
+                            'beo_revision', 'beo_revised_at']
         extra_kwargs = {
             'notes': {'max_length': 5000},
             'kitchen_instructions': {'max_length': 5000},

@@ -28,7 +28,7 @@ def _iso(dt):
     return dt.isoformat() if dt else None
 
 
-def booking_menu_courses(booking):
+def booking_menu_courses(booking, with_dietary=False):
     """Course-grouped menu — a list of ``{'name','items'}`` in course order (a trailing
     ``name=''`` group holds unassigned dishes), or ``None`` when the booking defines no
     courses (surfaces then fall back to the flat/category menu, course-less byte-
@@ -40,11 +40,26 @@ def booking_menu_courses(booking):
     the client picks one, and the per-head price is the same either way. This is the
     single place that rendering exists, which is what keeps the sign page, both PDFs
     and the in-app pages saying the same thing.
+
+    ``with_dietary`` appends each dish's dietary/allergen suffix ("Salmon (GF)"), as
+    the flat menu already does. Opt-in, and off by default, so every existing surface
+    renders exactly as before; the BEO turns it on because a kitchen reading the
+    course order still has to see which plate is the gluten-free one (REL-444 AC4).
     """
     from events.models import resolve_booking_menu, choice_groups
     groups = resolve_booking_menu(booking)
     if not groups:
         return None
+    if with_dietary:
+        from dishes.labels import dietary_suffix
+        from dishes.ordering import tags_for_dish_ids
+        every_dish_id = [dish_id for group in groups for dish_id in group['dish_ids']]
+        tags = tags_for_dish_ids(every_dish_id)
+        groups = [
+            {**g, 'dish_names': [name + dietary_suffix(tags.get(dish_id, []))
+                                 for dish_id, name in zip(g['dish_ids'], g['dish_names'])]}
+            for g in groups
+        ]
     # Read the flags through `choice_groups`, never the raw rows: it is the one place
     # that decides a flag counts (plated, and the dish is in a course), so the contract
     # can't say "Choice of" about a booking the finals panel doesn't tally.
@@ -70,7 +85,14 @@ def booking_menu_courses(booking):
                 # course listing a fixed item then a choice keeps its running order.
                 # Keyed on the id, not the name — two dishes can share a name.
                 items.append(f"Choice of: {' / '.join(chosen_names)}")
-        out.append({'name': g['course'].name if g['course'] else '', 'items': items})
+        # `course_id` lets a surface hang extra per-course content off the group —
+        # the BEO's choice tallies (REL-444 AC7) — without re-resolving the menu or
+        # matching on the name, which two courses are free to share.
+        out.append({
+            'course_id': g['course'].id if g['course'] else None,
+            'name': g['course'].name if g['course'] else '',
+            'items': items,
+        })
     return out
 
 
@@ -124,7 +146,16 @@ def booking_presentation(booking, signature=None):
     # Menu grouped by COURSE (Starter/Entrée/Dessert + service style) when the booking
     # defines courses; None otherwise so surfaces fall back to the flat/category menu
     # exactly as before (REL-417 AC4). Dishes keep add-order within a course.
-    menu_courses = booking_menu_courses(booking)
+    #
+    # `course_id` is dropped here on purpose. This dict is served verbatim on the
+    # UNAUTHENTICATED /b/<token> sign page, and a BookingCourse pk is an internal key
+    # from a sequence shared across every org — nothing on that page consumes it, so
+    # putting it on the wire for anyone holding a signing link buys nothing. The
+    # in-process callers (the BEO) read it straight off `booking_menu_courses`.
+    _courses = booking_menu_courses(booking)
+    menu_courses = None if _courses is None else [
+        {k: v for k, v in g.items() if k != 'course_id'} for g in _courses
+    ]
 
     additional_meals = [
         {

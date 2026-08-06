@@ -845,6 +845,10 @@ export interface EventData {
   final_count_due: string | null;
   /** Derived on the backend from (confirmed + final_count vs final_count_due). */
   finals_status: FinalsStatus;
+  // Which BEO revision this event is on. Read-only: downloading never moves it —
+  // only the explicit "New revision" action does (REL-444).
+  beo_revision: number;
+  beo_revised_at: string | null;
   // Nested
   source_quote_id: number | null;
   contact_phone: string | null;
@@ -1681,6 +1685,32 @@ export const api = {
     }
     return res.blob();
   },
+  // The day-of Banquet Event Order — the ops counterpart to the function sheet
+  // above, carrying no pricing. Downloading NEVER moves the revision: printing a
+  // second copy for the venue must not tell the kitchen its copy went stale. Use
+  // `issueBEORevision` when something actually changed (REL-444).
+  //
+  // Returns the server's filename alongside the blob, because it is the only party
+  // that knows which revision this download just became — the caller's copy of the
+  // event is already one behind. Falls back to a plain name if Content-Disposition
+  // isn't readable (it needs CORS_EXPOSE_HEADERS on a cross-origin API).
+  downloadEventBEO: async (id: number): Promise<{ blob: Blob; filename: string }> => {
+    const res = await fetch(`${API_BASE}/events/${id}/beo/`, {
+      credentials: "include",
+      headers: buildHeaders(),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(sanitizeError(res.status, text));
+    }
+    const disposition = res.headers.get("Content-Disposition") || "";
+    const match = /filename="?([^";]+)"?/.exec(disposition);
+    return { blob: await res.blob(), filename: match?.[1] || `BEO-${id}.pdf` };
+  },
+  // Bump the BEO to its next revision — a deliberate "this changed, everyone's copy
+  // is stale" act, which is exactly why it isn't a side effect of downloading.
+  issueBEORevision: (id: number) =>
+    fetchApi<EventData>(`/events/${id}/beo/revise/`, { method: "POST" }),
   getQuoteLineItems: (quoteId: number) =>
     fetchList<QuoteLineItem>(`/bookings/quotes/${quoteId}/items/?page_size=all`),
   createQuoteLineItem: (quoteId: number, data: Partial<QuoteLineItem>) =>

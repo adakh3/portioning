@@ -427,6 +427,45 @@ export default function EventDetailPage() {
     }
   };
 
+  // Both documents download the same way — fetch the blob, click a synthetic link.
+  // Shared so the function sheet and the BEO can't drift on error handling or
+  // forget to revoke the object URL (REL-444). `fetchFile` may return a filename of
+  // its own; the BEO does, because only the server knows which revision the download
+  // just became.
+  const handleDownload = async (
+    fetchFile: () => Promise<Blob | { blob: Blob; filename: string }>,
+    fallbackName: string,
+  ) => {
+    try {
+      const result = await fetchFile();
+      const blob = result instanceof Blob ? result : result.blob;
+      const name = result instanceof Blob ? fallbackName : (result.filename || fallbackName);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = name;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : `Failed to download ${fallbackName}`);
+    }
+  };
+
+  // Deliberate, and separate from the download for that reason: this is what tells
+  // everyone holding a printed sheet that theirs is stale (REL-444).
+  const handleIssueBEORevision = async () => {
+    if (!event) return;
+    setSaving(true);
+    try {
+      await api.issueBEORevision(event.id);
+      await mutateEvent();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed to issue a new BEO revision");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleStatusTransition = async (newStatus: string) => {
     if (!event) return;
     setSaving(true);
@@ -567,8 +606,15 @@ export default function EventDetailPage() {
       {/* Header Section */}
       <Card>
         <CardContent className="p-6">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex items-end gap-3 flex-1 min-w-0">
+          {/* Both rows wrap. The left group's children (status pill, assignee picker,
+              product select) have their own intrinsic widths and don't shrink, so
+              without this they overflowed their `min-w-0` container and rendered
+              UNDER the button group, which is `flex-shrink-0` — the product dropdown
+              sat behind "Download PDF". Pre-existing; adding the BEO button (REL-444)
+              made it bite at a wider viewport, so it's fixed here rather than left
+              for the next button to make worse. */}
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="flex flex-wrap items-end gap-3 flex-1 min-w-0">
               <h1 className="text-2xl font-bold text-foreground truncate self-center">
                 {isNew
                   ? (formAccount ? `${accounts.find((a) => a.id === formAccount)?.name || "New Event"}` : "New Event")
@@ -648,21 +694,33 @@ export default function EventDetailPage() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={async () => {
-                      try {
-                        const blob = await api.downloadEventPDF(event!.id);
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement("a");
-                        a.href = url;
-                        a.download = `Event-${event!.id}.pdf`;
-                        a.click();
-                        URL.revokeObjectURL(url);
-                      } catch (err) {
-                        setError(err instanceof Error ? err.message : "Failed to download PDF");
-                      }
-                    }}
+                    onClick={() => handleDownload(
+                      () => api.downloadEventPDF(event!.id), `Event-${event!.id}.pdf`,
+                    )}
                   >
                     Download PDF
+                  </Button>
+                  {/* The ops sheet the kitchen/banquet/venue work from — same event,
+                      organised for the day and carrying no pricing. Downloading is a
+                      pure read; the revision beside it moves only on purpose. */}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    title={`Banquet Event Order (Rev ${event!.beo_revision ?? 1}) — the day-of sheet for kitchen, banquet and venue`}
+                    onClick={() => handleDownload(
+                      () => api.downloadEventBEO(event!.id), `BEO-${event!.id}.pdf`,
+                    )}
+                  >
+                    BEO {event!.beo_revision ? `· Rev ${event!.beo_revision}` : ""}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={saving}
+                    title="Issue a new BEO revision — tells kitchen, banquet and venue that the copy they hold is out of date. Use it when something on the day actually changed, not to reprint."
+                    onClick={handleIssueBEORevision}
+                  >
+                    New revision
                   </Button>
                   {/* Status transitions */}
                   {event!.status === "tentative" && (

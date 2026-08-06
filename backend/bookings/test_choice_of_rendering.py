@@ -241,6 +241,10 @@ class MenuLinesApiTests(TestCase):
         self._setup(quote)
         body = self.client.get(f'/api/bookings/quotes/{quote.id}/').json()
         self.assertEqual(body['menu_lines'], [{
+            # `course_id` joined the group in REL-444 so a surface can hang extra
+            # per-course content off it (the BEO's choice tallies) without matching
+            # on a name two courses may share.
+            'course_id': quote.courses.get().id,
             'name': 'Entrée', 'items': [choice_line(quote, [self.beef, self.salmon])],
         }])
 
@@ -251,6 +255,7 @@ class MenuLinesApiTests(TestCase):
         self._setup(event)
         body = self.client.get(f'/api/events/{event.id}/').json()
         self.assertEqual(body['menu_lines'], [{
+            'course_id': event.courses.get().id,
             'name': 'Entrée', 'items': [choice_line(event, [self.beef, self.salmon])],
         }])
 
