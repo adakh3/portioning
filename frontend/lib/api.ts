@@ -845,6 +845,10 @@ export interface EventData {
   final_count_due: string | null;
   /** Derived on the backend from (confirmed + final_count vs final_count_due). */
   finals_status: FinalsStatus;
+  // Which BEO revision this event is on. Read-only: downloading never moves it —
+  // only the explicit "New revision" action does (REL-444).
+  beo_revision: number;
+  beo_revised_at: string | null;
   // Nested
   source_quote_id: number | null;
   contact_phone: string | null;
