@@ -192,6 +192,7 @@ def write_booking_segments(booking, raw_counts):
     segs = {s.name.lower(): s for s in org.guest_segments.all()}
     seen = []
     gents = ladies = 0
+    explicit_in_count = 0
     for row in (raw_counts or []):
         name = (row.get('segment') or '').lower()
         seg = segs.get(name)
@@ -218,6 +219,43 @@ def write_booking_segments(booking, raw_counts):
                 segment=seg, defaults={'count': count, 'price_per_head': override}, **parent,
             )
             seen.append(seg.id)
+            # Sum the in-count segments THIS payload names, for the remainder below.
+            # Counted here rather than re-read from the table afterwards, because the
+            # table still holds the rows this call is about to delete — summing those
+            # made an edit that dropped "Kids: 12" leave 138 adults on a 150-guest
+            # booking instead of 150.
+            if seg.counts_toward_total and not seg.is_default:
+                explicit_in_count += count
+    # The default in-count segment (Adults) is ALWAYS the remainder of the booking's
+    # own guest_count — never whatever the caller happened to send for it.
+    #
+    # Without this, a breakdown that under-covers the count was accepted silently and
+    # every downstream reader followed it: `resolve_booking_segments` is count-first,
+    # so a booking of 100 carrying only "Kids: 20" priced, portioned and printed as
+    # TWENTY covers, while the signed function sheet still said 100. That is a
+    # £1,000 invoice for a £10,000 event, with no error anywhere (REL-459).
+    #
+    # The UI has always derived this (`defaultSegmentRemainder` /
+    # `buildGuestCountsPayload` in frontend/lib/quoteTotals.ts), so this doesn't
+    # invent a rule — it moves the existing one behind the API, where the raw
+    # write path and an AI agent go. Same reasoning as the price-override guard
+    # above. UI payloads already carry the right number, so this is a no-op for them.
+    default_seg = next(
+        (s for s in segs.values() if s.is_default and s.counts_toward_total), None,
+    )
+    if seen and default_seg is not None and (booking.guest_count or 0) > 0:
+        remainder = (booking.guest_count or 0) - explicit_in_count
+        if remainder > 0:
+            BookingGuestCount.objects.update_or_create(
+                segment=default_seg, defaults={'count': remainder, 'price_per_head': None},
+                **parent,
+            )
+            if default_seg.id not in seen:
+                seen.append(default_seg.id)
+        else:
+            # The breakdown already accounts for every guest — no remainder to hold.
+            seen = [s for s in seen if s != default_seg.id]
+
     BookingGuestCount.objects.filter(**parent).exclude(segment_id__in=seen).delete()
     # Keep the legacy gents/ladies columns in sync (PDF/back-compat), only when the
     # org defines those segments and the values actually changed.
