@@ -146,21 +146,19 @@ class BookingLineItem(models.Model):
         return 0
 
     def computed_line_total(self):
-        """What this line is worth right now, from its own inputs — the exact mirror
-        of `lineItemTotal` in frontend/lib/quoteTotals.ts, branch for branch.
+        """What this line is worth right now — delegated to the pricing engine, which
+        owns the rule (REL-463). The model stores the answer; it does not decide it.
 
-        Rounds through `round2` (HALF_UP). A bare `.quantize()` is HALF_EVEN and
-        disagreed with the live preview on an exact half-cent: 1.50 × $0.03 stored
-        $0.04 while the screen showed $0.05 (REL-462 Bug 2). The discount branch
-        rounds the magnitude and negates after, as the frontend does — rounding a
-        negative half-cent HALF_UP would go the other way.
+        The branches used to live here, duplicating `lineItemTotal` in
+        frontend/lib/quoteTotals.ts. Two copies of one rule is how they drift: a bare
+        `.quantize()` here was HALF_EVEN while the preview was half-up, so 1.50 ×
+        $0.03 stored $0.04 against a screen showing $0.05 (REL-462 Bug 2).
         """
-        from bookings.services.totals import round2
-        if self.unit == LineItemUnit.PER_GUEST:
-            return round2(self.unit_price * self._guest_count)
-        if self.category == LineItemCategory.DISCOUNT:
-            return -round2(abs(self.quantity * self.unit_price))
-        return round2(self.quantity * self.unit_price)
+        from bookings.services.totals import line_item_total
+        return line_item_total(
+            self.unit, self.category, self.quantity, self.unit_price,
+            self._guest_count,
+        )
 
     @classmethod
     def refreshed_for(cls, booking):

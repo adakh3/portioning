@@ -95,6 +95,12 @@ languages. This doc is how we stop that.
 
 Line-item totals: `per_guest` = unit_price × guest_count; `discount` =
 −|qty × unit_price|; everything else (`each`, `flat`, `per_hour`) = qty × unit_price.
+Branch **order** is part of the contract: `per_guest` is tested *before* `discount`,
+so a per-guest line in the discount category prices as a positive per-head charge.
+
+**The engine owns this math** (`line_item_total` in `totals.py`, mirrored by
+`lineItemTotal`). `BookingLineItem.save` calls it rather than carrying its own copy —
+two copies of one rule is how the two engines drifted in the first place.
 
 **Rounded to 2 dp HALF_UP**, like every other money value here — via
 `round2` in `totals.py` and `round2` in `quoteTotals.ts`. A bare
@@ -120,14 +126,39 @@ each case lists `food_total`, line items (precomputed signed `line_total`),
 - The **frontend** runs the *same file* through `computeBookingTotals` —
   `lib/quoteTotals.test.ts` → `describe("golden-case parity with the backend engine")`.
 
-The file carries two more shared sections, mirrored the same way:
-`segment_food_cases` (per-segment food, REL-415) and `meal_audience_cases` — an
-additional meal's guest count derived from its audience (everyone / guests only /
-a single segment), run through `derive_meal_guest_count` on the backend and
-`deriveMealCountFromRows` on the frontend (REL-426).
+The file carries four more shared sections, mirrored the same way:
+
+- `segment_food_cases` — per-segment food (REL-415).
+- `meal_audience_cases` — an additional meal's guest count derived from its audience
+  (everyone / guests only / a single segment), through `derive_meal_guest_count` and
+  `deriveMealCountFromRows` (REL-426).
+- `line_item_cases` — every unit (`per_guest`, `per_hour`, `flat`, `each`) × discount
+  and non-discount, including the half-cent boundaries and the branch-order case,
+  through `line_item_total` and `lineItemTotal` (REL-463). **This was the biggest
+  parity gap**: the `cases` loop feeds precomputed line totals as flat qty-1 lines,
+  so `per_guest`, `per_hour` and the discount sign had never been compared at all.
+- `itemized_rows_cases` — the per-segment display rows and their null-collapse,
+  through `segment_food_rows` and `segmentFoodRowsFromRows` (REL-463). The frontend's
+  `segmentFoodRows` takes UI state, so the `…FromRows` variant is the one that mirrors
+  the backend signature; the UI-state wrapper delegates to it.
+
+Comparisons are **exact** on both sides — string-formatted cents, no tolerance.
+`toBeCloseTo(…, 2)` permits sub-half-cent drift, which is precisely where a float
+artifact hides.
 
 Because both engines are pinned to the same expected numbers, you cannot change
 the rule on one side without that side's test failing against the shared spec.
+
+## The engine's front door
+
+`price_booking(PricingInput) -> PricingResult` (`bookings/services/totals.py`) computes
+**every** number a surface prints — itemized food rows, meal rows, per-line totals,
+add-ons subtotal, subtotal, service charge, `pre_tax_total`, tax base, tax, gratuity,
+total — from raw inputs. No caller does arithmetic of its own.
+
+`bookings/services/booking_pricing.py` is the ORM bridge: it turns a `Quote` or an
+`Event` into that plain input and stores the result. Both models' `recalculate_totals`
+are one call to it, so a quote and the event it becomes cannot compute differently.
 
 ## The contract — when you touch totals math
 
