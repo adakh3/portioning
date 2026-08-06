@@ -18,8 +18,12 @@ name: CI
 on:
   push:
     branches: [main]
+  # EVERY pull request, whatever it targets — not just PRs into main. A long-lived
+  # integration branch (an epic assembled across several tickets before main sees
+  # any of it) takes its PRs into that branch, and a `branches: [main]` filter
+  # skipped all of them silently: the tickets that most need independent CI were
+  # the ones getting none.
   pull_request:
-    branches: [main]
 
 # A newer push to the same branch/PR cancels the older in-flight run.
 concurrency:
