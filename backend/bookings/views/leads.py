@@ -15,6 +15,7 @@ from bookings.serializers import LeadSerializer, QuoteSerializer
 from bookings.serializers.leads import ProductLineSerializer, LeadListSerializer
 from bookings.activity import log_activity, log_field_changes, TRACKED_FIELDS
 from bookings.permissions import IsManagerOrOwner, IsAdminOrOwner, is_salesperson
+from bookings.services.booking_carry import carry_pricing_rows, pricing_core_fields
 
 
 class UserListView(generics.ListAPIView):
@@ -529,14 +530,12 @@ class LeadWonView(APIView):
             event_name = f"{account.name}"
 
         guest_count = lead.guest_estimate or 1
-        price_per_head = None
         event_status = 'tentative'
         based_on_template = None
         booking_date = timezone.now().date()
 
         if quote:
             guest_count = quote.guest_count
-            price_per_head = quote.price_per_head
             event_status = 'confirmed'
             based_on_template = quote.based_on_template
             if quote.accepted_at:
@@ -571,15 +570,21 @@ class LeadWonView(APIView):
             service_style=lead.service_style,
             product=lead.product,
             booking_date=booking_date,
-            price_per_head=price_per_head,
-            tax_rate=(quote.tax_rate if quote else 0),
-            is_taxable=bool(quote and quote.tax_rate and quote.tax_rate > 0),
+            # The whole pricing snapshot, shared with quote acceptance. This used to
+            # carry price/head and tax only, so the event recomputed at 0% service
+            # charge and 0% gratuity — under the quoted price by the whole service
+            # charge (REL-462 Bug 1).
+            **pricing_core_fields(quote),
             status=event_status,
             based_on_template=based_on_template,
             created_by=user,
             assigned_to=(lead.assigned_to or user),
             organisation=lead.organisation,
         )
+
+        # Carry the per-segment breakdown and additional meals BEFORE portioning and
+        # totals — portions and segment-priced food both resolve from those rows.
+        carry_pricing_rows(quote, event)
 
         # Copy dishes from quote and auto-calculate portions
         if quote and quote.dishes.exists():

@@ -181,13 +181,13 @@ class Quote(OrgScopedModel, models.Model):
         (``price_per_head × price_multiplier × count``, summed over all segments) +
         any additional meals. Mirrors Event.food_total; with no breakdown it
         reduces to ``price_per_head × guest_count``."""
-        from bookings.services.totals import segment_food_total
+        from bookings.services.totals import round2, segment_food_total
         from events.models import resolve_booking_segments
         total = segment_food_total(self.price_per_head, resolve_booking_segments(self))
         for meal in self.additional_meals.all():
             if meal.price_per_head and meal.guest_count:
                 total += meal.price_per_head * meal.guest_count
-        return total.quantize(Decimal('0.01'))
+        return round2(total)
 
     def recalculate_totals(self):
         # Shared engine — identical math to events. See bookings/services/totals.py.
@@ -202,8 +202,13 @@ class Quote(OrgScopedModel, models.Model):
         # Keep audience-scoped meal counts current before pricing (dual-write).
         from events.models import sync_audience_meal_counts
         sync_audience_meal_counts(self)
+        # Re-derive per-guest lines from the CURRENT guest count before summing them —
+        # a PATCH that moved guest_count without resending line_items would otherwise
+        # be priced off the old count (REL-462 Bug 4).
+        from bookings.models.addons import BookingLineItem
+        lines = BookingLineItem.refreshed_for(self)
         totals = compute_booking_totals(
-            self.food_total, self.line_items.all(), rate,
+            self.food_total, lines, rate,
             service_charge_pct=self.service_charge_pct,
             service_charge_taxable=self.service_charge_taxable,
             gratuity_pct=self.gratuity_pct,

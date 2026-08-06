@@ -738,12 +738,12 @@ class Event(OrgScopedModel, models.Model):
         any additional meals (their own price_per_head × guest_count). With no
         breakdown this reduces to ``price_per_head × guest_count`` (see
         ``segment_food_total``)."""
-        from bookings.services.totals import segment_food_total
+        from bookings.services.totals import round2, segment_food_total
         total = segment_food_total(self.price_per_head, resolve_booking_segments(self))
         for meal in self.additional_meals.all():
             if meal.price_per_head and meal.guest_count:
                 total += meal.price_per_head * meal.guest_count
-        return total.quantize(Decimal('0.01'))
+        return round2(total)
 
     def recalculate_totals(self):
         # Shared engine — identical math to quotes. See bookings/services/totals.py.
@@ -757,8 +757,13 @@ class Event(OrgScopedModel, models.Model):
             getattr(self, '_prefetched_objects_cache', {}).pop(rel, None)
         # Keep audience-scoped meal counts current before pricing (dual-write).
         sync_audience_meal_counts(self)
+        # Re-derive per-guest lines from the CURRENT guest count before summing them —
+        # a PATCH that moved guest_count without resending line_items would otherwise
+        # be priced off the old count (REL-462 Bug 4).
+        from bookings.models.addons import BookingLineItem
+        lines = BookingLineItem.refreshed_for(self)
         totals = compute_booking_totals(
-            self.food_total, self.line_items.all(), rate,
+            self.food_total, lines, rate,
             service_charge_pct=self.service_charge_pct,
             service_charge_taxable=self.service_charge_taxable,
             gratuity_pct=self.gratuity_pct,
@@ -778,12 +783,14 @@ class Event(OrgScopedModel, models.Model):
     # they never touch recalculate_totals().
     @property
     def amount_paid(self):
+        from bookings.services.totals import round2
         paid = self.payments.aggregate(total=models.Sum('amount'))['total']
-        return (paid or Decimal('0.00')).quantize(Decimal('0.01'))
+        return round2(paid or Decimal('0.00'))
 
     @property
     def balance_due(self):
-        return (self.total - self.amount_paid).quantize(Decimal('0.01'))
+        from bookings.services.totals import round2
+        return round2(self.total - self.amount_paid)
 
     @property
     def payment_status(self):

@@ -10,9 +10,15 @@ from decimal import Decimal, ROUND_HALF_UP, InvalidOperation
 TWO_PLACES = Decimal('0.01')
 
 
-def _round2(x):
+def round2(x):
     """2-dp HALF_UP — matches the frontend `round2` (Math.round is half-up), not
-    Decimal's default HALF_EVEN, so the two engines agree to the cent."""
+    Decimal's default HALF_EVEN, so the two engines agree to the cent.
+
+    **Public on purpose.** Every stored money value must round through here: a bare
+    ``.quantize(Decimal('0.01'))`` is HALF_EVEN and silently disagrees with the live
+    preview on an exact half-cent (1.50 × $0.03 stored $0.04 while the screen said
+    $0.05 — REL-462 Bug 2).
+    """
     return Decimal(x).quantize(TWO_PLACES, rounding=ROUND_HALF_UP)
 
 
@@ -77,12 +83,12 @@ def segment_effective_rate(price_per_head, price_multiplier, override=None):
     """
     o = _usable_rate(override)
     if o is not None:
-        return _round2(o)
+        return round2(o)
     mult = _usable_rate(price_multiplier)
     if mult is None:
         mult = Decimal('1')
     base = _usable_rate(price_per_head) or Decimal('0')
-    return _round2(base * mult)
+    return round2(base * mult)
 
 
 def segment_food_total(price_per_head, segments):
@@ -104,7 +110,7 @@ def segment_food_total(price_per_head, segments):
     for seg in segments:
         rate = segment_effective_rate(price_per_head, seg.get('price_multiplier'), seg.get('price_override'))
         total += rate * Decimal(seg.get('count', 0) or 0)
-    return _round2(total)
+    return round2(total)
 
 
 def segment_food_rows(price_per_head, segments):
@@ -183,15 +189,15 @@ def compute_booking_totals(food_total, line_items, tax_rate,
     # rejects a negative subtotal outright; this keeps the live preview — and any row
     # already stored that way — from showing a negative charge.
     charge_base = max(subtotal, Decimal('0.00'))
-    # _round2 (HALF_UP), not a bare .quantize (Decimal defaults to HALF_EVEN): on a
+    # round2 (HALF_UP), not a bare .quantize (Decimal defaults to HALF_EVEN): on a
     # .005 boundary the two rounding modes differ by a cent, and the frontend mirror
     # uses Math.round, which is half-up. Tax of 5% on 100.10 is exactly 5.005 — the
     # preview said 5.01 and the saved value was 5.00, so the total changed under the
-    # user on save. segment_food_total already used _round2 for this exact reason.
-    service_charge = _round2(charge_base * service_charge_pct / 100)
+    # user on save. segment_food_total already used round2 for this exact reason.
+    service_charge = round2(charge_base * service_charge_pct / 100)
     tax_base = subtotal + (service_charge if service_charge_taxable else Decimal('0.00'))
-    tax_amount = _round2(tax_base * tax_rate)
-    gratuity = _round2(charge_base * gratuity_pct / 100)
+    tax_amount = round2(tax_base * tax_rate)
+    gratuity = round2(charge_base * gratuity_pct / 100)
     total = subtotal + service_charge + tax_amount + gratuity
 
     return BookingTotals(
