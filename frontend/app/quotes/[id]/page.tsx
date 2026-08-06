@@ -566,7 +566,7 @@ export default function QuoteDetailPage() {
               <MenuBuilder
                 selectedDishIds={menuData.dish_ids}
                 basedOnTemplate={menuData.based_on_template}
-                guestCount={createData.guest_count || undefined}
+                guestCount={createData.guest_count}
                 onChange={setMenuData}
                 onLoadCourses={(courses, dishCourses) => { setCreateCourses(courses); setCreateDishCourses(dishCourses); }}
                 courses={createCourses}

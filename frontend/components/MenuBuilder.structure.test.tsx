@@ -55,6 +55,7 @@ function Harness({
   menuChoices: initialChoices = {} as MenuChoices,
   plated = true,
   serviceStyleLabel,
+  guestCount,
 }: {
   dishIds?: number[];
   courses?: CourseData[];
@@ -62,6 +63,7 @@ function Harness({
   menuChoices?: MenuChoices;
   plated?: boolean;
   serviceStyleLabel?: string;
+  guestCount?: number;
 }) {
   const [courses, setCourses] = useState(initialCourses);
   const [dishCourses, setDishCourses] = useState(initialDishCourses);
@@ -77,6 +79,7 @@ function Harness({
       menuChoices={menuChoices}
       plated={plated}
       serviceStyleLabel={serviceStyleLabel}
+      guestCount={guestCount}
       onStructureChange={(v) => {
         setCourses(v.courses);
         setDishCourses(v.dishCourses);
@@ -247,8 +250,27 @@ describe("MenuBuilder — service style (AC8)", () => {
   });
 
   it("names the service style and guest count above the menu", () => {
-    render(<Harness serviceStyleLabel="Plated" />);
-    expect(screen.getByTestId("menu-service-line")).toHaveTextContent("Plated");
+    render(<Harness serviceStyleLabel="Plated" guestCount={50} />);
+    expect(screen.getByTestId("menu-service-line")).toHaveTextContent("Plated · 50 guests");
+  });
+
+  it("shows nothing — not a stray '0' — before either is filled in", () => {
+    // A fresh booking has no service style and no guests yet. `x && <JSX/>` renders
+    // the falsy value itself when it's a NUMBER, so `0` printed as a bare character
+    // above the template picker. Every new event and quote showed it.
+    const { container } = render(<Harness serviceStyleLabel={undefined} guestCount={0} />);
+    expect(screen.queryByTestId("menu-service-line")).toBeNull();
+    // Assert on the ROOT's own text nodes, not `textContent` — that concatenates the
+    // whole subtree, so a stray "0" hides against the next word ("0Load from…").
+    const strays = [...container.firstElementChild!.childNodes]
+      .filter((n) => n.nodeType === Node.TEXT_NODE && n.textContent?.trim())
+      .map((n) => n.textContent);
+    expect(strays).toEqual([]);
+  });
+
+  it("shows the guest count alone when there's no service style yet", () => {
+    render(<Harness serviceStyleLabel={undefined} guestCount={50} />);
+    expect(screen.getByTestId("menu-service-line")).toHaveTextContent("50 guests");
   });
 });
 

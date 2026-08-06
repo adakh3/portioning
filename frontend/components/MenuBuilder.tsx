@@ -428,18 +428,25 @@ export default function MenuBuilder({
     return <p className="text-sm text-muted-foreground">Loading menu options...</p>;
   }
 
+  // Built as a string first, then rendered only when it says something. The obvious
+  // spelling — `{(serviceStyleLabel || guestCount) && <p>…</p>}` — printed a bare "0"
+  // above the template picker on every new booking: with no style set and no guests
+  // yet, `undefined || 0` is `0`, and React renders a falsy NUMBER rather than
+  // skipping it the way it skips `false`/`null`/`undefined`.
+  const serviceLine = [serviceStyleLabel, guestCount ? `${guestCount} guests` : null]
+    .filter(Boolean)
+    .join(" · ");
+
   return (
     <div className="space-y-4">
       {/* What this menu is being served as. It reads as context, but it's also the
           one thing that decides whether choices are offered at all (AC8) — so
           naming it here is what makes the card's plated-only behaviour legible. */}
-      {(serviceStyleLabel || guestCount) && (
+      {serviceLine ? (
         <p data-testid="menu-service-line" className="-mt-2 text-sm text-muted-foreground">
-          {[serviceStyleLabel, guestCount ? `${guestCount} guests` : null]
-            .filter(Boolean)
-            .join(" · ")}
+          {serviceLine}
         </p>
-      )}
+      ) : null}
 
       {/* Template Picker */}
       <div className="flex items-center gap-3 flex-wrap">
