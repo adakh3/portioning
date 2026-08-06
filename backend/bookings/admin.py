@@ -10,6 +10,7 @@ from django.contrib.staticfiles import finders
 
 from users.models import User
 from users.admin_mixins import OrgVisibleAdminMixin
+from .admin_mixins import BookingMoneyAdminMixin
 from .models import (
     Account, Contact, Venue, Lead, ProductLine, Quote,
     AddOnProduct, AddOnVariant, BookingLineItem,
@@ -289,11 +290,13 @@ class QuoteLineItemInline(admin.TabularInline):
 
 
 @admin.register(Quote)
-class QuoteAdmin(OrgScopedAdmin):
+class QuoteAdmin(BookingMoneyAdminMixin, OrgScopedAdmin):
     list_display = ['__str__', 'account', 'event_date', 'guest_count', 'total', 'status', 'created_at']
     list_filter = ['status', 'event_type']
     search_fields = ['account__name']
-    readonly_fields = ['subtotal', 'tax_amount', 'total', 'sent_at', 'accepted_at']
+    # The money outputs come from BookingMoneyAdminMixin — this list protected
+    # subtotal/tax_amount/total but left service_charge and gratuity typeable.
+    readonly_fields = ['sent_at', 'accepted_at']
     inlines = [QuoteLineItemInline]
 
 

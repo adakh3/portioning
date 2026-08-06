@@ -190,6 +190,25 @@ describe("computeQuoteTotals", () => {
     ).toBe(-100);
   });
 
+  // The half-cent is the ONLY input that can tell the two engines apart: JS
+  // Math.round is half-up, and Python's bare `.quantize()` is half-EVEN. The
+  // backend stored $0.04 here while this preview showed $0.05 (REL-462 Bug 2).
+  // These numbers are the same ones asserted in
+  // backend/bookings/test_money_bleeding.py::HalfCentRoundingTests — change one
+  // side and the two stop agreeing to the cent.
+  it("a half-cent line rounds up, matching the stored backend value", () => {
+    expect(lineItemTotal(item({ unit: "each", quantity: 1.5, unit_price: 0.03 }), 10)).toBe(0.05);
+    expect(
+      lineItemTotal(item({ unit: "per_hour", quantity: 2.5, unit_price: 16.97 }), 10),
+    ).toBe(42.43);
+  });
+
+  it("a half-cent discount rounds away from zero, matching the backend", () => {
+    expect(
+      lineItemTotal(item({ category: "discount", unit: "flat", quantity: 2.5, unit_price: 16.97 }), 10),
+    ).toBe(-42.43);
+  });
+
   it("zero/blank price yields no food cost", () => {
     expect(computeQuoteTotals("", 100, 0.2, []).food_total).toBe(0);
   });

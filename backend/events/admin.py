@@ -1,4 +1,7 @@
 from django.contrib import admin
+
+from bookings.admin_mixins import BookingMoneyAdminMixin
+
 from .models import Event, EventConstraintOverride, EventDishComment
 
 
@@ -13,7 +16,7 @@ class EventDishCommentInline(admin.TabularInline):
 
 
 @admin.register(Event)
-class EventAdmin(admin.ModelAdmin):
+class EventAdmin(BookingMoneyAdminMixin, admin.ModelAdmin):
     list_display = ['name', 'event_date', 'status', 'account', 'venue', 'gents', 'ladies', 'event_type', 'service_style']
     list_filter = ['event_date', 'status', 'event_type', 'service_style']
     search_fields = ['name', 'account__name', 'venue__name', 'notes']

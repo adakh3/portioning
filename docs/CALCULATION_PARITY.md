@@ -96,6 +96,19 @@ languages. This doc is how we stop that.
 Line-item totals: `per_guest` = unit_price × guest_count; `discount` =
 −|qty × unit_price|; everything else (`each`, `flat`, `per_hour`) = qty × unit_price.
 
+**Rounded to 2 dp HALF_UP**, like every other money value here — via
+`round2` in `totals.py` and `round2` in `quoteTotals.ts`. A bare
+`.quantize(Decimal('0.01'))` is HALF_EVEN and silently disagreed with the live
+preview on an exact half-cent: 1.50 × $0.03 stored `$0.04` while the screen showed
+`$0.05` (REL-462). The `discount` branch rounds the **magnitude** and applies the
+sign afterwards, on both sides — rounding −42.425 half-up would give −42.42 and
+quietly shrink the discount.
+
+`per_guest` lines are **re-derived from the booking's current guest count on every
+recalculate**, not read back from storage: `line_total` is a stored column, and a
+PATCH that moved `guest_count` without resending `line_items` used to leave the line
+priced at the old count.
+
 ## How parity is enforced — the golden-cases file
 
 `docs/calculation-golden-cases.json` is a **shared, language-neutral spec**:

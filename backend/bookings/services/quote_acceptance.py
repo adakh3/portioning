@@ -5,6 +5,7 @@ produces an identical event: the staff transition endpoint AND the client-facing
 e-signature endpoint both call `accept_quote`.
 """
 from bookings.models.quotes import QuoteStatus
+from bookings.services.booking_carry import carry_pricing_rows, pricing_core_fields
 
 
 def accept_quote(quote, user=None):
@@ -24,8 +25,7 @@ def accept_quote(quote, user=None):
     from events.models import Event, EventDishComment
     from calculator.engine.calculator import calculate_portions
     from bookings.views.quotes import (
-        _copy_line_items_to_event, _copy_additional_meals_to_event,
-        _copy_timeline_entries_to_event,
+        _copy_line_items_to_event, _copy_timeline_entries_to_event,
     )
 
     who = quote.account.name if quote.account_id else (
@@ -57,15 +57,10 @@ def accept_quote(quote, user=None):
         meal_type=quote.meal_type,
         service_style=quote.service_style,
         booking_date=quote.booking_date or (quote.accepted_at.date() if quote.accepted_at else None),
-        price_per_head=quote.price_per_head,
-        tax_rate=quote.tax_rate or 0,
-        is_taxable=quote.is_taxable and bool(quote.tax_rate and quote.tax_rate > 0),
-        # Carry the rest of the pricing snapshot too. Without these the event
-        # recomputed at 0% and its total silently came out BELOW the accepted
+        # The whole pricing snapshot, shared with lead conversion. Without it the
+        # event recomputes at 0% and its total silently comes out BELOW the accepted
         # quote — by the whole service charge (20% for a US org by default).
-        service_charge_pct=quote.service_charge_pct or 0,
-        service_charge_taxable=quote.service_charge_taxable,
-        gratuity_pct=quote.gratuity_pct or 0,
+        **pricing_core_fields(quote),
         setup_time=quote.setup_time,
         guest_arrival_time=quote.guest_arrival_time,
         meal_time=quote.meal_time,
@@ -81,16 +76,9 @@ def accept_quote(quote, user=None):
         organisation=quote.organisation,
     )
 
-    # Carry the per-segment guest breakdown (Adults/Kids/Vendors, or gents/ladies)
-    # BEFORE portioning and totals: kitchen portions, segment-priced food, and any
-    # audience-scoped additional meals all resolve from these rows. Without them a
-    # segmented quote would collapse to the default segment on its event — silently
-    # re-pricing the food and zeroing a vendor/kids meal (REL-426).
-    from events.models import BookingGuestCount
-    for r in quote.guest_counts.all():
-        BookingGuestCount.objects.create(
-            event=event, segment=r.segment, count=r.count, price_per_head=r.price_per_head,
-        )
+    # Carry the per-segment guest breakdown and the additional meals BEFORE
+    # portioning and totals — see `carry_pricing_rows` for why the order matters.
+    carry_pricing_rows(quote, event)
 
     # Copy menu (dishes) from quote to event + auto-calculate kitchen portions
     if quote.dishes.exists():
@@ -125,11 +113,10 @@ def accept_quote(quote, user=None):
     if offered:
         write_menu_choices(event, offered)
 
-    # Carry the add-on line items, additional meals and timeline across, then
-    # recompute via the shared engine so the event total matches the quote
-    # (food-only included).
+    # Carry the add-on line items and timeline across (the meals came over with the
+    # pricing rows above), then recompute via the shared engine so the event total
+    # matches the quote (food-only included).
     _copy_line_items_to_event(quote, event)
-    _copy_additional_meals_to_event(quote, event)
     _copy_timeline_entries_to_event(quote, event)
     event.recalculate_totals()
 
