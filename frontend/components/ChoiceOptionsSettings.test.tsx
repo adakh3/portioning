@@ -56,4 +56,33 @@ describe("ChoiceOptionsSettings", () => {
     fireEvent.blur(input);
     await waitFor(() => expect(updateChoiceOption).toHaveBeenCalledWith(BASE, 2, { label: "Word of mouth" }));
   });
+
+  // `renderExtra` is how a list that carries more than a label gets its controls —
+  // the timeline steps' standard-day placement, and now the service styles'
+  // "Guests choose" (REL-452). Both depend on it patching the RIGHT row.
+  it("renders the extra control once per row and patches that row's id", async () => {
+    render(
+      <ChoiceOptionsSettings
+        title="Service Styles" base={BASE} swrKey="managed-sources" revalidateKey="sources"
+        extraHeader={<span>Guests choose</span>}
+        renderExtra={(o, patch) => (
+          <button type="button" onClick={() => patch({ guests_choose: true })}>
+            {`extra-${o.label}`}
+          </button>
+        )}
+      />,
+    );
+    expect(screen.getByText("Guests choose")).toBeTruthy();
+    expect(screen.getByText("extra-Website")).toBeTruthy();
+    expect(screen.getByText("extra-Referral")).toBeTruthy();
+
+    fireEvent.click(screen.getByText("extra-Referral"));
+    await waitFor(() =>
+      expect(updateChoiceOption).toHaveBeenCalledWith(BASE, 2, { guests_choose: true }));
+  });
+
+  it("omits the extras column entirely when a list has none", () => {
+    renderIt();
+    expect(screen.queryByText("Guests choose")).toBeNull();
+  });
 });

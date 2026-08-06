@@ -20,7 +20,7 @@ const h = vi.hoisted(() => ({
     price_per_head: "50.00", tax_rate: "0.2000", valid_until: "",
     primary_contact: 3, contact_name: "Jane Doe", contact_email: null, contact_phone: null,
     notes: "", internal_notes: "",
-    // A plated menu with an Entrée course + one un-coursed dish — the ON state.
+    // A choice-offering menu with an Entrée course + one un-coursed dish — the ON state.
     dishes: [11, 12, 13], based_on_template: null,
     courses: [{ name: "Entrée", sort_order: 0 }],
     dish_courses: { "11": 0, "12": 0 },
@@ -47,7 +47,12 @@ vi.mock("@/lib/hooks", () => ({
   useDateFormat: () => "DD/MM/YYYY",
   useFormatDateTime: () => (v: string | null) => v ?? "-",
   useEventTypes: () => ({ data: [{ id: 1, value: "wedding", label: "Wedding" }] }),
-  useServiceStyles: () => ({ data: [{ id: 1, value: "plated", label: "Plated" }, { id: 2, value: "buffet", label: "Buffet" }] }),
+  // `guests_choose` is what gates the choice affordances now — the org's data, not
+  // the slug. Plated has it on by default; buffet does not.
+  useServiceStyles: () => ({ data: [
+    { id: 1, value: "plated", label: "Plated", guests_choose: true },
+    { id: 2, value: "buffet", label: "Buffet", guests_choose: false },
+  ] }),
   useDishes: () => ({ data: [
     { id: 11, name: "Beef", category: 1, dietary_tags: [] },
     { id: 12, name: "Salmon", category: 1, dietary_tags: [] },
@@ -168,13 +173,13 @@ describe("Quote — the one Menu card at proposal", () => {
     h.quote.service_style = "buffet";
     render(<QuoteDetailPage />);
     fireEvent.click(screen.getByText("Edit Quote"));
-    // Courses still render on a buffet — only the choice affordances are plated-only.
+    // Courses still render on a buffet — only the choice affordances are gated.
     expect(await screen.findByLabelText("Course 1 name")).toBeInTheDocument();
     expect(screen.queryByLabelText(chip("Beef"))).not.toBeInTheDocument();
     expect(screen.queryByText("guests choose")).not.toBeInTheDocument();
   });
 
-  it("preserves existing flags silently on a non-plated booking", async () => {  // AC8
+  it("preserves existing flags silently on a non-guestsChoose booking", async () => {  // AC8
     h.quote.service_style = "buffet";
     h.quote.menu_choices = { "11": null, "12": null };
     const payload = await saveAfter(() => {});

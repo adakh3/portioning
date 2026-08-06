@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import LeadStatusesSettings from "@/components/LeadStatusesSettings";
 import ChoiceOptionsSettings from "@/components/ChoiceOptionsSettings";
 import TimelineStepExtras from "@/components/TimelineStepExtras";
+import ServiceStyleExtras from "@/components/ServiceStyleExtras";
 import ProductLinesSettings from "@/components/ProductLinesSettings";
 import CommissionSettings from "@/components/CommissionSettings";
 import BillingPanel from "@/components/BillingPanel";
@@ -391,8 +392,10 @@ export default function SettingsPage() {
           base="/bookings/settings/service-styles/"
           swrKey="managed-service-styles"
           revalidateKey="service-styles"
-          description="How food is served (e.g. Buffet, Plated, Family style)."
+          description="How food is served (e.g. Buffet, Plated, Family style). Tick “Guests choose” for the styles where each guest picks a dish in advance — a plated dinner, or boxed lunches where everyone pre-picks. Those bookings can offer a choice of two dishes in a course, and collect the tallies with the final numbers."
           addPlaceholder="New service style…"
+          extraHeader={<span className="w-28 text-center">Guests choose</span>}
+          renderExtra={(o, patch) => <ServiceStyleExtras option={o} patch={patch} />}
         />
         <ChoiceOptionsSettings
           title="Meal Types"

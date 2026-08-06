@@ -53,7 +53,7 @@ function Harness({
   courses: initialCourses = [{ name: "Entrée", sort_order: 0 }] as CourseData[],
   dishCourses: initialDishCourses = { "1": 0, "2": 0, "3": 0 } as Record<string, number>,
   menuChoices: initialChoices = {} as MenuChoices,
-  plated = true,
+  guestsChoose = true,
   serviceStyleLabel,
   guestCount,
 }: {
@@ -61,7 +61,7 @@ function Harness({
   courses?: CourseData[];
   dishCourses?: Record<string, number>;
   menuChoices?: MenuChoices;
-  plated?: boolean;
+  guestsChoose?: boolean;
   serviceStyleLabel?: string;
   guestCount?: number;
 }) {
@@ -77,7 +77,7 @@ function Harness({
       courses={courses}
       dishCourses={dishCourses}
       menuChoices={menuChoices}
-      plated={plated}
+      guestsChoose={guestsChoose}
       serviceStyleLabel={serviceStyleLabel}
       guestCount={guestCount}
       onStructureChange={(v) => {
@@ -193,7 +193,7 @@ describe("MenuBuilder — the structure follows the dishes", () => {
         courses={[{ name: "Entrée", sort_order: 0 }]}
         dishCourses={{ "1": 0, "2": 0 }}
         menuChoices={{ "1": null, "2": null }}
-        plated
+        guestsChoose
         onStructureChange={(v) => seen.push(v)}
       />,
     );
@@ -216,7 +216,7 @@ describe("MenuBuilder — the structure follows the dishes", () => {
         courses={[{ name: "Entrée", sort_order: 0 }]}
         dishCourses={{ "1": 0, "2": 0 }}
         menuChoices={{ "1": null, "2": null }}
-        plated
+        guestsChoose
         onStructureChange={(v) => seen.push(v.menuChoices)}
       />,
     );
@@ -227,8 +227,8 @@ describe("MenuBuilder — the structure follows the dishes", () => {
 });
 
 describe("MenuBuilder — service style (AC8)", () => {
-  it("shows no choice affordance on a non-plated booking, but keeps the courses", () => {
-    render(<Harness plated={false} menuChoices={{ "1": null, "2": null }} />);
+  it("shows no choice affordance on a non-guestsChoose booking, but keeps the courses", () => {
+    render(<Harness guestsChoose={false} menuChoices={{ "1": null, "2": null }} />);
     // Courses are legitimate on any style — only the choice affordances are gated.
     expect(screen.getByLabelText("Course 1 name")).toHaveValue("Entrée");
     expect(screen.queryByLabelText(chip("Roast Beef"))).not.toBeInTheDocument();
@@ -238,12 +238,12 @@ describe("MenuBuilder — service style (AC8)", () => {
   });
 
   it("renders a course-less booking as a flat list with no scaffolding", () => {
-    render(<Harness courses={[]} dishCourses={{}} plated />);
+    render(<Harness courses={[]} dishCourses={{}} guestsChoose />);
     expect(screen.queryByLabelText("Course 1 name")).not.toBeInTheDocument();
     expect(screen.queryByText("Not in a course yet")).not.toBeInTheDocument();
     // Nothing is draggable with no courses to drag between.
     expect(screen.queryByLabelText(/to another course/)).not.toBeInTheDocument();
-    // Even plated: a choice belongs to a course, so there is nothing to mark yet.
+    // Even when guests choose: a choice belongs to a course, so there is nothing to mark yet.
     expect(screen.queryByLabelText(chip("Roast Beef"))).not.toBeInTheDocument();
     expect(screen.getByText("3 dishes")).toBeInTheDocument();
     expect(screen.getByText("+ Add course")).toBeInTheDocument();

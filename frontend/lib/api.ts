@@ -688,6 +688,9 @@ export interface ChoiceOption {
   is_default?: boolean;
   is_won?: boolean;
   is_lost?: boolean;
+  // Service-style only — whether a booking in this style can offer the guest a
+  // choice of dish (REL-452). Read by the booking pages, not just Settings.
+  guests_choose?: boolean;
   // Timeline-step only — these two make the preset list double as the org's
   // standard-day template ("+ Build a run-of-show" seeds from them).
   in_standard_day?: boolean;

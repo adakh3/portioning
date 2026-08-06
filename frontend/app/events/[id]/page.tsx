@@ -35,7 +35,7 @@ import BookingTotalsCard from "@/components/BookingTotalsCard";
 import AddOnItemsEditor from "@/components/AddOnItemsEditor";
 import MenuBuilder from "@/components/MenuBuilder";
 import AdditionalMealsEditor from "@/components/AdditionalMealsEditor";
-import { isPlated } from "@/lib/menuStructure";
+import { guestsChoose } from "@/lib/menuStructure";
 import FinalNumbersPanel from "@/components/FinalNumbersPanel";
 import FinalsPill from "@/components/FinalsPill";
 import GuestCountField, { GuestCountValue } from "@/components/GuestCountField";
@@ -917,7 +917,7 @@ export default function EventDetailPage() {
                   courses={formCourses}
                   dishCourses={formDishCourses}
                   menuChoices={formMenuChoices}
-                  plated={isPlated(formServiceStyle)}
+                  guestsChoose={guestsChoose(formServiceStyle, serviceStylesData)}
                   bigEaters={formBigEaters}
                   bigEatersPercentage={formBigEatersPercent}
                   serviceStyleLabel={serviceStyleLabels[formServiceStyle]}
@@ -942,7 +942,7 @@ export default function EventDetailPage() {
                   courses={formCourses}
                   dishCourses={formDishCourses}
                   menuChoices={formMenuChoices}
-                  plated={isPlated(formServiceStyle)}
+                  guestsChoose={guestsChoose(formServiceStyle, serviceStylesData)}
                   bigEaters={formBigEaters}
                   bigEatersPercentage={formBigEatersPercent}
                   serviceStyleLabel={serviceStyleLabels[formServiceStyle]}
@@ -966,7 +966,7 @@ export default function EventDetailPage() {
                 courses={event!.courses || []}
                 dishCourses={event!.dish_courses || {}}
                 menuChoices={event!.menu_choices || {}}
-                plated={isPlated(event!.service_style)}
+                guestsChoose={guestsChoose(event!.service_style, serviceStylesData)}
                 serviceStyleLabel={serviceStyleLabels[event!.service_style]}
                 pricePerHead={formPricePerHead}
                 onPricePerHeadChange={undefined}

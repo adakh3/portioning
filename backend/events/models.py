@@ -390,30 +390,41 @@ def read_menu_choices(booking):
     }
 
 
-# The service style that offers the guest a choice. A choice only exists on a plated
-# dinner — on a buffet or family-style booking the guest picks at the line or the
-# table, so there is nothing to offer in advance and nothing to tally.
-PLATED_SERVICE_STYLE = 'plated'
-
-
 def booking_offers_choices(booking):
     """Whether this booking's menu choices mean anything at all (REL-419).
 
     Gates every READ of the flags — the client-facing rendering and the finals sum
     alike — so a flag left behind by an earlier edit can never leak. Two ways that
-    happens, both reachable: the booking is switched off plated (the Menu-choices card
-    disappears, taking the only way to untick with it), or the dish is moved out of its
-    course (a choice with no course has nothing to sum against). Ignoring such a flag
-    on read is what makes those states harmless rather than a corrupt contract.
+    happens, both reachable: the booking is switched to a style that doesn't offer
+    choices (the Menu-choices card disappears, taking the only way to untick with it),
+    or the dish is moved out of its course (a choice with no course has nothing to sum
+    against). Ignoring such a flag on read is what makes those states harmless rather
+    than a corrupt contract.
+
+    Which styles offer a choice is the ORG'S data, not ours (REL-452): it reads
+    `guests_choose` off the booking's own `ServiceStyleOption`. This used to compare
+    the slug against 'plated', which quietly excluded any style an org added itself —
+    including boxed lunches where every guest pre-picks, the case it most needed to
+    cover. A blank or unrecognised style offers nothing.
     """
-    return (getattr(booking, 'service_style', '') or '') == PLATED_SERVICE_STYLE
+    from bookings.models.choices import ServiceStyleOption
+
+    style = (getattr(booking, 'service_style', '') or '')
+    if not style:
+        return False
+    return ServiceStyleOption.objects.filter(
+        organisation_id=booking.organisation_id,
+        value=style,
+        guests_choose=True,
+    ).exists()
 
 
 def choice_groups(booking):
     """A booking's offered choices grouped BY COURSE (REL-419).
 
     Returns ``[{'course_id', 'course_name', 'dish_ids'}]`` in course order. Only
-    courses that actually offer a choice appear, and only on a plated booking.
+    courses that actually offer a choice appear, and only on a booking whose service
+    style says guests choose.
 
     Grouping is what makes the finals sum correct: each course's choices are offered
     to every guest, so each must add up to the guarantee **on its own**. Summing them

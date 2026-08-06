@@ -1,5 +1,5 @@
 import {
-  assignDish, courseWarning, menuSections, removeCourse, toggleChoice,
+  assignDish, courseWarning, guestsChoose, menuSections, removeCourse, toggleChoice,
 } from "./menuStructure";
 import type { CourseData } from "@/lib/api";
 
@@ -11,8 +11,8 @@ const COURSES: CourseData[] = [
 const DISH_COURSES = { "1": 0, "2": 0, "3": 0, "4": 1 };
 const DISHES = [1, 2, 3, 4, 5];
 
-const sections = (choices = {}, plated = true) =>
-  menuSections(DISHES, COURSES, DISH_COURSES, choices, plated);
+const sections = (choices = {}, guestsChoose = true) =>
+  menuSections(DISHES, COURSES, DISH_COURSES, choices, guestsChoose);
 
 describe("menuSections", () => {
   it("groups dishes under their course, in menu order", () => {
@@ -73,7 +73,7 @@ describe("courseWarning", () => {
     expect(courseWarning(entree)).toBeNull();
   });
 
-  it("never warns on a non-plated booking — it has no choices to get wrong", () => {  // AC8
+  it("never warns on a non-guestsChoose booking — it has no choices to get wrong", () => {  // AC8
     const [entree] = sections({ "1": null }, false);
     expect(courseWarning(entree)).toBeNull();
   });
@@ -124,5 +124,47 @@ describe("removeCourse", () => {
   it("renumbers sort_order to match the new positions", () => {
     const out = removeCourse(0, COURSES, DISH_COURSES, {});
     expect(out.courses[0].sort_order).toBe(0);
+  });
+});
+
+describe("guestsChoose — whose styles offer a choice is the org's data", () => {
+  // REL-452. This was a hardcoded `=== "plated"`, which silently excluded any style
+  // an org added itself and was invisible to the admin, since slugs are generated
+  // from labels and never shown.
+  const STYLES = [
+    { value: "plated", guests_choose: true },
+    { value: "buffet", guests_choose: false },
+    { value: "dropoff" },                          // flag absent — same as off
+    { value: "plated_duet", guests_choose: true },  // an org's own addition
+  ];
+
+  it("reads the flag off the org's own style row", () => {
+    expect(guestsChoose("plated", STYLES)).toBe(true);
+    expect(guestsChoose("buffet", STYLES)).toBe(false);
+  });
+
+  it("lets a style that isn't called plated offer choices", () => {
+    // The whole point: "Plated (duet)" gets its slug from its label, and used to
+    // be excluded by a check nobody could see.
+    expect(guestsChoose("plated_duet", STYLES)).toBe(true);
+  });
+
+  it("treats an absent flag as off", () => {
+    expect(guestsChoose("dropoff", STYLES)).toBe(false);
+  });
+
+  it("offers nothing for a blank, unknown, or not-yet-loaded style", () => {
+    // The safe direction: no affordance beats one the backend would drop.
+    expect(guestsChoose("", STYLES)).toBe(false);
+    expect(guestsChoose(null, STYLES)).toBe(false);
+    expect(guestsChoose(undefined, STYLES)).toBe(false);
+    expect(guestsChoose("wedding_breakfast", STYLES)).toBe(false);
+    expect(guestsChoose("plated", [])).toBe(false);
+  });
+
+  it("does not fall back to the old slug when the org says otherwise", () => {
+    // An org that unticks plated must stop offering choices there — the string
+    // "plated" carries no privilege any more.
+    expect(guestsChoose("plated", [{ value: "plated", guests_choose: false }])).toBe(false);
   });
 });

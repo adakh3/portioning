@@ -12,7 +12,7 @@ import { formatDate, todayISO } from "@/lib/dateFormat";
 import { formatCurrency, formatPercent } from "@/lib/utils";
 import MenuBuilder from "@/components/MenuBuilder";
 import AdditionalMealsEditor from "@/components/AdditionalMealsEditor";
-import { isPlated } from "@/lib/menuStructure";
+import { guestsChoose } from "@/lib/menuStructure";
 import GuestCountField, { GuestCountValue } from "@/components/GuestCountField";
 import SegmentRatesField from "@/components/SegmentRatesField";
 import BookingTimelineField, { TimelineEntryValue } from "@/components/BookingTimelineField";
@@ -572,7 +572,7 @@ export default function QuoteDetailPage() {
                 courses={createCourses}
                 dishCourses={createDishCourses}
                 menuChoices={createMenuChoices}
-                plated={isPlated(createData.service_style)}
+                guestsChoose={guestsChoose(createData.service_style, serviceStyles)}
                 bigEaters={createData.big_eaters}
                 bigEatersPercentage={createData.big_eaters_percentage}
                 serviceStyleLabel={serviceStyleLabels[createData.service_style]}
@@ -1087,7 +1087,7 @@ export default function QuoteDetailPage() {
               courses={editCourses}
               dishCourses={editDishCourses}
               menuChoices={editMenuChoices}
-              plated={isPlated(editData.service_style)}
+              guestsChoose={guestsChoose(editData.service_style, serviceStyles)}
               bigEaters={editData.big_eaters}
               bigEatersPercentage={editData.big_eaters_percentage}
               serviceStyleLabel={serviceStyleLabels[editData.service_style]}
@@ -1121,7 +1121,7 @@ export default function QuoteDetailPage() {
               courses={q.courses || []}
               dishCourses={q.dish_courses || {}}
               menuChoices={q.menu_choices || {}}
-              plated={isPlated(q.service_style)}
+              guestsChoose={guestsChoose(q.service_style, serviceStyles)}
               serviceStyleLabel={serviceStyleLabels[q.service_style || ""]}
               currencySymbol={cs}
               priceRoundingStep={Number(settings.price_rounding_step) || 50}

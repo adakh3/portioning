@@ -27,6 +27,11 @@ class SourceOptionSerializer(ChoiceOptionSerializer):
 class ServiceStyleOptionSerializer(ChoiceOptionSerializer):
     class Meta(ChoiceOptionSerializer.Meta):
         model = ServiceStyleOption
+        # `guests_choose` decides whether a booking in this style can offer the
+        # guest a choice of dish. Read by the booking pages as well as Settings —
+        # the Menu card must never offer a flag this API would then ignore.
+        fields = ['id', 'value', 'label', 'sort_order', 'is_active', 'guests_choose']
+        read_only_fields = ['value']
 
 
 class LeadStatusOptionSerializer(ChoiceOptionSerializer):
