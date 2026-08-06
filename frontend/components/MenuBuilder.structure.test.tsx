@@ -102,7 +102,7 @@ const rowOrder = () =>
 beforeEach(() => h.priceEstimate.mockReset());
 
 describe("MenuBuilder — courses as structure (AC2, AC4)", () => {
-  it("adds, renames and removes a course, dropping its dishes to On the table", async () => {
+  it("adds, renames and removes a course, dropping its dishes to Not in a course yet", async () => {
     render(<Harness />);
     // Rename in place — the course title IS the field.
     fireEvent.change(screen.getByLabelText("Course 1 name"), { target: { value: "Main" } });
@@ -113,9 +113,9 @@ describe("MenuBuilder — courses as structure (AC2, AC4)", () => {
 
     // Removing a course drops its dishes into the unassigned section, never a
     // neighbouring course (deliberate deviation from the prototype).
-    expect(screen.queryByText("On the table")).not.toBeInTheDocument();
+    expect(screen.queryByText("Not in a course yet")).not.toBeInTheDocument();
     fireEvent.click(screen.getByLabelText("Remove course Main"));
-    expect(await screen.findByText("On the table")).toBeInTheDocument();
+    expect(await screen.findByText("Not in a course yet")).toBeInTheDocument();
     expect(rowOrder()).toEqual(["Roast Beef", "Baked Salmon", "Mashed Potatoes"]);
   });
 
@@ -172,9 +172,9 @@ describe("MenuBuilder — marking the guest's choice (AC5, AC6, AC7)", () => {
   });
 
   it("never offers a choice on an un-coursed dish", async () => {
-    // A choice belongs to a course, so "On the table" rows carry no chip at all.
+    // A choice belongs to a course, so "Not in a course yet" rows carry no chip at all.
     render(<Harness dishIds={[1, 2]} dishCourses={{ "1": 0 }} />);
-    expect(screen.getByText("On the table")).toBeInTheDocument();
+    expect(screen.getByText("Not in a course yet")).toBeInTheDocument();
     expect(screen.queryByLabelText(chip("Baked Salmon"))).not.toBeInTheDocument();
     expect(screen.getByLabelText(chip("Roast Beef"))).toBeInTheDocument();
   });
@@ -240,7 +240,7 @@ describe("MenuBuilder — service style (AC8)", () => {
   it("renders a course-less booking as a flat list with no scaffolding", () => {
     render(<Harness courses={[]} dishCourses={{}} plated />);
     expect(screen.queryByLabelText("Course 1 name")).not.toBeInTheDocument();
-    expect(screen.queryByText("On the table")).not.toBeInTheDocument();
+    expect(screen.queryByText("Not in a course yet")).not.toBeInTheDocument();
     // Nothing is draggable with no courses to drag between.
     expect(screen.queryByLabelText(/to another course/)).not.toBeInTheDocument();
     // Even plated: a choice belongs to a course, so there is nothing to mark yet.
@@ -289,7 +289,7 @@ describe("MenuBuilder — the course-scoped dish picker (AC8b)", () => {
     // No second assignment step — the dish lands in that course.
     fireEvent.click(within(picker).getByLabelText("Cheesecake — add to Entrée"));
     await waitFor(() => expect(screen.getByLabelText("Remove Cheesecake")).toBeInTheDocument());
-    expect(screen.queryByText("On the table")).not.toBeInTheDocument();
+    expect(screen.queryByText("Not in a course yet")).not.toBeInTheDocument();
   });
 
   it("filters by search and by category tab, and greys what's already on", async () => {

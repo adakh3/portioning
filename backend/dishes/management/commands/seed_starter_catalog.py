@@ -145,7 +145,7 @@ class Command(BaseCommand):
                     ('Mashed Potatoes', 110, 'Main'),
                     ('Roasted Seasonal Vegetables', 110, 'Main'),
                     # No course: the rolls are just on the table, which is also how
-                    # the booking renders an un-coursed dish ("On the table").
+                    # the booking renders an un-coursed dish ("Not in a course yet").
                     ('Dinner Rolls', 1),
                     ('New York Cheesecake', 90, 'Dessert')],
                    courses=['Starter', 'Main', 'Dessert'],

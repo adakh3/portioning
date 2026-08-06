@@ -51,6 +51,6 @@ test.describe("Courses survive save + reload end-to-end", () => {
     await expect(card).toContainText("Starter", { timeout: 15_000 });
     await expect(card).toContainText(dish);
     // It is IN the course, not stranded in the unassigned section.
-    await expect(card).not.toContainText("On the table");
+    await expect(card).not.toContainText("Not in a course yet");
   });
 });

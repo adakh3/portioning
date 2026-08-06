@@ -103,7 +103,7 @@ class StarterCatalogTests(TestCase):
         self.assertEqual(by_course['Main'], {
             'Roast Beef', 'Baked Salmon', 'Mashed Potatoes', 'Roasted Seasonal Vegetables'})
         self.assertEqual(by_course['Dessert'], {'New York Cheesecake'})
-        # One dish is deliberately un-coursed — the booking renders it "On the table".
+        # One dish is deliberately un-coursed — the booking renders it "Not in a course yet".
         self.assertEqual(by_course[None], {'Dinner Rolls'})
 
     def test_courses_are_per_org_and_not_duplicated_on_reseed(self):

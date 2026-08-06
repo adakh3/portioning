@@ -188,8 +188,8 @@ describe("Quote — the one Menu card at proposal", () => {
     render(<QuoteDetailPage />);
     fireEvent.click(screen.getByText("Edit Quote"));
     expect(await screen.findByText("+ Add course")).toBeInTheDocument();
-    // No headers, no "On the table" scaffolding, no choice chips.
-    expect(screen.queryByText("On the table")).not.toBeInTheDocument();
+    // No headers, no "Not in a course yet" scaffolding, no choice chips.
+    expect(screen.queryByText("Not in a course yet")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Course 1 name")).not.toBeInTheDocument();
     expect(screen.queryByLabelText(chip("Beef"))).not.toBeInTheDocument();
   });

@@ -309,7 +309,7 @@ class Command(BaseCommand):
         ]
         for i, d in enumerate(dishes):
             # Three per station, and anything left over stays un-coursed so the
-            # "On the table" section has something real in it.
+            # "Not in a course yet" section has something real in it.
             course = course_rows[i // 3] if i < 9 else None
             EventDishComment.objects.get_or_create(event=stations, dish=d, defaults={"course": course})
 

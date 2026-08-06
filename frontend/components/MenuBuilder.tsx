@@ -541,7 +541,12 @@ export default function MenuBuilder({
                 {!isFlat && (
                   <div className="flex items-center gap-3 mb-1.5">
                     {section.courseIndex === null ? (
-                      <span className="text-sm font-semibold text-foreground">On the table</span>
+                      // "On the table" described a service style, not a state: on a
+                      // plated dinner these dishes are not on any table, they simply
+                      // haven't been given a course yet. It also appeared out of
+                      // nowhere the moment a first course was added — reading as if
+                      // the menu had been rearranged, when nothing had moved.
+                      <span className="text-sm font-semibold text-foreground">Not in a course yet</span>
                     ) : disabled ? (
                       <span className="text-sm font-semibold text-foreground">{section.name}</span>
                     ) : (
