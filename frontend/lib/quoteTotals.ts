@@ -401,20 +401,46 @@ export function segmentFoodRows(
   } else {
     resolved = built.map((r) => ({ name: r.segment, count: r.count, mult: byName[r.segment]?.price_multiplier ?? 1 }));
   }
-  const rows = resolved
-    .filter((r) => r.count > 0)
-    // Order by the org's segment order so the display matches the PDF/backend
-    // (which read rows ordered by sort_order), not the payload's explicit-then-default order.
-    .sort((a, b) => (byName[a.name]?.sort_order ?? 0) - (byName[b.name]?.sort_order ?? 0))
+  return segmentFoodRowsFromRows(
+    pricePerHead,
+    resolved
+      // Order by the org's segment order so the display matches the PDF/backend
+      // (which read rows ordered by sort_order), not the payload's explicit-then-default order.
+      .sort((a, b) => (byName[a.name]?.sort_order ?? 0) - (byName[b.name]?.sort_order ?? 0))
+      .map((r) => ({
+        name: r.name,
+        count: r.count,
+        price_multiplier: r.mult,
+        // A default (Adults) segment never carries an override; others may.
+        price_override:
+          byName[r.name]?.is_default && byName[r.name]?.counts_toward_total
+            ? undefined
+            : prices[r.name],
+      })),
+  );
+}
+
+/** Itemized food lines from ALREADY-RESOLVED segments — the exact mirror of the
+ * backend `segment_food_rows(price_per_head, segments)`, which is handed resolved
+ * rows rather than UI state.
+ *
+ * `segmentFoodRows` above resolves UI state and delegates here, the same way
+ * `segmentFood` pairs with `segmentFoodFromRows`. Splitting it out is what lets the
+ * shared golden `itemized_rows_cases` run against BOTH engines: until this existed,
+ * the two functions took different arguments and could never be compared. */
+export function segmentFoodRowsFromRows(
+  pricePerHead: number | string | null | undefined,
+  rows: { name: string; count: number; price_multiplier: string | number | null | undefined; price_override?: string | number | null }[],
+): SegmentFoodRow[] | null {
+  const built = rows
+    .filter((r) => (r.count || 0) > 0)
     .map((r) => {
-      // A default (Adults) segment never carries an override; others may.
-      const isDefault = byName[r.name]?.is_default && byName[r.name]?.counts_toward_total;
-      const rate = segmentEffectiveRate(pricePerHead, r.mult, isDefault ? undefined : prices[r.name]);
-      return { name: r.name, count: r.count, rate, amount: round2(rate * r.count) };
+      const rate = segmentEffectiveRate(pricePerHead, r.price_multiplier, r.price_override);
+      return { name: r.name ?? "", count: r.count, rate, amount: round2(rate * r.count) };
     });
-  const distinctRates = new Set(rows.map((r) => r.rate));
-  if (!rows.some((r) => r.rate > 0) || rows.length < 2 || distinctRates.size < 2) return null;
-  return rows;
+  const distinctRates = new Set(built.map((r) => r.rate));
+  if (!built.some((r) => r.rate > 0) || built.length < 2 || distinctRates.size < 2) return null;
+  return built;
 }
 
 export function segmentFood(

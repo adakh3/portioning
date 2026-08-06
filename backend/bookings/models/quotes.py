@@ -179,48 +179,15 @@ class Quote(OrgScopedModel, models.Model):
     def food_total(self):
         """Taxable food/menu cost: main menu priced per guest segment
         (``price_per_head × price_multiplier × count``, summed over all segments) +
-        any additional meals. Mirrors Event.food_total; with no breakdown it
-        reduces to ``price_per_head × guest_count``."""
-        from bookings.services.totals import round2, segment_food_total
-        from events.models import resolve_booking_segments
-        total = segment_food_total(self.price_per_head, resolve_booking_segments(self))
-        for meal in self.additional_meals.all():
-            if meal.price_per_head and meal.guest_count:
-                total += meal.price_per_head * meal.guest_count
-        return round2(total)
+        any additional meals. Computed by the engine, identically to Event."""
+        from bookings.services.booking_pricing import food_total_for
+        return food_total_for(self)
 
     def recalculate_totals(self):
-        # Shared engine — identical math to events. See bookings/services/totals.py.
-        from bookings.services.totals import compute_booking_totals
-        rate = self.tax_rate if self.is_taxable else Decimal('0')
-        # Drop any prefetch cache first: the caller may have loaded this quote via
-        # prefetch_related('line_items') (e.g. QuoteDetailView), and that cache
-        # predates rows added in the same save — so line_items.all() would omit the
-        # just-added add-ons and the stored subtotal would silently drop them.
-        for rel in ('line_items', 'additional_meals'):
-            getattr(self, '_prefetched_objects_cache', {}).pop(rel, None)
-        # Keep audience-scoped meal counts current before pricing (dual-write).
-        from events.models import sync_audience_meal_counts
-        sync_audience_meal_counts(self)
-        # Re-derive per-guest lines from the CURRENT guest count before summing them —
-        # a PATCH that moved guest_count without resending line_items would otherwise
-        # be priced off the old count (REL-462 Bug 4).
-        from bookings.models.addons import BookingLineItem
-        lines = BookingLineItem.refreshed_for(self)
-        totals = compute_booking_totals(
-            self.food_total, lines, rate,
-            service_charge_pct=self.service_charge_pct,
-            service_charge_taxable=self.service_charge_taxable,
-            gratuity_pct=self.gratuity_pct,
-        )
-        self.subtotal = totals.subtotal
-        self.service_charge = totals.service_charge
-        self.tax_amount = totals.tax_amount
-        self.gratuity = totals.gratuity
-        self.total = totals.total
-        self.save(update_fields=[
-            'subtotal', 'service_charge', 'tax_amount', 'gratuity', 'total', 'updated_at',
-        ])
+        """Re-price through the engine and store. Identical math to events, because
+        it is literally the same call — see bookings/services/booking_pricing.py."""
+        from bookings.services.booking_pricing import price_and_store
+        price_and_store(self, extra_update_fields=['updated_at'])
 
     @property
     def is_editable(self):
