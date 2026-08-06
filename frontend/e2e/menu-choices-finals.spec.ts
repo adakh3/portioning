@@ -55,7 +55,7 @@ test.describe("Menu choices and final numbers survive save + reload", () => {
 
     // Three courses: two that offer a choice (so finals validate per course), and a
     // throwaway third whose deletion is how a dish ends up unassigned — there is no
-    // move affordance, and AC13 wants an "On the table" dish in the round trip.
+    // move affordance, and AC13 wants an "Not in a course yet" dish in the round trip.
     for (const [i, name] of [[1, "Entrée"], [2, "Dessert"], [3, "Extras"]] as const) {
       await page.getByRole("button", { name: "+ Add course" }).click();
       await page.getByLabel(`Course ${i} name`).fill(name);
@@ -65,9 +65,9 @@ test.describe("Menu choices and final numbers survive save + reload", () => {
     const [c, d] = [await addDishTo(page, "Dessert", 1), await addDishTo(page, "Dessert", 1)];
     await addDishTo(page, "Extras", 2);
 
-    // Deleting the course drops its dish into "On the table" rather than a neighbour.
+    // Deleting the course drops its dish into "Not in a course yet" rather than a neighbour.
     await page.getByLabel("Remove course Extras").click();
-    await expect(page.getByText("On the table")).toBeVisible();
+    await expect(page.getByText("Not in a course yet")).toBeVisible();
 
     // Mark both options in each course. The chip is the whole interaction — no
     // separate card, no second assignment step.
@@ -85,7 +85,7 @@ test.describe("Menu choices and final numbers survive save + reload", () => {
     const card = page.getByTestId("menu-structure");
     await expect(card).toContainText("Entrée", { timeout: 15_000 });
     await expect(card).toContainText("Dessert");
-    await expect(card).toContainText("On the table");
+    await expect(card).toContainText("Not in a course yet");
 
     // The flags themselves: reopen the form after the hard reload and all four chips
     // are back. This is form state rebuilt FROM the reloaded event, so it proves the

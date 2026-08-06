@@ -157,10 +157,10 @@ describe("Event edit — saving the form must not destroy what it never edited",
     // The course titles are the rename fields, hydrated from the event.
     expect(await screen.findByLabelText("Course 1 name")).toHaveValue("Starter");
     expect(await screen.findByLabelText("Course 2 name")).toHaveValue("Main");
-    // One row per dish, and the un-coursed one sits under "On the table".
+    // One row per dish, and the un-coursed one sits under "Not in a course yet".
     expect(screen.getAllByLabelText("Remove Bruschetta")).toHaveLength(1);
     expect(screen.getAllByLabelText("Remove Roast Beef")).toHaveLength(1);
-    expect(screen.getByText("On the table")).toBeInTheDocument();
+    expect(screen.getByText("Not in a course yet")).toBeInTheDocument();
   });
 
   it("does not offer the menu-only Save for a structure edit", async () => {  // REL-451

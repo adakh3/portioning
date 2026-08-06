@@ -11,7 +11,7 @@ import type { CourseData, MenuChoices } from "@/lib/api";
 export type MenuSection = {
   /** Index into `courses`, or null for the trailing unassigned section. */
   courseIndex: number | null;
-  /** Course name; null for the unassigned section (rendered as "On the table"). */
+  /** Course name; null for the unassigned section (rendered as "Not in a course yet"). */
   name: string | null;
   /** Dish ids in render order — offered choices first, then every-plate dishes. */
   dishIds: number[];
