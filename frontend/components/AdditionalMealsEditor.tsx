@@ -1,7 +1,7 @@
 "use client";
 
 import { EventMealData } from "@/lib/api";
-import { formatDateTime, todayISO } from "@/lib/dateFormat";
+import { formatDate, formatTime, todayISO } from "@/lib/dateFormat";
 import { deriveMealCount, GuestSegmentMeta } from "@/lib/quoteTotals";
 import MenuBuilder from "@/components/MenuBuilder";
 import TimeField from "@/components/TimeField";
@@ -192,7 +192,17 @@ export default function AdditionalMealsEditor({
                       }}
                     />
                   ) : (
-                    <span className="text-sm">{meal.meal_time ? formatDateTime(meal.meal_time, dateFormat, timeFormat) : "—"}</span>
+                    /* Rendered as STORED, not converted into the viewer's zone
+                       (REL-447). `formatDateTime` runs the value through
+                       `new Date()`; the API serves UTC, so a 19:00 meal read as
+                       20:00 in London and 15:00 in New York — while the Timeline
+                       card on the SAME page and the PDF both said 19:00. Caught by
+                       driving the real app: one meal, two times, one screen. */
+                    <span className="text-sm">
+                      {meal.meal_time
+                        ? `${formatDate(`${meal.meal_time.slice(0, 10)}T12:00:00`, dateFormat)}, ${formatTime(meal.meal_time, timeFormat)}`
+                        : "—"}
+                    </span>
                   )}
                 </div>
               </div>

@@ -5,7 +5,12 @@ import { render, screen, fireEvent } from "@testing-library/react";
 vi.mock("@/components/MenuBuilder", () => ({
   default: ({ pricePerHead }: { pricePerHead: string }) => <div data-testid="menu-builder">menu:{pricePerHead}</div>,
 }));
-vi.mock("@/lib/dateFormat", () => ({ formatDateTime: (s: string) => `fmt(${s})`, formatTime: (s: string) => s }));
+vi.mock("@/lib/dateFormat", async (importOriginal) => {
+  // Keep the REAL formatters — a stub echoing its input would hide exactly the
+  // timezone conversion the "stored, not shifted" test is here to catch.
+  const actual = await importOriginal<typeof import("@/lib/dateFormat")>();
+  return { ...actual, formatDateTime: (s: string) => `fmt(${s})` };
+});
 
 import AdditionalMealsEditor from "./AdditionalMealsEditor";
 import { EventMealData } from "@/lib/api";
@@ -60,6 +65,16 @@ describe("AdditionalMealsEditor", () => {
   // extra meal charges everyone the same. That IS the behaviour (REL-426 AC3
   // deferred per-segment rates on extras) — so it has to be stated, or it reads as
   // a bug. Remove this note only when extras really do price by guest type.
+  // REL-447 — found by driving the real app: the Timeline card said 7:00 PM and
+  // this card said 8:00 PM for the SAME meal, because this one ran the value
+  // through `new Date()` (browser-local) while the timeline and the PDF use the
+  // stored time. One meal, two times, one screen.
+  it("shows the meal time as STORED, not shifted into the viewer's timezone", () => {
+    setup([meal({ meal_time: "2026-09-01T19:00:00Z" })], false);
+    expect(screen.getByText(/19:00|7:00 PM/)).toBeInTheDocument();
+    expect(screen.queryByText(/20:00|8:00 PM/)).not.toBeInTheDocument();
+  });
+
   it("says the extra meal's price is one flat rate for everyone it serves", () => {
     setup([meal()]);
     expect(screen.getByText(/one flat rate for everyone this meal serves/i)).toBeInTheDocument();
