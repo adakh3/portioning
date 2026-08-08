@@ -18,6 +18,7 @@ import logging
 import uuid
 from datetime import timedelta
 
+from cryptography.fernet import InvalidToken
 from django.utils import timezone
 
 from bookings.models import ConnectedMailbox
@@ -84,7 +85,14 @@ def send_via_mailbox(org, *, to, subject, body, attachments=None):
         )
 
     if not mailbox_oauth.provider_configured(mailbox.provider):
-        return _fake_send(mailbox, recipients, subject, body, attachments)
+        if mailbox_oauth.use_fake_transport(mailbox.provider):
+            return _fake_send(mailbox, recipients, subject, body, attachments)
+        # Silently dropping the message while telling the caller it sent is the
+        # one outcome worse than failing.
+        raise MailboxSendFailed(
+            f'Email through {mailbox.get_provider_display()} is not configured '
+            f'on this deployment.'
+        )
 
     access_token = _ensure_access_token(mailbox)
     try:
@@ -107,10 +115,33 @@ def send_via_mailbox(org, *, to, subject, body, attachments=None):
         raise MailboxSendFailed(str(exc)) from exc
 
 
+def _read_token(mailbox, attribute):
+    """Decrypt a stored token, turning an unreadable one into a reconnect.
+
+    Ciphertext stops being readable when the encryption key changes without the
+    old one listed as a fallback. That's an operator mistake, but it must not
+    surface to the caller as a raw InvalidToken and a 500 — the caterer's way
+    out is the same as for a revoked grant: reconnect.
+    """
+    try:
+        return getattr(mailbox, attribute)
+    except InvalidToken as exc:
+        logger.error(
+            'Stored mailbox credentials for org %s could not be decrypted — '
+            'has the token encryption key changed without a fallback?',
+            mailbox.organisation_id,
+        )
+        mailbox.mark_needs_reconnect('Stored credentials could not be read.')
+        raise MailboxNeedsReconnect(
+            f'The stored credentials for {mailbox.email_address} could not be '
+            f'read. Please reconnect.'
+        ) from exc
+
+
 def _ensure_access_token(mailbox):
     """Return a live access token, refreshing silently if needed (AC4)."""
     if mailbox.access_token_valid:
-        return mailbox.access_token
+        return _read_token(mailbox, 'access_token')
 
     if not mailbox.refresh_token_encrypted:
         mailbox.mark_needs_reconnect('No refresh token stored.')
@@ -120,7 +151,7 @@ def _ensure_access_token(mailbox):
 
     try:
         renewed = mailbox_oauth.refresh_access_token(
-            mailbox.provider, mailbox.refresh_token,
+            mailbox.provider, _read_token(mailbox, 'refresh_token'),
         )
     except mailbox_oauth.OAuthExchangeError as exc:
         # invalid_grant is the caterer having revoked us; anything else could be

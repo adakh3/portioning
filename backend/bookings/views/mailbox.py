@@ -5,12 +5,16 @@ to the provider, and the provider redirects back to our callback. No frontend
 SDK, and the tokens never touch the browser.
 """
 
+import hashlib
 import logging
 import secrets
 from urllib.parse import urlencode
 
 from django.conf import settings
 from django.core import signing
+from django.core.exceptions import ValidationError
+from django.core.validators import validate_email
+from django.db import IntegrityError, transaction
 from django.shortcuts import redirect
 from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -32,6 +36,25 @@ STATE_SALT = 'bookings.mailbox-oauth-state'
 STATE_MAX_AGE = 15 * 60
 NONCE_COOKIE = 'mailbox_oauth_nonce'
 COOKIE_PATH = '/api/integrations/email/'
+
+
+def _hash_nonce(nonce):
+    return hashlib.sha256(nonce.encode()).hexdigest()
+
+
+# EmailField's column width. Anything longer is not an address we could send
+# from, and on Postgres it would raise DataError mid-callback.
+MAX_ADDRESS_LENGTH = 254
+
+
+def _is_storable_address(address):
+    if not address or len(address) > MAX_ADDRESS_LENGTH:
+        return False
+    try:
+        validate_email(address)
+    except ValidationError:
+        return False
+    return True
 
 
 def _settings_redirect(**params):
@@ -62,9 +85,8 @@ class MailboxStatusView(APIView):
 
 
 def _providers_available():
-    if any(mailbox_oauth.provider_configured(p) for p in mailbox_oauth.PROVIDERS):
-        return [p for p in mailbox_oauth.PROVIDERS if mailbox_oauth.provider_configured(p)]
-    return list(mailbox_oauth.PROVIDERS)
+    """The providers this deployment can actually complete a connection with."""
+    return [p for p in mailbox_oauth.PROVIDERS if mailbox_oauth.provider_available(p)]
 
 
 class MailboxConnectView(APIView):
@@ -83,6 +105,12 @@ class MailboxConnectView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        if not mailbox_oauth.provider_available(provider):
+            return Response(
+                {'detail': f'{provider.title()} email is not available on this deployment.'},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
         org = get_request_org(request)
         if org is None:
             return Response(
@@ -96,7 +124,10 @@ class MailboxConnectView(APIView):
                 'org': org.pk,
                 'user': request.user.pk,
                 'provider': provider,
-                'nonce': nonce,
+                # Only the *hash* travels in the state. `signing.dumps` signs but
+                # does not encrypt, so a state carrying the raw nonce would
+                # publish the very secret the cookie is supposed to prove.
+                'nonce_hash': _hash_nonce(nonce),
                 # Only consulted in fake mode, so local dev connects as a
                 # believable address instead of a placeholder.
                 'dev_email': request.user.email or 'dev@example.test',
@@ -155,7 +186,10 @@ class MailboxCallbackView(APIView):
             logger.warning('Mailbox OAuth callback with a bad state signature')
             return _settings_redirect(email_error='invalid_state')
 
-        if not request.COOKIES.get(NONCE_COOKIE) == state.get('nonce'):
+        # Fail closed: a state with no hash must never satisfy this.
+        expected = state.get('nonce_hash') or ''
+        presented = _hash_nonce(request.COOKIES.get(NONCE_COOKIE) or '')
+        if not expected or not secrets.compare_digest(presented, expected):
             logger.warning('Mailbox OAuth callback nonce mismatch — refusing')
             return _settings_redirect(email_error='invalid_state')
 
@@ -178,10 +212,17 @@ class MailboxCallbackView(APIView):
             logger.exception('Mailbox OAuth exchange blew up for org %s', org.pk)
             return _settings_redirect(email_error='exchange_failed')
 
-        if not tokens.get('email'):
+        if not _is_storable_address(tokens.get('email')):
+            # Better to refuse than to store something we'd fail to send from —
+            # an over-long value would also blow up the INSERT on Postgres.
             return _settings_redirect(email_error='no_address')
 
-        response = self._store(org, user, provider, tokens)
+        try:
+            response = self._store(org, user, provider, tokens)
+        except IntegrityError:
+            # Two tabs finishing the dance at once; the other one won.
+            logger.warning('Concurrent mailbox connect for org %s', org.pk)
+            return _settings_redirect(email_error='exchange_failed')
         response.delete_cookie(NONCE_COOKIE, path=COOKIE_PATH)
         return response
 
@@ -202,24 +243,28 @@ class MailboxCallbackView(APIView):
         if user is not None and user.organisation_id != org.pk:
             user = None
 
-        # Reconnecting replaces whatever was there — including switching to the
-        # other provider or to a different address.
-        mailbox, _ = ConnectedMailbox.objects.update_or_create(
-            organisation=org,
-            defaults={
-                'provider': provider,
-                'email_address': tokens['email'],
-                'connected_by': user,
-                'status': ConnectedMailbox.CONNECTED,
-                'last_error': '',
-            },
-        )
-        store_tokens(
-            mailbox,
-            access_token=tokens.get('access_token', ''),
-            expires_in=tokens.get('expires_in', 3600),
-            refresh_token=tokens['refresh_token'],
-        )
+        # One transaction: the row and its tokens land together or not at all.
+        # Split across two commits, a failure between them leaves a mailbox
+        # showing "Connected" with no credentials behind it.
+        with transaction.atomic():
+            # Reconnecting replaces whatever was there — including switching to
+            # the other provider or to a different address.
+            mailbox, _ = ConnectedMailbox.objects.update_or_create(
+                organisation=org,
+                defaults={
+                    'provider': provider,
+                    'email_address': tokens['email'],
+                    'connected_by': user,
+                    'status': ConnectedMailbox.CONNECTED,
+                    'last_error': '',
+                },
+            )
+            store_tokens(
+                mailbox,
+                access_token=tokens.get('access_token', ''),
+                expires_in=tokens.get('expires_in', 3600),
+                refresh_token=tokens['refresh_token'],
+            )
         return _settings_redirect(email='connected')
 
 

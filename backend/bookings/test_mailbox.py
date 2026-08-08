@@ -10,7 +10,7 @@ from datetime import timedelta
 from unittest.mock import MagicMock, patch
 from urllib.parse import parse_qs, urlparse
 
-from cryptography.fernet import Fernet
+from cryptography.fernet import Fernet, InvalidToken
 from django.core import signing
 from django.test import TestCase, override_settings
 from django.utils import timezone
@@ -21,7 +21,7 @@ from bookings.serializers.mailbox import ConnectedMailboxSerializer
 from bookings.services import email as email_service
 from bookings.services import mailbox_oauth
 from bookings.services.encryption import decrypt, encrypt
-from bookings.views.mailbox import NONCE_COOKIE, STATE_SALT
+from bookings.views.mailbox import NONCE_COOKIE, STATE_SALT, _hash_nonce
 from tests.base import get_test_user
 from users.models import Organisation, User
 
@@ -40,9 +40,18 @@ MICROSOFT_CONFIGURED = dict(
     MS_OAUTH_CLIENT_SECRET='ms-client-secret',
     OAUTH_REDIRECT_BASE='https://catering.example.com',
 )
+# No OAuth app, fake transport on: local dev and CI.
 NOTHING_CONFIGURED = dict(
     GOOGLE_OAUTH_CLIENT_ID='', GOOGLE_OAUTH_CLIENT_SECRET='',
     MS_OAUTH_CLIENT_ID='', MS_OAUTH_CLIENT_SECRET='',
+    EMAIL_FAKE_TRANSPORT=True,
+)
+# No OAuth app and no fake transport: a production box whose credentials never
+# arrived. Nothing may silently pretend to work here.
+MISCONFIGURED_PROD = dict(
+    GOOGLE_OAUTH_CLIENT_ID='', GOOGLE_OAUTH_CLIENT_SECRET='',
+    MS_OAUTH_CLIENT_ID='', MS_OAUTH_CLIENT_SECRET='',
+    EMAIL_FAKE_TRANSPORT=False,
 )
 
 
@@ -84,6 +93,9 @@ def _other_org():
     return Organisation.objects.create(name='Rival Catering', slug='rival', country='US')
 
 
+_UNSET = object()
+
+
 # ──────────────────────────────────────────────────────────────────────
 # Model + encryption at rest
 # ──────────────────────────────────────────────────────────────────────
@@ -113,28 +125,51 @@ class TestMailboxCredentialStorage(TestCase):
         self.assertEqual(mailbox.access_token_encrypted, '')
         self.assertEqual(mailbox.access_token, '')
 
-    def test_ciphertext_from_the_secret_key_still_decrypts_once_a_dedicated_key_is_set(self):
-        """Setting TOKEN_ENCRYPTION_KEY on a live deployment must not strand
-        tokens already written under the SECRET_KEY-derived key."""
-        with override_settings(TOKEN_ENCRYPTION_KEY=''):
+    def test_a_listed_fallback_key_still_decrypts_older_ciphertext(self):
+        """The documented way to change keys without making every caterer
+        reconnect: encrypt under the new one, keep the old one readable."""
+        old_key = Fernet.generate_key().decode()
+        with override_settings(TOKEN_ENCRYPTION_KEY=old_key):
             legacy = encrypt('refresh-token-from-before')
 
-        with override_settings(TOKEN_ENCRYPTION_KEY=Fernet.generate_key().decode()):
+        with override_settings(
+            TOKEN_ENCRYPTION_KEY=Fernet.generate_key().decode(),
+            TOKEN_ENCRYPTION_KEY_FALLBACKS=old_key,
+        ):
             self.assertEqual(decrypt(legacy), 'refresh-token-from-before')
 
-    def test_the_dedicated_key_is_the_one_actually_used_for_new_writes(self):
-        with override_settings(TOKEN_ENCRYPTION_KEY=Fernet.generate_key().decode()):
-            ciphertext = encrypt('written-under-the-dedicated-key')
+    def test_secret_key_is_not_a_back_door_once_a_dedicated_key_is_set(self):
+        """SECRET_KEY also signs JWTs and is treated as rotatable, so it must
+        not stay a silent second key to every caterer's mailbox."""
+        with override_settings(TOKEN_ENCRYPTION_KEY='', TOKEN_ENCRYPTION_KEY_FALLBACKS=''):
+            under_secret_key = encrypt('written-before-the-dedicated-key')
 
-        # Back on SECRET_KEY only, the dedicated-key ciphertext is unreadable —
-        # which is the proof the dedicated key was genuinely in play.
-        with override_settings(TOKEN_ENCRYPTION_KEY=''):
-            with self.assertRaises(Exception):
-                decrypt(ciphertext)
+        with override_settings(
+            TOKEN_ENCRYPTION_KEY=Fernet.generate_key().decode(),
+            TOKEN_ENCRYPTION_KEY_FALLBACKS='',
+        ):
+            new_ciphertext = encrypt('written-under-the-dedicated-key')
+            # Not listed as a fallback, so it is genuinely no longer a key.
+            with self.assertRaises(InvalidToken):
+                decrypt(under_secret_key)
+
+        with override_settings(TOKEN_ENCRYPTION_KEY='', TOKEN_ENCRYPTION_KEY_FALLBACKS=''):
+            with self.assertRaises(InvalidToken):
+                decrypt(new_ciphertext)
 
     def test_a_passphrase_works_as_well_as_a_generated_fernet_key(self):
         with override_settings(TOKEN_ENCRYPTION_KEY='not-a-fernet-key-just-a-phrase'):
             self.assertEqual(decrypt(encrypt('secret')), 'secret')
+
+    def test_surrounding_whitespace_on_the_key_does_not_change_it(self):
+        """A key pasted into a deploy console with a stray newline must not
+        quietly become a different key that strands every stored token."""
+        key = Fernet.generate_key().decode()
+        with override_settings(TOKEN_ENCRYPTION_KEY=key):
+            ciphertext = encrypt('refresh-token')
+
+        with override_settings(TOKEN_ENCRYPTION_KEY=f'  {key}\n'):
+            self.assertEqual(decrypt(ciphertext), 'refresh-token')
 
     def test_access_token_validity_reflects_absence_expiry_and_the_safety_margin(self):
         mailbox = _make_mailbox(self.org)
@@ -220,6 +255,29 @@ class TestMailboxStatus(TestCase):
         body = self.client.get(STATUS_URL).json()
         self.assertFalse(body['connected'])
 
+    @override_settings(**GOOGLE_CONFIGURED, EMAIL_FAKE_TRANSPORT=False)
+    def test_advertises_only_the_providers_this_deployment_has(self):
+        """Drives which buttons Settings renders — if this ever came back
+        empty with providers configured, the feature would be unreachable and
+        no frontend test would notice (they supply the list by hand)."""
+        body = self.client.get(STATUS_URL).json()
+        self.assertEqual(body['providers_available'], ['google'])
+
+    @override_settings(**MICROSOFT_CONFIGURED, EMAIL_FAKE_TRANSPORT=False)
+    def test_advertises_microsoft_when_that_is_the_configured_one(self):
+        body = self.client.get(STATUS_URL).json()
+        self.assertEqual(body['providers_available'], ['microsoft'])
+
+    @override_settings(**NOTHING_CONFIGURED)
+    def test_offers_both_providers_in_fake_mode_so_dev_is_not_a_dead_card(self):
+        body = self.client.get(STATUS_URL).json()
+        self.assertEqual(body['providers_available'], ['google', 'microsoft'])
+
+    @override_settings(**MISCONFIGURED_PROD)
+    def test_advertises_nothing_when_the_deployment_has_no_oauth_app(self):
+        body = self.client.get(STATUS_URL).json()
+        self.assertEqual(body['providers_available'], [])
+
 
 # ──────────────────────────────────────────────────────────────────────
 # Connect (AC1, AC2, AC7, AC9)
@@ -259,8 +317,42 @@ class TestMailboxConnect(TestCase):
 
         query = parse_qs(urlparse(response.json()['auth_url']).query)
         state = signing.loads(query['state'][0], salt=STATE_SALT)
-        self.assertEqual(state['nonce'], cookie.value)
+        self.assertEqual(state['nonce_hash'], _hash_nonce(cookie.value))
         self.assertEqual(state['org'], self.org.pk)
+
+    @override_settings(**GOOGLE_CONFIGURED)
+    def test_the_state_carries_only_the_hash_never_the_nonce_itself(self):
+        """`signing.dumps` signs but does not encrypt — anyone holding the state
+        can read its payload. If the raw nonce were in there, the cookie would
+        prove nothing and a leaked state would be enough to hijack the flow."""
+        response = self.client.get(CONNECT_URL, {'provider': 'google'})
+        nonce = response.cookies[NONCE_COOKIE].value
+        raw_state = parse_qs(urlparse(response.json()['auth_url']).query)['state'][0]
+
+        # Decoded with no key at all, exactly as an attacker would.
+        payload = raw_state.split(':')[0]
+        payload += '=' * (-len(payload) % 4)
+        decoded = base64.urlsafe_b64decode(payload).decode()
+
+        self.assertNotIn(nonce, decoded)
+        self.assertNotIn(nonce, raw_state)
+
+    @override_settings(**MISCONFIGURED_PROD)
+    def test_connect_refuses_when_the_deployment_has_no_oauth_app(self):
+        """A production box missing its client id must say so, not hand back a
+        link that mints a mailbox which can never send."""
+        response = self.client.get(CONNECT_URL, {'provider': 'google'})
+
+        self.assertEqual(response.status_code, 503)
+        self.assertFalse(ConnectedMailbox.objects.exists())
+
+    @override_settings(**GOOGLE_CONFIGURED)
+    def test_connect_refuses_a_provider_this_deployment_does_not_have(self):
+        """Google configured, Microsoft not — the API must agree with the
+        buttons the status endpoint advertises."""
+        with override_settings(EMAIL_FAKE_TRANSPORT=False):
+            response = self.client.get(CONNECT_URL, {'provider': 'microsoft'})
+        self.assertEqual(response.status_code, 503)
 
     @override_settings(**MICROSOFT_CONFIGURED)
     def test_microsoft_consent_url_asks_for_mail_send_and_offline_access(self):
@@ -314,17 +406,20 @@ class TestMailboxCallback(TestCase):
         self.org = self.user.organisation
         self.client = APIClient()
 
-    def _state(self, provider='google', nonce='nonce-value', org=None, user=None):
-        return signing.dumps(
-            {
-                'org': (org or self.org).pk,
-                'user': (user or self.user).pk,
-                'provider': provider,
-                'nonce': nonce,
-                'dev_email': 'dev@example.test',
-            },
-            salt=STATE_SALT,
-        )
+    def _state(self, provider='google', nonce='nonce-value', org=None, user=None,
+               nonce_hash=_UNSET):
+        payload = {
+            'org': (org or self.org).pk,
+            'user': (user or self.user).pk,
+            'provider': provider,
+            'dev_email': 'dev@example.test',
+        }
+        # `nonce_hash=None` builds a state with no binding at all, to prove the
+        # comparison fails closed rather than matching an absent cookie.
+        resolved = _hash_nonce(nonce) if nonce_hash is _UNSET else nonce_hash
+        if resolved is not None:
+            payload['nonce_hash'] = resolved
+        return signing.dumps(payload, salt=STATE_SALT)
 
     def _call(self, state, nonce='nonce-value', code='auth-code', **extra):
         if nonce is not None:
@@ -415,6 +510,20 @@ class TestMailboxCallback(TestCase):
 
     @override_settings(**GOOGLE_CONFIGURED)
     @patch('bookings.services.mailbox_oauth.requests.post')
+    def test_a_state_carrying_no_binding_is_refused_rather_than_matching_nothing(self, post):
+        """Fail closed: an absent hash and an absent cookie must not compare
+        equal, or the one control stopping cross-org capture evaporates."""
+        self.client.cookies.pop(NONCE_COOKIE, None)
+        response = self.client.get(CALLBACK_URL, {
+            'state': self._state('google', nonce_hash=None), 'code': 'auth-code',
+        })
+
+        self.assertIn('email_error=invalid_state', response['Location'])
+        self.assertFalse(ConnectedMailbox.objects.exists())
+        post.assert_not_called()
+
+    @override_settings(**GOOGLE_CONFIGURED)
+    @patch('bookings.services.mailbox_oauth.requests.post')
     def test_a_callback_with_no_nonce_cookie_at_all_is_refused(self, post):
         self.client.cookies.pop(NONCE_COOKIE, None)
         response = self.client.get(CALLBACK_URL, {
@@ -476,6 +585,55 @@ class TestMailboxCallback(TestCase):
         response = self._call(self._state('google'))
 
         self.assertIn('email_error=no_address', response['Location'])
+        self.assertFalse(ConnectedMailbox.objects.exists())
+
+    @override_settings(**GOOGLE_CONFIGURED)
+    @patch('bookings.services.mailbox_oauth.requests.get')
+    @patch('bookings.services.mailbox_oauth.requests.post')
+    def test_an_address_too_long_for_the_column_is_refused_not_written(self, post, get):
+        """Postgres would raise DataError mid-callback; SQLite would store a
+        value we could never send from."""
+        post.return_value = _response(200, {
+            'access_token': 'a', 'refresh_token': 'r', 'expires_in': 3600,
+        })
+        get.return_value = _response(200, {'email': 'x' * 250 + '@example.com'})
+
+        response = self._call(self._state('google'))
+
+        self.assertIn('email_error=no_address', response['Location'])
+        self.assertFalse(ConnectedMailbox.objects.exists())
+
+    @override_settings(**MICROSOFT_CONFIGURED)
+    @patch('bookings.services.mailbox_oauth.requests.get')
+    @patch('bookings.services.mailbox_oauth.requests.post')
+    def test_a_principal_name_that_is_not_an_address_is_refused(self, post, get):
+        post.return_value = _response(200, {
+            'access_token': 'a', 'refresh_token': 'r', 'expires_in': 3600,
+        })
+        get.return_value = _response(200, {'userPrincipalName': 'not-an-email'})
+
+        response = self._call(self._state('microsoft'))
+
+        self.assertIn('email_error=no_address', response['Location'])
+        self.assertFalse(ConnectedMailbox.objects.exists())
+
+    @override_settings(**GOOGLE_CONFIGURED)
+    @patch('bookings.services.mailbox_oauth.requests.post')
+    def test_a_failure_storing_tokens_leaves_no_half_connected_mailbox(self, post):
+        """The row and its credentials commit together — otherwise Settings
+        shows a green "Connected" badge over a mailbox that cannot send."""
+        post.return_value = _response(200, {
+            'access_token': 'a', 'refresh_token': 'r', 'expires_in': 3600,
+            'id_token': _id_token('owner@acme.com'),
+        })
+
+        # DRF's exception handler turns the failure into a 500 rather than
+        # letting it escape, so the assertion that matters is what's left
+        # behind: without the transaction, update_or_create's row survives.
+        with patch('bookings.views.mailbox.store_tokens',
+                   side_effect=RuntimeError('db went away')):
+            self._call(self._state('google'))
+
         self.assertFalse(ConnectedMailbox.objects.exists())
 
     @override_settings(**GOOGLE_CONFIGURED)
@@ -790,6 +948,74 @@ class TestMailboxSend(TestCase):
 
     @override_settings(**GOOGLE_CONFIGURED)
     @patch('bookings.services.mailbox_oauth.requests.post')
+    def test_a_gmail_rate_limit_403_is_transient_and_keeps_the_connection(self, post):
+        """Gmail answers 403 for usage limits as well as for lost permission.
+        Treating a burst of quotes as a revoked grant would make the caterer
+        redo the whole OAuth consent over a throttle."""
+        mailbox = _make_mailbox(self.org)
+        post.return_value = _response(403, {'error': {
+            'code': 403,
+            'message': 'User-rate limit exceeded. Retry after 2026-08-08T10:00:00Z',
+            'errors': [{'reason': 'rateLimitExceeded', 'domain': 'usageLimits'}],
+        }})
+
+        with self.assertRaises(email_service.MailboxSendFailed):
+            self._send()
+
+        mailbox.refresh_from_db()
+        self.assertEqual(mailbox.status, ConnectedMailbox.CONNECTED)
+
+    @override_settings(**GOOGLE_CONFIGURED)
+    @patch('bookings.services.mailbox_oauth.requests.post')
+    def test_a_daily_quota_403_also_keeps_the_connection(self, post):
+        mailbox = _make_mailbox(self.org)
+        post.return_value = _response(403, {'error': {
+            'message': 'Daily Limit Exceeded',
+            'errors': [{'reason': 'dailyLimitExceeded', 'domain': 'usageLimits'}],
+        }})
+
+        with self.assertRaises(email_service.MailboxSendFailed):
+            self._send()
+
+        mailbox.refresh_from_db()
+        self.assertEqual(mailbox.status, ConnectedMailbox.CONNECTED)
+
+    @override_settings(**GOOGLE_CONFIGURED)
+    @patch('bookings.services.mailbox_oauth.requests.post')
+    def test_unreadable_stored_credentials_ask_for_a_reconnect_not_a_500(self, post):
+        """If the encryption key changes without the old one kept as a
+        fallback, every token becomes unreadable. REL-445 must get a typed
+        error it can ledger, not a raw InvalidToken."""
+        mailbox = _make_mailbox(self.org)
+        ConnectedMailbox.objects.filter(pk=mailbox.pk).update(
+            access_token_encrypted='gAAAAA-not-decryptable',
+            refresh_token_encrypted='gAAAAA-not-decryptable',
+        )
+
+        with self.assertRaises(email_service.MailboxNeedsReconnect):
+            self._send()
+
+        mailbox.refresh_from_db()
+        self.assertEqual(mailbox.status, ConnectedMailbox.NEEDS_RECONNECT)
+        post.assert_not_called()
+
+    @override_settings(**GOOGLE_CONFIGURED)
+    @patch('bookings.services.mailbox_oauth.requests.post')
+    def test_a_mailbox_with_no_refresh_token_asks_for_a_reconnect(self, post):
+        mailbox = _make_mailbox(
+            self.org, access_token_expires_at=timezone.now() - timedelta(minutes=5),
+        )
+        ConnectedMailbox.objects.filter(pk=mailbox.pk).update(refresh_token_encrypted='')
+
+        with self.assertRaises(email_service.MailboxNeedsReconnect):
+            self._send()
+
+        mailbox.refresh_from_db()
+        self.assertEqual(mailbox.status, ConnectedMailbox.NEEDS_RECONNECT)
+        post.assert_not_called()
+
+    @override_settings(**GOOGLE_CONFIGURED)
+    @patch('bookings.services.mailbox_oauth.requests.post')
     def test_a_provider_outage_does_not_burn_the_connection(self, post):
         """A 500 is Google's problem, not a revoked grant — flipping the mailbox
         would make every caterer reconnect over a blip."""
@@ -890,4 +1116,18 @@ class TestMailboxSend(TestCase):
     def test_the_fake_transport_still_honours_the_not_connected_contract(self):
         with self.assertRaises(email_service.MailboxNotConnected):
             self._send()
+        self.assertEqual(email_service.outbox, [])
+
+    @override_settings(**MISCONFIGURED_PROD)
+    @patch('bookings.services.mailbox_oauth.requests.post')
+    def test_a_production_box_missing_its_oauth_app_fails_loudly(self, post):
+        """The regression this pins: with fake mode keyed only off "is the
+        client id set", a credential that never reached production turned every
+        quote and contract into a silent no-op that still reported success."""
+        _make_mailbox(self.org)
+
+        with self.assertRaises(email_service.MailboxSendFailed):
+            self._send()
+
+        post.assert_not_called()
         self.assertEqual(email_service.outbox, [])

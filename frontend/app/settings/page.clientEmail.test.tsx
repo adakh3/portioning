@@ -216,4 +216,29 @@ describe("Settings → Integrations → Client email", () => {
     expect(card().getByRole("button", { name: "Connect Google" })).toBeTruthy();
     expect(card().queryByRole("button", { name: "Connect Microsoft" })).toBeNull();
   });
+
+  it("says so plainly when the deployment can't send email at all", () => {
+    mockMailbox = { ...DISCONNECTED, providers_available: [] };
+    render(<SettingsPage />);
+
+    expect(card().getByText(/isn't switched on for this installation/i)).toBeTruthy();
+    expect(card().queryByRole("button", { name: /^Connect/ })).toBeNull();
+  });
+
+  it("still offers Reconnect when the deployment has dropped that provider", () => {
+    // Otherwise the card is a dead end: "needs reconnect" with no way to do it.
+    mockMailbox = {
+      connected: true,
+      providers_available: ["google"],
+      mailbox: {
+        ...CONNECTED.mailbox!,
+        provider: "microsoft",
+        provider_display: "Microsoft",
+        status: "needs_reconnect",
+      },
+    };
+    render(<SettingsPage />);
+
+    expect(card().getByRole("button", { name: "Reconnect" })).toBeTruthy();
+  });
 });

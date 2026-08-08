@@ -81,16 +81,31 @@ def client_credentials(provider):
 
 
 def provider_configured(provider):
-    """True when this deployment has a real OAuth app for the provider.
-
-    False is the normal state in local dev and in CI, and is what switches the
-    whole feature onto the fake transport (AC9) — no Google/Microsoft app
-    needed to develop or test against.
-    """
+    """True when this deployment has a real OAuth app for the provider."""
     if provider not in PROVIDERS:
         return False
     client_id, client_secret = client_credentials(provider)
     return bool(client_id and client_secret)
+
+
+def use_fake_transport(provider):
+    """True when sends for this provider should be captured, not transmitted.
+
+    Requires BOTH that there's no OAuth app *and* that this deployment opted
+    into the fake transport (`EMAIL_FAKE_TRANSPORT`, on by default only under
+    DEBUG and the test runner). Gating on the missing OAuth app alone would
+    mean a client id that failed to reach production silently turned every
+    quote and contract into a no-op that still reported success.
+    """
+    return (
+        not provider_configured(provider)
+        and getattr(settings, 'EMAIL_FAKE_TRANSPORT', False)
+    )
+
+
+def provider_available(provider):
+    """True when connecting with this provider can lead to a working send."""
+    return provider_configured(provider) or use_fake_transport(provider)
 
 
 def redirect_uri():
@@ -305,14 +320,33 @@ def _send_microsoft(access_token, to, subject, body, attachments):
     return response.headers.get('request-id', '')
 
 
+# Gmail answers 403 for *usage* limits as well as for permission problems, and
+# the two need opposite handling: a throttle must not cost the caterer their
+# connection. Match on the reason the body gives rather than the status alone.
+_USAGE_LIMIT_MARKERS = (
+    'ratelimitexceeded', 'userratelimitexceeded', 'dailylimitexceeded',
+    'quotaexceeded', 'usagelimits', 'resource_exhausted', 'rate limit',
+    'too many', 'try again later', 'backofflimitexceeded',
+)
+
+
+def _is_usage_limit(response):
+    try:
+        body = json.dumps(response.json()).lower()
+    except (ValueError, TypeError):
+        return False
+    return any(marker in body for marker in _USAGE_LIMIT_MARKERS)
+
+
 def _raise_for_send(response):
     if response.status_code < 400:
         return
-    # 401 is a dead grant. 403 from Gmail is usually a missing/withdrawn scope —
-    # also only fixable by reconnecting.
-    raise ProviderSendError(
-        _error_detail(response), auth_failed=response.status_code in (401, 403),
+    # 401 is always a dead grant. 403 is a withdrawn scope — unless it's really
+    # a rate limit wearing the same status code.
+    auth_failed = response.status_code == 401 or (
+        response.status_code == 403 and not _is_usage_limit(response)
     )
+    raise ProviderSendError(_error_detail(response), auth_failed=auth_failed)
 
 
 def _error_detail(response):

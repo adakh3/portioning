@@ -120,18 +120,17 @@ export default function ClientEmailSettings() {
             )}
 
             <div className="flex flex-wrap gap-2">
-              {needsReconnect &&
-                providers
-                  .filter((provider) => provider === mailbox.provider)
-                  .map((provider) => (
-                    <Button
-                      key={provider}
-                      onClick={() => handleConnect(provider)}
-                      disabled={busy !== null}
-                    >
-                      {busy === provider ? "Redirecting…" : "Reconnect"}
-                    </Button>
-                  ))}
+              {/* Offered regardless of providers_available: if the deployment
+                  has dropped this provider the reconnect will fail with a clear
+                  message, which beats a card beyond repair with no button. */}
+              {needsReconnect && (
+                <Button
+                  onClick={() => handleConnect(mailbox.provider)}
+                  disabled={busy !== null}
+                >
+                  {busy === mailbox.provider ? "Redirecting…" : "Reconnect"}
+                </Button>
+              )}
               <Button
                 variant="outline"
                 onClick={handleDisconnect}
@@ -147,19 +146,26 @@ export default function ClientEmailSettings() {
               Connect your email so quotes, contracts and messages reach your clients from
               your own address — not from us. We can only send; we can never read your inbox.
             </p>
-            <div className="flex flex-wrap gap-2">
-              {providers.map((provider) => (
-                <Button
-                  key={provider}
-                  onClick={() => handleConnect(provider)}
-                  disabled={busy !== null}
-                >
-                  {busy === provider
-                    ? "Redirecting…"
-                    : `Connect ${PROVIDER_LABELS[provider]}`}
-                </Button>
-              ))}
-            </div>
+            {providers.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Email sending isn&apos;t switched on for this installation yet. Please
+                contact support.
+              </p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {providers.map((provider) => (
+                  <Button
+                    key={provider}
+                    onClick={() => handleConnect(provider)}
+                    disabled={busy !== null}
+                  >
+                    {busy === provider
+                      ? "Redirecting…"
+                      : `Connect ${PROVIDER_LABELS[provider]}`}
+                  </Button>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </CardContent>

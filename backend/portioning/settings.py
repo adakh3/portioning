@@ -83,9 +83,21 @@ MS_OAUTH_CLIENT_SECRET = os.environ.get('MS_OAUTH_CLIENT_SECRET', '')
 # https://catering.relogue.com
 OAUTH_REDIRECT_BASE = os.environ.get('OAUTH_REDIRECT_BASE', 'http://localhost:8000')
 # Key for encrypting mailbox refresh tokens at rest. Optional: falls back to
-# SECRET_KEY-derived, and old ciphertext stays readable either way — but set it
-# in prod so rotating SECRET_KEY doesn't force every caterer to reconnect.
+# SECRET_KEY-derived. Set it in prod so rotating SECRET_KEY doesn't make every
+# caterer reconnect — and so the JWT signing key isn't also the key to their
+# mailboxes. When set it is used alone; to change keys without stranding
+# existing ciphertext, list the previous one (or SECRET_KEY) in the fallbacks,
+# which decrypt only.
 TOKEN_ENCRYPTION_KEY = os.environ.get('TOKEN_ENCRYPTION_KEY', '')
+TOKEN_ENCRYPTION_KEY_FALLBACKS = os.environ.get('TOKEN_ENCRYPTION_KEY_FALLBACKS', '')
+
+# Capture outgoing client email instead of calling a provider, for local dev and
+# tests. Off in production: without this guard a missing OAuth client id would
+# silently turn every real send into a no-op that still reports success.
+EMAIL_FAKE_TRANSPORT = os.environ.get(
+    'EMAIL_FAKE_TRANSPORT',
+    'True' if (DEBUG or 'test' in sys.argv) else 'False',
+).lower() in ('true', '1', 'yes')
 
 # Which model each AI task runs on, as 'provider:model' — see portioning/llm.py.
 # Switching supplier or model per task is a one-env-var change, nothing else.
