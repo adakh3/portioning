@@ -18,8 +18,14 @@ def round2(x):
     ``.quantize(Decimal('0.01'))`` is HALF_EVEN and silently disagrees with the live
     preview on an exact half-cent (1.50 × $0.03 stored $0.04 while the screen said
     $0.05 — REL-462 Bug 2).
+
+    ``+ Decimal('0')`` normalises negative zero: rounding a tiny negative (or
+    multiplying a negative subtotal by a zero rate) yields ``Decimal('-0.00')``,
+    which renders as "-$0.00" on a customer-facing card. `parse_segment_rate` has
+    always done this for the same reason; doing it here covers every money value the
+    engine produces rather than the one field somebody remembered.
     """
-    return Decimal(x).quantize(TWO_PLACES, rounding=ROUND_HALF_UP)
+    return Decimal(x).quantize(TWO_PLACES, rounding=ROUND_HALF_UP) + Decimal('0')
 
 
 # Nothing priceable is worth more than this per cover. Bounding here (not just in
@@ -139,11 +145,30 @@ def segment_food_rows(price_per_head, segments):
     return rows
 
 
+def _item_amount(item):
+    """One line's signed contribution to the subtotal.
+
+    Accepts a model instance or anything else exposing ``line_total``, a mapping
+    carrying that key, or a bare Decimal. Widened so the engine can hand its own
+    priced rows straight in: they used to be wrapped in a private class whose only
+    purpose was to grow a ``.line_total`` attribute, and then unwrapped again.
+    """
+    if isinstance(item, Decimal):
+        return item
+    value = item.get('line_total') if isinstance(item, dict) else getattr(item, 'line_total', None)
+    return Decimal(value or 0)
+
+
 @dataclass(frozen=True)
 class BookingTotals:
     taxable_subtotal: Decimal
     non_taxable_subtotal: Decimal
     subtotal: Decimal
+    # The base the two percentage charges were ACTUALLY taken on. Published rather
+    # than left implicit so no caller re-derives `max(subtotal, 0)` for itself: a
+    # second copy of that rule means a surface can print "20% service charge on $X"
+    # where $X does not multiply out to the amount beside it.
+    charge_base: Decimal
     service_charge: Decimal
     tax_base: Decimal
     tax_amount: Decimal
@@ -180,7 +205,7 @@ def compute_booking_totals(food_total, line_items, tax_rate,
     service_charge_pct = Decimal(service_charge_pct or 0)
     gratuity_pct = Decimal(gratuity_pct or 0)
 
-    items_total = sum((Decimal(item.line_total or 0) for item in line_items), Decimal('0.00'))
+    items_total = sum((_item_amount(item) for item in line_items), Decimal('0.00'))
     subtotal = food_total + items_total
     # Percentage charges are taken on the subtotal but never on a NEGATIVE one: an
     # over-large discount used to flip the service charge and gratuity negative too,
@@ -206,9 +231,275 @@ def compute_booking_totals(food_total, line_items, tax_rate,
         taxable_subtotal=subtotal,
         non_taxable_subtotal=Decimal('0.00'),
         subtotal=subtotal,
+        charge_base=charge_base,
         service_charge=service_charge,
         tax_base=tax_base,
         tax_amount=tax_amount,
         gratuity=gratuity,
         total=total,
+    )
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# Pricing engine v2 — raw inputs in, every printable number out (REL-463)
+# ════════════════════════════════════════════════════════════════════════════
+#
+# `compute_booking_totals` above takes PRE-CHEWED inputs: a `food_total` someone
+# else summed, and line items whose `line_total` someone else computed. That left
+# real arithmetic scattered across the surfaces — meals math duplicated verbatim in
+# `Quote.food_total` and `Event.food_total`, line math in `BookingLineItem.save`,
+# and the quote PDF inventing its own pre-tax total. Every fragment is a place the
+# printed number can disagree with the stored one.
+#
+# `price_booking` below takes RAW material and returns every number any surface
+# prints, so no caller ever needs arithmetic of its own. The pieces above are
+# unchanged and still do the work — this widens the front door, it does not
+# re-derive the math (existing stored totals must stay byte-identical).
+
+
+LINE_UNIT_PER_GUEST = 'per_guest'
+LINE_CATEGORY_DISCOUNT = 'discount'
+
+
+def _line_number(value):
+    """A line item's quantity or price as a Decimal, with junk becoming zero.
+
+    Differs from `_usable_rate` in exactly one way, deliberately: a **negative is
+    kept**. That one refuses a negative so a bad segment rate falls back to full
+    price instead of paying the customer to attend; a line item is the opposite,
+    because a discount is routinely typed as a negative price and the frontend
+    passes those straight through.
+
+    Everything else it screens the SAME way, and for the same reasons:
+
+    * **one spelling of a number.** Strings go through `RATE_RE`, not straight to
+      `Decimal`. `Decimal` accepts `"1_000"` and Unicode digits (`"١٢٣"`, `"５"`)
+      while JS `Number` returns NaN for all of them — so without this a line posted
+      as `1_000` bills $1,000 on the invoice and $0 in the live preview. Skipping
+      the screen was justified as "mirroring `Number(x) || 0`", but it did the
+      opposite of that.
+    * **a magnitude bound.** `Decimal('1e400').is_finite()` is True in Python (it
+      is JS that gives Infinity), so an unbounded value reaches `round2`, whose
+      `quantize` raises `InvalidOperation` — a 500 on a pricing request rather than
+      a priced line. This is the front door for raw input; it must not throw.
+    """
+    if value is None or value == '' or isinstance(value, bool):
+        return Decimal('0')
+    if isinstance(value, str):
+        match = RATE_RE.match(value)
+        if not match:
+            return Decimal('0')
+        sign, digits = match.groups()
+        d = -Decimal(digits) if sign == '-' else Decimal(digits)
+    else:
+        try:
+            d = Decimal(str(value))
+        except (InvalidOperation, ValueError, TypeError):
+            return Decimal('0')
+    if not d.is_finite() or abs(d) > MAX_USABLE_RATE:
+        return Decimal('0')
+    return d
+
+
+def line_item_total(unit, category, quantity, unit_price, guest_count=0):
+    """What one add-on line is worth — the single definition of line-item math.
+
+    Mirrors `lineItemTotal` in frontend/lib/quoteTotals.ts branch for branch:
+    `per_guest` = price × guest_count (quantity ignored); `discount` = −|qty × price|;
+    everything else (`each`, `flat`, `per_hour`) = qty × price.
+
+    Branch ORDER is load-bearing and matches the mirror: `per_guest` is tested before
+    `discount`, so a per-guest line in the discount category prices as a positive
+    per-head charge. Pinned by a golden case rather than left to chance.
+
+    Rounds HALF_UP via `round2`. The discount branch rounds the **magnitude** and
+    applies the sign afterwards, as the frontend does — rounding −42.425 half-up
+    would give −42.42 and quietly shrink the discount the customer was promised.
+    """
+    price = _line_number(unit_price)
+    if unit == LINE_UNIT_PER_GUEST:
+        return round2(price * Decimal(int(guest_count or 0)))
+    qty = _line_number(quantity)
+    if category == LINE_CATEGORY_DISCOUNT:
+        return -round2(abs(qty * price))
+    return round2(qty * price)
+
+
+def meal_rows(meals):
+    """Itemized additional-meal lines — ``[{label, count, rate, amount}]``.
+
+    Each meal is rounded on its own (`round2(rate × count)`) and the amounts are
+    summed, exactly as `mealsFood` does on the frontend. A meal priced at nothing —
+    or with nobody eating — is left out entirely rather than printed as a zero row.
+
+    **A meal is a charge, so a negative rate or a negative count is refused, not
+    summed.** The old `food_total` loop this replaced added the raw value under a
+    plain `if price and count`, so a negative `price_per_head` reduced the food
+    total — but the frontend mirror never did (`if (price > 0 && count)`), which
+    means that behaviour was a live parity break, not a feature to preserve. A
+    per-head credit belongs in a `discount` line item, where both engines agree on
+    the sign. Pinned in both engines by the shared `meal_cases`.
+    """
+    rows = []
+    for meal in meals or ():
+        rate = _usable_rate(meal.get('price_per_head')) or Decimal('0')
+        count = int(meal.get('guest_count') or 0)
+        if rate <= 0 or count <= 0:
+            continue
+        rows.append({
+            'label': meal.get('label') or '',
+            'count': count,
+            'rate': round2(rate),
+            'amount': round2(rate * count),
+        })
+    return rows
+
+
+@dataclass(frozen=True)
+class PricingInput:
+    """Everything needed to price a booking, and nothing from the ORM.
+
+    `segments` is exactly what `events.models.resolve_booking_segments` returns —
+    dicts of ``{name, count, price_multiplier, price_override, counts_toward_total}``.
+    `meals` are ``{label, price_per_head, guest_count}`` and `line_items` are
+    ``{category, unit, quantity, unit_price, description, sort_order}``.
+
+    `tax_rate` is the EFFECTIVE fraction (0.08 = 8%) — pass 0 when the booking isn't
+    taxable, exactly as the models already decide. `service_charge_pct` and
+    `gratuity_pct` are percentages (20 = 20%).
+    """
+    price_per_head: object = None
+    guest_count: int = 0
+    segments: tuple = ()
+    meals: tuple = ()
+    line_items: tuple = ()
+    tax_rate: object = Decimal('0')
+    service_charge_pct: object = Decimal('0')
+    service_charge_taxable: bool = True
+    gratuity_pct: object = Decimal('0')
+
+
+@dataclass(frozen=True)
+class PricingResult:
+    """Every money number a surface could need, computed once.
+
+    Grouped rather than flat so a caller can hand a whole section to a renderer:
+    `food` for the menu block, `lines` for the add-ons block, `totals` for the
+    summary, `rates` echoed so a document can print "20% service charge" without
+    reaching back to the booking.
+    """
+    food: dict
+    lines: dict
+    totals: dict
+    rates: dict
+
+    def to_dict(self):
+        """JSON-safe — every Decimal becomes a string, never a float.
+
+        A float would reintroduce the very drift this engine exists to remove, so
+        the wire format keeps numbers as text and lets the reader parse them exactly.
+
+        **Money is rounded to cents; RATES ARE NOT.** `tax_rate` is a 4-dp fraction
+        (`DecimalField(decimal_places=4)`), so quantizing it as though it were money
+        turned 8.25% into `0.08` — and the rates block exists precisely so a document
+        can print the rate without reaching back to the booking. That document would
+        have printed "8% tax" beside a tax amount computed at 8.25%: two numbers on
+        one customer-facing page that cannot both be true.
+        """
+        def walk(v, is_money=True):
+            if isinstance(v, dict):
+                return {k: walk(x, is_money) for k, x in v.items()}
+            if isinstance(v, (list, tuple)):
+                return [walk(x, is_money) for x in v]
+            if isinstance(v, Decimal):
+                return str(round2(v)) if is_money else str(v)
+            return v
+
+        return {
+            'food': walk(self.food),
+            'lines': walk(self.lines),
+            'totals': walk(self.totals),
+            # Rates keep their own precision — see above.
+            'rates': walk(self.rates, is_money=False),
+        }
+
+
+def priced_line(raw, guest_count=0):
+    """One raw line echoed back with its computed ``line_total``.
+
+    A plain dict: `compute_booking_totals` reads the key directly (see
+    `_item_amount`), so nothing needs wrapping in an object and unwrapping again.
+    """
+    return {
+        'category': raw.get('category') or '',
+        'unit': raw.get('unit') or '',
+        'quantity': raw.get('quantity'),
+        'unit_price': raw.get('unit_price'),
+        'description': raw.get('description') or '',
+        'sort_order': raw.get('sort_order') or 0,
+        'line_total': line_item_total(
+            raw.get('unit') or '', raw.get('category') or '',
+            raw.get('quantity'), raw.get('unit_price'), guest_count,
+        ),
+    }
+
+
+def price_booking(data: PricingInput) -> PricingResult:
+    """Price a booking from raw inputs — the one place booking money is computed.
+
+    Pipeline: menu food per segment → additional meals → food total → add-on lines →
+    subtotal → service charge → tax → gratuity → total. Every intermediate a surface
+    might print is returned, including `pre_tax_total` (subtotal + service charge),
+    which the quote PDF used to derive for itself.
+
+    A pure function of its input: no ORM, no I/O, no clock.
+    """
+    menu_food = segment_food_total(data.price_per_head, data.segments)
+    food_rows = segment_food_rows(data.price_per_head, data.segments)
+    rows = meal_rows(data.meals)
+    meals_food = round2(sum((r['amount'] for r in rows), Decimal('0.00')))
+    food_total = round2(menu_food + meals_food)
+
+    priced = [priced_line(raw, data.guest_count) for raw in (data.line_items or ())]
+    add_ons_subtotal = round2(
+        sum((line['line_total'] for line in priced), Decimal('0.00')))
+
+    totals = compute_booking_totals(
+        food_total, priced, data.tax_rate,
+        service_charge_pct=data.service_charge_pct,
+        service_charge_taxable=data.service_charge_taxable,
+        gratuity_pct=data.gratuity_pct,
+    )
+
+    return PricingResult(
+        food={
+            'menu_food': menu_food,
+            'food_rows': food_rows,
+            'meal_rows': rows,
+            'meals_food': meals_food,
+            'food_total': food_total,
+        },
+        lines={
+            'items': priced,
+            'add_ons_subtotal': add_ons_subtotal,
+        },
+        totals={
+            'subtotal': totals.subtotal,
+            # Surfaced from the engine, not re-derived here: a second copy of the
+            # max(subtotal, 0) rule is a second thing to forget to update.
+            'charge_base': totals.charge_base,
+            'service_charge': totals.service_charge,
+            # The number the quote PDF used to invent for itself.
+            'pre_tax_total': totals.subtotal + totals.service_charge,
+            'tax_base': totals.tax_base,
+            'tax_amount': totals.tax_amount,
+            'gratuity': totals.gratuity,
+            'total': totals.total,
+        },
+        rates={
+            'tax_rate': Decimal(data.tax_rate or 0),
+            'service_charge_pct': Decimal(data.service_charge_pct or 0),
+            'service_charge_taxable': bool(data.service_charge_taxable),
+            'gratuity_pct': Decimal(data.gratuity_pct or 0),
+        },
     )

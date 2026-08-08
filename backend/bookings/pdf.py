@@ -160,13 +160,31 @@ def addon_cells(item, cs):
     )
 
 
+def _pre_tax_total(booking):
+    """The pre-tax TOTAL row — read from the engine's answer, not re-derived.
+
+    The PDF used to compute `subtotal + service_charge` itself, which made the rule
+    exist twice: change what "pre-tax" means (gratuity moving pre-tax, say) and the
+    engine moves while the printed quote keeps its own sum. That is the drift this
+    epic exists to end, sitting in the document it would be most visible on.
+
+    Falls back to the sum when a booking predates `pricing_snapshot` — it fills on
+    the next recompute, and the two agree by construction until then.
+    """
+    snapshot = getattr(booking, 'pricing_snapshot', None) or {}
+    stored = (snapshot.get('totals') or {}).get('pre_tax_total')
+    if stored is not None:
+        return Decimal(stored)
+    return booking.subtotal + booking.service_charge
+
+
 def _totals_rows(booking, cs, tax_label, tax_pct, s):
     """Right-aligned totals rows shared by the quote and event PDFs: Sub Total →
     [Service Charge] → TOTAL (pre-tax) → tax rate → tax amount → [Gratuity].
 
     The service-charge and gratuity rows are hidden when zero, and the pre-tax
-    TOTAL is ``subtotal + service_charge`` (== ``subtotal`` when there's no service
-    charge) — so a booking without either renders exactly as before (the
+    TOTAL comes from the engine's ``pre_tax_total`` (== ``subtotal`` when there's no
+    service charge) — so a booking without either renders exactly as before (the
     quote-PDF byte-identity gate)."""
     rows = [
         [Paragraph('Sub Total', s['totals_label']), Paragraph(_fmt(booking.subtotal, cs), s['totals_value'])],
@@ -176,7 +194,7 @@ def _totals_rows(booking, cs, tax_label, tax_pct, s):
         rows.append([Paragraph(f'Service Charge ({sc_pct}%)', s['totals_label']),
                      Paragraph(_fmt(booking.service_charge, cs), s['totals_value'])])
     rows.append([Paragraph('TOTAL', s['body_bold_right']),
-                 Paragraph(_fmt(booking.subtotal + booking.service_charge, cs), s['body_bold_right'])])
+                 Paragraph(_fmt(_pre_tax_total(booking), cs), s['body_bold_right'])])
     rows.append([Paragraph(f'{tax_label} Rate', s['totals_label']), Paragraph(f'{tax_pct}%', s['totals_value'])])
     rows.append([Paragraph(f'{tax_label} Amount', s['totals_label']),
                  Paragraph(_fmt(booking.tax_amount, cs), s['totals_value'])])

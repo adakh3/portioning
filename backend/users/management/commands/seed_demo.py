@@ -228,12 +228,19 @@ class Command(BaseCommand):
                     fiscal_year=fy, period_index=p,
                     defaults={"amount": monthly_target},
                 )
-            Event.objects.create(
+            # Price the event so the ENGINE produces the demo revenue, instead of
+            # writing `total=` directly. A hand-set total is a number no recompute
+            # would ever produce: it fails the reconciliation command and violates
+            # the total invariant (total = subtotal + charges + tax + gratuity), so
+            # the demo data was the first thing to break its own checks (REL-464).
+            # Both demo figures divide evenly by 100 covers, so the totals stay exact.
+            demo_event = Event.objects.create(
                 organisation=org, name=f"{DEMO_TAG} {rep.first_name}'s event",
                 guest_count=100, gents=50, ladies=50, event_date=today, assigned_to=rep,
-                status="confirmed", total=this_month_revenue,
+                status="confirmed", price_per_head=this_month_revenue / 100,
                 service_style="buffet" if profile == "buffet" else "",
             )
+            demo_event.recalculate_totals()
         self.stdout.write(self.style.SUCCESS(
             f"Seeded targets ({n_periods} monthly cells/rep) + events for {len(rep_emails)} reps"
         ))

@@ -8,6 +8,15 @@ from django.utils import timezone
 from users.managers import TenantManager
 from users.model_mixins import OrgScopedModel
 
+# The four parts a booking's total is made of. Used by the DB invariant on both
+# Quote and Event — the engine computes `total` as exactly this sum, so a stored
+# row that disagrees was written by something that bypassed the engine.
+_TOTAL_PARTS = (
+    models.F('subtotal') + models.F('service_charge')
+    + models.F('tax_amount') + models.F('gratuity')
+)
+
+
 class QuoteStatus(models.TextChoices):
     DRAFT = 'draft', 'Draft'
     SENT = 'sent', 'Sent'
@@ -113,6 +122,13 @@ class Quote(OrgScopedModel, models.Model):
         help_text='Gratuity as a percentage of the subtotal (post-tax, never taxed)')
     gratuity = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
     total = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+    # The engine's COMPLETE answer, written in the same save() as the five columns
+    # above. The columns stay because list views, ordering and aggregates need real
+    # numeric columns; this is what documents render from, so a PDF never recomputes
+    # food rows live next to possibly-stale stored totals — two points in time on one
+    # page. NULL means "written before REL-464"; surfaces fall back to today's
+    # behaviour until the content-layer ticket, and it fills on the next recompute.
+    pricing_snapshot = models.JSONField(null=True, blank=True, default=None)
     event = models.OneToOneField(
         'events.Event', null=True, blank=True,
         on_delete=models.SET_NULL, related_name='source_quote',
@@ -145,6 +161,29 @@ class Quote(OrgScopedModel, models.Model):
 
     class Meta:
         ordering = ['-created_at']
+        constraints = [
+            # The stored total must be the sum of its own published parts. Every
+            # write goes through the engine, so this can only fire on a raw UPDATE,
+            # a bad fixture, or a future code path that forgot — which is exactly
+            # what it is here to catch, at the last line of defence.
+            #
+            # A HALF-CENT band, not exact equality, because the constraint is
+            # evaluated by the database and SQLite (dev + CI) gives DecimalField
+            # NUMERIC affinity — it stores these as IEEE doubles and adds them as
+            # floats. 14201.20 + 1171.60 comes back as 15372.800000000001, so exact
+            # equality fails on numbers that are correct to the cent. Postgres
+            # NUMERIC is exact and would have passed, which is the worst version of
+            # this: a constraint that holds in prod and fails everywhere it is
+            # tested. Any drift worth catching is at least a whole cent, so a 0.005
+            # band absorbs the float noise and nothing else.
+            models.CheckConstraint(
+                name='quote_total_is_the_sum_of_its_parts',
+                condition=(
+                    models.Q(total__gte=_TOTAL_PARTS - Decimal('0.005'))
+                    & models.Q(total__lte=_TOTAL_PARTS + Decimal('0.005'))
+                ),
+            ),
+        ]
 
     def __str__(self):
         who = self.account.name if self.account_id else (self.primary_contact.name if self.primary_contact_id else '—')
@@ -179,48 +218,15 @@ class Quote(OrgScopedModel, models.Model):
     def food_total(self):
         """Taxable food/menu cost: main menu priced per guest segment
         (``price_per_head × price_multiplier × count``, summed over all segments) +
-        any additional meals. Mirrors Event.food_total; with no breakdown it
-        reduces to ``price_per_head × guest_count``."""
-        from bookings.services.totals import round2, segment_food_total
-        from events.models import resolve_booking_segments
-        total = segment_food_total(self.price_per_head, resolve_booking_segments(self))
-        for meal in self.additional_meals.all():
-            if meal.price_per_head and meal.guest_count:
-                total += meal.price_per_head * meal.guest_count
-        return round2(total)
+        any additional meals. Computed by the engine, identically to Event."""
+        from bookings.services.booking_pricing import food_total_for
+        return food_total_for(self)
 
     def recalculate_totals(self):
-        # Shared engine — identical math to events. See bookings/services/totals.py.
-        from bookings.services.totals import compute_booking_totals
-        rate = self.tax_rate if self.is_taxable else Decimal('0')
-        # Drop any prefetch cache first: the caller may have loaded this quote via
-        # prefetch_related('line_items') (e.g. QuoteDetailView), and that cache
-        # predates rows added in the same save — so line_items.all() would omit the
-        # just-added add-ons and the stored subtotal would silently drop them.
-        for rel in ('line_items', 'additional_meals'):
-            getattr(self, '_prefetched_objects_cache', {}).pop(rel, None)
-        # Keep audience-scoped meal counts current before pricing (dual-write).
-        from events.models import sync_audience_meal_counts
-        sync_audience_meal_counts(self)
-        # Re-derive per-guest lines from the CURRENT guest count before summing them —
-        # a PATCH that moved guest_count without resending line_items would otherwise
-        # be priced off the old count (REL-462 Bug 4).
-        from bookings.models.addons import BookingLineItem
-        lines = BookingLineItem.refreshed_for(self)
-        totals = compute_booking_totals(
-            self.food_total, lines, rate,
-            service_charge_pct=self.service_charge_pct,
-            service_charge_taxable=self.service_charge_taxable,
-            gratuity_pct=self.gratuity_pct,
-        )
-        self.subtotal = totals.subtotal
-        self.service_charge = totals.service_charge
-        self.tax_amount = totals.tax_amount
-        self.gratuity = totals.gratuity
-        self.total = totals.total
-        self.save(update_fields=[
-            'subtotal', 'service_charge', 'tax_amount', 'gratuity', 'total', 'updated_at',
-        ])
+        """Re-price through the engine and store. Identical math to events, because
+        it is literally the same call — see bookings/services/booking_pricing.py."""
+        from bookings.services.booking_pricing import price_and_store
+        price_and_store(self, extra_update_fields=['updated_at'])
 
     @property
     def is_editable(self):

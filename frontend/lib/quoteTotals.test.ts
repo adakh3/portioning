@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import { resolve } from "path";
-import { computeQuoteTotals, computeBookingTotals, buildQuoteSavePayload, buildEventSavePayload, EventSaveInput, lineItemTotal, LineItemInput, segmentFood, segmentFoodFromRows, segmentFoodRows, segmentEffectiveRate, buildGuestCountsPayload, hasVendorDoubleEntry, deriveMealCount, deriveMealCountFromRows, mealsFood, buildMealsPayload, GuestSegmentMeta } from "./quoteTotals";
+import { computeQuoteTotals, computeBookingTotals, buildQuoteSavePayload, buildEventSavePayload, EventSaveInput, lineItemTotal, LineItemInput, segmentFood, segmentFoodFromRows, segmentFoodRows, segmentFoodRowsFromRows, segmentEffectiveRate, buildGuestCountsPayload, hasVendorDoubleEntry, deriveMealCount, deriveMealCountFromRows, mealsFood, buildMealsPayload, GuestSegmentMeta } from "./quoteTotals";
 
 // Adults(default)/Kids(0.5)/Vendors(0.5, additional covers) — mirrors the backend
 // segment_food_total fixture in bookings/test_segment_pricing.py (AC10/AC11).
@@ -250,7 +250,31 @@ const golden = JSON.parse(
     audience_segment: string | null;
     expected: number;
   }[];
+  line_item_cases: {
+    name: string;
+    unit: string;
+    category: string;
+    quantity: string;
+    unit_price: string;
+    guest_count: number;
+    expected_line_total: string;
+  }[];
+  meal_cases: {
+    name: string;
+    meals: { label: string; price_per_head: string; guest_count: number }[];
+    expected_meals_food: string;
+  }[];
+  itemized_rows_cases: {
+    name: string;
+    price_per_head: string;
+    segments: { name: string; count: number; price_multiplier: string; price_override?: string }[];
+    expected_rows: { name: string; count: number; rate: string; amount: string }[] | null;
+    expected_food: string;
+  }[];
 };
+
+/** Cents, as a string — the only comparison that can't hide a 1-cent divergence. */
+const cents = (n: number) => n.toFixed(2);
 
 describe("golden-case parity with the backend engine", () => {
   // Each precomputed line_total is fed as a flat qty-1 line so lineItemTotal
@@ -267,16 +291,19 @@ describe("golden-case parity with the backend engine", () => {
         c.service_charge_taxable ?? true,
         Number(c.gratuity_pct ?? 0),
       );
-      expect(t.subtotal).toBeCloseTo(Number(c.expected.subtotal), 2);
-      expect(t.tax_amount).toBeCloseTo(Number(c.expected.tax_amount), 2);
-      expect(t.total).toBeCloseTo(Number(c.expected.total), 2);
+      // EXACT, not toBeCloseTo(…, 2). That matcher passes within ±0.005, which is
+      // wide enough to swallow a one-cent divergence between the engines — the only
+      // kind of divergence this file exists to catch (REL-463 AC8).
+      expect(cents(t.subtotal)).toBe(cents(Number(c.expected.subtotal)));
+      expect(cents(t.tax_amount)).toBe(cents(Number(c.expected.tax_amount)));
+      expect(cents(t.total)).toBe(cents(Number(c.expected.total)));
       // Service-charge / gratuity outputs asserted only when the case declares them.
       if (c.expected.service_charge !== undefined)
-        expect(t.service_charge).toBeCloseTo(Number(c.expected.service_charge), 2);
+        expect(cents(t.service_charge)).toBe(cents(Number(c.expected.service_charge)));
       if (c.expected.tax_base !== undefined)
-        expect(t.tax_base).toBeCloseTo(Number(c.expected.tax_base), 2);
+        expect(cents(t.tax_base)).toBe(cents(Number(c.expected.tax_base)));
       if (c.expected.gratuity !== undefined)
-        expect(t.gratuity).toBeCloseTo(Number(c.expected.gratuity), 2);
+        expect(cents(t.gratuity)).toBe(cents(Number(c.expected.gratuity)));
     });
   }
 
@@ -296,6 +323,73 @@ describe("golden-case parity with the backend engine", () => {
     it(`meal audience: ${c.name}`, () => {
       const rows = c.segments.map((s) => ({ name: s.name, count: s.count, counts: s.counts_toward_total }));
       expect(deriveMealCountFromRows(c.audience, c.audience_segment, rows)).toBe(c.expected);
+    });
+  }
+
+  // Line-item parity — the SAME shared cases the backend
+  // test_backend_matches_line_item_cases runs (REL-463).
+  //
+  // These cases are fed with their REAL unit and quantity. The `golden.cases` loop
+  // above flattens every line to `{quantity: 1, unit: "flat"}` because those cases
+  // carry a precomputed line_total — which meant `per_guest`, `per_hour` and the
+  // discount sign had never once been compared across the two engines.
+  for (const c of golden.line_item_cases) {
+    it(`line item: ${c.name}`, () => {
+      const got = lineItemTotal(
+        {
+          category: c.category,
+          description: c.name,
+          quantity: Number(c.quantity),
+          unit: c.unit,
+          unit_price: c.unit_price === "" ? ("" as unknown as number) : Number(c.unit_price),
+        } as LineItemInput,
+        c.guest_count,
+      );
+      expect(cents(got)).toBe(cents(Number(c.expected_line_total)));
+    });
+  }
+
+  // Additional-meal parity — the SAME shared cases the backend
+  // test_backend_matches_meal_cases runs. `meal_rows` was added to the engine with
+  // no mirror and no shared case, which is precisely the gap CLAUDE.md's three-way
+  // rule exists to close: a negative rate was summed by one engine and dropped by
+  // the other, and nothing in CI compared them.
+  for (const c of golden.meal_cases) {
+    it(`meals: ${c.name}`, () => {
+      const meals = c.meals.map((m) => ({
+        label: m.label,
+        price_per_head: m.price_per_head,
+        guest_count: m.guest_count,
+        audience: "custom",
+        audience_segment: null,
+      })) as unknown as Parameters<typeof mealsFood>[0];
+      expect(cents(mealsFood(meals))).toBe(cents(Number(c.expected_meals_food)));
+    });
+  }
+
+  // Itemized per-segment rows parity — the SAME shared cases the backend
+  // test_backend_matches_itemized_rows_cases runs (REL-463). Covers the
+  // null-collapse that keeps single-rate bookings' surfaces byte-identical.
+  for (const c of golden.itemized_rows_cases) {
+    it(`itemized rows: ${c.name}`, () => {
+      const rows = segmentFoodRowsFromRows(c.price_per_head, c.segments);
+      if (c.expected_rows === null) {
+        expect(rows).toBeNull();
+      } else {
+        expect(rows).not.toBeNull();
+        expect(
+          rows!.map((r) => ({
+            name: r.name, count: r.count, rate: cents(r.rate), amount: cents(r.amount),
+          })),
+        ).toEqual(c.expected_rows);
+      }
+      const food = segmentFoodFromRows(c.price_per_head, c.segments);
+      expect(cents(food)).toBe(cents(Number(c.expected_food)));
+      // The printed lines must add up to the food total, exactly.
+      if (rows) {
+        const summed = rows.reduce((t, r) => t + r.amount, 0);
+        expect(cents(summed)).toBe(cents(food));
+      }
     });
   }
 });
