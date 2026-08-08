@@ -20,6 +20,22 @@ STORED_MONEY_FIELDS = (
 )
 
 
+def line_item_input(line):
+    """One `BookingLineItem` as the engine's input dict.
+
+    The ONE definition of that shape. It was written out twice — once here and once
+    in `price_and_store` — which meant a field added for the engine could reach the
+    save path and not the reconciliation path, and the command whose whole job is to
+    prove there is no drift would price from a different contract than the writer
+    and report drift on every booking.
+    """
+    return {
+        'category': line.category, 'unit': line.unit, 'quantity': line.quantity,
+        'unit_price': line.unit_price, 'description': line.description,
+        'sort_order': line.sort_order,
+    }
+
+
 def pricing_input_for(booking, line_items=None):
     """Assemble the engine's input from a booking (quote XOR event).
 
@@ -30,24 +46,32 @@ def pricing_input_for(booking, line_items=None):
     `tax_rate` is resolved to the EFFECTIVE rate here (0 when the booking isn't
     taxable), keeping that decision on this side of the boundary — the engine is
     handed a number, not a policy.
+
+    An audience-scoped meal is priced on its DERIVED count, computed here rather
+    than read from the column. `price_and_store` also persists that number (other
+    consumers read the column), but deriving it in the input is what makes a
+    read-only caller — the reconciliation sweep — price a booking exactly as a save
+    would. Reading the column instead let the sweep report a number that `--apply`
+    would then not write.
     """
-    from events.models import resolve_booking_segments
+    from events.models import derive_meal_guest_count, resolve_booking_segments
 
     if line_items is None:
-        line_items = [
-            {'category': li.category, 'unit': li.unit, 'quantity': li.quantity,
-             'unit_price': li.unit_price, 'description': li.description,
-             'sort_order': li.sort_order}
-            for li in booking.line_items.all()
-        ]
+        line_items = [line_item_input(li) for li in booking.line_items.all()]
+
+    segments = list(resolve_booking_segments(booking))
+
+    def meal_count(meal):
+        derived = derive_meal_guest_count(meal, segments)
+        return meal.guest_count if derived is None else derived
 
     return PricingInput(
         price_per_head=booking.price_per_head,
         guest_count=booking.guest_count or 0,
-        segments=tuple(resolve_booking_segments(booking)),
+        segments=tuple(segments),
         meals=tuple(
             {'label': m.label, 'price_per_head': m.price_per_head,
-             'guest_count': m.guest_count}
+             'guest_count': meal_count(m)}
             for m in booking.additional_meals.all()
         ),
         line_items=tuple(line_items),
@@ -88,12 +112,8 @@ def price_and_store(booking, extra_update_fields=()):
     sync_audience_meal_counts(booking)
     refreshed = BookingLineItem.refreshed_for(booking)
 
-    result = price_booking(pricing_input_for(booking, line_items=[
-        {'category': li.category, 'unit': li.unit, 'quantity': li.quantity,
-         'unit_price': li.unit_price, 'description': li.description,
-         'sort_order': li.sort_order}
-        for li in refreshed
-    ]))
+    result = price_booking(pricing_input_for(
+        booking, line_items=[line_item_input(li) for li in refreshed]))
 
     store_pricing_result(booking, result, extra_update_fields=extra_update_fields)
     return result

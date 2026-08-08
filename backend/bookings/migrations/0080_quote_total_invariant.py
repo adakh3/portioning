@@ -1,16 +1,15 @@
-"""A quote carries the engine's whole answer, and its total must add up (REL-464).
+"""A quote's total must be the sum of its parts (REL-464).
 
-Two things, both additive:
+Adding a constraint to a table with violating rows fails at the database with an
+opaque error naming only the constraint, so this checks first and **aborts with the
+offending rows listed**. It never edits data to make itself applicable — a booking
+whose stored total is a lie is a thing the owner needs to see, not something a
+migration quietly rewrites.
 
-* ``pricing_snapshot`` — the complete `PricingResult`, NULL for existing rows and
-  filled on the next recompute. Nothing is backfilled: the snapshot must record
-  what a booking IS, not what it should be, or it stops being evidence.
-* a ``CheckConstraint`` pinning ``total = subtotal + service_charge + tax_amount +
-  gratuity``. Adding a constraint to a table with violating rows fails at the
-  database with an opaque error naming only the constraint, so this checks first
-  and **aborts with the offending rows listed**. It never edits data to make itself
-  applicable — a booking whose stored total is a lie is a thing the owner needs to
-  see, not something a migration quietly rewrites.
+The snapshot column is added by `0079`, which is a separate migration on purpose:
+this one can abort, and a failed migration is rolled back atomically. Together they
+took the column down with them, which broke `reconcile_booking_totals` — the exact
+command the error below tells the operator to run.
 """
 from decimal import Decimal
 
@@ -24,7 +23,7 @@ _PARTS = (
 # A half-cent band, not exact equality: SQLite gives DecimalField NUMERIC affinity
 # and adds these as IEEE doubles, so 14201.20 + 1171.60 evaluates to
 # 15372.800000000001 and an exact check rejects numbers that are right to the cent.
-# See Quote.Meta for the full reasoning. Any drift worth catching is ≥ 1 cent.
+# See Quote.Meta for the full reasoning. Any drift worth catching is >= 1 cent.
 TOTAL_INVARIANT = (
     models.Q(total__gte=_PARTS - Decimal('0.005'))
     & models.Q(total__lte=_PARTS + Decimal('0.005'))
@@ -63,15 +62,10 @@ def noop_reverse(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('bookings', '0078_servicestyle_guests_choose_backfill'),
+        ('bookings', '0079_quote_pricing_snapshot'),
     ]
 
     operations = [
-        migrations.AddField(
-            model_name='quote',
-            name='pricing_snapshot',
-            field=models.JSONField(blank=True, default=None, null=True),
-        ),
         migrations.RunPython(refuse_to_apply_over_bad_rows, noop_reverse),
         migrations.AddConstraint(
             model_name='quote',

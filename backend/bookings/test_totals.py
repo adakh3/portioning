@@ -83,6 +83,21 @@ class TestGoldenCaseParity(TestCase):
                 )
                 self.assertEqual(got, Decimal(case["expected_line_total"]), case["name"])
 
+    def test_backend_matches_meal_cases(self):
+        """Additional-meal math — added to the engine in REL-463 with no mirror and
+        no shared case, which is the gap CLAUDE.md's three-way rule exists to close."""
+        from bookings.services.totals import meal_rows
+        with open(GOLDEN_CASES_PATH) as f:
+            data = json.load(f)
+        cases = data.get("meal_cases", [])
+        self.assertGreater(len(cases), 0, "meal_cases must not be empty")
+        for case in cases:
+            with self.subTest(case=case["name"]):
+                rows = meal_rows(case["meals"])
+                total = round2(sum((r["amount"] for r in rows), Decimal("0.00")))
+                self.assertEqual(
+                    total, Decimal(case["expected_meals_food"]), case["name"])
+
     def test_backend_matches_itemized_rows_cases(self):
         """Itemized per-segment rows, including the null-collapse that keeps
         single-rate bookings' surfaces byte-identical."""

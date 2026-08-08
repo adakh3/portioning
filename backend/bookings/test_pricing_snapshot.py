@@ -121,6 +121,35 @@ class SnapshotIsWrittenTests(SnapshotBase):
         self.assertEqual(event.pricing_snapshot['food']['menu_food'], '15000.00')
         self.assertEqual(event.pricing_snapshot['totals']['total'], str(event.total))
 
+    def test_the_snapshot_records_the_real_tax_rate_not_a_rounded_one(self):
+        """The rates block is NOT money and must not be quantized to cents.
+
+        `to_dict` rounded every Decimal to 2 dp, so 8.75% was recorded as `0.09`
+        beside a tax amount computed at 8.75% — and the rates exist precisely so a
+        document can print the rate without reaching back to the booking. That
+        document would have printed "9% tax — $875.00" on a $10,000 quote: two
+        numbers on one customer-facing page that cannot both be true. Every US rate
+        with 3-4 decimals (8.375%, 6.625%) hit it; the earlier tests all used 0.08,
+        which round-trips by luck.
+        """
+        quote = self._quote(
+            price_per_head=Decimal('100'), guest_count=100,
+            tax_rate=Decimal('0.0875'), is_taxable=True,
+            service_charge_pct=Decimal('0'), gratuity_pct=Decimal('0'),
+        )
+        BookingGuestCount.objects.create(quote=quote, segment=self.adults, count=100)
+        quote.recalculate_totals()
+        quote.refresh_from_db()
+
+        self.assertEqual(quote.tax_amount, Decimal('875.00'))
+        self.assertEqual(quote.pricing_snapshot['rates']['tax_rate'], '0.0875')
+        # And the rate the snapshot records really does produce the amount beside it.
+        self.assertEqual(
+            round(Decimal(quote.pricing_snapshot['rates']['tax_rate'])
+                  * Decimal(quote.pricing_snapshot['totals']['subtotal']), 2),
+            quote.tax_amount,
+        )
+
     def test_money_is_stored_as_text_not_floats(self):
         """JSON has one number type and it is binary floating point. Storing money
         as a float would reintroduce the drift the snapshot exists to prevent."""
@@ -128,6 +157,65 @@ class SnapshotIsWrittenTests(SnapshotBase):
         totals = quote.pricing_snapshot['totals']
         for key, value in totals.items():
             self.assertIsInstance(value, str, key)
+
+
+class StoredLineTotalsMatchTheSubtotalTests(SnapshotBase):
+    """The add-on lines a document PRINTS must add up to the subtotal beneath them.
+
+    Since the engine computes the subtotal from each line's raw quantity x price
+    rather than from the stored column, a stored `line_total` that the engine would
+    not produce is a row printed at one number and summed at another. Only per-guest
+    rows were being refreshed, so every other unit could drift for good.
+    """
+
+    def _stale_line(self, booking, **kwargs):
+        fields = dict(
+            category=LineItemCategory.RENTAL, description='Linens',
+            quantity=Decimal('1.50'), unit=LineItemUnit.EACH,
+            unit_price=Decimal('0.03'),
+        )
+        fields.update(kwargs)
+        line = BookingLineItem.objects.create(quote=booking, **fields)
+        # Write a value the engine would never produce — the shape left behind by
+        # the old HALF_EVEN rounding, a data migration, or a raw queryset.update().
+        BookingLineItem.objects.filter(pk=line.pk).update(line_total=Decimal('0.04'))
+        return line
+
+    def test_a_stale_each_line_is_healed_on_the_next_recompute(self):
+        quote = self._quote(price_per_head=Decimal('0'), guest_count=0,
+                            service_charge_pct=Decimal('0'), gratuity_pct=Decimal('0'),
+                            is_taxable=False, tax_rate=Decimal('0'))
+        line = self._stale_line(quote)
+        self.assertEqual(
+            BookingLineItem.objects.get(pk=line.pk).line_total, Decimal('0.04'))
+
+        quote.recalculate_totals()
+
+        line.refresh_from_db()
+        quote.refresh_from_db()
+        self.assertEqual(line.line_total, Decimal('0.05'))
+        self.assertEqual(quote.subtotal, Decimal('0.05'))
+
+    def test_the_printed_lines_sum_to_the_printed_subtotal(self):
+        """The property that actually matters, asserted directly."""
+        quote = self._quote(price_per_head=Decimal('0'), guest_count=0,
+                            service_charge_pct=Decimal('0'), gratuity_pct=Decimal('0'),
+                            is_taxable=False, tax_rate=Decimal('0'))
+        self._stale_line(quote)
+        self._stale_line(quote, description='Chairs', quantity=Decimal('10'),
+                         unit_price=Decimal('5'))
+        self._stale_line(quote, description='Goodwill', quantity=Decimal('1'),
+                         unit=LineItemUnit.FLAT, unit_price=Decimal('20'),
+                         category=LineItemCategory.DISCOUNT)
+
+        quote.recalculate_totals()
+        quote.refresh_from_db()
+
+        printed = sum(li.line_total for li in quote.line_items.all())
+        self.assertEqual(printed, quote.subtotal)
+        # And the snapshot the documents render from agrees with both.
+        self.assertEqual(
+            quote.pricing_snapshot['lines']['add_ons_subtotal'], str(quote.subtotal))
 
 
 class TotalInvariantTests(SnapshotBase):
@@ -196,6 +284,36 @@ class ReconciliationTests(SnapshotBase):
         self.assertIn('subtotal', output)
         self.assertIn(str(quote.subtotal), output)
 
+    def test_apply_refuses_an_event_being_catered_today(self):
+        """`in_progress` is the WORST row to re-price in a sweep and the one a
+        morning cron hits: events auto-advance confirmed -> in_progress on their
+        event date, so this is a signed, invoiced booking being served right now.
+        It was missing from the refusal set."""
+        event = self._event(status='in_progress')
+        Event.objects.filter(pk=event.pk).update(price_per_head=Decimal('250'))
+
+        output, code = self._run('--apply')
+
+        self.assertEqual(code, 1)
+        self.assertIn('REFUSED', output)
+        event.refresh_from_db()
+        self.assertEqual(event.subtotal, Decimal('10000.00'))  # untouched
+
+    def test_the_shortfall_report_marks_an_event_day_booking_as_seen(self):
+        """The two commands must agree on which bookings a client has seen. The
+        report kept its own copy of the sets and omitted in_progress, printing '-'
+        against an event being catered that day under a footer telling the reader
+        that those are the safe ones to repair."""
+        from bookings.management.commands.reconcile_booking_totals import (
+            CLIENT_HAS_SEEN_IT,
+        )
+        from bookings.management.commands.report_under_covering_bookings import (
+            Command as ReportCommand,
+        )
+        event = self._event(status='in_progress')
+        self.assertIn('in_progress', CLIENT_HAS_SEEN_IT['event'])
+        self.assertTrue(ReportCommand._client_has_seen_it('event', event))
+
     def test_apply_refuses_a_booking_the_client_has_seen(self):
         """AC9. Re-pricing a sent quote in a sweep changes a number someone is
         holding on paper."""
@@ -211,15 +329,28 @@ class ReconciliationTests(SnapshotBase):
         self.assertEqual(quote.subtotal, Decimal('10000.00'))  # unchanged
 
     def test_apply_repairs_a_draft_nobody_has_seen(self):
+        """A clean repair exits 0. The command is advertised as a gate for a
+        scheduled job, and a run that fixed everything and refused nothing did
+        exactly its job — failing it would page the owner for a success."""
         quote = self._quote(status='draft')
         Quote.objects.filter(pk=quote.pk).update(price_per_head=Decimal('250'))
 
         output, code = self._run('--apply')
 
-        self.assertEqual(code, 1)  # a diff was found, even though it was fixed
+        self.assertEqual(code, 0, output)
         self.assertIn('repriced', output)
         quote.refresh_from_db()
         self.assertEqual(quote.subtotal, Decimal('25000.00'))
+
+    def test_apply_still_fails_when_something_was_refused(self):
+        """A refusal IS unresolved — it needs a person — so the gate stays red."""
+        seen = self._quote(status='sent')
+        Quote.objects.filter(pk=seen.pk).update(price_per_head=Decimal('250'))
+
+        output, code = self._run('--apply')
+
+        self.assertEqual(code, 1)
+        self.assertIn('REFUSED', output)
 
 
 class UnderCoveringReportTests(SnapshotBase):

@@ -32,10 +32,22 @@ export type QuoteTotals = BookingTotals;
 
 const round2 = (n: number): number => Math.round((n + Number.EPSILON) * 100) / 100;
 
-/** Line total — mirrors BookingLineItem.save() in the backend. */
+/** A line item's quantity or price — the mirror of `_line_number` in totals.py.
+ *
+ * Keeps the sign (a discount is routinely typed as a negative price) but refuses
+ * anything unusable, INCLUDING an out-of-range magnitude. `Number("1e400")` is
+ * `Infinity`, which is truthy, so `Number(x) || 0` let it through and every total
+ * downstream became `Infinity`; the backend's `Decimal("1e400")` is finite and blew
+ * up in `quantize` instead. Same bound, same answer, on both sides. */
+const lineNumber = (value: unknown): number => {
+  const n = Number(value);
+  return Number.isFinite(n) && Math.abs(n) <= MAX_USABLE_RATE ? n : 0;
+};
+
+/** Line total — mirrors `line_item_total` in the backend engine. */
 export function lineItemTotal(item: LineItemInput, guestCount: number): number {
-  const qty = Number(item.quantity) || 0;
-  const price = Number(item.unit_price) || 0;
+  const qty = lineNumber(item.quantity);
+  const price = lineNumber(item.unit_price);
   if (item.unit === "per_guest") return round2(price * guestCount);
   if (item.category === "discount") return -round2(Math.abs(qty * price));
   return round2(qty * price);
@@ -173,7 +185,11 @@ export function mealsFood(
   for (const m of meals || []) {
     const price = Number(m.price_per_head) || 0;
     const count = effectiveMealCount(m, guestCount, segmentCounts, meta);
-    if (price > 0 && count) total += round2(price * count);
+    // `count > 0`, not just truthy: a negative count was summed here and dropped by
+    // the backend's `meal_rows`, so the preview and the saved total disagreed by a
+    // whole meal. A meal is a charge — neither a negative rate nor a negative head
+    // count is one. Pinned in both engines by the shared `meal_cases`.
+    if (price > 0 && count > 0) total += round2(price * count);
   }
   return round2(total);
 }

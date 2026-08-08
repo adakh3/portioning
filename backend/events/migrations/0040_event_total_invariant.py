@@ -1,7 +1,8 @@
-"""An event carries the engine's whole answer, and its total must add up (REL-464).
+"""An event's total must be the sum of its parts (REL-464).
 
-The exact mirror of `bookings/0079` — see that file for why the constraint aborts
-with a listing instead of repairing the data it finds.
+The exact mirror of `bookings/0080` — see that file for why the check aborts with a
+listing instead of repairing the data it finds, and why the snapshot column is added
+by a separate earlier migration.
 """
 from decimal import Decimal
 
@@ -12,8 +13,8 @@ _PARTS = (
     models.F('subtotal') + models.F('service_charge')
     + models.F('tax_amount') + models.F('gratuity')
 )
-# Half-cent band — see the twin migration in bookings/0079 and Quote.Meta for why
-# exact equality is not usable here (SQLite adds DecimalFields as floats).
+# Half-cent band — SQLite adds DecimalFields as floats, so exact equality rejects
+# numbers that are correct to the cent. See Quote.Meta.
 TOTAL_INVARIANT = (
     models.Q(total__gte=_PARTS - Decimal('0.005'))
     & models.Q(total__lte=_PARTS + Decimal('0.005'))
@@ -52,15 +53,10 @@ def noop_reverse(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('events', '0038_event_beo_revised_at_event_beo_revision'),
+        ('events', '0039_event_pricing_snapshot'),
     ]
 
     operations = [
-        migrations.AddField(
-            model_name='event',
-            name='pricing_snapshot',
-            field=models.JSONField(blank=True, default=None, null=True),
-        ),
         migrations.RunPython(refuse_to_apply_over_bad_rows, noop_reverse),
         migrations.AddConstraint(
             model_name='event',

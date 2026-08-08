@@ -983,5 +983,110 @@
       ],
       "expected_food": "1060.00"
     }
+  ],
+  "meal_cases": [
+    {
+      "name": "one_meal_is_rate_times_count",
+      "_why": "The ordinary case: 30 covers of welcome canapes at $10.",
+      "meals": [
+        {
+          "label": "Canapes",
+          "price_per_head": "10.00",
+          "guest_count": 30
+        }
+      ],
+      "expected_meals_food": "300.00"
+    },
+    {
+      "name": "meals_are_rounded_per_meal_then_summed",
+      "_why": "Each meal rounds on its own before the sum, so the printed meal rows add up to the meals total exactly. 3 x 16.665 -> 50.00 (not 49.995).",
+      "meals": [
+        {
+          "label": "A",
+          "price_per_head": "16.665",
+          "guest_count": 3
+        },
+        {
+          "label": "B",
+          "price_per_head": "10.00",
+          "guest_count": 2
+        }
+      ],
+      "expected_meals_food": "70.00"
+    },
+    {
+      "name": "a_meal_nobody_eats_is_dropped",
+      "_why": "A zero-count meal is not a zero-pound row on the customer's quote.",
+      "meals": [
+        {
+          "label": "Cancelled",
+          "price_per_head": "10.00",
+          "guest_count": 0
+        },
+        {
+          "label": "Real",
+          "price_per_head": "5.00",
+          "guest_count": 4
+        }
+      ],
+      "expected_meals_food": "20.00"
+    },
+    {
+      "name": "a_free_meal_is_dropped",
+      "_why": "Priced at nothing is not a charge.",
+      "meals": [
+        {
+          "label": "Free",
+          "price_per_head": "0",
+          "guest_count": 20
+        },
+        {
+          "label": "Real",
+          "price_per_head": "5.00",
+          "guest_count": 4
+        }
+      ],
+      "expected_meals_food": "20.00"
+    },
+    {
+      "name": "a_negative_rate_is_refused_not_credited",
+      "_why": "A meal is a charge. The old backend food_total added a negative rate (reducing the total) while the frontend dropped it - a live parity break. A per-head credit belongs in a discount line item, where both engines agree on the sign.",
+      "meals": [
+        {
+          "label": "Credit",
+          "price_per_head": "-10.00",
+          "guest_count": 30
+        },
+        {
+          "label": "Real",
+          "price_per_head": "5.00",
+          "guest_count": 4
+        }
+      ],
+      "expected_meals_food": "20.00"
+    },
+    {
+      "name": "a_negative_count_is_refused",
+      "_why": "The mirror image, and the direction the FRONTEND got wrong: a negative head count was summed there and dropped by the backend, so preview and saved total differed by a whole meal.",
+      "meals": [
+        {
+          "label": "Bad",
+          "price_per_head": "10.00",
+          "guest_count": -5
+        },
+        {
+          "label": "Real",
+          "price_per_head": "5.00",
+          "guest_count": 4
+        }
+      ],
+      "expected_meals_food": "20.00"
+    },
+    {
+      "name": "no_meals_is_zero",
+      "_why": "The common case - most bookings have none.",
+      "meals": [],
+      "expected_meals_food": "0.00"
+    }
   ]
 }

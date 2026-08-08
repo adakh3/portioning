@@ -13,6 +13,9 @@ per booking.
 """
 from django.core.management.base import BaseCommand
 
+from bookings.management.commands.reconcile_booking_totals import (
+    PRICING_CHUNK, PRICING_PREFETCH,
+)
 from bookings.models import Quote
 from bookings.services.booking_pricing import pricing_input_for
 from bookings.services.totals import PricingInput, price_booking
@@ -30,7 +33,8 @@ class Command(BaseCommand):
         for kind, queryset in (('quote', Quote.objects.all()), ('event', Event.objects.all())):
             if options.get('org'):
                 queryset = queryset.filter(organisation_id=options['org'])
-            for booking in queryset.select_related('organisation').iterator():
+            for booking in queryset.prefetch_related(*PRICING_PREFETCH).iterator(
+                    chunk_size=PRICING_CHUNK):
                 shortfall = self._shortfall(booking)
                 if shortfall:
                     rows.append((kind, booking) + shortfall)
@@ -85,6 +89,10 @@ class Command(BaseCommand):
 
     @staticmethod
     def _client_has_seen_it(kind, booking):
-        seen = {'quote': {'sent', 'accepted', 'declined', 'expired'},
-                'event': {'confirmed', 'completed'}}
-        return getattr(booking, 'status', None) in seen[kind]
+        # IMPORTED, not re-declared. This was a verbatim copy of the same two sets,
+        # so the two commands could disagree about which bookings are safe to touch —
+        # and they did: this copy omitted `in_progress`, printing "-" (nobody has
+        # seen it) against an event being catered that day, under a footer telling
+        # the reader that those rows are the safe ones to repair.
+        from bookings.management.commands.reconcile_booking_totals import CLIENT_HAS_SEEN_IT
+        return getattr(booking, 'status', None) in CLIENT_HAS_SEEN_IT[kind]

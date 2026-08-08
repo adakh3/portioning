@@ -139,11 +139,30 @@ def segment_food_rows(price_per_head, segments):
     return rows
 
 
+def _item_amount(item):
+    """One line's signed contribution to the subtotal.
+
+    Accepts a model instance or anything else exposing ``line_total``, a mapping
+    carrying that key, or a bare Decimal. Widened so the engine can hand its own
+    priced rows straight in: they used to be wrapped in a private class whose only
+    purpose was to grow a ``.line_total`` attribute, and then unwrapped again.
+    """
+    if isinstance(item, Decimal):
+        return item
+    value = item.get('line_total') if isinstance(item, dict) else getattr(item, 'line_total', None)
+    return Decimal(value or 0)
+
+
 @dataclass(frozen=True)
 class BookingTotals:
     taxable_subtotal: Decimal
     non_taxable_subtotal: Decimal
     subtotal: Decimal
+    # The base the two percentage charges were ACTUALLY taken on. Published rather
+    # than left implicit so no caller re-derives `max(subtotal, 0)` for itself: a
+    # second copy of that rule means a surface can print "20% service charge on $X"
+    # where $X does not multiply out to the amount beside it.
+    charge_base: Decimal
     service_charge: Decimal
     tax_base: Decimal
     tax_amount: Decimal
@@ -180,7 +199,7 @@ def compute_booking_totals(food_total, line_items, tax_rate,
     service_charge_pct = Decimal(service_charge_pct or 0)
     gratuity_pct = Decimal(gratuity_pct or 0)
 
-    items_total = sum((Decimal(item.line_total or 0) for item in line_items), Decimal('0.00'))
+    items_total = sum((_item_amount(item) for item in line_items), Decimal('0.00'))
     subtotal = food_total + items_total
     # Percentage charges are taken on the subtotal but never on a NEGATIVE one: an
     # over-large discount used to flip the service charge and gratuity negative too,
@@ -206,6 +225,7 @@ def compute_booking_totals(food_total, line_items, tax_rate,
         taxable_subtotal=subtotal,
         non_taxable_subtotal=Decimal('0.00'),
         subtotal=subtotal,
+        charge_base=charge_base,
         service_charge=service_charge,
         tax_base=tax_base,
         tax_amount=tax_amount,
@@ -238,20 +258,41 @@ LINE_CATEGORY_DISCOUNT = 'discount'
 def _line_number(value):
     """A line item's quantity or price as a Decimal, with junk becoming zero.
 
-    Deliberately NOT `_usable_rate`: that one refuses a negative so a bad segment
-    rate falls back to full price instead of paying the customer to attend. A line
-    item is different — a discount is routinely typed as a negative price, and the
-    frontend's `Number(x) || 0` passes negatives straight through. Screening them
-    out here would silently zero every such line, so this mirrors `Number(x) || 0`
-    exactly: unparseable or non-finite becomes 0, sign is preserved.
+    Differs from `_usable_rate` in exactly one way, deliberately: a **negative is
+    kept**. That one refuses a negative so a bad segment rate falls back to full
+    price instead of paying the customer to attend; a line item is the opposite,
+    because a discount is routinely typed as a negative price and the frontend
+    passes those straight through.
+
+    Everything else it screens the SAME way, and for the same reasons:
+
+    * **one spelling of a number.** Strings go through `RATE_RE`, not straight to
+      `Decimal`. `Decimal` accepts `"1_000"` and Unicode digits (`"١٢٣"`, `"５"`)
+      while JS `Number` returns NaN for all of them — so without this a line posted
+      as `1_000` bills $1,000 on the invoice and $0 in the live preview. Skipping
+      the screen was justified as "mirroring `Number(x) || 0`", but it did the
+      opposite of that.
+    * **a magnitude bound.** `Decimal('1e400').is_finite()` is True in Python (it
+      is JS that gives Infinity), so an unbounded value reaches `round2`, whose
+      `quantize` raises `InvalidOperation` — a 500 on a pricing request rather than
+      a priced line. This is the front door for raw input; it must not throw.
     """
     if value is None or value == '' or isinstance(value, bool):
         return Decimal('0')
-    try:
-        d = Decimal(str(value))
-    except (InvalidOperation, ValueError, TypeError):
+    if isinstance(value, str):
+        match = RATE_RE.match(value)
+        if not match:
+            return Decimal('0')
+        sign, digits = match.groups()
+        d = -Decimal(digits) if sign == '-' else Decimal(digits)
+    else:
+        try:
+            d = Decimal(str(value))
+        except (InvalidOperation, ValueError, TypeError):
+            return Decimal('0')
+    if not d.is_finite() or abs(d) > MAX_USABLE_RATE:
         return Decimal('0')
-    return d if d.is_finite() else Decimal('0')
+    return d
 
 
 def line_item_total(unit, category, quantity, unit_price, guest_count=0):
@@ -282,8 +323,16 @@ def meal_rows(meals):
     """Itemized additional-meal lines — ``[{label, count, rate, amount}]``.
 
     Each meal is rounded on its own (`round2(rate × count)`) and the amounts are
-    summed, matching `mealsFood` on the frontend. Meals priced at nothing, or with
-    nobody eating, are left out entirely rather than printed as a zero row.
+    summed, exactly as `mealsFood` does on the frontend. A meal priced at nothing —
+    or with nobody eating — is left out entirely rather than printed as a zero row.
+
+    **A meal is a charge, so a negative rate or a negative count is refused, not
+    summed.** The old `food_total` loop this replaced added the raw value under a
+    plain `if price and count`, so a negative `price_per_head` reduced the food
+    total — but the frontend mirror never did (`if (price > 0 && count)`), which
+    means that behaviour was a live parity break, not a feature to preserve. A
+    per-head credit belongs in a `discount` line item, where both engines agree on
+    the sign. Pinned in both engines by the shared `meal_cases`.
     """
     rows = []
     for meal in meals or ():
@@ -339,50 +388,54 @@ class PricingResult:
     rates: dict
 
     def to_dict(self):
-        """JSON-safe — every Decimal becomes a 2-dp string, never a float.
+        """JSON-safe — every Decimal becomes a string, never a float.
 
         A float would reintroduce the very drift this engine exists to remove, so
-        the wire format keeps money as text and lets the reader parse it exactly.
+        the wire format keeps numbers as text and lets the reader parse them exactly.
+
+        **Money is rounded to cents; RATES ARE NOT.** `tax_rate` is a 4-dp fraction
+        (`DecimalField(decimal_places=4)`), so quantizing it as though it were money
+        turned 8.25% into `0.08` — and the rates block exists precisely so a document
+        can print the rate without reaching back to the booking. That document would
+        have printed "8% tax" beside a tax amount computed at 8.25%: two numbers on
+        one customer-facing page that cannot both be true.
         """
-        def money(v):
-            return str(round2(v)) if isinstance(v, Decimal) else v
-
-        def walk(v):
+        def walk(v, is_money=True):
             if isinstance(v, dict):
-                return {k: walk(x) for k, x in v.items()}
+                return {k: walk(x, is_money) for k, x in v.items()}
             if isinstance(v, (list, tuple)):
-                return [walk(x) for x in v]
-            return money(v)
+                return [walk(x, is_money) for x in v]
+            if isinstance(v, Decimal):
+                return str(round2(v)) if is_money else str(v)
+            return v
 
-        return {'food': walk(self.food), 'lines': walk(self.lines),
-                'totals': walk(self.totals), 'rates': walk(self.rates)}
-
-
-class _PricedLine:
-    """A line plus its computed total. Carries `.line_total` so it can be handed
-    straight to `compute_booking_totals`, which reads that attribute."""
-
-    __slots__ = ('category', 'unit', 'quantity', 'unit_price', 'description',
-                 'sort_order', 'line_total')
-
-    def __init__(self, raw, guest_count):
-        self.category = raw.get('category') or ''
-        self.unit = raw.get('unit') or ''
-        self.quantity = raw.get('quantity')
-        self.unit_price = raw.get('unit_price')
-        self.description = raw.get('description') or ''
-        self.sort_order = raw.get('sort_order') or 0
-        self.line_total = line_item_total(
-            self.unit, self.category, self.quantity, self.unit_price, guest_count,
-        )
-
-    def as_dict(self):
         return {
-            'category': self.category, 'unit': self.unit,
-            'quantity': self.quantity, 'unit_price': self.unit_price,
-            'description': self.description, 'sort_order': self.sort_order,
-            'line_total': self.line_total,
+            'food': walk(self.food),
+            'lines': walk(self.lines),
+            'totals': walk(self.totals),
+            # Rates keep their own precision — see above.
+            'rates': walk(self.rates, is_money=False),
         }
+
+
+def priced_line(raw, guest_count=0):
+    """One raw line echoed back with its computed ``line_total``.
+
+    A plain dict: `compute_booking_totals` reads the key directly (see
+    `_item_amount`), so nothing needs wrapping in an object and unwrapping again.
+    """
+    return {
+        'category': raw.get('category') or '',
+        'unit': raw.get('unit') or '',
+        'quantity': raw.get('quantity'),
+        'unit_price': raw.get('unit_price'),
+        'description': raw.get('description') or '',
+        'sort_order': raw.get('sort_order') or 0,
+        'line_total': line_item_total(
+            raw.get('unit') or '', raw.get('category') or '',
+            raw.get('quantity'), raw.get('unit_price'), guest_count,
+        ),
+    }
 
 
 def price_booking(data: PricingInput) -> PricingResult:
@@ -401,9 +454,9 @@ def price_booking(data: PricingInput) -> PricingResult:
     meals_food = round2(sum((r['amount'] for r in rows), Decimal('0.00')))
     food_total = round2(menu_food + meals_food)
 
-    priced = [_PricedLine(raw, data.guest_count) for raw in (data.line_items or ())]
+    priced = [priced_line(raw, data.guest_count) for raw in (data.line_items or ())]
     add_ons_subtotal = round2(
-        sum((line.line_total for line in priced), Decimal('0.00')))
+        sum((line['line_total'] for line in priced), Decimal('0.00')))
 
     totals = compute_booking_totals(
         food_total, priced, data.tax_rate,
@@ -421,12 +474,14 @@ def price_booking(data: PricingInput) -> PricingResult:
             'food_total': food_total,
         },
         lines={
-            'items': [line.as_dict() for line in priced],
+            'items': priced,
             'add_ons_subtotal': add_ons_subtotal,
         },
         totals={
             'subtotal': totals.subtotal,
-            'charge_base': max(totals.subtotal, Decimal('0.00')),
+            # Surfaced from the engine, not re-derived here: a second copy of the
+            # max(subtotal, 0) rule is a second thing to forget to update.
+            'charge_base': totals.charge_base,
             'service_charge': totals.service_charge,
             # The number the quote PDF used to invent for itself.
             'pre_tax_total': totals.subtotal + totals.service_charge,

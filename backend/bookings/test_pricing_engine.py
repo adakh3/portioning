@@ -138,6 +138,48 @@ class PriceBookingContractTests(TestCase):
         self.assertEqual(result.food['meals_food'], Decimal('20.00'))
 
 
+class RawInputIsScreenedTests(TestCase):
+    """`price_booking` is the documented front door for RAW input — the preview
+    endpoint and, before long, an AI agent. It must not throw, and it must not
+    charge for something the live preview priced at nothing."""
+
+    def test_an_absurd_price_is_refused_not_a_500(self):
+        """`Decimal('1e400').is_finite()` is True in Python (it is JS that gives
+        Infinity), so an unbounded value reached `round2` and `quantize` raised
+        InvalidOperation — a 500 on a pricing request rather than a priced line."""
+        self.assertEqual(line_item_total('each', 'rental', '1', '1e400'), Decimal('0'))
+        self.assertEqual(line_item_total('each', 'rental', '1e400', '1'), Decimal('0'))
+        self.assertEqual(
+            line_item_total('each', 'rental', '1', str(Decimal('1e30'))), Decimal('0'))
+
+    def test_python_only_number_spellings_are_refused(self):
+        """`Decimal` accepts these and JS `Number` does not, so accepting them means
+        a line bills on the invoice and shows as $0 in the live preview — the exact
+        divergence RATE_RE was written to close."""
+        for spelling in ('1_000', '١٢٣', '５', ' 12 34 ', 'abc'):
+            with self.subTest(spelling=spelling):
+                self.assertEqual(
+                    line_item_total('each', 'rental', '1', spelling), Decimal('0'))
+
+    def test_a_negative_price_is_still_kept(self):
+        """The one way this DOES differ from `_usable_rate`: a discount is routinely
+        typed as a negative price, and the mirror passes those through."""
+        self.assertEqual(
+            line_item_total('flat', 'discount', '1', '-100'), Decimal('-100.00'))
+        self.assertEqual(
+            line_item_total('each', 'rental', '2', '-5'), Decimal('-10.00'))
+
+    def test_pricing_an_absurd_booking_returns_numbers_not_an_exception(self):
+        result = price_booking(PricingInput(
+            price_per_head=Decimal('100'), guest_count=10,
+            segments=({'name': 'Adults', 'count': 10, 'price_multiplier': Decimal('1.0')},),
+            line_items=({'category': 'rental', 'unit': 'each',
+                         'quantity': '1', 'unit_price': '1e400'},),
+        ))
+        self.assertEqual(result.lines['items'][0]['line_total'], Decimal('0.00'))
+        self.assertEqual(result.totals['total'], Decimal('1000.00'))
+
+
 class LineMathIsSingleSourcedTests(TestCase):
     """AC2 — the model stores the answer; the engine decides it."""
 

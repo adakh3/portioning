@@ -162,14 +162,22 @@ class BookingLineItem(models.Model):
 
     @classmethod
     def refreshed_for(cls, booking):
-        """Return ``booking``'s line items with every ``per_guest`` line re-derived
-        from the booking's CURRENT guest count, persisting any that moved.
+        """Return ``booking``'s line items with EVERY stored ``line_total``
+        re-derived from the engine, persisting any that moved.
 
-        ``line_total`` is stored, and `recalculate_totals` used to trust it. A PATCH
-        that changes `guest_count` without resending `line_items` (admin, curl, an AI
-        agent — the editors happen to resend everything) therefore left per-guest
+        ``line_total`` is a stored column and `recalculate_totals` used to trust it.
+        A PATCH that changes `guest_count` without resending `line_items` (admin,
+        curl, an AI agent — the editors happen to resend everything) left per-guest
         lines priced at the OLD count, and the recompute summed those stale values
         (REL-462 Bug 4).
+
+        **Every unit, not just `per_guest`.** Since REL-463 the subtotal is computed
+        from each line's raw quantity × price rather than from the stored column, so
+        refreshing only per-guest rows left the other units able to *print* one
+        amount while being *summed* at another — a quote PDF whose add-on lines do
+        not add up to the Sub Total beneath them. Any row not written by the engine
+        (a data migration, a `queryset.update()`, a shell fix-up, an older rounding
+        mode) is now healed on the next recompute instead of drifting for good.
 
         Writes with `bulk_update`, which does NOT call `save()` — going through
         `save()` would call `recalculate_totals()` straight back into its caller.
@@ -180,8 +188,6 @@ class BookingLineItem(models.Model):
         parent = booking._meta.model_name  # 'quote' or 'event'
         moved = []
         for line in lines:
-            if line.unit != LineItemUnit.PER_GUEST:
-                continue
             setattr(line, parent, booking)
             fresh = line.computed_line_total()
             if fresh != line.line_total:

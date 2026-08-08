@@ -259,6 +259,11 @@ const golden = JSON.parse(
     guest_count: number;
     expected_line_total: string;
   }[];
+  meal_cases: {
+    name: string;
+    meals: { label: string; price_per_head: string; guest_count: number }[];
+    expected_meals_food: string;
+  }[];
   itemized_rows_cases: {
     name: string;
     price_per_head: string;
@@ -341,6 +346,24 @@ describe("golden-case parity with the backend engine", () => {
         c.guest_count,
       );
       expect(cents(got)).toBe(cents(Number(c.expected_line_total)));
+    });
+  }
+
+  // Additional-meal parity — the SAME shared cases the backend
+  // test_backend_matches_meal_cases runs. `meal_rows` was added to the engine with
+  // no mirror and no shared case, which is precisely the gap CLAUDE.md's three-way
+  // rule exists to close: a negative rate was summed by one engine and dropped by
+  // the other, and nothing in CI compared them.
+  for (const c of golden.meal_cases) {
+    it(`meals: ${c.name}`, () => {
+      const meals = c.meals.map((m) => ({
+        label: m.label,
+        price_per_head: m.price_per_head,
+        guest_count: m.guest_count,
+        audience: "custom",
+        audience_segment: null,
+      })) as unknown as Parameters<typeof mealsFood>[0];
+      expect(cents(mealsFood(meals))).toBe(cents(Number(c.expected_meals_food)));
     });
   }
 
