@@ -42,13 +42,25 @@ function getConfig(dateFormat: string): FormatConfig {
   return FORMAT_CONFIG[dateFormat] || FORMAT_CONFIG["MM/DD/YYYY"];
 }
 
-/** Format a date string (ISO/date) as date only — e.g. "10/03/2026" or "14 Mar 2026" */
+/**
+ * Format a date string (ISO/date) as date only — e.g. "10/03/2026" or "14 Mar 2026".
+ *
+ * Formatted in **UTC**, deliberately. `new Date("2026-03-10")` — a bare date, which
+ * is what every booking field holds — is parsed by JS as UTC midnight. Rendering
+ * that in the viewer's zone moves it BACKWARDS anywhere west of Greenwich, so an
+ * event on the 10th displayed as the 9th to every user in the US: New York,
+ * Chicago and Los Angeles all showed "09 Mar 2026". UTC and London did not, which
+ * is why it survived — CI runs UTC.
+ *
+ * A booking's date is a calendar date, not an instant. It does not move when the
+ * reader does, so nothing here may depend on where the reader is sitting.
+ */
 export function formatDate(dateStr: string, dateFormat: string): string {
   if (!dateStr) return "-";
   const d = new Date(dateStr);
   if (isNaN(d.getTime())) return dateStr;
   const { locale, dateOptions } = getConfig(dateFormat);
-  return new Intl.DateTimeFormat(locale, dateOptions).format(d);
+  return new Intl.DateTimeFormat(locale, { ...dateOptions, timeZone: "UTC" }).format(d);
 }
 
 /** Format a date string (ISO/datetime) as date + time. `timeFormat` ("12h"/"24h")
