@@ -14,9 +14,10 @@ all: the row is `to_send`, a task for a human, not a send.
 """
 from django.db import models
 from users.managers import TenantManager
+from users.model_mixins import OrgScopedModel
 
 
-class WhatsAppMessage(models.Model):
+class WhatsAppMessage(OrgScopedModel, models.Model):
     CHANNEL_WHATSAPP = 'whatsapp'
     CHANNEL_EMAIL = 'email'
     # Deliberately extensible: SMS was cut from REL-445, not designed out.
@@ -55,8 +56,9 @@ class WhatsAppMessage(models.Model):
         'users.Organisation', on_delete=models.CASCADE, related_name='whatsapp_messages',
     )
 
-    # Exactly one of these three is the parent (enforced by a CheckConstraint
-    # below). `lead` was required until REL-445; existing rows all still have it.
+    # Exactly one of these three is the parent, enforced by a CheckConstraint
+    # below AND by OrgScopedModel, which refuses a parent from another org.
+    # `lead` was required until REL-445; existing rows all still have it.
     lead = models.ForeignKey(
         'bookings.Lead', null=True, blank=True,
         on_delete=models.CASCADE, related_name='whatsapp_messages',
@@ -118,15 +120,16 @@ class WhatsAppMessage(models.Model):
             models.Index(fields=['twilio_sid']),
         ]
         constraints = [
-            # A message with no parent is unreachable from every surface that
-            # displays messages — it would be silently invisible, not harmless.
+            # Exactly one parent. No parent makes the row unreachable from
+            # every surface that shows messages; more than one makes it appear
+            # in two threads at once while `parent` silently picks a winner.
             models.CheckConstraint(
-                check=(
-                    models.Q(lead__isnull=False)
-                    | models.Q(quote__isnull=False)
-                    | models.Q(event__isnull=False)
+                condition=(
+                    models.Q(lead__isnull=False, quote__isnull=True, event__isnull=True)
+                    | models.Q(lead__isnull=True, quote__isnull=False, event__isnull=True)
+                    | models.Q(lead__isnull=True, quote__isnull=True, event__isnull=False)
                 ),
-                name='clientmessage_has_a_parent',
+                name='clientmessage_has_exactly_one_parent',
             ),
         ]
 

@@ -117,6 +117,20 @@ def recipient_for(parent):
 
 # ── what this org can actually do right now ──────────────────────────────────
 
+def _valid_email(value):
+    """The address if it is one, else ''. Never raises."""
+    from django.core.exceptions import ValidationError
+    from django.core.validators import validate_email
+    address = (value or '').strip()
+    if not address:
+        return ''
+    try:
+        validate_email(address)
+    except ValidationError:
+        return ''
+    return address
+
+
 def _email_blocker(org, address):
     """Why email can't be used, or None. Order matters: an org-level problem is
     reported before a record-level one, because it blocks every client."""
@@ -137,27 +151,24 @@ def channel_availability(org, parent):
     Returns a dict the send modal renders directly, so the backend stays the one
     place that decides what is possible — the UI never re-derives it.
     """
-    org_settings = OrgSettings.for_org(org)
-    who = recipient_for(parent)
+    state = _messaging_state(org, parent)
+    who, org_settings = state['who'], state['org_settings']
+    platform = state['platform']
 
-    email_reason = _email_blocker(org, who['email'])
-
-    platform = whatsapp_service.platform_sending_available(org_settings)
-    # A shortcut send goes out from someone's personal WhatsApp. An org that
-    # switched that off means it — it is not a fallback we may quietly use.
-    shortcuts_allowed = org_settings.whatsapp_shortcuts_enabled
     whatsapp_reason = None
     if not who['phone']:
         whatsapp_reason = NO_PHONE
-    elif not platform and not shortcuts_allowed:
+    # A shortcut send goes out from someone's personal WhatsApp. An org that
+    # switched that off means it — it is not a fallback we may quietly use.
+    elif not platform and not org_settings.whatsapp_shortcuts_enabled:
         whatsapp_reason = WHATSAPP_DISABLED
 
     return {
         'email': {
-            'available': email_reason is None,
-            'reason': email_reason,
+            'available': state['email_reason'] is None,
+            'reason': state['email_reason'],
             'address': who['email'],
-            'mailbox': getattr(email_service.get_mailbox(org), 'email_address', '') or '',
+            'mailbox': getattr(state['mailbox'], 'email_address', '') or '',
         },
         'whatsapp': {
             'available': whatsapp_reason is None,
@@ -167,7 +178,37 @@ def channel_availability(org, parent):
             'mechanism': 'platform' if platform else 'shortcut',
             'number': org_settings.twilio_whatsapp_number if platform else '',
         },
-        'default_channel': resolve_channel(org, parent),
+        'default_channel': _resolve_from(state),
+    }
+
+
+def _messaging_state(org, parent):
+    """Everything the channel decisions need, fetched exactly once.
+
+    The mailbox, the org settings and the contact were each being re-read three
+    times per request because the helpers called each other; this gathers them
+    so an endpoint that only answers "what can I use" costs one pass.
+    """
+    from bookings.models import ConnectedMailbox
+    org_settings = OrgSettings.for_org(org)
+    who = recipient_for(parent)
+    mailbox = email_service.get_mailbox(org)
+
+    if mailbox is None:
+        email_reason = NO_MAILBOX
+    elif mailbox.status != ConnectedMailbox.CONNECTED:
+        email_reason = MAILBOX_NEEDS_RECONNECT
+    elif not who['email']:
+        email_reason = NO_EMAIL_ADDRESS
+    else:
+        email_reason = None
+
+    return {
+        'org_settings': org_settings,
+        'who': who,
+        'mailbox': mailbox,
+        'email_reason': email_reason,
+        'platform': whatsapp_service.platform_sending_available(org_settings),
     }
 
 
@@ -175,34 +216,27 @@ def resolve_channel(org, parent, requested=None):
     """Which channel to use: what was asked for, else contact, else org default.
 
     A preference for a channel that isn't usable degrades to one that is, rather
-    than presenting the rep a preselected dead end. An explicit `requested`
-    channel is never silently swapped — that one raises instead.
+    than presenting the rep a preselected dead end.
     """
     if requested:
         return requested
+    return _resolve_from(_messaging_state(org, parent))
 
-    who = recipient_for(parent)
-    org_settings = OrgSettings.for_org(org)
+
+def _resolve_from(state):
+    who, org_settings = state['who'], state['org_settings']
     preference = who['preferred_channel'] or org_settings.default_client_channel
-
-    flags = _availability_flags(org, parent)
+    flags = {
+        CHANNEL_EMAIL: state['email_reason'] is None,
+        CHANNEL_WHATSAPP: bool(
+            who['phone']
+            and (state['platform'] or org_settings.whatsapp_shortcuts_enabled)
+        ),
+    }
     if flags.get(preference):
         return preference
     other = CHANNEL_WHATSAPP if preference == CHANNEL_EMAIL else CHANNEL_EMAIL
     return other if flags.get(other) else preference
-
-
-def _availability_flags(org, parent):
-    """{channel: bool} without recursing back into resolve_channel."""
-    org_settings = OrgSettings.for_org(org)
-    who = recipient_for(parent)
-    platform = whatsapp_service.platform_sending_available(org_settings)
-    return {
-        CHANNEL_EMAIL: bool(email_service.mailbox_is_usable(org) and who['email']),
-        CHANNEL_WHATSAPP: bool(
-            who['phone'] and (platform or org_settings.whatsapp_shortcuts_enabled)
-        ),
-    }
 
 
 # ── links and attachments ────────────────────────────────────────────────────
@@ -227,15 +261,32 @@ def attachment_filename(booking, kind, signed=False):
     return f'{prefix}-{booking.pk}.pdf'
 
 
+def effective_signature(booking):
+    """The signature that counts for this booking, or None.
+
+    Canonical on the event, so a quote reads its own signed state through the
+    event it produced. Thin wrapper so services don't reach into a views module
+    for the rule, and so there is one answer rather than two.
+    """
+    from bookings.views.public_sign import _effective_signature
+    return _effective_signature(booking)
+
+
 def _booking_pdf(booking, kind, signature=None):
     """(filename, bytes, mimetype) for the document this send carries.
 
     A signed copy attaches the *frozen* PDF — the exact document the client put
     their name to — never a freshly rendered one, which later edits could have
-    changed underneath them.
+    changed underneath them. Callers that don't hand us the signature (a rep
+    re-sending the signed copy from the booking page) get it looked up, because
+    the alternative is mailing a client a document titled "your signed
+    confirmation" that carries no signature and reflects every edit since.
     """
     from bookings.models import Quote
     from bookings.pdf import generate_quote_pdf, generate_event_pdf
+
+    if kind == KIND_SIGNED_COPY and signature is None:
+        signature = effective_signature(booking)
 
     is_quote = isinstance(booking, Quote)
     frozen = kind == KIND_SIGNED_COPY and signature is not None and signature.signed_pdf
@@ -265,7 +316,7 @@ def send_client_email(parent, *, subject, body, sent_by=None, attachment=None,
     """
     org = parent.organisation
     who = recipient_for(parent)
-    address = (to_email or who['email'] or '').strip()
+    address = _valid_email(to_email or who['email'])
     blocker = _email_blocker(org, address)
     if blocker is not None:
         raise ChannelUnavailable(_EMAIL_BLOCKER_MESSAGES[blocker], reason=blocker)
@@ -444,10 +495,15 @@ def send_signed_copy(booking, signature):
     url = booking_public_url(booking)
     rendered = render_client_message(booking, KIND_SIGNED_COPY, CHANNEL_EMAIL, url=url)
 
-    # The person who signed may have typed a different address from the one on
-    # the contact record; their copy goes to the address they actually used.
-    signer_email = (getattr(signature, 'signer_email', '') or '').strip()
-    email_address = signer_email or who['email']
+    # Where the signed copy goes is NOT a free choice for whoever opened the
+    # link. The sign page is unauthenticated and its token gets forwarded, so an
+    # arbitrary `signer_email` would let anyone holding a link make the
+    # caterer's own mailbox send a booking document wherever they liked. The
+    # contact on record wins; the signer's address is only used when we have no
+    # other, and only when it is actually an address.
+    email_address = who['email'] or _valid_email(
+        getattr(signature, 'signer_email', ''),
+    )
 
     if email_service.mailbox_is_usable(org) and email_address:
         try:

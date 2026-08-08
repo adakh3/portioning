@@ -13,7 +13,7 @@ from bookings.models import Lead, Quote, WhatsAppMessage
 from bookings.serializers.whatsapp import WhatsAppMessageSerializer
 from bookings.services import messaging
 from bookings.services.message_drafter import draft_client_message, is_available
-from bookings.services.messaging_kinds import ALL_KINDS, KIND_COMPOSE
+from bookings.services.messaging_kinds import ALL_KINDS, KIND_COMPOSE, KIND_SIGNED_COPY
 from users.mixins import apply_org_filter, get_org_object_or_404
 
 
@@ -27,7 +27,7 @@ def _resolve(request, parent_type, pk):
     return get_org_object_or_404(Event, request, pk=pk)
 
 
-def _validated_kind(request, parent):
+def _validated_kind(request, parent, *, sending=False):
     """The requested kind, refusing the ones this parent can't have.
 
     A lead has no booking to sign, so only compose applies — asking for a sign
@@ -38,7 +38,27 @@ def _validated_kind(request, parent):
         raise ValueError(f'Unknown message kind {kind!r}.')
     if isinstance(parent, Lead) and kind != KIND_COMPOSE:
         raise ValueError('A lead can only be sent a composed message.')
+    if (sending and kind == KIND_SIGNED_COPY
+            and messaging.effective_signature(parent) is None):
+        # There is no signed copy to send. Sending anyway would mail the client
+        # a live-rendered document under a "your signed confirmation" subject.
+        raise ValueError('This booking has not been signed yet.')
     return kind
+
+
+def _validated_channel(request, parent):
+    """The requested channel, or the resolved default. Never a guess.
+
+    Anything unrecognised is refused rather than falling through to WhatsApp —
+    a typo ('Email') or a channel we haven't built yet must not silently send
+    the client's proposal somewhere else.
+    """
+    channel = request.data.get('channel')
+    if not channel:
+        return messaging.resolve_channel(parent.organisation, parent)
+    if channel not in (messaging.CHANNEL_EMAIL, messaging.CHANNEL_WHATSAPP):
+        raise ValueError(f'Unknown channel {channel!r}.')
+    return channel
 
 
 class ClientMessageDraftView(APIView):
@@ -49,12 +69,11 @@ class ClientMessageDraftView(APIView):
         parent = _resolve(request, parent_type, pk)
         try:
             kind = _validated_kind(request, parent)
+            channel = _validated_channel(request, parent)
         except ValueError as exc:
             return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
         org = parent.organisation
-        channel = request.data.get('channel') or messaging.resolve_channel(org, parent)
-
         url = '' if isinstance(parent, Lead) else messaging.booking_public_url(parent)
         attachment_name = ''
         if (channel == messaging.CHANNEL_EMAIL and kind != KIND_COMPOSE
@@ -84,12 +103,11 @@ class ClientMessageSendView(APIView):
     def post(self, request, pk, parent_type='quote'):
         parent = _resolve(request, parent_type, pk)
         try:
-            kind = _validated_kind(request, parent)
+            kind = _validated_kind(request, parent, sending=True)
+            channel = _validated_channel(request, parent)
         except ValueError as exc:
             return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
-        org = parent.organisation
-        channel = request.data.get('channel') or messaging.resolve_channel(org, parent)
         body = (request.data.get('body') or '').strip()
         subject = (request.data.get('subject') or '').strip()
         if not body:

@@ -161,6 +161,29 @@ class LedgerSchemaTests(MessagingTestBase):
         self.assertIsNone(row.quote_id)
         self.assertIsNone(row.event_id)
 
+    def test_rejects_a_message_with_two_parents(self):
+        """A row with two parents shows up in two threads and `parent` silently
+        picks one — so the constraint is exactly-one, not at-least-one."""
+        from django.db.utils import IntegrityError
+        lead = make_lead(org=self.org)
+        quote = self.make_quote()
+        with self.assertRaises(IntegrityError):
+            WhatsAppMessage.objects.create(
+                organisation=self.org, lead=lead, quote=quote, body='two parents',
+            )
+
+    def test_refuses_a_parent_from_another_org(self):
+        """Model-layer backstop, not just endpoint-layer: the ledger now carries
+        three org-scoped FKs and none of them may cross a tenant boundary."""
+        from django.core.exceptions import ValidationError
+        rival = Organisation.objects.create(name='Rival', slug='rival-fk', country='US')
+        their_contact = make_contact(org=rival, name='Someone', email='x@y.com')
+        their_quote = make_quote(org=rival, primary_contact=their_contact)
+        with self.assertRaises(ValidationError):
+            WhatsAppMessage.objects.create(
+                organisation=self.org, quote=their_quote, body='leak',
+            )
+
     def test_is_automatic_tracks_who_triggered_it(self):
         quote = self.make_quote()
         machine = WhatsAppMessage.objects.create(
@@ -690,6 +713,48 @@ class ClientMessageEndpointTests(MessagingTestBase):
         self.contact.refresh_from_db()
         self.assertEqual(self.contact.preferred_channel, 'email')
 
+    def test_resending_a_signed_copy_attaches_the_frozen_pdf(self):
+        """A rep re-sending the signed copy must send the document the client
+        signed — not a fresh render carrying every edit made since."""
+        quote = self.make_quote(status=QuoteStatus.SENT)
+        sig = sign_booking(
+            quote, signer_name='Nadia Okonjo', signer_email='',
+            signature_image='', ip='1.1.1.1', user_agent='t',
+        )
+        email_service.outbox.clear()
+
+        resp = self.staff.post(
+            f'/api/bookings/quotes/{quote.pk}/send-message/',
+            {'kind': KIND_SIGNED_COPY, 'channel': 'email', 'body': 'Here it is'},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, 201)
+        filename, content, _ = email_service.outbox[0]['attachments'][0]
+        self.assertTrue(filename.endswith('-signed.pdf'))
+        self.assertEqual(content, bytes(sig.signed_pdf))
+
+    def test_a_signed_copy_cannot_be_sent_before_signing(self):
+        resp = self.staff.post(
+            f'/api/bookings/quotes/{self.quote.pk}/send-message/',
+            {'kind': KIND_SIGNED_COPY, 'channel': 'email', 'body': 'x'}, format='json',
+        )
+        self.assertEqual(resp.status_code, 400)
+        self.assertEqual(WhatsAppMessage.objects.filter(quote=self.quote).count(), 0)
+
+    def test_an_unknown_channel_is_refused_not_treated_as_whatsapp(self):
+        """A typo must not quietly route the client's proposal elsewhere."""
+        for kind in (KIND_COMPOSE, KIND_SIGN_LINK):
+            resp = self.staff.post(
+                f'/api/bookings/quotes/{self.quote.pk}/send-message/',
+                {'kind': kind, 'channel': 'sms', 'body': 'hi'}, format='json',
+            )
+            self.assertEqual(resp.status_code, 400, f'{kind} accepted an unknown channel')
+        self.assertEqual(WhatsAppMessage.objects.filter(quote=self.quote).count(), 0)
+
+    def test_a_capitalised_channel_is_refused(self):
+        resp = self._draft(kind=KIND_COMPOSE, channel='Email')
+        self.assertEqual(resp.status_code, 400)
+
     def test_anonymous_callers_are_rejected(self):
         anon = APIClient()
         resp = anon.post(f'/api/bookings/quotes/{self.quote.pk}/send-message/',
@@ -723,19 +788,49 @@ class SignedCopyAutoSendTests(MessagingTestBase):
         self.assertTrue(row.is_automatic)
         self.assertIsNone(row.sent_by)
 
-    def test_the_signer_gets_it_at_the_address_they_signed_with(self):
+    def test_a_signer_cannot_redirect_the_signed_copy_elsewhere(self):
+        """The sign link is unauthenticated and gets forwarded. If whoever opens
+        it could choose the recipient, they could make the caterer's own mailbox
+        post a booking document to any address they liked."""
         connect_mailbox(self.org)
+        quote = self.make_quote(status=QuoteStatus.SENT)
+        self._sign(quote, signer_email='attacker@evil.example')
+        self.assertEqual(email_service.outbox[0]['to'], ['nadia@example.com'])
+
+    def test_the_signers_address_is_used_only_when_there_is_no_other(self):
+        connect_mailbox(self.org)
+        self.contact.email = ''
+        self.contact.save()
         quote = self.make_quote(status=QuoteStatus.SENT)
         self._sign(quote, signer_email='nadia.personal@example.com')
         self.assertEqual(email_service.outbox[0]['to'], ['nadia.personal@example.com'])
 
+    def test_a_junk_signer_address_is_never_sent_to(self):
+        connect_mailbox(self.org)
+        self.contact.email = ''
+        self.contact.save()
+        quote = self.make_quote(status=QuoteStatus.SENT)
+        sig = self._sign(quote, signer_email='not an email')
+        self.assertIsNotNone(sig.pk)
+        self.assertEqual(email_service.outbox, [])
+        self.assertFalse(
+            WhatsAppMessage.objects.filter(quote=quote, status='sent').exists(),
+        )
+
     def test_auto_send_never_asks_the_model_for_wording(self):
-        """Nobody reviews an automatic send, so the LLM proposes nothing here."""
+        """Nobody reviews an automatic send, so the LLM proposes nothing here.
+
+        Patched at the provider boundary rather than at the drafter function:
+        `send_signed_copy` never imports the drafter under any name, so
+        patching that would assert nothing whatever the code did.
+        """
         connect_mailbox(self.org)
         quote = self.make_quote(status=QuoteStatus.SENT)
-        with patch('bookings.services.message_drafter.draft_client_message') as drafter:
+        with patch('portioning.llm.complete_structured') as llm_call, \
+             patch('portioning.llm.is_configured', return_value=True):
             self._sign(quote)
-        drafter.assert_not_called()
+        llm_call.assert_not_called()
+        self.assertEqual(len(email_service.outbox), 1)
 
     def test_signing_succeeds_when_the_mailbox_is_broken(self):
         """AC6: a messaging failure must never cost a client their signature."""
@@ -844,6 +939,37 @@ class LeadFlowUnchangedTests(MessagingTestBase):
         self.assertEqual(msg.channel, 'whatsapp')
         self.assertEqual(msg.status, 'sent')
         self.assertEqual(msg.twilio_sid, 'SMlead')
+
+    def test_the_older_shortcut_paths_no_longer_claim_to_have_sent(self):
+        """Two endpoints predating this work logged wa.me shortcut shares as
+        `sent`. Left alone, `sent` would mean two different things in one
+        ledger and the honesty rule would be decorative."""
+        lead = make_lead(org=self.org, contact_phone='+447700900999')
+        quote = self.make_quote(lead=lead, status=QuoteStatus.DRAFT)
+
+        resp = self.staff.post(
+            f'/api/bookings/quotes/{quote.pk}/mark-shared-whatsapp/',
+            {'body': 'Here is your quote'}, format='json',
+        )
+        self.assertEqual(resp.status_code, 200)
+        row = WhatsAppMessage.objects.filter(lead=lead).latest('created_at')
+        self.assertEqual(row.status, WhatsAppMessage.HANDED_OFF)
+        self.assertIn(row.status, WhatsAppMessage.UNCONFIRMED_STATUSES)
+
+    def test_no_shortcut_row_anywhere_claims_delivery(self):
+        """The property that matters: nothing sent from a personal phone is
+        recorded as sent, whichever endpoint wrote it."""
+        lead = make_lead(org=self.org, contact_phone='+447700900999')
+        quote = self.make_quote(lead=lead, status=QuoteStatus.DRAFT)
+        self.staff.post(f'/api/bookings/quotes/{quote.pk}/mark-shared-whatsapp/',
+                        {'body': 'x'}, format='json')
+        messaging.send_booking_link(
+            self.make_quote(), KIND_SIGN_LINK, channel='whatsapp',
+        )
+        shortcut_rows = WhatsAppMessage.objects.filter(from_phone__in=['manual', ''])
+        self.assertTrue(shortcut_rows.exists())
+        for row in shortcut_rows:
+            self.assertIn(row.status, WhatsAppMessage.UNCONFIRMED_STATUSES)
 
     def test_unconfigured_org_still_reports_twilio_first(self):
         lead = make_lead(org=self.org, contact_phone='')
