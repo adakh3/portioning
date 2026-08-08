@@ -80,7 +80,18 @@ export function usePricingPreview(draft: unknown | null): PricingPreviewState {
   });
 
   useEffect(() => {
-    if (key === null) return;
+    // Disabled (view mode). Drop the last result rather than keeping it: it
+    // describes a draft that has been abandoned, and on re-entering the editor it
+    // would be shown as though it described the booking just re-hydrated from the
+    // server — the previous edit's total, on a form that no longer holds it.
+    if (key === null) {
+      inFlight.current?.abort();
+      if (timer.current) clearTimeout(timer.current);
+      setResult(null);
+      setIsStale(false);
+      setError(null);
+      return;
+    }
     if (timer.current) clearTimeout(timer.current);
     setIsStale(true);
     timer.current = setTimeout(() => {

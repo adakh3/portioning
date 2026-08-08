@@ -19,8 +19,8 @@ import BookingTimelineField, { TimelineEntryValue } from "@/components/BookingTi
 import BookingDetailsForm, { BookingDetailsValue } from "@/components/BookingDetailsForm";
 import AssigneePicker from "@/components/AssigneePicker";
 import SearchableSelect from "@/components/SearchableSelect";
-import { timelineMealRows, hasVendorDoubleEntry } from "@/lib/quoteTotals";
-import { buildQuoteSavePayload, pricingDraft, taxRatePercent, LineItemInput, GuestSegmentMeta } from "@/lib/bookingPayload";
+import { timelineMealRows, hasVendorDoubleEntry, segmentFood, segmentFoodRows, bookingMealRows } from "@/lib/quoteTotals";
+import { buildQuoteSavePayload, pricingDraft, taxRatePercent, taxRateFraction, LineItemInput, GuestSegmentMeta } from "@/lib/bookingPayload";
 import { usePricingPreview } from "@/lib/usePricingPreview";
 import { previewCardProps, storedCardProps, type PreviewCardProps } from "@/lib/previewCard";
 import AddOnItemsEditor from "@/components/AddOnItemsEditor";
@@ -474,6 +474,51 @@ export default function QuoteDetailPage() {
    * refresh earns words — an in-flight one is already saying so by dimming. */
   const staleHint = previewError ? "Totals will refresh shortly" : undefined;
 
+  /** Why this draft would be refused if saved, in the save path's own words.
+   *
+   * The endpoint prices drafts honestly, including ones the save rejects — a
+   * breakdown covering more guests than the booking claims prices happily and
+   * then 400s. Without this the card shows a confident figure that cannot exist,
+   * and the user finds out only when Save fails. */
+  const previewWarnings = (editing || isNew) ? (preview?.warnings ?? []) : [];
+  const warningBanner = previewWarnings.length > 0 ? (
+    <div role="alert" className="rounded-md border border-warning/40 bg-warning/10 px-4 py-3 text-sm font-medium text-warning-foreground">
+      {previewWarnings.map((w, i) => <p key={i}>{w}</p>)}
+    </div>
+  ) : null;
+
+  /** The view-mode card for a quote saved BEFORE REL-464, which carries no
+   * pricing snapshot and never will (nothing backfills them).
+   *
+   * This is the pre-REL-465 rendering, kept verbatim and reachable only here. The
+   * flat total columns alone cannot say which meals were charged or how the
+   * segments were priced, so building the card from them drops the meal rows and
+   * the itemisation entirely — on a quote the customer has already accepted. The
+   * mirror is wrong to keep and worse to lose, so it stays until every row has
+   * been saved again, and dies with the rest of `quoteTotals.ts` in step 6. */
+  function legacyCardProps(quoteRow: NonNullable<typeof quote>): PreviewCardProps {
+    const segCounts = Object.fromEntries((quoteRow.guest_counts ?? []).map((r) => [r.segment, r.count]));
+    const segPrices = Object.fromEntries(
+      (quoteRow.guest_counts ?? [])
+        .filter((r) => r.price_per_head != null)
+        .map((r) => [r.segment, String(r.price_per_head)]),
+    );
+    const pph = quoteRow.price_per_head ?? "0";
+    const menuFood = segmentFood(pph, quoteRow.guest_count, segCounts, segmentMeta, segPrices);
+    return {
+      foodTotal: String(menuFood),
+      foodRows: segmentFoodRows(pph, quoteRow.guest_count, segCounts, segmentMeta, segPrices),
+      meals: bookingMealRows(quoteRow.additional_meals || [], cs, quoteRow.guest_count, segCounts, segmentMeta),
+      // The add-ons line, recovered from the two columns that do record it.
+      addOnsTotal: String(Number(quoteRow.subtotal) - Number(quoteRow.food_total)),
+      subtotal: quoteRow.subtotal,
+      serviceCharge: quoteRow.service_charge || "0",
+      taxAmount: quoteRow.tax_amount,
+      gratuity: quoteRow.gratuity || "0",
+      total: quoteRow.total,
+    };
+  }
+
   // Create mode
   if (isNew) {
     const createCard = preview ? previewCardProps(preview, cs) : ZERO_CARD;
@@ -658,6 +703,7 @@ export default function QuoteDetailPage() {
           </Card>
 
           {/* Quote Total (tax rate + menu + additional items) */}
+          {warningBanner}
           <BookingTotalsCard
             title="Quote Total"
             currencySymbol={cs}
@@ -684,7 +730,10 @@ export default function QuoteDetailPage() {
               </span>
             }
             taxLabel={settings.tax_label}
-            taxPercent={formatPercent(createData.tax_rate || "0")}
+            // Through the SAME conversion the payload uses, so the label states the
+            // rate that will be charged: formatting the raw form string showed
+            // "7.375%" beside tax actually taken at 7.376%.
+            taxPercent={formatPercent(taxRatePercent(taxRateFraction(createData.tax_rate)))}
             taxRateField={
               <div>
                 <label htmlFor="create-tax-rate" className="block text-sm font-medium text-foreground mb-1">Tax Rate (%)</label>
@@ -1032,7 +1081,9 @@ export default function QuoteDetailPage() {
               </div>
               <div>
                 <span className="text-muted-foreground block">Tax Rate</span>
-                <span className="font-medium text-foreground">{(parseFloat(q.tax_rate) * 100).toFixed(0)}%</span>
+                {/* The shared formatter, not a local `.toFixed(0)`: rounding to a
+                    whole number printed "9%" on a quote charged at 8.875%. */}
+                <span className="font-medium text-foreground">{formatPercent(taxRatePercent(q.tax_rate))}%</span>
               </div>
               <div>
                 <span className="text-muted-foreground block">Valid Until</span>
@@ -1253,9 +1304,11 @@ export default function QuoteDetailPage() {
           given — while the first preview is still in flight, the saved ones stay
           up rather than the card going blank. */}
       {(() => {
-        const saved = storedCardProps(q, cs);
+        const saved = storedCardProps(q, cs) ?? legacyCardProps(q);
         const card = editing ? (preview ? previewCardProps(preview, cs) : saved) : saved;
         return (
+      <>
+      {warningBanner}
       <BookingTotalsCard
         title="Quote Total"
         currencySymbol={cs}
@@ -1280,7 +1333,7 @@ export default function QuoteDetailPage() {
           </span>
         ) : undefined}
         taxLabel={settings.tax_label}
-        taxPercent={editing ? formatPercent(editData.tax_rate || "0") : formatPercent(taxRatePercent(q.tax_rate))}
+        taxPercent={editing ? formatPercent(taxRatePercent(taxRateFraction(editData.tax_rate))) : formatPercent(taxRatePercent(q.tax_rate))}
         taxRateField={editing ? (
           <div>
             <label htmlFor="edit-tax-rate" className="block text-sm font-medium text-foreground mb-1">Tax Rate (%)</label>
@@ -1291,6 +1344,7 @@ export default function QuoteDetailPage() {
         isStale={editing && previewStale}
         staleHint={editing ? staleHint : undefined}
       />
+      </>
         );
       })()}
 

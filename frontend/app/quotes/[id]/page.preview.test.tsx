@@ -12,6 +12,7 @@ const h = vi.hoisted(() => ({
   pricingPreview: vi.fn(),
   push: vi.fn(),
   quote: null as Record<string, unknown> | null,
+  segments: [] as Record<string, unknown>[],
 }));
 
 vi.mock("next/navigation", () => ({
@@ -32,7 +33,7 @@ vi.mock("@/lib/hooks", () => ({
     price_rounding_step: "50", tax_label: "Sales Tax",
     default_tax_rate: "0.08875", service_charge_default_pct: "20.00",
     service_charge_taxable_default: true, gratuity_default_pct: "0.00",
-    guest_segments: [],
+    guest_segments: h.segments,
   } }),
   useDateFormat: () => "MM/DD/YYYY",
   useFormatDateTime: () => (v: string | null) => v ?? "-",
@@ -115,6 +116,7 @@ beforeEach(() => {
   h.pricingPreview.mockReset();
   h.pricingPreview.mockResolvedValue(PRICED);
   h.quote = null;
+  h.segments = [];
 });
 
 describe("Quote CREATE — the card shows the engine's numbers", () => {
@@ -322,5 +324,100 @@ describe("Quote CREATE and EDIT post the same body for the same state (AC6)", ()
     for (const key of Object.keys(editBody)) {
       expect({ [key]: createBody[key] }).toEqual({ [key]: editBody[key] });
     }
+  });
+});
+
+// Findings from the pre-merge review of this branch. Each of these shipped broken
+// in the first cut, so each gets a test that fails if it comes back.
+describe("Quote page — regressions found in review", () => {
+  /** A quote saved before REL-464: real breakdown, no snapshot to render it from. */
+  const LEGACY = {
+    ...SAVED_QUOTE,
+    pricing_snapshot: null,
+    price_per_head: "45.00",
+    guest_count: 100,
+    guest_counts: [
+      { segment: "Adults", count: 80 },
+      { segment: "Kids", count: 20 },
+    ],
+    additional_meals: [
+      { id: 1, label: "Canapés", price_per_head: "10.00", guest_count: 100,
+        audience: "custom", audience_segment: null, dishes: [], based_on_template: null,
+        meal_time: null, notes: "" },
+    ],
+    food_total: "5500.00", subtotal: "5500.00",
+    tax_rate: "0.08500", tax_amount: "467.50", total: "5967.50",
+  };
+
+  const SEGMENTS = [
+    { name: "Adults", is_default: true, counts_toward_total: true, price_multiplier: "1.0000", sort_order: 0 },
+    { name: "Kids", is_default: false, counts_toward_total: true, price_multiplier: "0.5000", sort_order: 1 },
+  ];
+
+  it("still shows the meals and the segment breakdown on a pre-snapshot quote", async () => {
+    h.quote = LEGACY;
+    h.segments = SEGMENTS;
+    render(<QuotePage />);
+    const card = within(totalsCard());
+
+    // The $1,000 of canapés the customer is being charged for.
+    expect(card.getByText("Canapés ($10.00/head × 100)")).toBeInTheDocument();
+    expect(card.getByText("$1,000.00")).toBeInTheDocument();
+    // And how the covers were priced.
+    expect(card.getByText("Adults — 80 × $45.00")).toBeInTheDocument();
+    expect(card.getByText("Kids — 20 × $22.50")).toBeInTheDocument();
+    // The stored total still rules.
+    expect(card.getByText("$5,967.50")).toBeInTheDocument();
+  });
+
+  it("never prints a food line that contradicts its own label", async () => {
+    h.quote = LEGACY;
+    render(<QuotePage />);
+    // The old bug: a "$45.00/head × 100 guests" label beside $5,500 — which is
+    // 100 covers PLUS the meals. The label describes $4,500, and that is what the
+    // row beside it must say.
+    const foodRow = within(totalsCard()).getByText("Food / Menu ($45.00/head × 100 guests)")
+      .closest("div")!;
+    expect(within(foodRow).getByText("$4,500.00")).toBeInTheDocument();
+  });
+
+  it("does not show an abandoned edit's numbers when editing resumes", async () => {
+    h.quote = { ...SAVED_QUOTE };
+    render(<QuotePage />);
+
+    fireEvent.click(screen.getByText("Edit Quote"));
+    await waitFor(() => expect(within(totalsCard()).getByText("$1,714.56")).toBeInTheDocument());
+    fireEvent.click(screen.getByText("Cancel"));
+
+    // Straight back in: the form has just been re-hydrated from the saved quote,
+    // so the card must not still be showing the total of the edit just discarded.
+    h.pricingPreview.mockImplementation(() => new Promise(() => {})); // never resolves
+    fireEvent.click(screen.getByText("Edit Quote"));
+    expect(within(totalsCard()).queryByText("$1,714.56")).not.toBeInTheDocument();
+    expect(within(totalsCard()).getByText("$4,882.50")).toBeInTheDocument();
+  });
+
+  it("says why a draft would be refused instead of showing a confident impossible number", async () => {
+    h.pricingPreview.mockResolvedValue({
+      ...PRICED,
+      warnings: ["Guest breakdown covers 999 guests but the booking is for 10."],
+    });
+    render(<QuotePage />);
+    fireEvent.change(screen.getByLabelText("Guest Count"), { target: { value: "10" } });
+
+    await waitFor(() =>
+      expect(screen.getByText("Guest breakdown covers 999 guests but the booking is for 10.")).toBeInTheDocument());
+  });
+
+  it("labels the tax row with the rate that will actually be charged", async () => {
+    render(<QuotePage />);
+    // 7.3755% cannot be stored — the column holds three decimals of percent — so
+    // 7.376% is charged. Printing the typed string would claim 7.375%.
+    fireEvent.change(screen.getByLabelText("Tax Rate (%)"), { target: { value: "7.3755" } });
+    await waitFor(() => {
+      const draft = h.pricingPreview.mock.calls.at(-1)![0] as Record<string, unknown>;
+      expect(draft.tax_rate).toBe("0.07376");
+    });
+    expect(screen.getByText("Sales Tax (7.376%)")).toBeInTheDocument();
   });
 });

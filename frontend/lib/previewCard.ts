@@ -36,30 +36,20 @@ export interface StoredBookingTotals {
 
 /** Totals-card props for a booking that is NOT being edited — what was saved.
  *
- * Prefers the stored snapshot, which is the engine's own answer for this booking
- * at the moment it was saved, so a read-only screen shows the breakdown the save
- * produced rather than a fresh one that might not match the stored total.
+ * The stored snapshot is the engine's own answer for this booking at the moment
+ * it was saved, so a read-only screen shows the breakdown the save produced
+ * rather than a fresh one that might not match the stored total beside it.
  *
- * Falls back to the flat total columns for bookings saved before REL-464, which
- * have no snapshot and are never backfilled (a snapshot records what a booking
- * IS, not what it should be). Those rows get one subtraction to recover the
- * add-ons line — the last remaining piece of client-side money arithmetic, kept
- * only because the alternative is hiding a line the customer was charged. It
- * stops being reachable once every row has been saved again.
+ * Returns `null` when the booking has NO snapshot — every row saved before
+ * REL-464, which are never backfilled (a snapshot records what a booking IS, not
+ * what it should be). Null rather than a best-effort card on purpose: the flat
+ * columns cannot express the meal rows or the per-segment itemisation, and a card
+ * built from them silently drops both while printing a per-head food label beside
+ * a meal-inclusive amount — two lines that contradict each other. The caller
+ * renders those rows the old way instead; see `legacyCardProps` on the quote page.
  */
-export function storedCardProps(booking: StoredBookingTotals, currencySymbol: string): PreviewCardProps {
-  if (booking.pricing_snapshot) return previewCardProps(booking.pricing_snapshot, currencySymbol);
-  return {
-    foodTotal: booking.food_total,
-    foodRows: null,
-    meals: [],
-    addOnsTotal: String(Number(booking.subtotal) - Number(booking.food_total)),
-    subtotal: booking.subtotal,
-    serviceCharge: booking.service_charge ?? "0",
-    taxAmount: booking.tax_amount,
-    gratuity: booking.gratuity ?? "0",
-    total: booking.total,
-  };
+export function storedCardProps(booking: StoredBookingTotals, currencySymbol: string): PreviewCardProps | null {
+  return booking.pricing_snapshot ? previewCardProps(booking.pricing_snapshot, currencySymbol) : null;
 }
 
 /** Totals-card props straight off a pricing preview. */

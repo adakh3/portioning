@@ -78,7 +78,7 @@ describe("storedCardProps — what was saved, not what would be", () => {
   };
 
   it("renders the booking's own snapshot when it has one", () => {
-    const props = storedCardProps({ ...saved, pricing_snapshot: preview() }, "$");
+    const props = storedCardProps({ ...saved, pricing_snapshot: preview() }, "$")!;
     // The full breakdown, itemized rows and all — the engine's answer at save time.
     expect(props.foodRows).toHaveLength(2);
     expect(props.meals).toHaveLength(1);
@@ -86,32 +86,16 @@ describe("storedCardProps — what was saved, not what would be", () => {
     expect(props.addOnsTotal).toBe("500.00");
   });
 
-  it("falls back to the flat columns for a booking saved before snapshots", () => {
-    const props = storedCardProps({ ...saved, pricing_snapshot: null }, "$");
-    expect(props.total).toBe("7436.00");
-    expect(props.subtotal).toBe("5500.00");
-    expect(props.foodTotal).toBe("5000.00");
-    // Nothing to itemize — the columns don't record the breakdown.
-    expect(props.foodRows).toBeNull();
-    expect(props.meals).toEqual([]);
-    // The add-ons line is recovered by subtraction, the one thing the columns can
-    // still tell us.
-    expect(props.addOnsTotal).toBe("500");
+  it("returns null for a booking saved before snapshots, rather than a lossy card", () => {
+    // The flat columns cannot express the meal rows or the per-segment
+    // itemisation. A card built from them drops both AND prints a per-head food
+    // label beside a meal-inclusive amount — two lines that contradict each other
+    // on a quote the customer may already have accepted. The caller renders those
+    // rows the old way instead.
+    expect(storedCardProps({ ...saved, pricing_snapshot: null }, "$")).toBeNull();
   });
 
   it("treats a missing snapshot key the same as a null one", () => {
-    const props = storedCardProps(saved, "$");
-    expect(props.total).toBe("7436.00");
-    expect(props.foodRows).toBeNull();
-  });
-
-  it("shows no service charge or gratuity when the legacy row carried none", () => {
-    const props = storedCardProps(
-      { food_total: "1000.00", subtotal: "1000.00", tax_amount: "0.00", total: "1000.00" },
-      "$",
-    );
-    expect(props.serviceCharge).toBe("0");
-    expect(props.gratuity).toBe("0");
-    expect(props.addOnsTotal).toBe("0");
+    expect(storedCardProps(saved, "$")).toBeNull();
   });
 });

@@ -265,8 +265,12 @@ export function buildMealsPayload(
  * the draft is the preview hook's cache key, so sending the notes field too would
  * re-price the booking on every keystroke of a customer note.
  *
- * Covers quotes and events alike — a quote carries `tax_rate`, an event carries
- * `is_taxable`, and the endpoint reads whichever is present.
+ * QUOTES ONLY for now. A quote carries `tax_rate`; an event carries `is_taxable`
+ * and no rate at all, and the endpoint reads the rate from the payload — so an
+ * event-shaped draft prices at ZERO tax rather than at the event's own rate. The
+ * `is_taxable` branch below is therefore not yet a working event preview: wiring
+ * the event page (step 4) has to send the rate too, or teach the endpoint to read
+ * it from the booking. Pinned by a test so the gap cannot be discovered in prod.
  */
 export function pricingDraft(payload: Record<string, unknown>) {
   const draft: Record<string, unknown> = {
