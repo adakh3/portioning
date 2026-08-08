@@ -22,6 +22,7 @@ is where the frontend routes a 402 anyway.
 from django.conf import settings
 from django.http import JsonResponse
 from django.shortcuts import redirect
+from django.utils.cache import patch_vary_headers
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 
@@ -65,27 +66,42 @@ class SubscriptionGateMiddleware:
     def _is_navigation(self, request):
         """True when the browser is loading this URL as a page, not fetching it.
 
-        `fetch` sends `Accept: */*` (the API client never sets one), while a
-        top-level navigation asks for `text/html`. That difference is the only
-        signal available here, and it's enough.
+        `Sec-Fetch-Dest` is the authoritative answer and cannot be forged: it's
+        a forbidden header name, so script can't set it, and browsers send it on
+        every top-level navigation — including the OAuth bounce-back this exists
+        for. Where it's absent (an older browser, curl, a server-side client) we
+        fall back to Accept *starting* with text/html, which is what a real
+        navigation sends. A mere substring test would be wrong: a client asking
+        for `application/json, text/html;q=0.1` prefers JSON and would be
+        redirected into a cross-origin page it can't read.
         """
-        return request.method == 'GET' and 'text/html' in request.headers.get('Accept', '')
+        if request.method != 'GET':
+            return False
+        dest = request.headers.get('Sec-Fetch-Dest')
+        if dest:
+            return dest == 'document'
+        return request.headers.get('Accept', '').strip().startswith('text/html')
 
     def _blocked(self, request):
         if self._is_navigation(request):
             # A JSON body rendered as a page is a dead end. Send them where the
             # frontend sends every other 402.
-            return redirect(
+            response = redirect(
                 f'{settings.FRONTEND_BASE_URL.rstrip("/")}/billing?reason=subscription_required'
             )
-        return JsonResponse(
-            {
-                'detail': 'subscription_required',
-                'message': 'Your subscription is inactive. '
-                           'Please subscribe to continue.',
-            },
-            status=402,
-        )
+        else:
+            response = JsonResponse(
+                {
+                    'detail': 'subscription_required',
+                    'message': 'Your subscription is inactive. '
+                               'Please subscribe to continue.',
+                },
+                status=402,
+            )
+        # One URL, two bodies, chosen by these headers — say so, or an
+        # intermediary could hand a cached redirect to an XHR.
+        patch_vary_headers(response, ('Accept', 'Sec-Fetch-Dest'))
+        return response
 
     def __call__(self, request):
         if self._is_gated(request):

@@ -12,6 +12,7 @@ from unittest.mock import patch
 
 from django.conf import settings
 from django.test import TestCase, override_settings
+from django.urls import reverse
 from django.utils import timezone
 from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -396,51 +397,90 @@ class SubscriptionGateTests(TestCase):
     # ── Blocked-response shape: XHR gets JSON, a page load gets sent somewhere ──
 
     HTML = 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
-    # A browser reaching an /api/ URL as a page, not through fetch — an OAuth
-    # provider redirecting the caterer back is the real case (REL-460's mailbox
-    # callback). A JSON body rendered as a page is a dead end.
-    OAUTH_CALLBACK = '/api/integrations/email/callback/'
+    # What a real top-level navigation sends. Sec-Fetch-* are forbidden header
+    # names, so script cannot forge them — which is why they're the primary
+    # signal rather than Accept.
+    NAV = {'HTTP_ACCEPT': HTML, 'HTTP_SEC_FETCH_DEST': 'document',
+           'HTTP_SEC_FETCH_MODE': 'navigate'}
 
     def test_a_page_load_is_redirected_to_billing_not_shown_raw_json(self):
         self.expire_trial()
-        res = self.cookie_client(self.user).get(self.GATED, HTTP_ACCEPT=self.HTML)
+        res = self.cookie_client(self.user).get(self.GATED, **self.NAV)
 
         self.assertEqual(res.status_code, 302)
         self.assertIn('/billing', res['Location'])
         self.assertIn('reason=subscription_required', res['Location'])
 
     def test_the_oauth_callback_lands_on_billing_when_the_subscription_lapsed(self):
-        """The reported case: the subscription expires mid-consent, and the
-        provider redirects the browser back into a gated endpoint."""
+        """The reported case: the subscription expires mid-consent and the
+        provider redirects the browser back into a gated endpoint.
+
+        Resolved by name, and asserting no mailbox was created — the gate runs
+        before URL resolution, so a hardcoded (or stale) path would pass this
+        test without ever proving the callback itself is protected.
+        """
+        from bookings.models import ConnectedMailbox
         self.expire_trial()
         res = self.cookie_client(self.user).get(
-            self.OAUTH_CALLBACK, {'error': 'access_denied'}, HTTP_ACCEPT=self.HTML,
+            reverse('mailbox-callback'), {'error': 'access_denied'}, **self.NAV,
         )
 
         self.assertEqual(res.status_code, 302)
         self.assertIn('/billing', res['Location'])
+        self.assertEqual(ConnectedMailbox.objects.count(), 0)
 
     def test_fetch_still_gets_the_402_json_the_frontend_handles(self):
         """The API client sets no Accept header, so fetch sends `*/*`. Changing
         that response shape would break every 402 path in lib/api.ts."""
         self.expire_trial()
-        for accept in ('*/*', 'application/json'):
+        for accept in ('*/*', 'application/json', 'image/png', ''):
             res = self.cookie_client(self.user).get(self.GATED, HTTP_ACCEPT=accept)
             self.assertEqual(res.status_code, 402, accept)
             self.assertEqual(res.json()['detail'], 'subscription_required', accept)
+
+    def test_a_client_that_merely_tolerates_html_is_not_redirected(self):
+        """`application/json, text/html;q=0.1` prefers JSON. A substring test on
+        Accept would bounce it into a cross-origin page it can't read, and the
+        frontend's 402 handler would never fire."""
+        self.expire_trial()
+        res = self.cookie_client(self.user).get(
+            self.GATED, HTTP_ACCEPT='application/json, text/html;q=0.1',
+        )
+        self.assertEqual(res.status_code, 402)
+
+    def test_a_fetch_that_asks_for_html_is_still_not_a_navigation(self):
+        """Sec-Fetch-Dest is authoritative when present, so an XHR that happens
+        to request HTML still gets JSON."""
+        self.expire_trial()
+        res = self.cookie_client(self.user).get(
+            self.GATED, HTTP_ACCEPT=self.HTML, HTTP_SEC_FETCH_DEST='empty',
+        )
+        self.assertEqual(res.status_code, 402)
 
     def test_a_write_is_never_redirected_even_from_a_browser(self):
         """Only GET navigations redirect — bouncing a POST would silently drop
         the body and look like a successful no-op."""
         self.expire_trial()
-        res = self.cookie_client(self.user).post(
-            self.GATED, {}, format='json', HTTP_ACCEPT=self.HTML,
-        )
+        res = self.cookie_client(self.user).post(self.GATED, {}, format='json', **self.NAV)
         self.assertEqual(res.status_code, 402)
 
+    def test_the_blocked_response_varies_on_what_chose_its_shape(self):
+        """Two bodies for one URL — an intermediary keying only on the URL could
+        otherwise hand a cached redirect to an XHR."""
+        self.expire_trial()
+        res = self.cookie_client(self.user).get(self.GATED, **self.NAV)
+        vary = res['Vary'].lower()
+        self.assertIn('accept', vary)
+        self.assertIn('sec-fetch-dest', vary)
+
     def test_a_page_load_on_a_live_subscription_is_not_touched(self):
-        res = self.cookie_client(self.user).get(self.GATED, HTTP_ACCEPT=self.HTML)
+        res = self.cookie_client(self.user).get(self.GATED, **self.NAV)
         self.assertEqual(res.status_code, 200, res.content)
+
+    def test_an_exempt_path_is_not_redirected_even_as_a_navigation(self):
+        self.expire_trial()
+        res = self.cookie_client(self.user).get(SUBSCRIPTION, **self.NAV)
+        self.assertEqual(res.status_code, 200)
 
 
 class WebhookViewTests(TestCase):
