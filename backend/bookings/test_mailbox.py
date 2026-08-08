@@ -320,6 +320,20 @@ class TestMailboxConnect(TestCase):
         self.assertEqual(state['nonce_hash'], _hash_nonce(cookie.value))
         self.assertEqual(state['org'], self.org.pk)
 
+    @override_settings(**GOOGLE_CONFIGURED, DEBUG=False)
+    def test_the_nonce_cookie_is_not_secure_over_plain_http(self):
+        """`secure` follows the connection, not DEBUG. DEBUG defaults to False,
+        so keying off it marked the cookie Secure on a plain-http dev server —
+        where a browser declining to store it turns every connect into an
+        unexplained `invalid_state`."""
+        response = self.client.get(CONNECT_URL, {'provider': 'google'})
+        self.assertFalse(response.cookies[NONCE_COOKIE]['secure'])
+
+    @override_settings(**GOOGLE_CONFIGURED, DEBUG=True)
+    def test_the_nonce_cookie_is_secure_over_https_even_with_debug_on(self):
+        response = self.client.get(CONNECT_URL, {'provider': 'google'}, secure=True)
+        self.assertTrue(response.cookies[NONCE_COOKIE]['secure'])
+
     @override_settings(**GOOGLE_CONFIGURED)
     def test_the_state_carries_only_the_hash_never_the_nonce_itself(self):
         """`signing.dumps` signs but does not encrypt — anyone holding the state

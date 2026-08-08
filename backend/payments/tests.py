@@ -393,6 +393,55 @@ class SubscriptionGateTests(TestCase):
         res = APIClient().get(self.GATED)
         self.assertIn(res.status_code, (401, 403))
 
+    # ── Blocked-response shape: XHR gets JSON, a page load gets sent somewhere ──
+
+    HTML = 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+    # A browser reaching an /api/ URL as a page, not through fetch — an OAuth
+    # provider redirecting the caterer back is the real case (REL-460's mailbox
+    # callback). A JSON body rendered as a page is a dead end.
+    OAUTH_CALLBACK = '/api/integrations/email/callback/'
+
+    def test_a_page_load_is_redirected_to_billing_not_shown_raw_json(self):
+        self.expire_trial()
+        res = self.cookie_client(self.user).get(self.GATED, HTTP_ACCEPT=self.HTML)
+
+        self.assertEqual(res.status_code, 302)
+        self.assertIn('/billing', res['Location'])
+        self.assertIn('reason=subscription_required', res['Location'])
+
+    def test_the_oauth_callback_lands_on_billing_when_the_subscription_lapsed(self):
+        """The reported case: the subscription expires mid-consent, and the
+        provider redirects the browser back into a gated endpoint."""
+        self.expire_trial()
+        res = self.cookie_client(self.user).get(
+            self.OAUTH_CALLBACK, {'error': 'access_denied'}, HTTP_ACCEPT=self.HTML,
+        )
+
+        self.assertEqual(res.status_code, 302)
+        self.assertIn('/billing', res['Location'])
+
+    def test_fetch_still_gets_the_402_json_the_frontend_handles(self):
+        """The API client sets no Accept header, so fetch sends `*/*`. Changing
+        that response shape would break every 402 path in lib/api.ts."""
+        self.expire_trial()
+        for accept in ('*/*', 'application/json'):
+            res = self.cookie_client(self.user).get(self.GATED, HTTP_ACCEPT=accept)
+            self.assertEqual(res.status_code, 402, accept)
+            self.assertEqual(res.json()['detail'], 'subscription_required', accept)
+
+    def test_a_write_is_never_redirected_even_from_a_browser(self):
+        """Only GET navigations redirect — bouncing a POST would silently drop
+        the body and look like a successful no-op."""
+        self.expire_trial()
+        res = self.cookie_client(self.user).post(
+            self.GATED, {}, format='json', HTTP_ACCEPT=self.HTML,
+        )
+        self.assertEqual(res.status_code, 402)
+
+    def test_a_page_load_on_a_live_subscription_is_not_touched(self):
+        res = self.cookie_client(self.user).get(self.GATED, HTTP_ACCEPT=self.HTML)
+        self.assertEqual(res.status_code, 200, res.content)
+
 
 class WebhookViewTests(TestCase):
     @patch("payments.views.stripe_gateway.verify_webhook_event")

@@ -152,7 +152,12 @@ class MailboxConnectView(APIView):
         response.set_cookie(
             NONCE_COOKIE, nonce,
             max_age=STATE_MAX_AGE, httponly=True, samesite='Lax',
-            secure=not settings.DEBUG, path=COOKIE_PATH,
+            # Keyed off the actual connection, not DEBUG. DEBUG defaults to
+            # False, so `not DEBUG` marked the cookie Secure on a plain-http
+            # dev server — where a browser that declines to store it turns every
+            # connect attempt into an unexplained `invalid_state`. In production
+            # SECURE_PROXY_SSL_HEADER makes this true.
+            secure=request.is_secure(), path=COOKIE_PATH,
         )
         return response
 

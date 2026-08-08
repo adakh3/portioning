@@ -12,8 +12,16 @@ we can't authenticate are left alone; the view's own auth returns the 401.
 Exempt paths: auth (so you can log in), billing (so a locked-out org can still
 reach checkout/portal/status and the Stripe webhook), and Django admin.
 Superusers (platform staff) are never gated.
+
+A few ``/api/`` endpoints are reached by the *browser itself* rather than by
+fetch — an OAuth provider redirecting the user back, for instance. A JSON body
+is the right answer for an XHR and a dead end for a navigation, so the block
+response is content-negotiated: navigations get sent to the billing page, which
+is where the frontend routes a 402 anyway.
 """
+from django.conf import settings
 from django.http import JsonResponse
+from django.shortcuts import redirect
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 
@@ -54,6 +62,31 @@ class SubscriptionGateMiddleware:
             return False
         return True
 
+    def _is_navigation(self, request):
+        """True when the browser is loading this URL as a page, not fetching it.
+
+        `fetch` sends `Accept: */*` (the API client never sets one), while a
+        top-level navigation asks for `text/html`. That difference is the only
+        signal available here, and it's enough.
+        """
+        return request.method == 'GET' and 'text/html' in request.headers.get('Accept', '')
+
+    def _blocked(self, request):
+        if self._is_navigation(request):
+            # A JSON body rendered as a page is a dead end. Send them where the
+            # frontend sends every other 402.
+            return redirect(
+                f'{settings.FRONTEND_BASE_URL.rstrip("/")}/billing?reason=subscription_required'
+            )
+        return JsonResponse(
+            {
+                'detail': 'subscription_required',
+                'message': 'Your subscription is inactive. '
+                           'Please subscribe to continue.',
+            },
+            status=402,
+        )
+
     def __call__(self, request):
         if self._is_gated(request):
             user = _resolve_user(request)
@@ -64,12 +97,5 @@ class SubscriptionGateMiddleware:
                 if org is not None:
                     sub = Subscription.objects.filter(organisation=org).first()
                     if sub is None or not sub.has_access:
-                        return JsonResponse(
-                            {
-                                'detail': 'subscription_required',
-                                'message': 'Your subscription is inactive. '
-                                           'Please subscribe to continue.',
-                            },
-                            status=402,
-                        )
+                        return self._blocked(request)
         return self.get_response(request)
