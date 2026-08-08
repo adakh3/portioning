@@ -29,7 +29,7 @@ import {
 import DealWonDialog from "@/components/DealWonDialog";
 import EventPaymentsCard from "@/components/EventPaymentsCard";
 import { useAuth } from "@/lib/auth";
-import { formatDate, formatDateTime as sharedFormatDateTime, formatTime, todayISO } from "@/lib/dateFormat";
+import { formatDate, todayISO } from "@/lib/dateFormat";
 import { LineItemInput, lineItemTotal, computeBookingTotals, buildEventSavePayload, segmentFood, segmentFoodRows, defaultSegmentRemainder, hasVendorDoubleEntry, mealsFood, bookingMealRows, timelineMealRows, GuestSegmentMeta } from "@/lib/quoteTotals";
 import BookingTotalsCard from "@/components/BookingTotalsCard";
 import AddOnItemsEditor from "@/components/AddOnItemsEditor";
@@ -578,11 +578,6 @@ export default function EventDetailPage() {
     0
   ) ?? 0;
 
-
-  const formatDateTime = (dt: string | null) => {
-    if (!dt) return "\u2014";
-    return sharedFormatDateTime(dt, dateFormat, timeFormat);
-  };
 
   return (
     <div className="space-y-6">

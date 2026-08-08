@@ -1,6 +1,6 @@
 "use client";
 
-import { formatDateTime as sharedFormatDateTime, formatTime } from "@/lib/dateFormat";
+import { formatDate, formatTime } from "@/lib/dateFormat";
 import type { TimelineEntry } from "@/lib/api";
 
 /** One label/value row, matching the read-only rows elsewhere on the booking pages. */
@@ -41,7 +41,7 @@ export default function BookingTimelineView({
 }: {
   entries: TimelineEntry[] | null | undefined;
   /** The booking's additional meals, from `timelineMealRows`. */
-  meals?: { label: string; time: string }[];
+  meals?: { label: string; time: string; date?: string | null }[];
   eventDate?: string | null;
   setupTime: string | null;
   guestArrivalTime: string | null;
@@ -60,7 +60,10 @@ export default function BookingTimelineView({
     // booking's rendered timeline never changes underneath it.
     const merged: { key: string; time: string; date: string | null; label: string }[] = [
       ...rows.map((e) => ({ key: `e${e.id}`, time: e.time.slice(0, 5), date: e.date, label: e.label })),
-      ...meals.map((m, i) => ({ key: `m${i}`, time: m.time, date: null, label: m.label })),
+      // A meal keeps its own DAY. Dropping it put a 2am late-night snack at the top
+      // of the list while the PDF correctly put it last — the screen then told the
+      // caterer the snack happened before the staff arrived.
+      ...meals.map((m, i) => ({ key: `m${i}`, time: m.time, date: m.date ?? null, label: m.label })),
     ];
     // Re-sort only once meals are in the mix — without them the caterer's own
     // sort_order IS the order, and re-sorting would override a row they dragged.
@@ -68,11 +71,22 @@ export default function BookingTimelineView({
       const day = (r: { date: string | null }) => r.date || eventDate || "";
       merged.sort((a, b) => (day(a) + a.time).localeCompare(day(b) + b.time));
     }
+    // A row on a different day says so — "14:00 (23 Dec)" — mirroring the PDF's
+    // `format_timeline_row`. Without it a load-in the afternoon before, or a 2am
+    // late-night snack, reads as a bare time indistinguishable from an event-day
+    // step: the caterer can't tell which day they're looking at.
+    const dayLabel = (iso: string) => {
+      const [y, m, d] = iso.split("-").map(Number);
+      return new Date(Date.UTC(y, (m || 1) - 1, d || 1))
+        .toLocaleDateString("en-GB", { day: "2-digit", month: "short", timeZone: "UTC" });
+    };
     return (
       <dl className="space-y-1">
-        {merged.map((r) => (
-          <InfoRow key={r.key} label={formatTime(r.time, timeFormat)} value={r.label} />
-        ))}
+        {merged.map((r) => {
+          const time = formatTime(r.time, timeFormat);
+          const offDay = r.date && r.date !== eventDate ? ` (${dayLabel(r.date)})` : "";
+          return <InfoRow key={r.key} label={`${time}${offDay}`} value={r.label} />;
+        })}
       </dl>
     );
   }
@@ -80,7 +94,20 @@ export default function BookingTimelineView({
   const legacy = setupTime || guestArrivalTime || mealTime || endTime;
   if (!legacy) return <p className="text-sm text-muted-foreground">No timeline set.</p>;
 
-  const fmt = (dt: string | null) => (dt ? sharedFormatDateTime(dt, dateFormat, timeFormat) : "—");
+  /** A legacy slot, rendered in the time it was STORED — not the viewer's timezone.
+   *
+   * `formatDateTime` runs the value through `new Date()`, which converts to the
+   * browser's zone. The API serves UTC (`USE_TZ=True`, `TIME_ZONE='UTC'`), so an
+   * ET caterer saw a 19:30 setup as 15:30 here — while the editor on the SAME page
+   * showed 19:30 (it slices the raw string) and so did the PDF the customer holds.
+   * Three different answers for one field. `formatTime` already slices rather than
+   * converts; the date half is pinned to local midday so no offset can roll it to
+   * the previous day. */
+  const fmt = (dt: string | null) => {
+    if (!dt) return "—";
+    const day = dt.includes("T") ? dt.slice(0, 10) : dt;
+    return `${formatDate(`${day}T12:00:00`, dateFormat)}, ${formatTime(dt, timeFormat)}`;
+  };
   return (
     <dl className="grid grid-cols-1 md:grid-cols-2 gap-4">
       <InfoRow label="Setup Time" value={fmt(setupTime)} />

@@ -212,6 +212,24 @@ class QuoteTimelineScreenParityTests(TestCase):
         self.assertIn("Setup Time", timeline)
         self.assertNotIn("Late-night snack", timeline)
 
+    def test_a_meal_after_midnight_prints_LAST(self):
+        """The case the fixture above deliberately pins away from — asserted here
+        rather than avoided. A 2am late-night snack belongs to the day AFTER the
+        event, so it sorts last; the screen mirror is
+        "AC6: a meal after midnight sorts LAST, as the PDF orders it".
+        """
+        q = self._quote(guest_count=10, price_per_head=Decimal("10"))
+        self._entry(q, datetime.time(15, 0), "Staff arrive", 0)
+        self._entry(q, datetime.time(21, 0), "Cake cutting", 1)
+        BookingMeal.objects.create(
+            quote=q, label="Late-night snack", guest_count=10, price_per_head=Decimal("5"),
+            meal_time=datetime.datetime(2026, 8, 2, 2, 0, tzinfo=datetime.timezone.utc),
+        )
+        text = pdf_text(q)
+
+        timeline = text[text.find("TIMELINE"):text.find("FOOD / MENU")]
+        self.assertLess(timeline.find("Cake cutting"), timeline.find("Late-night snack"))
+
     def test_no_times_at_all_prints_no_timeline_section(self):
         # Screen mirror: "AC3: neither entries nor legacy times reads 'No timeline set.'"
         # The PDF omits the section entirely; the screen says so in words, because a
