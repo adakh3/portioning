@@ -22,6 +22,44 @@ export interface ManagedUser {
   product_line_names: string[];
 }
 
+/** The backend pricing engine's answer for a draft booking.
+ *
+ * Every money value is a STRING, deliberately: JSON has one number type and it is
+ * binary floating point, so parsing `9850.00` into a JS number and formatting it
+ * back is exactly the drift this replaced. Render these as they arrive. */
+export interface PricingPreview {
+  food: {
+    menu_food: string;
+    food_rows: { name: string; count: number; rate: string; amount: string }[] | null;
+    meal_rows: { label: string; count: number; rate: string; amount: string }[];
+    meals_food: string;
+    food_total: string;
+  };
+  lines: {
+    items: { description: string; category: string; unit: string; line_total: string }[];
+    add_ons_subtotal: string;
+  };
+  totals: {
+    subtotal: string;
+    charge_base: string;
+    service_charge: string;
+    pre_tax_total: string;
+    tax_base: string;
+    tax_amount: string;
+    gratuity: string;
+    total: string;
+  };
+  rates: {
+    tax_rate: string;
+    service_charge_pct: string;
+    service_charge_taxable: boolean;
+    gratuity_pct: string;
+  };
+  /** Why a save of this draft would be REFUSED, if it would be. Empty for a
+   * healthy draft; the sentences are the save path's own. */
+  warnings: string[];
+}
+
 // ── CSRF token helper ──
 function getCsrfToken(): string | null {
   if (typeof document === "undefined") return null;
@@ -1347,6 +1385,15 @@ export const api = {
     await fetch(`${API_BASE}/auth/logout/`, { method: "POST", credentials: "include", headers: buildHeaders() });
   },
   getMe: () => fetchApi<AuthUser>("/auth/me/"),
+  /** What this draft would cost, priced by the backend engine — the only source of
+   * totals while editing. `signal` lets a newer keystroke abort an older request so
+   * a slow response can't overwrite a fresh one. */
+  pricingPreview: (draft: unknown, signal?: AbortSignal) =>
+    fetchApi<PricingPreview>("/pricing/preview/", {
+      method: "POST",
+      body: JSON.stringify(draft),
+      signal,
+    }),
   // Superuser org impersonation. orgId: a pk to enter that org, "all" for
   // all-orgs mode, or null to return to the superuser's own org.
   getOrganisations: () => fetchApi<{ id: number; name: string }[]>("/auth/organisations/"),
