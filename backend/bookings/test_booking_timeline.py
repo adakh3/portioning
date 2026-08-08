@@ -22,7 +22,7 @@ from bookings.models.choices import TimelinePresetOption
 from bookings.pdf import generate_event_pdf, generate_quote_pdf
 from bookings.services.presentation import booking_presentation
 from bookings.tests import _make_org, make_account, make_contact, make_quote
-from events.models import BookingTimelineEntry, Event
+from events.models import BookingMeal, BookingTimelineEntry, Event
 from tests.base import get_test_user
 from users.models import Organisation, User
 
@@ -512,10 +512,12 @@ class TimelineRenderTests(TestCase):
         pres = booking_presentation(self.quote)
         self.assertEqual([t['label'] for t in pres['timeline']],
                          ['Setup', 'Guest arrival', 'Meal service', 'End'])
-        # Legacy slots keep their full ISO datetime and no pre-formatted string,
-        # so the sign page renders them exactly as it always has.
+        # Legacy slots keep their full ISO datetime AND now carry a pre-formatted
+        # string (REL-447). They used to have `time_display: None`, leaving the sign
+        # page to run `new Date(...).toLocaleString()` — which rendered the
+        # customer's timezone, not the time the caterer typed.
         self.assertTrue(pres['timeline'][0]['time'].startswith('2026-08-01T15:00'))
-        self.assertIsNone(pres['timeline'][0]['time_display'])
+        self.assertEqual(pres['timeline'][0]['time_display'], '01 Aug 2026, 15:00')
 
     def test_presentation_uses_entries_instead_when_present(self):
         BookingTimelineEntry.objects.create(quote=self.quote, time=datetime.time(17, 0),
@@ -725,3 +727,49 @@ class TimelineOrgScopingTests(TestCase):
         client = APIClient()
         client.force_authenticate(user=user)
         self.assertEqual(client.get(f'/api/events/{event.id}/').status_code, 404)
+
+
+class SignPageTimelineTimezoneTests(TestCase):
+    """REL-447 — the customer-facing signing page must not convert booking times.
+
+    `booking_presentation` is what the sign page renders. Every row now carries a
+    server-formatted `time_display`, because the page used to fall back to
+    `new Date(...).toLocaleString()` for anything with a full datetime — legacy
+    slots and additional meals — putting them in the CUSTOMER's timezone while the
+    run-of-show entries beside them were already formatted in UTC. One list, two
+    timezones, on a contract.
+    """
+
+    def setUp(self):
+        self.org = _make_org(slug='sign-tz')
+        self.contact = make_contact(org=self.org)
+        self.quote = make_quote(org=self.org, primary_contact=self.contact,
+                                event_date=datetime.date(2026, 8, 1))
+
+    def test_every_row_carries_a_preformatted_time(self):
+        # An entries-based booking with a timed meal: entry + meal, both must be
+        # formatted server-side so no client is left to convert either.
+        BookingTimelineEntry.objects.create(quote=self.quote, time=datetime.time(15, 0),
+                                            label='Staff arrive', sort_order=0)
+        BookingMeal.objects.create(
+            quote=self.quote, label='Late-night snack', guest_count=10,
+            price_per_head=Decimal('5'),
+            meal_time=datetime.datetime(2026, 8, 1, 19, 0, tzinfo=datetime.timezone.utc),
+        )
+        rows = booking_presentation(self.quote)['timeline']
+
+        self.assertTrue(all(r['time_display'] for r in rows),
+                        [(r['label'], r['time_display']) for r in rows])
+        by_label = {r['label']: r['time_display'] for r in rows}
+        self.assertEqual(by_label['Staff arrive'], '15:00')
+        # The meal keeps the hour the caterer typed — not shifted by a reader.
+        self.assertIn('19:00', by_label['Late-night snack'])
+
+    def test_a_legacy_slot_is_formatted_server_side_too(self):
+        self.quote.setup_time = datetime.datetime(2026, 8, 1, 19, 30,
+                                                  tzinfo=datetime.timezone.utc)
+        self.quote.save()
+        rows = booking_presentation(self.quote)['timeline']
+        setup = next(r for r in rows if r['label'] == 'Setup')
+        self.assertIsNotNone(setup['time_display'])
+        self.assertIn('19:30', setup['time_display'])

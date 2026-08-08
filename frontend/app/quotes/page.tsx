@@ -4,7 +4,7 @@ import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQuotes, useSiteSettings, useDateFormat, useUsers, useProductLines, useEventTypes } from "@/lib/hooks";
-import { formatDate } from "@/lib/dateFormat";
+import { formatDate, formatInstantDate } from "@/lib/dateFormat";
 import { formatCurrency, cn } from "@/lib/utils";
 import { statusColor } from "@/lib/statusColors";
 import { useQueryState } from "@/lib/useQueryState";
@@ -196,7 +196,7 @@ function QuotesContent() {
                     <TableCell className="whitespace-nowrap">{q.event_date ? formatDate(q.event_date, dateFormat) : "—"}</TableCell>
                     <TableCell>{q.guest_count}</TableCell>
                     <TableCell className="text-right font-medium whitespace-nowrap">{formatCurrency(q.total, settings.currency_symbol)}</TableCell>
-                    <TableCell className="whitespace-nowrap text-muted-foreground text-xs">{formatDate(q.created_at, dateFormat)}</TableCell>
+                    <TableCell className="whitespace-nowrap text-muted-foreground text-xs">{formatInstantDate(q.created_at, dateFormat)}</TableCell>
                     <TableCell>
                       <span className={cn("inline-block rounded-full px-2.5 py-0.5 text-xs font-medium uppercase tracking-wide", statusColor(QUOTE_STATUS_COLOR[q.status]).pill)}>
                         {q.status_display}

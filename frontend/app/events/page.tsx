@@ -4,7 +4,7 @@ import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEvents, useDateFormat, useUsers, useProductLines, useEventTypes } from "@/lib/hooks";
-import { formatDate } from "@/lib/dateFormat";
+import { formatDate, formatInstantDate } from "@/lib/dateFormat";
 import { formatCurrency, cn } from "@/lib/utils";
 import { useOrgLocale } from "@/lib/orgLocale";
 import { statusColor } from "@/lib/statusColors";
@@ -215,7 +215,7 @@ function EventsContent() {
                     <TableCell className="whitespace-nowrap">{e.date ? formatDate(e.date, dateFormat) : "—"}</TableCell>
                     <TableCell className="text-right">{guestsOf(e)}</TableCell>
                     <TableCell className="text-right font-medium whitespace-nowrap">{formatCurrency(e.total, cs)}</TableCell>
-                    <TableCell className="whitespace-nowrap text-muted-foreground text-xs">{formatDate(e.created_at, dateFormat)}</TableCell>
+                    <TableCell className="whitespace-nowrap text-muted-foreground text-xs">{formatInstantDate(e.created_at, dateFormat)}</TableCell>
                     <TableCell>
                       <div className="flex flex-wrap items-center gap-1.5">
                         <span className={cn("inline-block rounded-full px-2.5 py-0.5 text-xs font-medium uppercase tracking-wide", statusColor(EVENT_STATUS_COLOR[e.status]).pill)}>

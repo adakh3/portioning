@@ -2,7 +2,7 @@
 
 import { ActivityLogEntry } from "@/lib/api";
 import { useLeadActivity, useDateFormat, useFormatDateTime } from "@/lib/hooks";
-import { formatDate, formatDateTime } from "@/lib/dateFormat";
+import { formatDate, formatDateTime, formatInstantDate } from "@/lib/dateFormat";
 import { Card, CardContent } from "@/components/ui/card";
 
 const ACTION_ICONS: Record<string, string> = {
@@ -34,7 +34,7 @@ function timeAgo(dateStr: string, dateFormat: string): string {
   if (hours < 24) return `${hours}h ago`;
   const days = Math.floor(hours / 24);
   if (days < 30) return `${days}d ago`;
-  return formatDate(dateStr, dateFormat);
+  return formatInstantDate(dateStr, dateFormat);
 }
 
 export default function ActivityTimeline({ leadId }: { leadId: number }) {
