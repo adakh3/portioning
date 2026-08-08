@@ -18,9 +18,12 @@ def make_event(org, total="1000.00", **kw):
         organisation=org, name=kw.pop("name", "Gala"),
         event_date=kw.pop("event_date", date(2026, 7, 1)), guest_count=40, gents=20, ladies=20, **kw,
     )
-    # Set the total directly — payment tracking is independent of the pricing engine.
-    ev.total = Decimal(total)
-    ev.save(update_fields=["total"])
+    # Payment tracking is independent of the pricing engine, so the total is set
+    # directly rather than priced — but it still has to ADD UP. The DB invariant is
+    # `total = subtotal + service_charge + tax + gratuity` (REL-464); with no charges
+    # or tax, subtotal == total, and every balance assertion here is unchanged.
+    ev.subtotal = ev.total = Decimal(total)
+    ev.save(update_fields=["subtotal", "total"])
     return ev
 
 

@@ -14,6 +14,15 @@ from users.model_mixins import OrgScopedModel
 from bookings.models.finance import PaymentMethod
 
 
+# The four parts an event's total is made of — the twin of the Quote expression.
+# Defined here rather than imported so `events` keeps no import-time dependency on
+# `bookings.models.quotes` (which imports from events in turn).
+_TOTAL_PARTS = (
+    models.F('subtotal') + models.F('service_charge')
+    + models.F('tax_amount') + models.F('gratuity')
+)
+
+
 def resolve_legacy_segments(organisation, guest_count, gents, ladies, has_split):
     """Build the N-segment guest mix for a booking that has no per-segment
     ``BookingGuestCount`` rows, from its legacy gents/ladies columns.
@@ -282,12 +291,16 @@ def resolve_booking_segments(booking):
     if rows:
         return [
             {'name': r.segment.name, 'count': r.count,
+             # portion_multiplier stays a float — it feeds the portion calculator,
+             # which is grams, not money. The two PRICE fields below are Decimals all
+             # the way to the engine: they were cast to float here, so a rate spent a
+             # moment in binary floating point on its way to being money (REL-463).
              'portion_multiplier': r.segment.portion_multiplier,
-             'price_multiplier': float(r.segment.price_multiplier),
+             'price_multiplier': r.segment.price_multiplier,
              # Per-booking per-head override (flat/custom rate); None → use multiplier.
              # The default segment never honours an override (matches the write guard).
              'price_override': (None if r.segment.is_default and r.segment.counts_toward_total
-                                else (float(r.price_per_head) if r.price_per_head is not None else None)),
+                                else r.price_per_head),
              'counts_toward_total': r.segment.counts_toward_total}
             for r in rows
         ]
@@ -699,6 +712,9 @@ class Event(OrgScopedModel, models.Model):
         help_text='Gratuity as a percentage of the subtotal (post-tax, never taxed)')
     gratuity = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
     total = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+    # The engine's COMPLETE answer — see the twin field on Quote for why both the
+    # columns and the JSON exist.
+    pricing_snapshot = models.JSONField(null=True, blank=True, default=None)
 
     # Timeline
     setup_time = models.DateTimeField(null=True, blank=True)
@@ -732,6 +748,18 @@ class Event(OrgScopedModel, models.Model):
 
     class Meta:
         ordering = ['-event_date']
+        constraints = [
+            # Mirror of the quote invariant — see Quote.Meta for why it is a
+            # half-cent band rather than exact equality (SQLite adds DecimalFields
+            # as floats, so correct-to-the-cent numbers fail an exact check).
+            models.CheckConstraint(
+                name='event_total_is_the_sum_of_its_parts',
+                condition=(
+                    models.Q(total__gte=_TOTAL_PARTS - Decimal('0.005'))
+                    & models.Q(total__lte=_TOTAL_PARTS + Decimal('0.005'))
+                ),
+            ),
+        ]
 
     def __str__(self):
         return f"{self.name} ({self.event_date})"
@@ -773,47 +801,15 @@ class Event(OrgScopedModel, models.Model):
     def food_total(self):
         """Taxable food/menu cost: main menu priced per guest segment
         (``price_per_head × price_multiplier × count``, summed over all segments) +
-        any additional meals (their own price_per_head × guest_count). With no
-        breakdown this reduces to ``price_per_head × guest_count`` (see
-        ``segment_food_total``)."""
-        from bookings.services.totals import round2, segment_food_total
-        total = segment_food_total(self.price_per_head, resolve_booking_segments(self))
-        for meal in self.additional_meals.all():
-            if meal.price_per_head and meal.guest_count:
-                total += meal.price_per_head * meal.guest_count
-        return round2(total)
+        any additional meals. Computed by the engine, identically to Quote."""
+        from bookings.services.booking_pricing import food_total_for
+        return food_total_for(self)
 
     def recalculate_totals(self):
-        # Shared engine — identical math to quotes. See bookings/services/totals.py.
-        from bookings.services.totals import compute_booking_totals
-        rate = self.tax_rate if self.is_taxable else Decimal('0')
-        # Drop any prefetch cache first: a caller may have loaded this event via
-        # prefetch_related('line_items'), and that cache predates rows added in the
-        # same save — so line_items.all() would omit the just-added add-ons and the
-        # stored subtotal would silently drop them.
-        for rel in ('line_items', 'additional_meals'):
-            getattr(self, '_prefetched_objects_cache', {}).pop(rel, None)
-        # Keep audience-scoped meal counts current before pricing (dual-write).
-        sync_audience_meal_counts(self)
-        # Re-derive per-guest lines from the CURRENT guest count before summing them —
-        # a PATCH that moved guest_count without resending line_items would otherwise
-        # be priced off the old count (REL-462 Bug 4).
-        from bookings.models.addons import BookingLineItem
-        lines = BookingLineItem.refreshed_for(self)
-        totals = compute_booking_totals(
-            self.food_total, lines, rate,
-            service_charge_pct=self.service_charge_pct,
-            service_charge_taxable=self.service_charge_taxable,
-            gratuity_pct=self.gratuity_pct,
-        )
-        self.subtotal = totals.subtotal
-        self.service_charge = totals.service_charge
-        self.tax_amount = totals.tax_amount
-        self.gratuity = totals.gratuity
-        self.total = totals.total
-        self.save(update_fields=[
-            'subtotal', 'service_charge', 'tax_amount', 'gratuity', 'total',
-        ])
+        """Re-price through the engine and store. Identical math to quotes, because
+        it is literally the same call — see bookings/services/booking_pricing.py."""
+        from bookings.services.booking_pricing import price_and_store
+        price_and_store(self)
 
     # ── Client payment tracking (advances / part / full) ──
     # Read-only settlement view over the event's EventPayments. These record money

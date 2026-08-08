@@ -9,7 +9,7 @@ from django.test import TestCase
 
 from bookings.models import BookingLineItem, Quote
 from bookings.serializers.quotes import QuoteSerializer
-from bookings.services.totals import compute_booking_totals, segment_food_total
+from bookings.services.totals import compute_booking_totals, round2, segment_food_total
 from bookings.tests import make_quote, _make_org
 
 # Shared cross-language spec — the SAME file is loaded by the frontend mirror's
@@ -35,22 +35,25 @@ class TestGoldenCaseParity(TestCase):
         with open(GOLDEN_CASES_PATH) as f:
             data = json.load(f)
         for case in data["cases"]:
-            items = [_Item(i["line_total"]) for i in case["items"]]
-            t = compute_booking_totals(
-                Decimal(case["food_total"]), items, Decimal(case["tax_rate"]),
-                service_charge_pct=Decimal(str(case.get("service_charge_pct", 0))),
-                service_charge_taxable=case.get("service_charge_taxable", True),
-                gratuity_pct=Decimal(str(case.get("gratuity_pct", 0))),
-            )
-            exp = case["expected"]
-            self.assertEqual(t.subtotal, Decimal(exp["subtotal"]), case["name"])
-            self.assertEqual(t.tax_amount, Decimal(exp["tax_amount"]), case["name"])
-            self.assertEqual(t.total, Decimal(exp["total"]), case["name"])
-            # Service-charge / gratuity outputs are asserted only for cases that
-            # declare them (the original 8 cases omit them and stay unchanged).
-            for key in ("service_charge", "tax_base", "gratuity"):
-                if key in exp:
-                    self.assertEqual(getattr(t, key), Decimal(exp[key]), f"{case['name']}.{key}")
+            # subTest per case: the loop used to abort on the first failure, so a
+            # change that broke five cases reported one and hid the shape of the bug.
+            with self.subTest(case=case["name"]):
+                items = [_Item(i["line_total"]) for i in case["items"]]
+                t = compute_booking_totals(
+                    Decimal(case["food_total"]), items, Decimal(case["tax_rate"]),
+                    service_charge_pct=Decimal(str(case.get("service_charge_pct", 0))),
+                    service_charge_taxable=case.get("service_charge_taxable", True),
+                    gratuity_pct=Decimal(str(case.get("gratuity_pct", 0))),
+                )
+                exp = case["expected"]
+                self.assertEqual(t.subtotal, Decimal(exp["subtotal"]), case["name"])
+                self.assertEqual(t.tax_amount, Decimal(exp["tax_amount"]), case["name"])
+                self.assertEqual(t.total, Decimal(exp["total"]), case["name"])
+                # Service-charge / gratuity outputs are asserted only for cases that
+                # declare them (the original 8 cases omit them and stay unchanged).
+                for key in ("service_charge", "tax_base", "gratuity"):
+                    if key in exp:
+                        self.assertEqual(getattr(t, key), Decimal(exp[key]), f"{case['name']}.{key}")
 
     def test_backend_matches_segment_food_cases(self):
         """Segment-aware per-head food (kids/vendor multipliers) — same shared
@@ -58,8 +61,75 @@ class TestGoldenCaseParity(TestCase):
         with open(GOLDEN_CASES_PATH) as f:
             data = json.load(f)
         for case in data.get("segment_food_cases", []):
-            food = segment_food_total(Decimal(case["price_per_head"]), case["segments"])
-            self.assertEqual(food, Decimal(case["expected_food"]), case["name"])
+            with self.subTest(case=case["name"]):
+                food = segment_food_total(Decimal(case["price_per_head"]), case["segments"])
+                self.assertEqual(food, Decimal(case["expected_food"]), case["name"])
+
+    def test_backend_matches_line_item_cases(self):
+        """Line-item math — the single biggest parity gap before REL-463. The
+        frontend harness ran the totals cases with every line flattened to
+        ``{quantity: 1, unit: "flat"}``, so no shared case had ever exercised
+        `per_guest`, `per_hour`, or a discount's sign on BOTH sides."""
+        from bookings.services.totals import line_item_total
+        with open(GOLDEN_CASES_PATH) as f:
+            data = json.load(f)
+        cases = data.get("line_item_cases", [])
+        self.assertGreater(len(cases), 0, "line_item_cases must not be empty")
+        for case in cases:
+            with self.subTest(case=case["name"]):
+                got = line_item_total(
+                    case["unit"], case["category"], case["quantity"],
+                    case["unit_price"], case["guest_count"],
+                )
+                self.assertEqual(got, Decimal(case["expected_line_total"]), case["name"])
+
+    def test_backend_matches_meal_cases(self):
+        """Additional-meal math — added to the engine in REL-463 with no mirror and
+        no shared case, which is the gap CLAUDE.md's three-way rule exists to close."""
+        from bookings.services.totals import meal_rows
+        with open(GOLDEN_CASES_PATH) as f:
+            data = json.load(f)
+        cases = data.get("meal_cases", [])
+        self.assertGreater(len(cases), 0, "meal_cases must not be empty")
+        for case in cases:
+            with self.subTest(case=case["name"]):
+                rows = meal_rows(case["meals"])
+                total = round2(sum((r["amount"] for r in rows), Decimal("0.00")))
+                self.assertEqual(
+                    total, Decimal(case["expected_meals_food"]), case["name"])
+
+    def test_backend_matches_itemized_rows_cases(self):
+        """Itemized per-segment rows, including the null-collapse that keeps
+        single-rate bookings' surfaces byte-identical."""
+        from bookings.services.totals import segment_food_rows
+        with open(GOLDEN_CASES_PATH) as f:
+            data = json.load(f)
+        cases = data.get("itemized_rows_cases", [])
+        self.assertGreater(len(cases), 0, "itemized_rows_cases must not be empty")
+        for case in cases:
+            with self.subTest(case=case["name"]):
+                price = Decimal(case["price_per_head"])
+                rows = segment_food_rows(price, case["segments"])
+                expected = case["expected_rows"]
+                if expected is None:
+                    self.assertIsNone(rows, case["name"])
+                else:
+                    self.assertIsNotNone(rows, case["name"])
+                    self.assertEqual(
+                        [{"name": r["name"], "count": r["count"],
+                          "rate": str(r["rate"]), "amount": str(round2(r["amount"]))}
+                         for r in rows],
+                        [{"name": e["name"], "count": e["count"],
+                          "rate": e["rate"], "amount": e["amount"]} for e in expected],
+                        case["name"],
+                    )
+                # The rows must add up to the food total — that is the whole reason
+                # rounding happens per cover rather than once on the aggregate.
+                food = segment_food_total(price, case["segments"])
+                self.assertEqual(food, Decimal(case["expected_food"]), case["name"])
+                if rows:
+                    self.assertEqual(
+                        round2(sum(r["amount"] for r in rows)), food, case["name"])
 
     def test_backend_matches_meal_audience_cases(self):
         """An additional meal's derived guest count from its audience — the same
