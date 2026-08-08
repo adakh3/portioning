@@ -182,10 +182,15 @@ def booking_presentation(booking, signature=None):
 
     # Timeline — labelled moments in the order they run. The booking's own
     # entries when it has any, else the four legacy slots (see services/timeline).
-    # `time_display` is set only for entries: they carry a bare time, which a
-    # client can't parse as a date, so the server formats it. Legacy slots keep
-    # `time_display: None` and their full ISO datetime, so surfaces render them
-    # exactly as they always have.
+    # `time_display` is set for EVERY row, deliberately (REL-447). It used to be
+    # entries only, on the reasoning that a legacy slot's full ISO datetime could
+    # just be rendered client-side — but the sign page did that with
+    # `new Date(...).toLocaleString()`, which converts into the CUSTOMER's zone.
+    # The API serves UTC and these are wall-clock times the caterer typed, so a
+    # 19:00 meal read as 12:00 PM to a customer in Los Angeles, in the same list as
+    # entries the server had already formatted in UTC: one list, two timezones, on
+    # the document they are being asked to sign. A 02:00 late-night snack came out
+    # as the previous evening. The server formats every row so no client converts.
     # `date` is set only for a step on a different day from the booking's own
     # (a load-in the afternoon before); `source` says where the row came from,
     # so a surface can mark the ones the timeline doesn't own.
@@ -194,8 +199,7 @@ def booking_presentation(booking, signature=None):
         {
             'label': row.label,
             'time': _iso(row.value),
-            'time_display': (None if hasattr(row.value, 'date')
-                             else format_timeline_value(row.value, settings.time_format)),
+            'time_display': format_timeline_value(row.value, settings.time_format),
             'date': _iso(row.date),
             'source': row.source,
         }

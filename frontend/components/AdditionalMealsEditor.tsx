@@ -200,7 +200,7 @@ export default function AdditionalMealsEditor({
                        driving the real app: one meal, two times, one screen. */
                     <span className="text-sm">
                       {meal.meal_time
-                        ? `${formatDate(`${meal.meal_time.slice(0, 10)}T12:00:00`, dateFormat)}, ${formatTime(meal.meal_time, timeFormat)}`
+                        ? `${formatDate(meal.meal_time.slice(0, 10), dateFormat)}, ${formatTime(meal.meal_time, timeFormat)}`
                         : "—"}
                     </span>
                   )}

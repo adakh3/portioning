@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formatDate, formatDateTime } from "./dateFormat";
+import { formatDate, formatInstantDate, formatDateTime } from "./dateFormat";
 
 describe("formatDate", () => {
   // A booking's date is a CALENDAR DATE, not an instant: it must not move when the
@@ -19,14 +19,33 @@ describe("formatDate", () => {
     expect(formatDate("2026-03-10", "DD MMM YYYY")).toBe("10 Mar 2026");
   });
 
-  it("a late-evening UTC datetime does not roll forward east of Greenwich", () => {
-    // 23:30Z is the next day in Tokyo/Auckland local time; the calendar date the
-    // booking carries is still the 10th.
-    expect(formatDate("2026-03-10T23:30:00Z", "DD MMM YYYY")).toBe("10 Mar 2026");
+  it("an early-morning UTC datetime does not roll back west of Greenwich", () => {
+    // Discriminating in America/New_York (CI's second run): local 19:30 on the 9th.
+    expect(formatDate("2026-03-10T00:30:00Z", "DD MMM YYYY")).toBe("10 Mar 2026");
   });
 
-  it("an early-morning UTC datetime does not roll back west of Greenwich", () => {
-    expect(formatDate("2026-03-10T00:30:00Z", "DD MMM YYYY")).toBe("10 Mar 2026");
+  // The mirror rule. `formatDate` is for CALENDAR dates and must not move with the
+  // reader; `formatInstantDate` is for TIMESTAMPS and must. Fixing the first by
+  // pinning everything to UTC silently broke the second — a quote created at
+  // 01:30Z read as "created tomorrow" to a caterer in New York, and disagreed with
+  // the same field's own formatDateTime tooltip two lines away.
+  it("formatInstantDate DOES follow the reader — an instant's day is a local question", () => {
+    // 01:30Z on the 10th is 21:30 on the 9th in New York, and 14:30 on the 10th in
+    // Auckland. Asserted as "whatever the local day is", so it discriminates in
+    // every zone CI runs without hardcoding one of them.
+    const iso = "2026-03-10T01:30:00Z";
+    const localDay = new Date(iso).getDate();
+    expect(formatInstantDate(iso, "DD MMM YYYY")).toContain(String(localDay).padStart(2, "0"));
+  });
+
+  it("the two disagree exactly when the reader's zone shifts the day", () => {
+    const iso = "2026-03-10T01:30:00Z";
+    const sameDay = new Date(iso).getUTCDate() === new Date(iso).getDate();
+    const cal = formatDate(iso, "DD MMM YYYY");
+    const inst = formatInstantDate(iso, "DD MMM YYYY");
+    expect(cal).toBe("10 Mar 2026");
+    if (sameDay) expect(inst).toBe(cal);
+    else expect(inst).not.toBe(cal);
   });
 
   it("returns '-' for empty string", () => {

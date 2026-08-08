@@ -100,13 +100,13 @@ export default function BookingTimelineView({
    * browser's zone. The API serves UTC (`USE_TZ=True`, `TIME_ZONE='UTC'`), so an
    * ET caterer saw a 19:30 setup as 15:30 here — while the editor on the SAME page
    * showed 19:30 (it slices the raw string) and so did the PDF the customer holds.
-   * Three different answers for one field. `formatTime` already slices rather than
-   * converts; the date half is pinned to local midday so no offset can roll it to
-   * the previous day. */
+   * Three different answers for one field. `formatTime` slices rather than
+   * converts, and `formatDate` is UTC-pinned, so the bare date renders as itself in
+   * every zone — no round-trip through `Date`, which is what used to roll the day. */
   const fmt = (dt: string | null) => {
     if (!dt) return "—";
     const day = dt.includes("T") ? dt.slice(0, 10) : dt;
-    return `${formatDate(`${day}T12:00:00`, dateFormat)}, ${formatTime(dt, timeFormat)}`;
+    return `${formatDate(day, dateFormat)}, ${formatTime(dt, timeFormat)}`;
   };
   return (
     <dl className="grid grid-cols-1 md:grid-cols-2 gap-4">

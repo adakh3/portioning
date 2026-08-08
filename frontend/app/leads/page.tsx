@@ -20,7 +20,7 @@ import { api, Lead, LeadFilters, AuthUser, ProductLine, ChoiceOption } from "@/l
 import { TITLE_OPTIONS } from "@/lib/titles";
 import { useAuth } from "@/lib/auth";
 import { useKanbanData, useLeadsPaginated, useUsers, useProductLines, useEventTypes, useLeadStatuses, useLostReasons, useDateFormat, useSources, revalidate, revalidatePrefix } from "@/lib/hooks";
-import { formatDate } from "@/lib/dateFormat";
+import { formatDate, formatInstantDate } from "@/lib/dateFormat";
 import { statusColor } from "@/lib/statusColors";
 import { Button } from "@/components/ui/button";
 import { ValidatedInput } from "@/components/ui/validated-input";
@@ -1882,7 +1882,7 @@ function LeadsTable({
                   className="hidden xl:table-cell text-muted-foreground text-xs"
                   onClick={() => router.push(`/leads/${lead.id}`)}
                 >
-                  {formatDate(lead.created_at, dateFormat)}
+                  {formatInstantDate(lead.created_at, dateFormat)}
                 </TableCell>
               </TableRow>
             ))

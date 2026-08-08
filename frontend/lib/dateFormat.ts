@@ -43,17 +43,19 @@ function getConfig(dateFormat: string): FormatConfig {
 }
 
 /**
- * Format a date string (ISO/date) as date only — e.g. "10/03/2026" or "14 Mar 2026".
+ * A **calendar date** — an event date, a valid-until, a due date. Formatted in
+ * **UTC**, deliberately.
  *
- * Formatted in **UTC**, deliberately. `new Date("2026-03-10")` — a bare date, which
- * is what every booking field holds — is parsed by JS as UTC midnight. Rendering
- * that in the viewer's zone moves it BACKWARDS anywhere west of Greenwich, so an
- * event on the 10th displayed as the 9th to every user in the US: New York,
- * Chicago and Los Angeles all showed "09 Mar 2026". UTC and London did not, which
- * is why it survived — CI runs UTC.
+ * `new Date("2026-03-10")` — a bare date, which is what a Django `DateField`
+ * serializes to — is parsed by JS as UTC midnight. Rendering that in the viewer's
+ * zone moves it BACKWARDS anywhere west of Greenwich, so an event on the 10th
+ * displayed as the 9th in New York, Chicago and Los Angeles. UTC and London did
+ * not, which is why it survived: CI runs UTC.
  *
- * A booking's date is a calendar date, not an instant. It does not move when the
- * reader does, so nothing here may depend on where the reader is sitting.
+ * A calendar date does not move when the reader does. Use this for anything a
+ * `DateField` holds. For a **timestamp** — `created_at`, `sent_at`, an audit
+ * moment — use {@link formatInstantDate}: "which day was that?" is legitimately a
+ * question about where the reader is.
  */
 export function formatDate(dateStr: string, dateFormat: string): string {
   if (!dateStr) return "-";
@@ -61,6 +63,26 @@ export function formatDate(dateStr: string, dateFormat: string): string {
   if (isNaN(d.getTime())) return dateStr;
   const { locale, dateOptions } = getConfig(dateFormat);
   return new Intl.DateTimeFormat(locale, { ...dateOptions, timeZone: "UTC" }).format(d);
+}
+
+/**
+ * The date part of a **timestamp** — `created_at`, `sent_at`, `accepted_at`.
+ * Formatted in the **viewer's** zone, deliberately, and the mirror image of
+ * {@link formatDate}.
+ *
+ * These are true instants set server-side by `timezone.now()`, so the calendar day
+ * they fall on genuinely depends on where you are: a quote created at
+ * `2026-03-10T01:30:00Z` was created on the **9th** for a caterer in New York, and
+ * telling them it was the 10th would be telling them it happened tomorrow. It also
+ * keeps this consistent with `formatDateTime`, which renders the same field's full
+ * timestamp locally — the two must not name different days for one value.
+ */
+export function formatInstantDate(dateStr: string, dateFormat: string): string {
+  if (!dateStr) return "-";
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return dateStr;
+  const { locale, dateOptions } = getConfig(dateFormat);
+  return new Intl.DateTimeFormat(locale, dateOptions).format(d);
 }
 
 /** Format a date string (ISO/datetime) as date + time. `timeFormat` ("12h"/"24h")

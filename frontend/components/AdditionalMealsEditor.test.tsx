@@ -5,12 +5,11 @@ import { render, screen, fireEvent } from "@testing-library/react";
 vi.mock("@/components/MenuBuilder", () => ({
   default: ({ pricePerHead }: { pricePerHead: string }) => <div data-testid="menu-builder">menu:{pricePerHead}</div>,
 }));
-vi.mock("@/lib/dateFormat", async (importOriginal) => {
-  // Keep the REAL formatters — a stub echoing its input would hide exactly the
-  // timezone conversion the "stored, not shifted" test is here to catch.
-  const actual = await importOriginal<typeof import("@/lib/dateFormat")>();
-  return { ...actual, formatDateTime: (s: string) => `fmt(${s})` };
-});
+// NOT mocked. The first attempt kept a `formatDateTime: (s) => `fmt(${s})`` stub
+// "so the real formatters run" — but formatDateTime was the function WITH the bug,
+// and `fmt(2026-09-01T19:00:00Z)` contains the substring "19:00", so the new
+// regression test passed against the pre-fix component in every timezone. A mock
+// that stubs the thing under test cannot test it.
 
 import AdditionalMealsEditor from "./AdditionalMealsEditor";
 import { EventMealData } from "@/lib/api";

@@ -8,7 +8,7 @@ import { useQuote, useAccounts, useContacts, useSiteSettings, useDateFormat, use
 import { canWhatsApp, waLink } from "@/lib/whatsapp";
 import { MessageCircle } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { formatDate, todayISO } from "@/lib/dateFormat";
+import { formatDate, formatInstantDate, todayISO } from "@/lib/dateFormat";
 import { formatCurrency, formatPercent } from "@/lib/utils";
 import MenuBuilder from "@/components/MenuBuilder";
 import AdditionalMealsEditor from "@/components/AdditionalMealsEditor";
@@ -791,9 +791,9 @@ export default function QuoteDetailPage() {
                 )}
               </div>
               <p className="text-sm text-muted-foreground mt-1">
-                Created {formatDate(q.created_at, dateFormat)}
-                {q.sent_at && ` · Sent ${formatDate(q.sent_at, dateFormat)}`}
-                {q.accepted_at && ` · Accepted ${formatDate(q.accepted_at, dateFormat)}`}
+                Created {formatInstantDate(q.created_at, dateFormat)}
+                {q.sent_at && ` · Sent ${formatInstantDate(q.sent_at, dateFormat)}`}
+                {q.accepted_at && ` · Accepted ${formatInstantDate(q.accepted_at, dateFormat)}`}
               </p>
             </div>
             <div className="text-right">
