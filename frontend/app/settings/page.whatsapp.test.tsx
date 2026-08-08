@@ -17,6 +17,9 @@ vi.mock("@/components/ChoiceOptionsSettings", () => ({ default: () => null }));
 vi.mock("@/components/ProductLinesSettings", () => ({ default: () => null }));
 vi.mock("@/components/CommissionSettings", () => ({ default: () => null }));
 vi.mock("@/components/BillingPanel", () => ({ default: () => null }));
+// Shares the Integrations tab with WhatsApp but has its own hook and API calls;
+// page.clientEmail.test.tsx is where it's exercised for real.
+vi.mock("@/components/ClientEmailSettings", () => ({ default: () => null }));
 
 const updateSiteSettings = vi.fn().mockResolvedValue({});
 vi.mock("@/lib/api", () => ({

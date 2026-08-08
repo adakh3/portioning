@@ -19,6 +19,7 @@ import TimelineStepExtras from "@/components/TimelineStepExtras";
 import ServiceStyleExtras from "@/components/ServiceStyleExtras";
 import ProductLinesSettings from "@/components/ProductLinesSettings";
 import CommissionSettings from "@/components/CommissionSettings";
+import ClientEmailSettings from "@/components/ClientEmailSettings";
 import BillingPanel from "@/components/BillingPanel";
 
 // default_tax_rate is stored as a fraction (0.20 = 20%); show it as a percentage.
@@ -440,6 +441,7 @@ export default function SettingsPage() {
 
       {tab === "integrations" && (
       <div className="space-y-6 max-w-2xl">
+        <ClientEmailSettings />
         <WhatsAppSettings settings={settings} onSave={() => mutateSettings()} />
         <AIFollowUpSettings settings={settings} onSave={() => mutateSettings()} />
       </div>
