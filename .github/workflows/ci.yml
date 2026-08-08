@@ -69,6 +69,18 @@ jobs:
         working-directory: frontend
         run: npm run test:run
 
+      # Again in a US timezone. The runner is UTC, where a whole class of date bug
+      # is a no-op — `new Date("2026-03-10")` is UTC midnight, so rendering it in
+      # the viewer's zone only moves the day WEST of Greenwich. A real one shipped
+      # behind this blind spot: every booking date displayed a day early for every
+      # US user, with CI green throughout. The product is US-only, so the zone that
+      # matters is not the one the runner happens to use.
+      - name: Run tests again in a US timezone
+        working-directory: frontend
+        env:
+          TZ: America/New_York
+        run: npm run test:run
+
   migrations:
     name: Migration safety (Django)
     runs-on: ubuntu-latest
