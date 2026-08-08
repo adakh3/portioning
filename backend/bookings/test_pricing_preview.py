@@ -170,6 +170,48 @@ class PricingPreviewTests(TestCase):
                 self.assertEqual(res.status_code, 200, res.data)
                 self.assertIn('total', res.data['totals'])
 
+    def test_a_draft_the_save_would_refuse_says_so(self):
+        """A breakdown bigger than the guest count prices honestly and then 400s on
+        save, so the card would show a confident number that cannot exist. The
+        preview now names the reason — in the save path's own words — while still
+        returning the figures and still answering 200."""
+        draft = dict(self._draft(), guest_count=10)
+        draft['guest_counts'] = [{'segment': self.kids.name, 'count': 999}]
+
+        res = self.client.post(PREVIEW_URL, draft, format='json')
+
+        self.assertEqual(res.status_code, 200)
+        self.assertTrue(res.data['warnings'], 'expected a warning')
+        self.assertIn('999', res.data['warnings'][0])
+        # Still priced — the caller decides how loudly to say it.
+        self.assertNotEqual(res.data['totals']['total'], '0.00')
+
+        # And the wording is the save path's, not a second one that can drift.
+        from events.models import guest_counts_error
+        self.assertEqual(
+            res.data['warnings'][0],
+            guest_counts_error(self.org, 10, draft['guest_counts']),
+        )
+
+    def test_a_save_of_that_draft_really_is_refused(self):
+        """The warning is only worth trusting if the save genuinely rejects it."""
+        quote = Quote.objects.create(
+            organisation=self.org, primary_contact=self.contact,
+            event_date='2026-05-01', guest_count=10, price_per_head=Decimal('100'))
+
+        res = self.client.patch(
+            f'/api/bookings/quotes/{quote.id}/',
+            {'guest_count': 10,
+             'guest_counts': [{'segment': self.kids.name, 'count': 999}]},
+            format='json')
+
+        self.assertEqual(res.status_code, 400, res.data)
+
+    def test_an_ordinary_draft_carries_no_warnings(self):
+        """The quiet case: a warning that fires on healthy drafts would be ignored."""
+        res = self.client.post(PREVIEW_URL, self._draft(), format='json')
+        self.assertEqual(res.data['warnings'], [])
+
     def test_no_money_value_is_ever_negative_zero(self):
         """Found by hand in a real browser: a negative guest count previewed a tax of
         `-0.00`, which renders as "-$0.00" on the customer's card. The codebase

@@ -51,7 +51,30 @@ class PricingPreviewView(APIView):
             service_charge_taxable=bool(data.get('service_charge_taxable', True)),
             gratuity_pct=_as_decimal(data.get('gratuity_pct')),
         ))
-        return Response(result.to_dict())
+        return Response({
+            **result.to_dict(),
+            'warnings': _warnings(org, guest_count, _as_list(data.get('guest_counts'))),
+        })
+
+
+def _warnings(org, guest_count, raw_counts):
+    """Why this draft would be REFUSED if saved, if it would be.
+
+    The preview prices what the engine would compute, honestly — including drafts
+    the save path rejects. A breakdown of 999 kids on a 10-guest booking previews
+    $49,950 and then 400s on save, so without this the card confidently shows a
+    number that cannot exist.
+
+    A warning rather than an error status on purpose. The endpoint must not fail
+    mid-keystroke — half-typed is the normal state of a draft — so the caller gets
+    the figures AND the reason they will not stick, and decides how loudly to say
+    so. Same text as the save path's own rejection (`guest_counts_error`), because
+    two wordings for one rule is how they drift.
+    """
+    from events.models import guest_counts_error
+
+    problem = guest_counts_error(org, guest_count, raw_counts)
+    return [problem] if problem else []
 
 
 def _segments(org, guest_count, raw_counts):
