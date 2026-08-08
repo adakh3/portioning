@@ -653,6 +653,43 @@ class ClientMessageEndpointTests(MessagingTestBase):
             self.staff.get(f'/api/bookings/quotes/{their_quote.pk}/messages/').status_code, 404,
         )
 
+    def test_the_message_list_does_not_query_per_row(self):
+        """The ledger grows for the life of a booking; its cost must not."""
+        from tests.base import assert_list_queries_constant
+        user = self.staff.handler._force_user
+        assert_list_queries_constant(
+            self, self.staff, f'/api/bookings/quotes/{self.quote.pk}/messages/',
+            lambda: WhatsAppMessage.objects.create(
+                organisation=self.org, quote=self.quote, channel='email',
+                to_email='nadia@example.com', subject='s', body='b',
+                status='sent', sent_by=user,
+            ),
+            label='client messages',
+        )
+
+    def test_the_channel_fields_are_reachable_over_the_api(self):
+        """Settings and the contact record are where these are actually set, so
+        a field the API doesn't expose may as well not exist."""
+        settings_resp = self.staff.get('/api/bookings/settings/')
+        self.assertEqual(settings_resp.status_code, 200)
+        self.assertIn('default_client_channel', settings_resp.data)
+
+        saved = self.staff.patch(
+            '/api/bookings/settings/', {'default_client_channel': 'email'}, format='json',
+        )
+        self.assertEqual(saved.status_code, 200)
+        self.assertEqual(
+            OrgSettings.for_org(self.org).default_client_channel, 'email',
+        )
+
+        contact_resp = self.staff.patch(
+            f'/api/bookings/contacts/{self.contact.pk}/',
+            {'preferred_channel': 'email'}, format='json',
+        )
+        self.assertEqual(contact_resp.status_code, 200)
+        self.contact.refresh_from_db()
+        self.assertEqual(self.contact.preferred_channel, 'email')
+
     def test_anonymous_callers_are_rejected(self):
         anon = APIClient()
         resp = anon.post(f'/api/bookings/quotes/{self.quote.pk}/send-message/',
