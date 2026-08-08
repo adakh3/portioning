@@ -102,6 +102,11 @@ EMAIL_FAKE_TRANSPORT = os.environ.get(
 # Which model each AI task runs on, as 'provider:model' — see portioning/llm.py.
 # Switching supplier or model per task is a one-env-var change, nothing else.
 LLM_FOLLOWUP_DRAFTER = os.environ.get('LLM_FOLLOWUP_DRAFTER', 'openai:gpt-5.4-nano')
+# Drafts the client-facing message a rep reviews before sending (REL-445). Same
+# cheap-and-fast tier as follow-ups; a human always reads this one before it goes.
+LLM_CLIENT_MESSAGE_DRAFTER = os.environ.get(
+    'LLM_CLIENT_MESSAGE_DRAFTER', 'openai:gpt-5.4-nano',
+)
 
 
 # Application definition
