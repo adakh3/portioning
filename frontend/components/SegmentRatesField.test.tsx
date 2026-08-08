@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 
 import SegmentRatesField from "./SegmentRatesField";
-import { GuestSegmentMeta } from "@/lib/quoteTotals";
+import { GuestSegmentMeta } from "@/lib/bookingPayload";
 
 // REL-428 — per-head rate by guest type, in Menu & Pricing beside the Price/head it
 // derives from. Moved out of the Guests card because that card is filled in BEFORE

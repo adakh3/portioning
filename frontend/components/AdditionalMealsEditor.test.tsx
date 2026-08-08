@@ -9,7 +9,7 @@ vi.mock("@/lib/dateFormat", () => ({ formatDateTime: (s: string) => `fmt(${s})`,
 
 import AdditionalMealsEditor from "./AdditionalMealsEditor";
 import { EventMealData } from "@/lib/api";
-import { GuestSegmentMeta } from "@/lib/quoteTotals";
+import { GuestSegmentMeta } from "@/lib/bookingPayload";
 
 const meal = (over: Partial<EventMealData> = {}): EventMealData => ({
   label: "Welcome drinks", guest_count: 20, price_per_head: "15.00", dishes: [],

@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import { resolve } from "path";
-import { computeQuoteTotals, computeBookingTotals, buildQuoteSavePayload, buildEventSavePayload, EventSaveInput, lineItemTotal, LineItemInput, segmentFood, segmentFoodFromRows, segmentFoodRows, segmentFoodRowsFromRows, segmentEffectiveRate, buildGuestCountsPayload, hasVendorDoubleEntry, deriveMealCount, deriveMealCountFromRows, mealsFood, buildMealsPayload, GuestSegmentMeta } from "./quoteTotals";
+import { computeQuoteTotals, computeBookingTotals, lineItemTotal, segmentFood, segmentFoodFromRows, segmentFoodRows, segmentFoodRowsFromRows, segmentEffectiveRate, hasVendorDoubleEntry, mealsFood } from "./quoteTotals";
+import { buildQuoteSavePayload, buildEventSavePayload, EventSaveInput, LineItemInput, buildGuestCountsPayload, deriveMealCount, deriveMealCountFromRows, buildMealsPayload, GuestSegmentMeta } from "./bookingPayload";
 
 // Adults(default)/Kids(0.5)/Vendors(0.5, additional covers) — mirrors the backend
 // segment_food_total fixture in bookings/test_segment_pricing.py (AC10/AC11).
@@ -443,7 +444,7 @@ describe("buildQuoteSavePayload", () => {
     ]);
     expect(payload.price_per_head).toBe("50.00"); // the regression: menu price now saved
     expect(payload.dish_ids).toEqual([1, 2]);
-    expect(payload.tax_rate).toBe("0.2000"); // percent -> decimal
+    expect(payload.tax_rate).toBe("0.20000"); // percent -> decimal
     expect(payload.line_items).toHaveLength(2);
     expect(payload.line_items[0]).toMatchObject({ id: 7, description: "Keep" });
     expect(payload.line_items[1]).not.toHaveProperty("id"); // new row has no id

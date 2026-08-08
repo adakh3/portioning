@@ -103,7 +103,7 @@ class Quote(OrgScopedModel, models.Model):
     # negative service charge / gratuity — each of which recomputed the totals and
     # rendered happily into a sendable PDF.
     tax_rate = models.DecimalField(
-        max_digits=5, decimal_places=4, default=Decimal('0.2000'),
+        max_digits=6, decimal_places=5, default=Decimal('0.20000'),
         validators=[MinValueValidator(Decimal('0')), MaxValueValidator(Decimal('1'))],
     )
     tax_amount = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))

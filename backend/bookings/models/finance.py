@@ -36,7 +36,7 @@ class Invoice(models.Model):
     issue_date = models.DateField()
     due_date = models.DateField()
     subtotal = models.DecimalField(max_digits=10, decimal_places=2)
-    tax_rate = models.DecimalField(max_digits=5, decimal_places=4, default=Decimal('0.2000'))
+    tax_rate = models.DecimalField(max_digits=6, decimal_places=5, default=Decimal('0.20000'))
     tax_amount = models.DecimalField(max_digits=10, decimal_places=2)
     total = models.DecimalField(max_digits=10, decimal_places=2)
     status = models.CharField(max_length=20, choices=InvoiceStatus.choices, default=InvoiceStatus.DRAFT)

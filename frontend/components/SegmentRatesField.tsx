@@ -2,7 +2,8 @@
 
 import { ValidatedInput } from "@/components/ui/validated-input";
 import { useSiteSettings } from "@/lib/hooks";
-import { segmentEffectiveRate, usableRate, GuestSegmentMeta } from "@/lib/quoteTotals";
+import { segmentEffectiveRate, usableRate } from "@/lib/quoteTotals";
+import { GuestSegmentMeta } from "@/lib/bookingPayload";
 import { groupSegments } from "@/components/GuestCountField";
 
 /**

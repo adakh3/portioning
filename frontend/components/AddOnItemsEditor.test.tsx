@@ -71,7 +71,8 @@ vi.mock("@/lib/hooks", () => ({
 }));
 
 import AddOnItemsEditor from "./AddOnItemsEditor";
-import { LineItemInput, computeBookingTotals } from "@/lib/quoteTotals";
+import { computeBookingTotals } from "@/lib/quoteTotals";
+import { LineItemInput } from "@/lib/bookingPayload";
 
 function Harness({ initial = [], guests = 120 }: { initial?: LineItemInput[]; guests?: number }) {
   const [items, setItems] = useState<LineItemInput[]>(initial);

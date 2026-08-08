@@ -704,7 +704,7 @@ class Event(OrgScopedModel, models.Model):
     # negative service charge / gratuity — each of which recomputed the totals and
     # rendered happily into a sendable PDF.
     tax_rate = models.DecimalField(
-        max_digits=5, decimal_places=4, default=Decimal('0'),
+        max_digits=6, decimal_places=5, default=Decimal('0'),
         validators=[MinValueValidator(Decimal('0')), MaxValueValidator(Decimal('1'))],
         help_text='Tax rate as a fraction (0.20 = 20%); applied only when is_taxable.',
     )

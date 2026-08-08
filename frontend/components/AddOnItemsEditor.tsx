@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { Pencil } from "lucide-react";
 import { useAddOnProducts } from "@/lib/hooks";
-import { LineItemInput, lineItemTotal } from "@/lib/quoteTotals";
+import { lineItemTotal } from "@/lib/quoteTotals";
+import { LineItemInput } from "@/lib/bookingPayload";
 import { formatCurrency } from "@/lib/utils";
 import AddOnPickerInline from "@/components/AddOnPickerInline";
 import { ADDON_CATEGORIES, ADDON_UNITS, unitLabel } from "@/lib/addOns";

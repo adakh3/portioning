@@ -62,8 +62,8 @@ class OrgSettings(models.Model):
     timezone = models.CharField(max_length=50, default='Europe/London')
     tax_label = models.CharField(max_length=20, default='VAT', help_text='e.g. VAT, Sales Tax, GST')
     default_tax_rate = models.DecimalField(
-        max_digits=5, decimal_places=4, default=Decimal('0.2000'),
-        help_text='Default tax rate as decimal (e.g. 0.2000 = 20%)',
+        max_digits=6, decimal_places=5, default=Decimal('0.20000'),
+        help_text='Default tax rate as decimal (e.g. 0.20000 = 20%)',
     )
     # Service charge + gratuity defaults, copied onto a booking at creation.
     # US orgs get 20% (via country_defaults); others default to 0.

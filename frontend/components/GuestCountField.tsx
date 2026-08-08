@@ -2,7 +2,7 @@
 
 import { ValidatedInput } from "@/components/ui/validated-input";
 import { useSiteSettings } from "@/lib/hooks";
-import { defaultSegmentRemainder, GuestSegmentMeta } from "@/lib/quoteTotals";
+import { defaultSegmentRemainder, GuestSegmentMeta } from "@/lib/bookingPayload";
 
 export interface GuestCountValue {
   guest_count: number; // THE number — canonical, drives money and displays

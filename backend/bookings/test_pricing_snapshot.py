@@ -142,7 +142,10 @@ class SnapshotIsWrittenTests(SnapshotBase):
         quote.refresh_from_db()
 
         self.assertEqual(quote.tax_amount, Decimal('875.00'))
-        self.assertEqual(quote.pricing_snapshot['rates']['tax_rate'], '0.0875')
+        # Five decimals since REL-465 widened the column so NYC's 8.875% fits;
+        # the point of the assertion is unchanged — the rate is NOT quantized to
+        # cents the way money is.
+        self.assertEqual(quote.pricing_snapshot['rates']['tax_rate'], '0.08750')
         # And the rate the snapshot records really does produce the amount beside it.
         self.assertEqual(
             round(Decimal(quote.pricing_snapshot['rates']['tax_rate'])
@@ -421,3 +424,151 @@ class GuestInvariantAtTheAPITests(SnapshotBase):
             {r.segment.name: r.count for r in event.guest_counts.all()},
             {self.adults.name: 80, self.kids.name: 20},
         )
+
+
+class SnapshotIsReadableTests(SnapshotBase):
+    """REL-465: a read-only screen renders the saved breakdown, never a fresh one.
+
+    Without the snapshot on the wire, a quote that is being *viewed* had only five
+    flat columns to show, so the page recomputed the itemized food rows client-side
+    — a second engine, producing rows that need not add up to the stored total
+    beside them. The detail endpoint now hands over the answer the save produced.
+    """
+
+    def test_the_detail_endpoint_carries_the_snapshot(self):
+        quote = self._quote()
+        res = self.client.get(f'/api/bookings/quotes/{quote.id}/')
+        self.assertEqual(res.status_code, 200)
+
+        snap = res.data['pricing_snapshot']
+        self.assertIsNotNone(snap)
+        # The same shape the live preview returns, so one reader renders both.
+        for section in ('food', 'lines', 'totals', 'rates'):
+            self.assertIn(section, snap)
+        # And it agrees with the columns alongside it, to the cent.
+        self.assertEqual(snap['totals']['total'], str(quote.total))
+        self.assertEqual(snap['totals']['subtotal'], res.data['subtotal'])
+
+    def test_the_itemized_food_rows_survive_the_round_trip(self):
+        """The rows the screen would otherwise have had to recompute."""
+        quote = self._quote()
+        # Through the API, because that is the path that derives the default
+        # segment's remainder — the row the screen would otherwise work out itself.
+        res = self.client.patch(
+            f'/api/bookings/quotes/{quote.id}/',
+            {'guest_count': 100, 'guest_counts': [{'segment': self.kids.name, 'count': 20}]},
+            format='json')
+        self.assertEqual(res.status_code, 200, res.data)
+
+        res = self.client.get(f'/api/bookings/quotes/{quote.id}/')
+        rows = res.data['pricing_snapshot']['food']['food_rows']
+        self.assertIsNotNone(rows)
+        by_name = {r['name']: r for r in rows}
+        # Kids at half the per-head rate — priced by the engine, not the browser.
+        self.assertEqual(by_name['Kids464']['count'], 20)
+        self.assertEqual(by_name['Kids464']['rate'], '50.00')
+        self.assertEqual(by_name['Adults464']['count'], 80)
+
+    def test_the_list_endpoint_leaves_it_out(self):
+        """A full breakdown per row, on a screen that shows one total per row."""
+        self._quote()
+        res = self.client.get('/api/bookings/quotes/')
+        rows = res.data['results'] if isinstance(res.data, dict) else res.data
+        self.assertTrue(rows)
+        self.assertNotIn('pricing_snapshot', rows[0])
+        # The total it actually shows is still there.
+        self.assertIn('total', rows[0])
+
+    def test_it_cannot_be_written_from_the_api(self):
+        """It records what the save COMPUTED. A client-supplied one is a forgery."""
+        quote = self._quote()
+        real = quote.pricing_snapshot['totals']['total']
+
+        res = self.client.patch(
+            f'/api/bookings/quotes/{quote.id}/',
+            {'pricing_snapshot': {'totals': {'total': '1.00'}}}, format='json')
+        self.assertEqual(res.status_code, 200, res.data)
+
+        quote.refresh_from_db()
+        self.assertEqual(quote.pricing_snapshot['totals']['total'], real)
+
+    def test_a_quote_saved_before_snapshots_reads_back_as_null(self):
+        """The legacy row the frontend falls back to the flat columns for."""
+        quote = self._quote()
+        Quote.objects.filter(pk=quote.pk).update(pricing_snapshot=None)
+
+        res = self.client.get(f'/api/bookings/quotes/{quote.id}/')
+        self.assertEqual(res.status_code, 200)
+        self.assertIsNone(res.data['pricing_snapshot'])
+        # Everything the fallback needs is still on the wire.
+        for field in ('food_total', 'subtotal', 'service_charge', 'tax_amount', 'gratuity', 'total'):
+            self.assertIn(field, res.data)
+
+
+class FractionalTaxRateTests(SnapshotBase):
+    """A tax rate with three decimals of percent — NYC charges 8.875%.
+
+    `DecimalField(decimal_places=4)` on a FRACTION is only two decimals of percent,
+    so 8.875% could not be stored at all: the API rejected it outright, and any
+    client that rounded first stored 8.87% or 8.88% instead. On a $50,000 booking
+    that is a $2.50 error, silently, in the largest market this product sells into.
+    """
+
+    def test_a_new_york_rate_is_accepted_and_stored_exactly(self):
+        quote = self._quote(tax_rate=Decimal('0'))
+        res = self.client.patch(
+            f'/api/bookings/quotes/{quote.id}/', {'tax_rate': '0.08875'}, format='json')
+        self.assertEqual(res.status_code, 200, res.data)
+
+        quote.refresh_from_db()
+        self.assertEqual(quote.tax_rate, Decimal('0.08875'))
+
+    def test_the_tax_it_charges_is_the_rate_it_stored(self):
+        """The money, not just the column: 8.875% of the taxable base, to the cent."""
+        quote = self._quote(
+            guest_count=100, price_per_head=Decimal('500'), tax_rate=Decimal('0.08875'),
+            service_charge_pct=Decimal('0'), gratuity_pct=Decimal('0'))
+        quote.refresh_from_db()
+
+        self.assertEqual(quote.subtotal, Decimal('50000.00'))
+        # 50000 × 0.08875 = 4437.50 exactly — not 4435.00 (8.87%) or 4440.00 (8.88%).
+        self.assertEqual(quote.tax_amount, Decimal('4437.50'))
+        self.assertEqual(quote.total, Decimal('54437.50'))
+
+    def test_the_snapshot_and_the_preview_agree_on_the_odd_rate(self):
+        quote = self._quote(
+            guest_count=100, price_per_head=Decimal('500'), tax_rate=Decimal('0.08875'),
+            service_charge_pct=Decimal('0'), gratuity_pct=Decimal('0'))
+        quote.refresh_from_db()
+
+        res = self.client.post('/api/pricing/preview/', {
+            'price_per_head': '500', 'guest_count': 100,
+            'tax_rate': '0.08875', 'service_charge_pct': '0', 'gratuity_pct': '0',
+        }, format='json')
+        self.assertEqual(res.status_code, 200, res.data)
+
+        # What the card would show while typing == what the save stored.
+        self.assertEqual(res.data['totals']['total'], str(quote.total))
+        self.assertEqual(res.data['totals']['tax_amount'], str(quote.tax_amount))
+        self.assertEqual(res.data['rates']['tax_rate'], '0.08875')
+
+    def test_an_existing_row_is_unchanged_by_the_widening(self):
+        """The migration widens; it must not restate what anyone already agreed to."""
+        quote = self._quote(tax_rate=Decimal('0.0850'))
+        quote.refresh_from_db()
+
+        self.assertEqual(quote.tax_rate, Decimal('0.0850'))
+        # Same number, now with the extra place — and the money it produced is the
+        # money it still produces.
+        self.assertEqual(quote.tax_rate, Decimal('0.08500'))
+        before = quote.total
+        quote.recalculate_totals()
+        quote.refresh_from_db()
+        self.assertEqual(quote.total, before)
+
+    def test_the_pdf_prints_the_rate_it_charged(self):
+        """Two numbers on one customer-facing page that must both be true."""
+        from bookings.pdf import _pct
+        self.assertEqual(_pct(Decimal('8.875')), '8.875')
+        self.assertEqual(_pct(Decimal('8.5')), '8.5')
+        self.assertEqual(_pct(Decimal('20')), '20')

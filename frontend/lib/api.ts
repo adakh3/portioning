@@ -536,6 +536,11 @@ export interface Quote {
   gratuity_pct: string;
   gratuity: string;
   total: string;
+  /** The engine's whole answer for this quote AS SAVED — the same shape the live
+   * preview returns, so a read-only screen renders its breakdown without doing any
+   * arithmetic. Absent on the list endpoint, and `null` on quotes saved before
+   * REL-464 (the caller falls back to the flat total columns). */
+  pricing_snapshot?: PricingPreview | null;
   dishes: number[];
   dish_names: string[];
   courses: CourseData[];

@@ -133,14 +133,14 @@ describe("Quote form — add-ons reach the payload in today's shape", () => {
 
     await waitFor(() => expect(h.createQuote).toHaveBeenCalledTimes(1));
     const payload = h.createQuote.mock.calls[0][0] as Record<string, unknown>;
-    // Exactly the pre-REL-454 shape. Note create posts the editor's objects as they
-    // are (it does not go through `buildLineItemsPayload` the way the edit save does),
-    // so there is no `sort_order` here — unchanged by this work, and pinned so a
-    // future tidy-up of that asymmetry is a deliberate decision rather than a slip.
+    // The asymmetry this used to pin is gone (REL-465): create goes through
+    // `buildQuoteSavePayload` — and so `buildLineItemsPayload` — exactly as the edit
+    // save does, which is where `sort_order` comes from. Create and edit now post
+    // the same body for the same state, which is the point of AC6.
     expect(payload.line_items).toEqual([
-      { variant: 11, category: "beverage", description: "Soft Drinks — 1.5L", quantity: "2", unit: "each", unit_price: "150.00" },
-      { variant: null, category: "fee", description: "Delivery & Setup", quantity: "1", unit: "flat", unit_price: "500" },
-      { variant: null, category: "labor", description: "Coat check", quantity: "1", unit: "each", unit_price: "100" },
+      { variant: 11, category: "beverage", description: "Soft Drinks — 1.5L", quantity: "2", unit: "each", unit_price: "150.00", sort_order: 0 },
+      { variant: null, category: "fee", description: "Delivery & Setup", quantity: "1", unit: "flat", unit_price: "500", sort_order: 0 },
+      { variant: null, category: "labor", description: "Coat check", quantity: "1", unit: "each", unit_price: "100", sort_order: 0 },
     ]);
     for (const li of payload.line_items as Record<string, unknown>[]) {
       expect(li).not.toHaveProperty("id");

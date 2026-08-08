@@ -3,7 +3,7 @@
 // the editor and the picker can't disagree about what a line is called or whether
 // it is already on the booking (REL-454).
 import type { AddOnProduct, AddOnVariant } from "@/lib/api";
-import type { LineItemInput } from "@/lib/quoteTotals";
+import type { LineItemInput } from "@/lib/bookingPayload";
 
 /** Category options offered on a custom (ad-hoc) line. */
 export const ADDON_CATEGORIES: [string, string][] = [

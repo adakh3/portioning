@@ -2,7 +2,7 @@
 
 import { EventMealData } from "@/lib/api";
 import { formatDateTime, todayISO } from "@/lib/dateFormat";
-import { deriveMealCount, GuestSegmentMeta } from "@/lib/quoteTotals";
+import { deriveMealCount, GuestSegmentMeta } from "@/lib/bookingPayload";
 import MenuBuilder from "@/components/MenuBuilder";
 import TimeField from "@/components/TimeField";
 import { Button } from "@/components/ui/button";

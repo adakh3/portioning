@@ -75,8 +75,11 @@ def _pct(value):
     8.5% quote printed '8%' here (Decimal's half-even) while the app showed '9%'
     and the money — correct in both — was 8.5%. Mirrors ``formatPercent`` in
     frontend/lib/utils.ts so the PDF and the screen always agree.
+
+    Three decimals, matching the column: NYC charges 8.875%, and two decimals
+    printed '8.88%' on the invoice beside tax actually computed at 8.875%.
     """
-    q = Decimal(value or 0).quantize(Decimal('0.01')).normalize()
+    q = Decimal(value or 0).quantize(Decimal('0.001')).normalize()
     return f'{q:f}'
 
 

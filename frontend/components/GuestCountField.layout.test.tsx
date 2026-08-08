@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 
 import GuestCountField, { GuestCountValue } from "./GuestCountField";
-import { GuestSegmentMeta } from "@/lib/quoteTotals";
+import { GuestSegmentMeta } from "@/lib/bookingPayload";
 
 // REL-428 — the Guests card is COUNTS ONLY. Each segment reads as one unit, and the
 // derived segment lines up with the editable ones instead of running a control

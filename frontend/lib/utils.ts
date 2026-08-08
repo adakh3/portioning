@@ -32,11 +32,12 @@ export function formatCurrency(
  * US sales tax is routinely fractional (CA 7.25%, many states x.5%), so
  * rounding the label to an integer states a rate the customer is not being
  * charged: an 8.5% quote read "9%" on screen and "8%" on its PDF while the
- * money was correct in both. Keeps up to 2dp and strips trailing zeros so a
- * whole rate still shows as "20", not "20.00".
+ * money was correct in both. Keeps up to 3dp — NYC charges 8.875%, and 2dp
+ * printed "8.88%" beside tax computed at 8.875% — and strips trailing zeros so a
+ * whole rate still shows as "20", not "20.000".
  */
 export function formatPercent(value: string | number): string {
   const num = typeof value === "string" ? parseFloat(value) : value;
   if (isNaN(num)) return "0";
-  return String(Number(num.toFixed(2)));
+  return String(Number(num.toFixed(3)));
 }

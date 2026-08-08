@@ -123,7 +123,7 @@ class QuoteSerializer(OrgScopedModelSerializer):
             'setup_time', 'guest_arrival_time', 'meal_time', 'end_time',
             'is_taxable', 'subtotal', 'tax_rate', 'tax_amount', 'total',
             'service_charge_pct', 'service_charge_taxable', 'service_charge',
-            'gratuity_pct', 'gratuity',
+            'gratuity_pct', 'gratuity', 'pricing_snapshot',
             'dishes', 'dish_ids', 'dish_names', 'based_on_template',
             'courses', 'dish_courses', 'menu_choices', 'menu_lines',
             'additional_meals', 'timeline_entries',
@@ -138,6 +138,13 @@ class QuoteSerializer(OrgScopedModelSerializer):
         read_only_fields = [
             'status', 'subtotal', 'tax_amount', 'total',
             'service_charge', 'gratuity',  # stored amounts, computed by recalculate_totals
+            # The engine's whole answer for this quote, as stored. Read-only for the
+            # same reason the amounts are: it is written by the save, never sent to
+            # it. Exposed so a read-only screen can RENDER the breakdown it already
+            # has — itemized food rows and all — instead of recomputing one that
+            # might not match the stored total (REL-465). NULL on rows saved before
+            # REL-464; the caller falls back to the flat columns.
+            'pricing_snapshot',
             'sent_at', 'accepted_at', 'event',
             'created_by',
             'created_at', 'updated_at',
@@ -390,7 +397,10 @@ class QuoteSerializer(OrgScopedModelSerializer):
 # signature does a per-row query (latest_signature); it's a detail-view concern.
 QUOTE_LIST_EXCLUDE = {'line_items', 'dishes', 'dish_ids', 'dish_names', 'additional_meals',
                       'courses', 'dish_courses', 'menu_choices', 'menu_lines', 'timeline_entries',
-                      'signature', 'public_token'}
+                      'signature', 'public_token',
+                      # A full breakdown per row, on a list that shows one total per
+                      # row. The list is where payload size actually costs something.
+                      'pricing_snapshot'}
 
 
 class QuoteListSerializer(QuoteSerializer):

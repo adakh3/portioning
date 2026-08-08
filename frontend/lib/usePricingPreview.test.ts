@@ -65,7 +65,7 @@ describe("usePricingPreview", () => {
     // aborted — the shape of a genuinely slow network.
     let releaseFirst: (v: unknown) => void = () => {};
     const first = new Promise((r) => { releaseFirst = r; });
-    const spy = vi.spyOn(api, "pricingPreview").mockImplementation((_draft, signal) => {
+    const spy = vi.spyOn(api, "pricingPreview").mockImplementation((_draft: unknown, signal?: AbortSignal) => {
       if (spy.mock.calls.length === 1) {
         return first.then(() => {
           if (signal?.aborted) throw Object.assign(new Error("aborted"), { name: "AbortError" });
