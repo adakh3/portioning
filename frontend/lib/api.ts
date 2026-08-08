@@ -1009,6 +1009,26 @@ export interface WhatsAppMessage {
   updated_at: string;
 }
 
+// Client email — the caterer's own connected mailbox
+export type MailboxProvider = "google" | "microsoft";
+
+export interface ConnectedMailbox {
+  id: number;
+  provider: MailboxProvider;
+  provider_display: string;
+  email_address: string;
+  status: "connected" | "needs_reconnect";
+  last_error: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MailboxStatus {
+  connected: boolean;
+  mailbox: ConnectedMailbox | null;
+  providers_available: MailboxProvider[];
+}
+
 // AI follow-up drafts
 export interface FollowUpStatsRow {
   user_id: number | null;
@@ -1868,6 +1888,16 @@ export const api = {
     fetchApi<WhatsAppMessage>(`/bookings/leads/${leadId}/whatsapp/send/`, { method: "POST", body: JSON.stringify(data) }),
   markWhatsAppRead: (leadId: number) =>
     fetchApi<{ marked_read: number }>(`/bookings/leads/${leadId}/whatsapp/mark-read/`, { method: "POST" }),
+
+  // Client email — the caterer's own connected mailbox
+  getConnectedMailbox: () =>
+    fetchApi<MailboxStatus>("/integrations/email/"),
+  // Returns the provider consent URL; the browser has to navigate to it, and
+  // the provider then redirects back to /settings?tab=integrations.
+  startMailboxConnect: (provider: MailboxProvider) =>
+    fetchApi<{ auth_url: string }>(`/integrations/email/connect/?provider=${provider}`),
+  disconnectMailbox: () =>
+    fetchApi<void>("/integrations/email/disconnect/", { method: "POST" }),
 
   // AI follow-up drafts
   getFollowUpDrafts: (status: string = "pending") =>

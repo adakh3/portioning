@@ -40,6 +40,7 @@ from bookings.views import (
     LockedDateListCreateView, LockedDateDeleteView,
     PublicBookingView, PublicBookingSignView, PublicBookingPDFView,
     QuoteSendForSignatureView, EventSendForSignatureView,
+    MailboxStatusView, MailboxConnectView, MailboxCallbackView, MailboxDisconnectView,
 )
 
 urlpatterns = [
@@ -167,4 +168,10 @@ urlpatterns = [
 
     # Settings
     path('bookings/settings/', SiteSettingsView.as_view(), name='site-settings'),
+
+    # Client email — the caterer's own connected mailbox (OAuth)
+    path('integrations/email/', MailboxStatusView.as_view(), name='mailbox-status'),
+    path('integrations/email/connect/', MailboxConnectView.as_view(), name='mailbox-connect'),
+    path('integrations/email/callback/', MailboxCallbackView.as_view(), name='mailbox-callback'),
+    path('integrations/email/disconnect/', MailboxDisconnectView.as_view(), name='mailbox-disconnect'),
 ]

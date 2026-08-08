@@ -18,6 +18,7 @@ import {
   DishCategory,
   MenuTemplate,
   SiteSettingsData,
+  MailboxStatus,
   ProductLine,
   ChoiceOption,
   StaffMember,
@@ -123,6 +124,12 @@ export function useVenues() {
 export function useSiteSettings() {
   return useSWR<SiteSettingsData>("settings", () => api.getSiteSettings(), {
     dedupingInterval: 300000,
+    revalidateOnFocus: false,
+  });
+}
+
+export function useConnectedMailbox() {
+  return useSWR<MailboxStatus>("connected-mailbox", () => api.getConnectedMailbox(), {
     revalidateOnFocus: false,
   });
 }

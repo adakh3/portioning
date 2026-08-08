@@ -70,6 +70,23 @@ OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', '')
 # Shared secret for the scheduled-jobs endpoint (GitHub Actions cron). Unset = endpoint disabled.
 CRON_SECRET = os.environ.get('CRON_SECRET', '')
 
+# ── Client email: send from the caterer's own mailbox (REL-460) ──
+# Each org connects its own Gmail/Outlook account by OAuth; the platform holds
+# only send-scoped tokens and never a mailbox password. The OAuth *apps* are
+# platform-level, so the client id/secret pairs live here.
+GOOGLE_OAUTH_CLIENT_ID = os.environ.get('GOOGLE_OAUTH_CLIENT_ID', '')
+GOOGLE_OAUTH_CLIENT_SECRET = os.environ.get('GOOGLE_OAUTH_CLIENT_SECRET', '')
+MS_OAUTH_CLIENT_ID = os.environ.get('MS_OAUTH_CLIENT_ID', '')
+MS_OAUTH_CLIENT_SECRET = os.environ.get('MS_OAUTH_CLIENT_SECRET', '')
+# Public origin the provider redirects back to — must exactly match the
+# redirect URI registered in Google Cloud Console / Entra. Prod:
+# https://catering.relogue.com
+OAUTH_REDIRECT_BASE = os.environ.get('OAUTH_REDIRECT_BASE', 'http://localhost:8000')
+# Key for encrypting mailbox refresh tokens at rest. Optional: falls back to
+# SECRET_KEY-derived, and old ciphertext stays readable either way — but set it
+# in prod so rotating SECRET_KEY doesn't force every caterer to reconnect.
+TOKEN_ENCRYPTION_KEY = os.environ.get('TOKEN_ENCRYPTION_KEY', '')
+
 # Which model each AI task runs on, as 'provider:model' — see portioning/llm.py.
 # Switching supplier or model per task is a one-env-var change, nothing else.
 LLM_FOLLOWUP_DRAFTER = os.environ.get('LLM_FOLLOWUP_DRAFTER', 'openai:gpt-5.4-nano')
