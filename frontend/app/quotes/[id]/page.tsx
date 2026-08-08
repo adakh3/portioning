@@ -16,6 +16,7 @@ import { guestsChoose } from "@/lib/menuStructure";
 import GuestCountField, { GuestCountValue } from "@/components/GuestCountField";
 import SegmentRatesField from "@/components/SegmentRatesField";
 import BookingTimelineField, { TimelineEntryValue } from "@/components/BookingTimelineField";
+import BookingTimelineView from "@/components/BookingTimelineView";
 import BookingDetailsForm, { BookingDetailsValue } from "@/components/BookingDetailsForm";
 import AssigneePicker from "@/components/AssigneePicker";
 import SearchableSelect from "@/components/SearchableSelect";
@@ -1175,12 +1176,17 @@ export default function QuoteDetailPage() {
         />
       )}
 
-      {/* Timeline (editing) — below the meals: the run-of-show is built around the
-          meal times, so it reads after you've said what's being served (REL-430). */}
-      {editing && (
-        <Card>
-          <CardContent className="p-6">
-            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Timeline</h2>
+      {/* Timeline — below the meals: the run-of-show is built around the meal times,
+          so it reads after you've said what's being served (REL-430).
+
+          Rendered in READ-ONLY too (REL-447). This card used to be `{editing && …}`,
+          so a saved quote showed no run-of-show at all — while the quote PDF printed
+          the whole day for the customer. You couldn't check on screen what you'd
+          just sent. Same component the event page uses. */}
+      <Card>
+        <CardContent className="p-6">
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Timeline</h2>
+          {editing ? (
             <BookingTimelineField
               eventDate={editData.event_date}
               timeFormat={timeFormat}
@@ -1191,9 +1197,21 @@ export default function QuoteDetailPage() {
               presets={timelinePresets}
               meals={timelineMealRows(editMeals)}
             />
-          </CardContent>
-        </Card>
-      )}
+          ) : (
+            <BookingTimelineView
+              entries={q.timeline_entries}
+              meals={timelineMealRows(q.additional_meals)}
+              eventDate={q.event_date}
+              setupTime={q.setup_time}
+              guestArrivalTime={q.guest_arrival_time}
+              mealTime={q.meal_time}
+              endTime={q.end_time}
+              dateFormat={dateFormat}
+              timeFormat={timeFormat}
+            />
+          )}
+        </CardContent>
+      </Card>
 
 
       {/* Additional Items */}

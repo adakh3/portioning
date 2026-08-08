@@ -41,6 +41,7 @@ import FinalsPill from "@/components/FinalsPill";
 import GuestCountField, { GuestCountValue } from "@/components/GuestCountField";
 import SegmentRatesField from "@/components/SegmentRatesField";
 import BookingTimelineField, { TimelineEntryValue } from "@/components/BookingTimelineField";
+import BookingTimelineView from "@/components/BookingTimelineView";
 import BookingDetailsForm, { BookingDetailsValue } from "@/components/BookingDetailsForm";
 import AssigneePicker from "@/components/AssigneePicker";
 import { Button } from "@/components/ui/button";
@@ -1039,26 +1040,20 @@ export default function EventDetailPage() {
                 presets={timelinePresets}
                 meals={timelineMealRows(formAdditionalMeals)}
               />
-            ) : (event!.timeline_entries || []).length > 0 ? (
-              /* The booking's own run-of-show replaces the four legacy slots. */
-              <dl className="space-y-1">
-                {(event!.timeline_entries || []).map((entry) => (
-                  <InfoRow key={entry.id} label={formatTime(entry.time.slice(0, 5), timeFormat)}
-                    value={entry.label} />
-                ))}
-              </dl>
-            ) : (event!.setup_time || event!.guest_arrival_time || event!.meal_time || event!.end_time) ? (
-              /* The four legacy slots show only on a booking that actually has
-                 them — they're how old bookings stored their times, not an empty
-                 shape every new event should carry. */
-              <dl className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <InfoRow label="Setup Time" value={formatDateTime(event!.setup_time)} />
-                <InfoRow label="Guest Arrival" value={formatDateTime(event!.guest_arrival_time)} />
-                <InfoRow label="Meal Time" value={formatDateTime(event!.meal_time)} />
-                <InfoRow label="End Time" value={formatDateTime(event!.end_time)} />
-              </dl>
             ) : (
-              <p className="text-sm text-muted-foreground">No timeline set.</p>
+              /* Shared with the quote page (REL-447) — extracted, not copied, so the
+                 two can't drift apart again. Same three fallbacks as before. */
+              <BookingTimelineView
+                entries={event!.timeline_entries}
+                meals={timelineMealRows(event!.additional_meals)}
+                eventDate={event!.date}
+                setupTime={event!.setup_time}
+                guestArrivalTime={event!.guest_arrival_time}
+                mealTime={event!.meal_time}
+                endTime={event!.end_time}
+                dateFormat={dateFormat}
+                timeFormat={timeFormat}
+              />
             )}
         </CardContent>
       </Card>
