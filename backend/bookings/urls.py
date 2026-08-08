@@ -1,6 +1,7 @@
 from django.urls import path
 
 from bookings.views import (
+    PricingPreviewView,
     AccountListCreateView, AccountDetailView,
     ContactListCreateView, ContactDetailView,
     CustomerListCreateView, CustomerDetailView,
@@ -114,6 +115,9 @@ urlpatterns = [
 
     # Quotes & Line Items
     path('bookings/quotes/', QuoteListCreateView.as_view(), name='quote-list'),
+    # What a draft would cost, priced by the engine — the live preview's only
+    # source, so the number on screen and the number that saves are the same one.
+    path('pricing/preview/', PricingPreviewView.as_view(), name='pricing-preview'),
     path('bookings/quotes/<int:pk>/', QuoteDetailView.as_view(), name='quote-detail'),
     path('bookings/quotes/<int:pk>/transition/', QuoteTransitionView.as_view(), name='quote-transition'),
     path('bookings/quotes/<int:pk>/pdf/', QuotePDFView.as_view(), name='quote-pdf'),

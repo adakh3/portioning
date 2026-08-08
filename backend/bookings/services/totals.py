@@ -18,8 +18,14 @@ def round2(x):
     ``.quantize(Decimal('0.01'))`` is HALF_EVEN and silently disagrees with the live
     preview on an exact half-cent (1.50 × $0.03 stored $0.04 while the screen said
     $0.05 — REL-462 Bug 2).
+
+    ``+ Decimal('0')`` normalises negative zero: rounding a tiny negative (or
+    multiplying a negative subtotal by a zero rate) yields ``Decimal('-0.00')``,
+    which renders as "-$0.00" on a customer-facing card. `parse_segment_rate` has
+    always done this for the same reason; doing it here covers every money value the
+    engine produces rather than the one field somebody remembered.
     """
-    return Decimal(x).quantize(TWO_PLACES, rounding=ROUND_HALF_UP)
+    return Decimal(x).quantize(TWO_PLACES, rounding=ROUND_HALF_UP) + Decimal('0')
 
 
 # Nothing priceable is worth more than this per cover. Bounding here (not just in

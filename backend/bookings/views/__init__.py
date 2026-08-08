@@ -52,3 +52,4 @@ from .followups import (
     FollowUpDraftMarkSentView, LeadLogReplyView,
 )
 from .locked_dates import LockedDateListCreateView, LockedDateDeleteView
+from .pricing import PricingPreviewView
