@@ -26,7 +26,7 @@ from django.utils.cache import patch_vary_headers
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 
-from .models import Subscription
+from .access import org_has_access
 
 _jwt = JWTAuthentication()
 
@@ -110,8 +110,6 @@ class SubscriptionGateMiddleware:
             # requests fall through to the view, which returns the proper 401.
             if user and user.is_authenticated and not user.is_superuser:
                 org = getattr(user, 'organisation', None)
-                if org is not None:
-                    sub = Subscription.objects.filter(organisation=org).first()
-                    if sub is None or not sub.has_access:
-                        return self._blocked(request)
+                if org is not None and not org_has_access(org):
+                    return self._blocked(request)
         return self.get_response(request)
