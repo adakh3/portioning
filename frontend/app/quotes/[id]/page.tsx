@@ -233,13 +233,20 @@ export default function QuoteDetailPage() {
   const previewDraft = useMemo(() => {
     if (!isNew && !editing) return null;
     const form = isNew ? createData : editData;
-    return pricingDraft(buildQuoteSavePayload(
+    const save = buildQuoteSavePayload(
       form, menuData,
       isNew ? createLineItems : editLineItems,
       isNew ? createMeals : editMeals,
       segmentMeta,
-    ));
-  }, [isNew, editing, createData, editData, menuData, createLineItems, editLineItems, createMeals, editMeals, segmentMeta]);
+    );
+    return pricingDraft(save, {
+      // The form has no taxable switch — a quote is taxed unless something else
+      // (admin, API, import) turned it off, and that flag is not ours to change
+      // here. Sending it keeps the preview honest about a quote it did not set.
+      is_taxable: isNew ? true : (quote?.is_taxable ?? true),
+      tax_rate: save.tax_rate,
+    });
+  }, [isNew, editing, createData, editData, menuData, createLineItems, editLineItems, createMeals, editMeals, segmentMeta, quote?.is_taxable]);
   const { result: preview, isStale: previewStale, error: previewError, flush: repriceNow } = usePricingPreview(previewDraft);
 
   const setCreate = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>

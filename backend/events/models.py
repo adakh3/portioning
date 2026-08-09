@@ -561,27 +561,36 @@ class MealAudience(models.TextChoices):
     SEGMENT = 'segment', 'Single segment'   # one org segment (``audience_segment``)
 
 
-def derive_meal_guest_count(meal, segments):
-    """The guest count an additional meal serves, derived from the booking's resolved
-    ``segments`` (as returned by ``resolve_booking_segments``) by the meal's
-    ``audience``:
+def derive_meal_count_from_rows(audience, segment_name, segments):
+    """The audience rule itself, over resolved ``segments`` and plain values.
+
+    Split out from ``derive_meal_guest_count`` so the PREVIEW can run it too: the
+    preview is handed a half-typed JSON draft, not saved model rows, and until it
+    could derive this it trusted whatever count the browser sent — which left the
+    frontend's mirror of this same rule load-bearing for a priced number. One rule,
+    two callers, no mirror.
 
     * ``everyone`` — every cover (all segments: guests + extra covers)
     * ``guests``   — in-count segments only (``counts_toward_total``)
-    * ``segment``  — the single ``audience_segment`` (0 when it isn't in the mix)
+    * ``segment``  — the single named segment (0 when it isn't in the mix)
     * ``custom``   — ``None`` (keep the hand-typed ``guest_count``)
     """
-    audience = meal.audience
     if audience == MealAudience.EVERYONE:
         return sum(s['count'] for s in segments)
     if audience == MealAudience.GUESTS:
         return sum(s['count'] for s in segments if s['counts_toward_total'])
     if audience == MealAudience.SEGMENT:
-        if meal.audience_segment_id is None:
+        if not segment_name:
             return 0
-        name = meal.audience_segment.name
-        return sum(s['count'] for s in segments if s['name'] == name)
+        return sum(s['count'] for s in segments if s['name'] == segment_name)
     return None
+
+
+def derive_meal_guest_count(meal, segments):
+    """The guest count a SAVED additional meal serves, derived from the booking's
+    resolved ``segments`` (as returned by ``resolve_booking_segments``)."""
+    name = meal.audience_segment.name if meal.audience_segment_id is not None else None
+    return derive_meal_count_from_rows(meal.audience, name, segments)
 
 
 def sync_audience_meal_counts(booking):

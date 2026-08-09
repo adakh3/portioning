@@ -528,6 +528,10 @@ export interface Quote {
   service_style: string;
   valid_until: string | null;
   subtotal: string;
+  /** Whether tax applies at all. Not editable in the quote form — it is set by
+   * admin/API/import — but it gates the tax line, so anything pricing this quote
+   * must send it alongside the rate. */
+  is_taxable: boolean;
   tax_rate: string;
   tax_amount: string;
   service_charge_pct: string;

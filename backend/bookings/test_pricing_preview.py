@@ -263,3 +263,141 @@ class PricingPreviewTests(TestCase):
         # Priced at OUR Kids rate (0.5 x 100 = 50), not the other org's 0.1.
         kids = next(r for r in res.data['food']['food_rows'] if r['name'] == self.kids.name)
         self.assertEqual(kids['rate'], '50.00')
+
+
+class TaxContractTests(TestCase):
+    """Tax is a GATE times a RATE, and the caller states both.
+
+    Reading tax out of whichever key happened to be present is how an event-shaped
+    draft — which carries `is_taxable` and no rate — came to preview ZERO tax, and
+    how a quote whose `is_taxable` had been turned off previewed tax it would never
+    be charged. Both are silent, and both are the direction that loses an argument
+    with a customer.
+    """
+
+    def setUp(self):
+        self.user = get_test_user()
+        self.org = self.user.organisation
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
+
+    def _preview(self, **over):
+        body = {
+            'guest_count': 100, 'price_per_head': '100.00',
+            'service_charge_pct': '0', 'gratuity_pct': '0',
+        }
+        body.update(over)
+        res = self.client.post(PREVIEW_URL, body, format='json')
+        self.assertEqual(res.status_code, 200, res.data)
+        return res.data
+
+    def test_an_event_shaped_draft_is_taxed_at_its_own_rate(self):
+        """The gap this contract closes: `is_taxable` + a rate, no `tax_rate` guess."""
+        data = self._preview(is_taxable=True, tax_rate='0.08875')
+        self.assertEqual(data['totals']['tax_amount'], '887.50')
+        self.assertEqual(data['totals']['total'], '10887.50')
+
+    def test_the_gate_off_means_no_tax_however_high_the_rate(self):
+        data = self._preview(is_taxable=False, tax_rate='0.08875')
+        self.assertEqual(data['totals']['tax_amount'], '0.00')
+        self.assertEqual(data['totals']['total'], '10000.00')
+
+    def test_a_taxable_draft_with_no_rate_prices_as_zero_and_says_so(self):
+        """Priced honestly, but never silently — this looked like a tax-free booking."""
+        data = self._preview(is_taxable=True)
+        self.assertEqual(data['totals']['tax_amount'], '0.00')
+        self.assertTrue(any('no tax rate was sent' in w for w in data['warnings']))
+
+    def test_a_non_taxable_draft_with_no_rate_is_not_a_complaint(self):
+        """Nothing is missing — the booking simply isn't taxed."""
+        data = self._preview(is_taxable=False)
+        self.assertEqual(data['warnings'], [])
+
+    def test_a_rate_of_zero_is_a_stated_rate_not_a_missing_one(self):
+        data = self._preview(is_taxable=True, tax_rate='0.00000')
+        self.assertEqual(data['totals']['tax_amount'], '0.00')
+        self.assertEqual(data['warnings'], [])
+
+
+class MealAudienceParityTests(TestCase):
+    """An audience-scoped meal is priced by the count the SAVE will give it.
+
+    The preview used to take the browser's number on trust, so the frontend's mirror
+    of `derive_meal_guest_count` stayed load-bearing for a priced figure: stop
+    computing it there and the preview silently under-prices by a whole meal. These
+    pin the derivation server-side, where the save already does it.
+    """
+
+    def setUp(self):
+        self.user = get_test_user()
+        self.org = self.user.organisation
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
+        GuestSegment.objects.filter(organisation=self.org).update(is_default=False)
+        self.adults = GuestSegment.objects.create(
+            organisation=self.org, name='AdultsMA', is_default=True,
+            counts_toward_total=True, sort_order=0)
+        self.kids = GuestSegment.objects.create(
+            organisation=self.org, name='KidsMA', counts_toward_total=True,
+            price_multiplier=Decimal('0.5000'), portion_multiplier=0.6, sort_order=1)
+        self.vendors = GuestSegment.objects.create(
+            organisation=self.org, name='VendorsMA', counts_toward_total=False,
+            price_multiplier=Decimal('1.0000'), portion_multiplier=1.0, sort_order=2)
+
+    def _preview(self, meal):
+        res = self.client.post(PREVIEW_URL, {
+            'guest_count': 100,
+            'price_per_head': '0',
+            'is_taxable': False,
+            'service_charge_pct': '0', 'gratuity_pct': '0',
+            # 80 adults (derived) + 20 kids, plus 5 vendors who don't count toward
+            # the 100.
+            'guest_counts': [
+                {'segment': self.kids.name, 'count': 20},
+                {'segment': self.vendors.name, 'count': 5},
+            ],
+            'additional_meals': [meal],
+        }, format='json')
+        self.assertEqual(res.status_code, 200, res.data)
+        return res.data
+
+    def _meal(self, audience, segment=None, sent_count=0):
+        return {'label': 'Late supper', 'price_per_head': '10.00',
+                'audience': audience, 'audience_segment': segment,
+                # Deliberately WRONG. The server must ignore it for a derived
+                # audience — that is the whole point.
+                'guest_count': sent_count}
+
+    def test_everyone_covers_the_vendors_too(self):
+        data = self._preview(self._meal('everyone'))
+        # 80 + 20 + 5 = 105 covers at $10.
+        self.assertEqual(data['food']['meals_food'], '1050.00')
+        self.assertEqual(data['food']['meal_rows'][0]['count'], 105)
+
+    def test_guests_only_leaves_the_vendors_out(self):
+        data = self._preview(self._meal('guests'))
+        self.assertEqual(data['food']['meals_food'], '1000.00')  # 100 covers
+
+    def test_a_single_segment_is_just_that_segment(self):
+        data = self._preview(self._meal('segment', segment=self.kids.name))
+        self.assertEqual(data['food']['meals_food'], '200.00')  # 20 kids
+
+    def test_a_segment_that_is_not_in_the_mix_serves_nobody(self):
+        data = self._preview(self._meal('segment', segment='NoSuchSegment'))
+        self.assertEqual(data['food']['meals_food'], '0.00')
+
+    def test_custom_keeps_the_number_that_was_typed(self):
+        data = self._preview(self._meal('custom', sent_count=7))
+        self.assertEqual(data['food']['meals_food'], '70.00')
+
+    def test_a_meal_with_no_audience_at_all_is_custom(self):
+        meal = {'label': 'Legacy', 'price_per_head': '10.00', 'guest_count': 12}
+        data = self._preview(meal)
+        self.assertEqual(data['food']['meals_food'], '120.00')
+
+    def test_the_clients_count_cannot_change_a_derived_price(self):
+        """The mirror is no longer load-bearing: send nonsense, get the right answer."""
+        honest = self._preview(self._meal('everyone', sent_count=105))
+        nonsense = self._preview(self._meal('everyone', sent_count=0))
+        self.assertEqual(honest['totals']['total'], nonsense['totals']['total'])
+        self.assertEqual(nonsense['food']['meals_food'], '1050.00')

@@ -265,15 +265,27 @@ export function buildMealsPayload(
  * the draft is the preview hook's cache key, so sending the notes field too would
  * re-price the booking on every keystroke of a customer note.
  *
- * QUOTES ONLY for now. A quote carries `tax_rate`; an event carries `is_taxable`
- * and no rate at all, and the endpoint reads the rate from the payload — so an
- * event-shaped draft prices at ZERO tax rather than at the event's own rate. The
- * `is_taxable` branch below is therefore not yet a working event preview: wiring
- * the event page (step 4) has to send the rate too, or teach the endpoint to read
- * it from the booking. Pinned by a test so the gap cannot be discovered in prod.
+ * Tax is passed SEPARATELY and is REQUIRED, because neither save payload carries
+ * the whole story: a quote sends `tax_rate` and no `is_taxable`, an event sends
+ * `is_taxable` and no rate. Reading tax out of the payload therefore priced an
+ * event-shaped draft at ZERO tax, and a non-taxable quote at full tax — each
+ * silently, each in the direction that loses the argument with a customer.
+ *
+ * The contract, top to bottom: **a draft always states both the gate and the
+ * rate, and the engine multiplies them.** Nothing infers either. Required rather
+ * than defaulted so a new caller cannot forget it — that omission is exactly what
+ * this parameter exists to make impossible.
  */
-export function pricingDraft(payload: Record<string, unknown>) {
-  const draft: Record<string, unknown> = {
+export interface DraftTax {
+  /** Whether this booking is taxed at all. A quote is unless someone said
+   * otherwise; an event has an explicit switch. */
+  is_taxable: boolean;
+  /** The stored FRACTION ("0.08875"), not the form's percent. */
+  tax_rate: string;
+}
+
+export function pricingDraft(payload: Record<string, unknown>, tax: DraftTax) {
+  return {
     price_per_head: payload.price_per_head ?? null,
     guest_count: payload.guest_count ?? 0,
     guest_counts: payload.guest_counts ?? [],
@@ -282,13 +294,9 @@ export function pricingDraft(payload: Record<string, unknown>) {
     service_charge_pct: payload.service_charge_pct ?? "0",
     service_charge_taxable: payload.service_charge_taxable ?? true,
     gratuity_pct: payload.gratuity_pct ?? "0",
+    is_taxable: tax.is_taxable,
+    tax_rate: tax.tax_rate,
   };
-  // Only send the tax key the booking actually has. Sending `is_taxable:
-  // undefined` alongside a rate would read as "not taxable" on the server, which
-  // silently zeroes the tax line on every quote.
-  if ("tax_rate" in payload) draft.tax_rate = payload.tax_rate;
-  if ("is_taxable" in payload) draft.is_taxable = payload.is_taxable;
-  return draft;
 }
 
 export interface QuoteEditData {

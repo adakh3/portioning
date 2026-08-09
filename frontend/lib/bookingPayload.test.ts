@@ -44,6 +44,10 @@ describe("tax rate — one convention, converted in one place", () => {
 });
 
 describe("pricingDraft — the slice the preview endpoint reads", () => {
+  // Tax is stated, never inferred: a quote save carries a rate and no gate, an
+  // event save carries a gate and no rate, so neither payload can supply both.
+  const TAX = { is_taxable: true, tax_rate: "0.08875" };
+
   const savePayload = {
     price_per_head: "50.00",
     guest_count: 100,
@@ -63,7 +67,7 @@ describe("pricingDraft — the slice the preview endpoint reads", () => {
   };
 
   it("carries every input the engine prices", () => {
-    const draft = pricingDraft(savePayload);
+    const draft = pricingDraft(savePayload, TAX);
     expect(draft).toEqual({
       price_per_head: "50.00",
       guest_count: 100,
@@ -73,31 +77,42 @@ describe("pricingDraft — the slice the preview endpoint reads", () => {
       service_charge_pct: "20",
       service_charge_taxable: true,
       gratuity_pct: "0",
+      is_taxable: true,
       tax_rate: "0.08875",
     });
   });
 
   it("drops everything that is not price", () => {
-    const draft = pricingDraft(savePayload);
+    const draft = pricingDraft(savePayload, TAX);
     for (const key of ["notes", "internal_notes", "primary_contact", "dish_ids"]) {
       expect(draft).not.toHaveProperty(key);
     }
   });
 
-  it("sends a quote's tax_rate and never a phantom is_taxable", () => {
-    // `is_taxable: undefined` reads as "not taxable" server-side, which would zero
-    // the tax line on every quote.
-    const draft = pricingDraft(savePayload);
+  it("always states BOTH the gate and the rate", () => {
+    // Reading tax out of whichever key the payload happened to carry priced an
+    // event-shaped draft at zero tax and a non-taxable quote at full tax. Both keys,
+    // every time, from the caller.
+    const draft = pricingDraft(savePayload, TAX);
+    expect(draft.is_taxable).toBe(true);
     expect(draft.tax_rate).toBe("0.08875");
-    expect(draft).not.toHaveProperty("is_taxable");
   });
 
-  it("sends an event's is_taxable and never a phantom tax_rate", () => {
-    // An event carries no `tax_rate` at all — taxability is its switch. A stray
-    // `tax_rate: undefined` on the wire is a rate of nothing.
-    const eventDraft = pricingDraft({ guest_count: 10, is_taxable: false });
-    expect(eventDraft.is_taxable).toBe(false);
-    expect(eventDraft).not.toHaveProperty("tax_rate");
+  it("states the rate even when the gate is off", () => {
+    // Not an omission — "not taxed, and here is the rate we are not applying".
+    // The server multiplies; it never has to guess which half is missing.
+    const draft = pricingDraft(savePayload, { is_taxable: false, tax_rate: "0.08875" });
+    expect(draft.is_taxable).toBe(false);
+    expect(draft.tax_rate).toBe("0.08875");
+  });
+
+  it("prices an EVENT-shaped save payload, which carries no rate of its own", () => {
+    // The gap this signature closes: `buildEventSavePayload` emits `is_taxable` and
+    // no `tax_rate`, so a draft built from it alone previewed ZERO tax.
+    const eventSave = { guest_count: 10, price_per_head: "20.00", is_taxable: true };
+    const draft = pricingDraft(eventSave, { is_taxable: true, tax_rate: "0.08875" });
+    expect(draft.tax_rate).toBe("0.08875");
+    expect(draft.is_taxable).toBe(true);
   });
 
   it("is a SUBSET of the save payload, field for field (AC1)", () => {
@@ -105,15 +120,18 @@ describe("pricingDraft — the slice the preview endpoint reads", () => {
     // than a promise: every key the preview prices came off the save body, with the
     // same value. If a builder ever spells a field differently for the two, this
     // fails.
-    const draft = pricingDraft(savePayload) as Record<string, unknown>;
+    const draft = pricingDraft(savePayload, TAX) as Record<string, unknown>;
     for (const [key, value] of Object.entries(draft)) {
+      // Tax is the one thing stated separately — neither save payload carries both
+      // halves, which is exactly why it is a parameter.
+      if (key === "is_taxable" || key === "tax_rate") continue;
       expect(savePayload).toHaveProperty(key);
       expect(value).toEqual((savePayload as Record<string, unknown>)[key]);
     }
   });
 
   it("prices a blank draft as nothing rather than undefined", () => {
-    const draft = pricingDraft({});
+    const draft = pricingDraft({}, TAX);
     expect(draft.guest_count).toBe(0);
     expect(draft.line_items).toEqual([]);
     expect(draft.additional_meals).toEqual([]);
@@ -132,7 +150,7 @@ describe("pricingDraft — the slice the preview endpoint reads", () => {
       gratuity_pct: "5", valid_until: "", notes: "", internal_notes: "",
     };
     const save = buildQuoteSavePayload(form, { dish_ids: [], based_on_template: null }, []);
-    const draft = pricingDraft(save);
+    const draft = pricingDraft(save, TAX);
     // The converted fraction, not the form's percent — the preview and the save are
     // handed the same spelling because they are handed the same object.
     expect(draft.tax_rate).toBe("0.08875");

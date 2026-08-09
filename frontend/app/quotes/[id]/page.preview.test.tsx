@@ -145,6 +145,10 @@ describe("Quote CREATE — the card shows the engine's numbers", () => {
     const saved = h.createQuote.mock.calls[0][0] as Record<string, unknown>;
     // Every priced field is the saved field. Not "equivalent" — identical.
     for (const [key, value] of Object.entries(priced)) {
+      // `is_taxable` gates the tax line but is not the quote form's to set, so it
+      // is stated to the engine and deliberately left out of the save. A new quote
+      // is taxable.
+      if (key === "is_taxable") { expect(value).toBe(true); continue; }
       expect(saved[key]).toEqual(value);
     }
   });
@@ -255,6 +259,9 @@ describe("Quote EDIT — the same engine, the same draft", () => {
     const priced = h.pricingPreview.mock.calls.at(-1)![0] as Record<string, unknown>;
     const saved = h.updateQuote.mock.calls[0][1] as Record<string, unknown>;
     for (const [key, value] of Object.entries(priced)) {
+      // Priced from the quote's OWN stored gate, which the save does not touch —
+      // so what was priced is still what applies after saving.
+      if (key === "is_taxable") { expect(value).toBe(SAVED_QUOTE.is_taxable); continue; }
       expect(saved[key]).toEqual(value);
     }
   });

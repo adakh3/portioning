@@ -42,10 +42,11 @@ class PricingPreviewView(APIView):
             price_per_head=data.get('price_per_head'),
             guest_count=guest_count,
             segments=tuple(segments),
-            meals=tuple(_meals(_as_list(data.get('additional_meals')))),
+            meals=tuple(_meals(_as_list(data.get('additional_meals')), segments)),
             line_items=tuple(_lines(_as_list(data.get('line_items')))),
-            # The caller sends the rate it holds; taxability is the caller's switch,
-            # exactly as on the save path (`Quote.recalculate_totals`).
+            # Tax is a GATE times a RATE, and the caller states both — see
+            # `_tax_rate`. Nothing is inferred here, because inferring either half
+            # is how an event-shaped draft came to preview no tax at all.
             tax_rate=_tax_rate(data),
             service_charge_pct=_as_decimal(data.get('service_charge_pct')),
             service_charge_taxable=bool(data.get('service_charge_taxable', True)),
@@ -53,11 +54,11 @@ class PricingPreviewView(APIView):
         ))
         return Response({
             **result.to_dict(),
-            'warnings': _warnings(org, guest_count, _as_list(data.get('guest_counts'))),
+            'warnings': _warnings(org, guest_count, _as_list(data.get('guest_counts')), data),
         })
 
 
-def _warnings(org, guest_count, raw_counts):
+def _warnings(org, guest_count, raw_counts, data):
     """Why this draft would be REFUSED if saved, if it would be.
 
     The preview prices what the engine would compute, honestly — including drafts
@@ -73,8 +74,30 @@ def _warnings(org, guest_count, raw_counts):
     """
     from events.models import guest_counts_error
 
+    problems = []
     problem = guest_counts_error(org, guest_count, raw_counts)
-    return [problem] if problem else []
+    if problem:
+        problems.append(problem)
+    problems.extend(_tax_contract_problems(data))
+    return problems
+
+
+def _tax_contract_problems(data):
+    """A caller that says "taxable" and sends no rate has a bug, not a draft.
+
+    Tax here is a gate times a rate, and the caller owns both. When the gate is on
+    and the rate is missing the honest answer is zero — which looks exactly like a
+    tax-free booking and is how an event-shaped draft quietly previewed no tax at
+    all for a while. Priced as zero either way (a preview must never fail
+    mid-keystroke), but said out loud, so the next caller that forgets finds out on
+    the first request instead of in a customer's invoice.
+    """
+    if not data.get('is_taxable', True):
+        return []
+    if data.get('tax_rate') not in (None, ''):
+        return []
+    return ['This booking is marked taxable but no tax rate was sent, so tax is '
+            'previewed as zero.']
 
 
 def _segments(org, guest_count, raw_counts):
@@ -88,14 +111,33 @@ def _segments(org, guest_count, raw_counts):
     return segments_for_preview(org, guest_count, raw_counts)
 
 
-def _meals(raw_meals):
+def _meals(raw_meals, segments):
+    """Each meal priced by the count the SAVE would give it, not the one sent.
+
+    An audience-scoped meal ("everyone", "guests", a named segment) doesn't own its
+    head count — the booking's segments do, and the save re-derives it on write
+    (`sync_audience_meal_counts`). Taking the client's number on trust meant the
+    preview agreed with the save only for as long as the browser kept computing the
+    same rule, which is precisely the duplicated math this epic exists to delete.
+    An `everyone` meal on 100 guests plus 5 out-of-count vendors is 105 covers here
+    and 105 covers on save, because both ask the same function.
+
+    `custom` keeps its typed count — that is what custom means.
+    """
+    from events.models import MealAudience, derive_meal_count_from_rows
+
     for meal in (raw_meals or ()):
         if not isinstance(meal, dict):
             continue
+        derived = derive_meal_count_from_rows(
+            meal.get('audience') or MealAudience.CUSTOM,
+            meal.get('audience_segment'),
+            segments,
+        )
         yield {
             'label': meal.get('label') or '',
             'price_per_head': meal.get('price_per_head'),
-            'guest_count': _as_int(meal.get('guest_count')),
+            'guest_count': _as_int(meal.get('guest_count')) if derived is None else derived,
         }
 
 
@@ -119,6 +161,11 @@ def _tax_rate(data):
     One convention, decided here: a fraction (0.0875 = 8.75%), the same thing the
     column stores. The frontend had four copies of the percent/fraction conversion
     and disagreed with itself about which one a given screen was holding.
+
+    Both halves come from the caller and neither is guessed. A missing rate under an
+    ON gate prices as zero AND raises a warning (`_tax_contract_problems`) rather
+    than being quietly filled in from the org default — a preview that invents a
+    rate is a preview that disagrees with the save.
     """
     if not data.get('is_taxable', True):
         return Decimal('0')
