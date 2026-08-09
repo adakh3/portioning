@@ -35,6 +35,10 @@ vi.mock("next/navigation", () => ({
 vi.mock("@/components/MenuBuilder", () => ({ default: () => null }));
 
 vi.mock("@/lib/hooks", () => ({
+  // REL-445: the quote/event pages read their client-message ledger and
+  // channel availability from these; unmocked they blow up the whole page.
+  useClientMessages: () => ({ data: [], isLoading: false, mutate: vi.fn() }),
+  useMessagingStatus: () => ({ data: undefined }),
   useQuote: () => ({ data: h.quote, error: null, isLoading: false, mutate: h.mutateQuote }),
   useAccounts: () => ({ data: [] }),
   useContacts: () => ({ data: [{ id: 3, name: "Jane Doe", phone: "", account: null }] }),

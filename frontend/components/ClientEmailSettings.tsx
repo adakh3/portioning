@@ -24,7 +24,14 @@ const ERROR_MESSAGES: Record<string, string> = {
   no_address: "We couldn't read your email address from that account.",
 };
 
-export default function ClientEmailSettings() {
+interface Props {
+  /** Render as a row inside the "Client communications" card (REL-445) rather
+   * than as its own card. There is one place an org configures messaging, so
+   * this component supplies that card's email row instead of rivalling it. */
+  embedded?: boolean;
+}
+
+export default function ClientEmailSettings({ embedded = false }: Props) {
   const { data, isLoading, mutate } = useConnectedMailbox();
   const searchParams = useSearchParams();
 
@@ -76,23 +83,18 @@ export default function ClientEmailSettings() {
     }
   }
 
-  return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle>Client email</CardTitle>
-          {mailbox ? (
-            needsReconnect ? (
-              <Badge variant="warning">Needs reconnect</Badge>
-            ) : (
-              <Badge variant="success">Connected</Badge>
-            )
-          ) : (
-            <Badge variant="secondary">Not connected</Badge>
-          )}
-        </div>
-      </CardHeader>
-      <CardContent>
+  const statusBadge = mailbox ? (
+    needsReconnect ? (
+      <Badge variant="warning">Needs reconnect</Badge>
+    ) : (
+      <Badge variant="success">Connected</Badge>
+    )
+  ) : (
+    <Badge variant="secondary">Not connected</Badge>
+  );
+
+  const body = (
+      <>
         {error && <p className="text-destructive mb-3 text-sm">{error}</p>}
         {success && <p className="text-success mb-3 text-sm">{success}</p>}
 
@@ -168,7 +170,27 @@ export default function ClientEmailSettings() {
             )}
           </div>
         )}
-      </CardContent>
+      </>
+  );
+
+  if (embedded) {
+    return (
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">{statusBadge}</div>
+        {body}
+      </div>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <CardTitle>Client email</CardTitle>
+          {statusBadge}
+        </div>
+      </CardHeader>
+      <CardContent>{body}</CardContent>
     </Card>
   );
 }
