@@ -497,10 +497,46 @@ class DraftingTests(MessagingTestBase):
         self.assertIn('Client name: Nadia Okonjo', context)
         self.assertIn('Guest count: 100', context)
         self.assertIn('Event date', context)
-        self.assertIn('Total agreed price', context)
+        self.assertIn('Total price quoted', context)
         self.assertIn('Attached to this message: Quote-1.pdf', context)
         self.assertIn('Link to include exactly as written: https://x/b/1', context)
         self.assertNotIn('MARGIN IS THIN', context)
+
+    def test_context_names_the_absence_of_a_menu(self):
+        """Found by drafting against a real model: a booking with no menu got
+        "the menu details we discussed". Silence in the payload is an invitation
+        to invent, so absence has to be stated."""
+        quote = self.make_quote()
+        context = build_context(quote, KIND_SIGN_LINK, 'email')
+        self.assertIn('No menu has been chosen yet', context)
+        self.assertIn('Do not mention or imply a menu', context)
+
+    def test_context_never_hands_over_an_iso_date(self):
+        """Also from a real draft: the model copied 2027-03-14 into a client
+        message verbatim, because that is what it was given."""
+        quote = self.make_quote()
+        context = build_context(quote, KIND_SIGN_LINK, 'whatsapp')
+        self.assertIn('Event date: 15 June 2026', context)
+        self.assertNotIn('2026-06-15', context)
+
+    def test_context_only_calls_a_total_agreed_once_it_is(self):
+        quote = self.make_quote()
+        proposal = build_context(quote, KIND_SIGN_LINK, 'email')
+        self.assertIn('Total price quoted', proposal)
+        self.assertNotIn('already agreed', proposal)
+        self.assertIn('already agreed', build_context(quote, KIND_SIGNED_COPY, 'email'))
+
+    def test_context_forbids_claiming_an_attachment_that_isnt_there(self):
+        """WhatsApp carries a link, never a file — but a real draft still said
+        'the attached booking proposal'."""
+        quote = self.make_quote()
+        context = build_context(quote, KIND_SIGN_LINK, 'whatsapp')
+        self.assertIn('NOTHING is attached', context)
+        with_pdf = build_context(
+            quote, KIND_SIGN_LINK, 'email', attachment_name='Quote-1.pdf',
+        )
+        self.assertIn('Attached to this message: Quote-1.pdf', with_pdf)
+        self.assertNotIn('NOTHING is attached', with_pdf)
 
     def test_context_states_the_stage_so_wording_matches_it(self):
         quote = self.make_quote()

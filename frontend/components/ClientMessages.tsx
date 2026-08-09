@@ -68,14 +68,18 @@ export default function ClientMessages({
             Nothing sent to this client yet.
           </p>
         ) : (
-          <div className="grid">
+          <div className="grid min-w-0">
+            {/* min-w-0 all the way down: a grid/flex child defaults to
+                min-width:auto, so without it a long single-line preview lays
+                out at its full text width, escapes the card and makes the whole
+                PAGE scroll sideways. `truncate` alone does not constrain it. */}
             {messages.map((m, i) => {
               const pill = messageStatusColor(m.status);
               const shortcut = m.status === "handed_off";
               return (
                 <div
                   key={m.id}
-                  className={`flex gap-3 py-3 ${i === 0 ? "" : "border-t border-border"}`}
+                  className={`flex min-w-0 gap-3 py-3 ${i === 0 ? "" : "border-t border-border"}`}
                 >
                   <ChannelMark channel={m.channel} />
                   <div className="min-w-0 flex-1">

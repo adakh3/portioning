@@ -32,7 +32,8 @@ SYSTEM_PROMPT = (
     "guest count, the menu, the total. Never mention internal information — "
     "costs, margins, staffing, internal notes or pipeline status.\n"
     "- Never invent a detail you were not given. If the guest count or date is "
-    "absent, write around it rather than guessing.\n"
+    "absent, write around it rather than guessing. In particular: never refer "
+    "to a menu, a document, or a conversation unless the context names one.\n"
     "- Match the stage. A quote that has not been signed is a PROPOSAL: invite "
     "them to review and sign. A signed or confirmed booking is a CONFIRMATION: "
     "thank them and restate what is booked. Never ask a client who has already "
@@ -109,7 +110,6 @@ def build_context(booking, kind, channel, *, url='', attachment_name=''):
 
     for label, key in (
         ('Event type', 'event_type_label'),
-        ('Event date', 'event_date'),
         ('Venue', 'venue_name'),
         ('Service style', 'service_style_label'),
         ('Meal type', 'meal_type_label'),
@@ -117,22 +117,36 @@ def build_context(booking, kind, channel, *, url='', attachment_name=''):
         if data.get(key):
             lines.append(f"{label}: {data[key]}")
 
+    # Written out, never ISO: the model copies what it is given, and
+    # "2027-03-14" in a message to a client reads like a database leak.
+    event_date = format_event_date(data.get('event_date'))
+    if event_date:
+        lines.append(f"Event date: {event_date}")
+
     if data.get('guest_count'):
         lines.append(f"Guest count: {data['guest_count']}")
 
+    # Silence invites invention. A booking with no menu chosen yet must SAY so,
+    # or the model fills the gap with "the menu details we discussed".
     menu = _menu_summary(data)
-    if menu:
-        lines.append(f"Menu: {menu}")
+    lines.append(
+        f"Menu: {menu}" if menu
+        else "No menu has been chosen yet. Do not mention or imply a menu."
+    )
 
     if data.get('total') is not None:
-        lines.append(
-            f"Total agreed price: {data.get('currency_symbol', '')}{data['total']}"
-        )
+        # "agreed" is only true once they have signed; on a proposal it puts a
+        # word in the client's mouth.
+        label = 'Total price already agreed' if kind == KIND_SIGNED_COPY else 'Total price quoted'
+        lines.append(f"{label}: {data.get('currency_symbol', '')}{data['total']}")
 
     if attachment_name:
         lines.append(f"Attached to this message: {attachment_name}")
     else:
-        lines.append("Nothing is attached to this message.")
+        lines.append(
+            "NOTHING is attached to this message. Do not write 'attached', "
+            "'enclosed', or refer to any document travelling with it."
+        )
 
     if url:
         lines.append(f"Link to include exactly as written: {url}")
