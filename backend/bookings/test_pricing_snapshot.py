@@ -600,17 +600,30 @@ class EventSnapshotIsReadableTests(SnapshotBase):
         self.assertNotIn('pricing_snapshot', rows[0])
         self.assertIn('total', rows[0])
 
-    def test_it_cannot_be_written_from_the_api(self):
+    def test_a_client_supplied_snapshot_never_survives_the_save(self):
+        """A snapshot is evidence of what the engine computed, not an input.
+
+        Two things refuse it independently, and this asserts the one that actually
+        does the work: `update()` re-prices, so whatever a client sends is
+        overwritten by the engine's own answer. (`read_only_fields` refuses it
+        earlier — but with the recompute in place, dropping that declaration does
+        not change the outcome, so a test asserting the field is read-only would
+        pass whether or not it was. This one fails if the recompute goes.)
+        """
         event = self._event()
         real = event.pricing_snapshot['totals']['total']
+        self.assertNotEqual(real, '1.00')
 
         res = self.client.patch(
             f'/api/events/{event.id}/',
-            {'pricing_snapshot': {'totals': {'total': '1.00'}}}, format='json')
+            {'pricing_snapshot': {'totals': {'total': '1.00'}}, 'guest_count': 120},
+            format='json')
         self.assertEqual(res.status_code, 200, res.data)
 
         event.refresh_from_db()
-        self.assertEqual(event.pricing_snapshot['totals']['total'], real)
+        # Re-priced for 120 guests — neither the forged figure nor the old one.
+        self.assertNotEqual(event.pricing_snapshot['totals']['total'], '1.00')
+        self.assertEqual(event.pricing_snapshot['totals']['total'], str(event.total))
 
     def test_an_event_saved_before_snapshots_reads_back_as_null(self):
         event = self._event()

@@ -239,8 +239,17 @@ def segments_for_preview(organisation, guest_count, raw_counts):
     Falls back to the legacy resolution (default segment holds the whole count) when
     the payload carries no usable breakdown, matching `resolve_booking_segments` so
     a preview of an un-broken-down booking prices like the saved one.
+
+    Rows come back in the SAVE's order — `BookingGuestCount.Meta.ordering`, i.e. the
+    org's segment order. `derive_segment_rows` appends the derived default remainder
+    last because that is when it learns the number, so without this the itemised
+    food lines visibly reshuffled the moment you pressed Save: "Kids, Vendors,
+    Adults" while editing became "Adults, Kids, Vendors" once stored. Same amounts,
+    same total, but on a card a customer is reading, a list that jumps looks like
+    numbers that changed.
     """
     rows = derive_segment_rows(organisation, guest_count, raw_counts)
+    rows = sorted(rows, key=lambda r: (r[0].sort_order, r[0].id))
     if not rows:
         return resolve_legacy_segments(
             organisation, guest_count or 0, 0, 0, has_split=False)

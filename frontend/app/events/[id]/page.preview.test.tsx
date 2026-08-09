@@ -10,6 +10,7 @@ const h = vi.hoisted(() => ({
   pricingPreview: vi.fn(),
   push: vi.fn(),
   event: null as Record<string, unknown> | null,
+  segments: [] as Record<string, unknown>[],
 }));
 
 vi.mock("next/navigation", () => ({
@@ -42,7 +43,7 @@ vi.mock("@/lib/hooks", () => ({
     currency_symbol: "$", currency_code: "USD", date_format: "MM/DD/YYYY",
     price_rounding_step: "50", tax_label: "Sales Tax", default_tax_rate: "0.08875",
     service_charge_default_pct: "20.00", service_charge_taxable_default: true,
-    gratuity_default_pct: "0.00", guest_segments: [],
+    gratuity_default_pct: "0.00", guest_segments: h.segments,
   } }),
   useDateFormat: () => "MM/DD/YYYY",
   useFormatDateTime: () => (v: string | null) => v ?? "-",
@@ -126,6 +127,7 @@ beforeEach(() => {
   h.pricingPreview.mockReset();
   h.pricingPreview.mockResolvedValue(PRICED);
   h.event = { ...SAVED_EVENT };
+  h.segments = [];
 });
 
 describe("Event pricing — the engine's answer, not the browser's", () => {
@@ -179,15 +181,30 @@ describe("Event pricing — the engine's answer, not the browser's", () => {
   });
 
   it("re-prices the moment the taxable switch is flipped, not 300ms later", async () => {
-    render(<EventPage />);
-    fireEvent.click(screen.getByRole("button", { name: /Edit/i }));
-    await waitFor(() => expect(h.pricingPreview).toHaveBeenCalled());
-    const before = h.pricingPreview.mock.calls.length;
+    // FAKE timers, deliberately. With real ones this test passes even if the
+    // immediate re-price is deleted, because `waitFor` waits a second and the
+    // 300 ms debounce quietly satisfies it — the assertion then proves only that
+    // *something* eventually fired. Holding the clock still is what separates
+    // "immediately" from "soon".
+    vi.useFakeTimers({ shouldAdvanceTime: false });
+    try {
+      render(<EventPage />);
+      fireEvent.click(screen.getByRole("button", { name: /Edit/i }));
+      await vi.advanceTimersByTimeAsync(400);   // let the initial debounced call go
+      const before = h.pricingPreview.mock.calls.length;
 
-    // A toggle is a decision, not a keystroke — the number should move at once.
-    fireEvent.click(within(pricingCard()).getByRole("checkbox"));
-    await waitFor(() => expect(h.pricingPreview.mock.calls.length).toBeGreaterThan(before));
-    expect((h.pricingPreview.mock.calls.at(-1)![0] as Record<string, unknown>).is_taxable).toBe(false);
+      // A toggle is a decision, not a keystroke — the number moves at once.
+      fireEvent.click(within(pricingCard()).getByRole("checkbox"));
+      await Promise.resolve();                  // effects only; no timer advanced
+
+      expect(h.pricingPreview.mock.calls.length).toBeGreaterThan(before);
+      const draft = h.pricingPreview.mock.calls.at(-1)![0] as Record<string, unknown>;
+      // And it asks about the state AFTER the toggle. Flushing from the change
+      // handler sent the pre-toggle draft, so this said `true`.
+      expect(draft.is_taxable).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("shows the STORED totals when not editing, and asks nothing", async () => {
@@ -247,5 +264,100 @@ describe("Event pricing — the engine's answer, not the browser's", () => {
 
     await waitFor(() =>
       expect(screen.getByText("Guest breakdown covers 999 guests but the booking is for 50.")).toBeInTheDocument());
+  });
+});
+
+// The path EVERY event in production takes today: `pricing_snapshot` is only
+// written from REL-464 onward and nothing backfills it. Untested, this is where a
+// review found the card printing a NEGATIVE add-ons row.
+describe("Event pricing — an event saved before snapshots", () => {
+  const SEGMENTS = [
+    { name: "Adults", is_default: true, counts_toward_total: true, price_multiplier: "1.0000", sort_order: 0 },
+    { name: "Kids", is_default: false, counts_toward_total: true, price_multiplier: "0.5000", sort_order: 1 },
+  ];
+
+  /** 100 guests (80 Adults + 20 Kids) at $100/head = $9,000 food, plus a $500
+   * rental → the $9,500 subtotal the server stored. */
+  const LEGACY = {
+    ...SAVED_EVENT,
+    pricing_snapshot: null,
+    price_per_head: "100.00",
+    guest_count: 100,
+    guest_counts: [
+      { segment: "Adults", count: 80, counts_toward_total: true },
+      { segment: "Kids", count: 20, counts_toward_total: true },
+    ],
+    line_items: [
+      { id: 1, category: "rental", description: "Chairs", quantity: "1", unit: "flat",
+        unit_price: "500.00", line_total: "500.00", sort_order: 0, variant: null },
+    ],
+    subtotal: "9500.00", tax_amount: "0.00", total: "9500.00", is_taxable: false,
+  };
+
+  it("shows the add-ons the customer is charged, itemised by segment", async () => {
+    h.event = LEGACY;
+    h.segments = SEGMENTS;
+    render(<EventPage />);
+    const card = within(pricingCard());
+
+    expect(card.getByText("Adults — 80 × $100.00")).toBeInTheDocument();
+    expect(card.getByText("Kids — 20 × $50.00")).toBeInTheDocument();
+    expect(card.getByText("$500.00")).toBeInTheDocument();
+    // Subtotal and total both, since this event isn't taxed.
+    expect(card.getAllByText("$9,500.00").length).toBeGreaterThan(0);
+  });
+
+  it("never shows a NEGATIVE add-ons row when the org's rates moved since the save", async () => {
+    // The org raised Kids to full price AFTER this event was saved. Deriving the
+    // add-ons row as `subtotal − food` then makes the client's food ($10,000)
+    // exceed the stored subtotal ($9,500) and prints "Add-ons −$500.00" on a
+    // booking whose only add-on is a $500 rental.
+    h.event = LEGACY;
+    h.segments = [
+      SEGMENTS[0],
+      { ...SEGMENTS[1], price_multiplier: "1.0000" },
+    ];
+    render(<EventPage />);
+
+    expect(within(pricingCard()).queryByText("-$500.00")).not.toBeInTheDocument();
+    expect(within(pricingCard()).queryByText("$-500.00")).not.toBeInTheDocument();
+    expect(within(pricingCard()).getByText("$500.00")).toBeInTheDocument();
+  });
+
+  it("is right on the first render, before org settings have loaded", async () => {
+    // `segmentMeta` is empty until `useSiteSettings` resolves, so the food mirror
+    // briefly prices every cover at full rate. The add-ons row must not flicker
+    // negative in that window.
+    h.event = LEGACY;
+    h.segments = [];
+    render(<EventPage />);
+    expect(within(pricingCard()).getByText("$500.00")).toBeInTheDocument();
+  });
+});
+
+describe("Event pricing — create mode", () => {
+  beforeEach(() => { h.event = null; });
+
+  it("opens at zero rather than blank, and asks the engine", async () => {
+    render(<EventPage />);
+    // Nothing is priced yet, so the card shows zeros — not an empty box.
+    expect(within(pricingCard()).getAllByText("$0.00").length).toBeGreaterThan(0);
+    await waitFor(() => expect(h.pricingPreview).toHaveBeenCalled());
+  });
+
+  it("prices a NEW event as untaxed, matching the column default", async () => {
+    // `Event.is_taxable` defaults to False — the opposite of `Quote`'s default.
+    // Previewing a new event as taxable would show tax the save will not store.
+    render(<EventPage />);
+    await waitFor(() => expect(h.pricingPreview).toHaveBeenCalled());
+    const draft = h.pricingPreview.mock.calls.at(-1)![0] as Record<string, unknown>;
+    expect(draft.is_taxable).toBe(false);
+    // The rate still travels, so ticking the box prices correctly at once.
+    expect(draft.tax_rate).toBe("0.08875");
+  });
+
+  it("renders the engine's answer once it arrives", async () => {
+    render(<EventPage />);
+    await waitFor(() => expect(within(pricingCard()).getByText("$3,391.24")).toBeInTheDocument());
   });
 });

@@ -36,7 +36,11 @@ class PricingPreviewView(APIView):
         data = request.data or {}
 
         guest_count = _as_int(data.get('guest_count'))
-        segments = _segments(org, guest_count, _as_list(data.get('guest_counts')))
+        # Filtered once, here, because EVERY reader below assumes dict rows —
+        # `_segments` prices them and `_warnings` validates them, and it was the
+        # validator that answered 500 to `{"guest_counts": ["nope"]}`.
+        raw_counts = [r for r in _as_list(data.get('guest_counts')) if isinstance(r, dict)]
+        segments = _segments(org, guest_count, raw_counts)
 
         result = price_booking(PricingInput(
             price_per_head=data.get('price_per_head'),
@@ -49,12 +53,12 @@ class PricingPreviewView(APIView):
             # is how an event-shaped draft came to preview no tax at all.
             tax_rate=_tax_rate(data),
             service_charge_pct=_as_decimal(data.get('service_charge_pct')),
-            service_charge_taxable=bool(data.get('service_charge_taxable', True)),
+            service_charge_taxable=_as_bool(data.get('service_charge_taxable')),
             gratuity_pct=_as_decimal(data.get('gratuity_pct')),
         ))
         return Response({
             **result.to_dict(),
-            'warnings': _warnings(org, guest_count, _as_list(data.get('guest_counts')), data),
+            'warnings': _warnings(org, guest_count, raw_counts, data),
         })
 
 
@@ -92,12 +96,11 @@ def _tax_contract_problems(data):
     mid-keystroke), but said out loud, so the next caller that forgets finds out on
     the first request instead of in a customer's invoice.
     """
-    if not data.get('is_taxable', True):
+    if not _as_bool(data.get('is_taxable')):
         return []
     if data.get('tax_rate') not in (None, ''):
         return []
-    return ['This booking is marked taxable but no tax rate was sent, so tax is '
-            'previewed as zero.']
+    return ['No tax rate is set for this booking, so tax is shown as zero.']
 
 
 def _segments(org, guest_count, raw_counts):
@@ -155,6 +158,28 @@ def _lines(raw_lines):
         }
 
 
+def _as_bool(value, default=True):
+    """A JSON boolean, honestly read.
+
+    `bool("false")` is True, and this gate decides whether a customer is charged
+    tax — so a caller that stringifies its booleans would be silently taxed rather
+    than silently untaxed. Neither is acceptable; both are guessed values on a
+    number someone pays. Anything that is not recognisably a boolean falls back to
+    the documented default.
+    """
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return default
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        if lowered in ('true', '1', 'yes'):
+            return True
+        if lowered in ('false', '0', 'no', ''):
+            return False
+    return default
+
+
 def _tax_rate(data):
     """The EFFECTIVE rate — 0 when the booking isn't taxable.
 
@@ -167,7 +192,7 @@ def _tax_rate(data):
     than being quietly filled in from the org default — a preview that invents a
     rate is a preview that disagrees with the save.
     """
-    if not data.get('is_taxable', True):
+    if not _as_bool(data.get('is_taxable')):
         return Decimal('0')
     return _as_decimal(data.get('tax_rate'))
 

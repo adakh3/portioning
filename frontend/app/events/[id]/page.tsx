@@ -30,7 +30,7 @@ import DealWonDialog from "@/components/DealWonDialog";
 import EventPaymentsCard from "@/components/EventPaymentsCard";
 import { useAuth } from "@/lib/auth";
 import { formatDate, formatDateTime as sharedFormatDateTime, formatTime, todayISO } from "@/lib/dateFormat";
-import { lineItemTotal, computeBookingTotals, segmentFood, segmentFoodRows, hasVendorDoubleEntry, mealsFood, bookingMealRows, timelineMealRows } from "@/lib/quoteTotals";
+import { lineItemTotal, segmentFood, segmentFoodRows, hasVendorDoubleEntry, bookingMealRows, timelineMealRows } from "@/lib/quoteTotals";
 import { LineItemInput, buildEventSavePayload, pricingDraft, taxRatePercent, defaultSegmentRemainder, GuestSegmentMeta, type EventSaveInput } from "@/lib/bookingPayload";
 import { usePricingPreview } from "@/lib/usePricingPreview";
 import { previewCardProps, storedCardProps, type PreviewCardProps } from "@/lib/previewCard";
@@ -319,7 +319,7 @@ export default function EventDetailPage() {
     if (loadError) setError(loadError instanceof Error ? loadError.message : "Failed to load event");
   }, [loadError]);
 
-    /** Everything a save of this event would send.
+  /** Everything a save of this event would send.
    *
    * One builder for the save AND the live preview, so the draft that gets PRICED
    * and the draft that gets STORED are the same object by construction — the same
@@ -438,8 +438,18 @@ export default function EventDetailPage() {
       foodTotal: String(menuFood),
       foodRows: segmentFoodRows(pph, guests, segCounts, segmentMeta, segPrices),
       meals: bookingMealRows(meals, cs, guests, segCounts, segmentMeta),
-      // The add-ons line, recovered from what the columns do record.
-      addOnsTotal: String(Number(e.subtotal) - menuFood - mealsFood(meals, guests, segCounts, segmentMeta)),
+      // Summed from the line items, NOT `subtotal − food`.
+      //
+      // Subtracting mixes the server's stored subtotal with a food figure this
+      // mirror computed, so any disagreement between them lands entirely on this
+      // row — and lands SIGNED. An org that raises a segment multiplier after the
+      // event was saved makes `menuFood` bigger than the food the subtotal was
+      // built from, and the card then reads "Add-ons −$500.00" on a booking with a
+      // $500 rental. Same while settings are still loading, when `segmentMeta` is
+      // empty. The line items are what the add-ons row is actually about.
+      addOnsTotal: String(
+        (e.line_items || []).reduce((sum, li) => sum + lineItemTotal(li, guests), 0),
+      ),
       subtotal: e.subtotal,
       serviceCharge: e.service_charge || "0",
       taxAmount: e.tax_amount,
@@ -448,7 +458,7 @@ export default function EventDetailPage() {
     };
   }
 
-const handleSaveAll = async () => {
+  const handleSaveAll = async () => {
     if (!isNew && !event) return;
     if (!formDate) {
       setError("Event date is required");

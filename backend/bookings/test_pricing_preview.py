@@ -128,14 +128,19 @@ class PricingPreviewTests(TestCase):
         res = self.client.post(PREVIEW_URL, draft, format='json')
         rows = res.data['food']['food_rows']
 
+        # In the ORG's segment order — the order a save stores and re-reads them in.
+        # This used to assert payload order (Kids first, the derived remainder last),
+        # and the saved rows below were compared as a DICT, so the fact that the two
+        # disagreed about order was invisible: the list visibly reshuffled the moment
+        # you pressed Save.
         self.assertEqual(
             [(r['name'], r['count']) for r in rows],
-            [(self.kids.name, 20), (self.adults.name, 80)],
+            [(self.adults.name, 80), (self.kids.name, 20)],
         )
         quote = self._save_the_same_draft(draft)
         self.assertEqual(
-            {r.segment.name: r.count for r in quote.guest_counts.all()},
-            {self.kids.name: 20, self.adults.name: 80},
+            [(r.segment.name, r.count) for r in quote.guest_counts.all()],
+            [(r['name'], r['count']) for r in rows],
         )
 
     def test_a_non_taxable_draft_previews_no_tax(self):
@@ -306,7 +311,7 @@ class TaxContractTests(TestCase):
         """Priced honestly, but never silently — this looked like a tax-free booking."""
         data = self._preview(is_taxable=True)
         self.assertEqual(data['totals']['tax_amount'], '0.00')
-        self.assertTrue(any('no tax rate was sent' in w for w in data['warnings']))
+        self.assertTrue(any('No tax rate is set' in w for w in data['warnings']))
 
     def test_a_non_taxable_draft_with_no_rate_is_not_a_complaint(self):
         """Nothing is missing — the booking simply isn't taxed."""
@@ -401,3 +406,93 @@ class MealAudienceParityTests(TestCase):
         nonsense = self._preview(self._meal('everyone', sent_count=0))
         self.assertEqual(honest['totals']['total'], nonsense['totals']['total'])
         self.assertEqual(nonsense['food']['meals_food'], '1050.00')
+
+
+class PreviewOrderAndTypesTests(TestCase):
+    """The preview must agree with the save about ORDER and about what a boolean is.
+
+    Neither changes a total, which is exactly why they went unnoticed: the first
+    reshuffles a customer-facing list the moment you press Save, and the second
+    decides whether tax is charged at all.
+    """
+
+    def setUp(self):
+        self.user = get_test_user()
+        self.org = self.user.organisation
+        self.contact = Contact.objects.create(organisation=self.org, name='Client')
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
+        GuestSegment.objects.filter(organisation=self.org).update(is_default=False)
+        self.adults = GuestSegment.objects.create(
+            organisation=self.org, name='AdultsOrd', is_default=True,
+            counts_toward_total=True, sort_order=0)
+        self.kids = GuestSegment.objects.create(
+            organisation=self.org, name='KidsOrd', counts_toward_total=True,
+            price_multiplier=Decimal('0.5000'), portion_multiplier=0.6, sort_order=1)
+        self.vendors = GuestSegment.objects.create(
+            organisation=self.org, name='VendorsOrd', counts_toward_total=False,
+            price_multiplier=Decimal('1.0000'), portion_multiplier=1.0, sort_order=2)
+
+    def test_the_food_rows_come_back_in_the_order_a_save_stores_them(self):
+        """Same rows, same amounts — but the list must not reshuffle on save.
+
+        `derive_segment_rows` appends the derived default remainder LAST, because
+        that is when it learns the number. `BookingGuestCount` reads in segment
+        order. So the itemised food lines used to jump from "Kids, Vendors, Adults"
+        to "Adults, Kids, Vendors" the moment you pressed Save — which, on a card
+        the customer is reading, looks like the numbers changed.
+        """
+        counts = [
+            {'segment': self.kids.name, 'count': 20},
+            {'segment': self.vendors.name, 'count': 5},
+        ]
+        res = self.client.post(PREVIEW_URL, {
+            'guest_count': 100, 'price_per_head': '100.00', 'is_taxable': False,
+            'service_charge_pct': '0', 'gratuity_pct': '0', 'guest_counts': counts,
+        }, format='json')
+        self.assertEqual(res.status_code, 200, res.data)
+        previewed = [r['name'] for r in res.data['food']['food_rows']]
+
+        quote = Quote.objects.create(
+            organisation=self.org, primary_contact=self.contact,
+            event_date='2026-05-01', guest_count=100, price_per_head=Decimal('100'),
+            is_taxable=False, tax_rate=Decimal('0'),
+            service_charge_pct=Decimal('0'), gratuity_pct=Decimal('0'))
+        save = self.client.patch(
+            f'/api/bookings/quotes/{quote.id}/',
+            {'guest_count': 100, 'guest_counts': counts}, format='json')
+        self.assertEqual(save.status_code, 200, save.data)
+        quote.refresh_from_db()
+        stored = [r['name'] for r in quote.pricing_snapshot['food']['food_rows']]
+
+        self.assertEqual(previewed, stored)
+        # And it is the org's own segment order, not payload order.
+        self.assertEqual(stored, [self.adults.name, self.kids.name, self.vendors.name])
+
+    def test_a_stringified_false_does_not_charge_tax(self):
+        """`bool("false")` is True, and this gate decides whether someone pays."""
+        res = self.client.post(PREVIEW_URL, {
+            'guest_count': 10, 'price_per_head': '10.00',
+            'is_taxable': 'false', 'tax_rate': '0.10000',
+            'service_charge_pct': '0', 'gratuity_pct': '0',
+        }, format='json')
+        self.assertEqual(res.data['totals']['tax_amount'], '0.00')
+        self.assertEqual(res.data['totals']['total'], '100.00')
+
+    def test_a_stringified_true_still_charges_tax(self):
+        res = self.client.post(PREVIEW_URL, {
+            'guest_count': 10, 'price_per_head': '10.00',
+            'is_taxable': 'true', 'tax_rate': '0.10000',
+            'service_charge_pct': '0', 'gratuity_pct': '0',
+        }, format='json')
+        self.assertEqual(res.data['totals']['tax_amount'], '10.00')
+
+    def test_junk_in_the_guest_breakdown_does_not_500(self):
+        """A body is whatever the caller sent; a draft being typed must never error."""
+        for junk in (['nope'], [None], [42], 'not-a-list', {'a': 1}):
+            res = self.client.post(PREVIEW_URL, {
+                'guest_count': 10, 'price_per_head': '10.00',
+                'is_taxable': False, 'guest_counts': junk,
+            }, format='json')
+            self.assertEqual(res.status_code, 200, f'{junk!r} → {res.status_code}')
+            self.assertEqual(res.data['totals']['total'], '100.00')
