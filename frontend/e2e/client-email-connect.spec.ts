@@ -22,7 +22,9 @@ test.beforeEach(async ({ page }) => {
 test("connect a mailbox, see it persist, then disconnect", async ({ page }) => {
   await page.goto("/settings?tab=integrations");
 
-  const card = page.locator("div.rounded-lg", { hasText: "Client email" }).first();
+  // REL-445 folded this into the "Client communications" card as its Email row,
+  // so the journey now scopes to that row. The flow it proves is unchanged.
+  const card = page.getByTestId("settings-email-row");
   await expect(card.getByText("Not connected")).toBeVisible();
 
   // Leaves the app, bounces through the callback, lands back on Settings.
