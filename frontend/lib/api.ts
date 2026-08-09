@@ -874,6 +874,9 @@ export interface EventData {
   is_taxable: boolean;
   tax_rate: string;
   // Computed totals (food + add-on line items + tax) — server-side via the shared engine.
+  /** The engine's whole answer for this event AS SAVED — same shape the live
+   * preview returns. Absent on the list endpoint; `null` before REL-464. */
+  pricing_snapshot?: PricingPreview | null;
   subtotal: string;
   tax_amount: string;
   service_charge_pct: string;

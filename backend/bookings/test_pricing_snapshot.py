@@ -572,3 +572,52 @@ class FractionalTaxRateTests(SnapshotBase):
         self.assertEqual(_pct(Decimal('8.875')), '8.875')
         self.assertEqual(_pct(Decimal('8.5')), '8.5')
         self.assertEqual(_pct(Decimal('20')), '20')
+
+
+class EventSnapshotIsReadableTests(SnapshotBase):
+    """The event mirror of `SnapshotIsReadableTests` (REL-465 step 4).
+
+    Quotes and events render the same card from the same shape, so an exposure that
+    exists on one and not the other is how the two screens start disagreeing again.
+    """
+
+    def test_the_detail_endpoint_carries_the_snapshot(self):
+        event = self._event()
+        res = self.client.get(f'/api/events/{event.id}/')
+        self.assertEqual(res.status_code, 200)
+
+        snap = res.data['pricing_snapshot']
+        self.assertIsNotNone(snap)
+        for section in ('food', 'lines', 'totals', 'rates'):
+            self.assertIn(section, snap)
+        self.assertEqual(snap['totals']['total'], str(event.total))
+
+    def test_the_list_endpoint_leaves_it_out(self):
+        self._event()
+        res = self.client.get('/api/events/')
+        rows = res.data['results'] if isinstance(res.data, dict) else res.data
+        self.assertTrue(rows)
+        self.assertNotIn('pricing_snapshot', rows[0])
+        self.assertIn('total', rows[0])
+
+    def test_it_cannot_be_written_from_the_api(self):
+        event = self._event()
+        real = event.pricing_snapshot['totals']['total']
+
+        res = self.client.patch(
+            f'/api/events/{event.id}/',
+            {'pricing_snapshot': {'totals': {'total': '1.00'}}}, format='json')
+        self.assertEqual(res.status_code, 200, res.data)
+
+        event.refresh_from_db()
+        self.assertEqual(event.pricing_snapshot['totals']['total'], real)
+
+    def test_an_event_saved_before_snapshots_reads_back_as_null(self):
+        event = self._event()
+        Event.objects.filter(pk=event.pk).update(pricing_snapshot=None)
+
+        res = self.client.get(f'/api/events/{event.id}/')
+        self.assertIsNone(res.data['pricing_snapshot'])
+        # Everything the legacy fallback needs is still on the wire.
+        for field in ('subtotal', 'service_charge', 'tax_amount', 'gratuity', 'total'):
+            self.assertIn(field, res.data)

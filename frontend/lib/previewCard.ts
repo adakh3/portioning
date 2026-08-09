@@ -23,15 +23,13 @@ export interface PreviewCardProps {
   total: string;
 }
 
-/** A booking as the API returns it, so far as the totals card cares. */
+/** A saved booking, so far as the totals card cares — quote or event alike.
+ *
+ * Only the snapshot: the flat total columns are deliberately NOT read here, because
+ * a card built from them is a lossy one (see below), and quotes and events do not
+ * even expose the same set of them. */
 export interface StoredBookingTotals {
   pricing_snapshot?: PricingPreview | null;
-  food_total: string;
-  subtotal: string;
-  service_charge?: string | null;
-  tax_amount: string;
-  gratuity?: string | null;
-  total: string;
 }
 
 /** Totals-card props for a booking that is NOT being edited — what was saved.

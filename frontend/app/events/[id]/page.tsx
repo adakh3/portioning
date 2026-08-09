@@ -31,7 +31,9 @@ import EventPaymentsCard from "@/components/EventPaymentsCard";
 import { useAuth } from "@/lib/auth";
 import { formatDate, formatDateTime as sharedFormatDateTime, formatTime, todayISO } from "@/lib/dateFormat";
 import { lineItemTotal, computeBookingTotals, segmentFood, segmentFoodRows, hasVendorDoubleEntry, mealsFood, bookingMealRows, timelineMealRows } from "@/lib/quoteTotals";
-import { LineItemInput, buildEventSavePayload, defaultSegmentRemainder, GuestSegmentMeta } from "@/lib/bookingPayload";
+import { LineItemInput, buildEventSavePayload, pricingDraft, taxRatePercent, defaultSegmentRemainder, GuestSegmentMeta, type EventSaveInput } from "@/lib/bookingPayload";
+import { usePricingPreview } from "@/lib/usePricingPreview";
+import { previewCardProps, storedCardProps, type PreviewCardProps } from "@/lib/previewCard";
 import BookingTotalsCard from "@/components/BookingTotalsCard";
 import AddOnItemsEditor from "@/components/AddOnItemsEditor";
 import MenuBuilder from "@/components/MenuBuilder";
@@ -317,28 +319,16 @@ export default function EventDetailPage() {
     if (loadError) setError(loadError instanceof Error ? loadError.message : "Failed to load event");
   }, [loadError]);
 
-  const handleSaveAll = async () => {
-    if (!isNew && !event) return;
-    if (!formDate) {
-      setError("Event date is required");
-      return;
-    }
-    if (!formContact) {
-      setError("Customer is required");
-      return;
-    }
-    if (formIsB2b && !formAccount) {
-      setError("A business is required for a B2B event");
-      return;
-    }
-    if (defaultSegmentRemainder(formGuestCount, formSegmentCounts, segmentMeta) < 0) {
-      setError(`The breakdown is more than the guest count (${formGuestCount})`);
-      return;
-    }
-    setSaving(true);
+    /** Everything a save of this event would send.
+   *
+   * One builder for the save AND the live preview, so the draft that gets PRICED
+   * and the draft that gets STORED are the same object by construction — the same
+   * guarantee the quote page gets, and the reason a create form cannot quietly
+   * send a different shape than an edit form. */
+  function eventSaveInput(): EventSaveInput {
     const customerName = orgContacts.find((c) => c.id === formContact)?.name
       || accounts.find((a) => a.id === formAccount)?.name || "Event";
-    const payload = buildEventSavePayload({
+    return {
       name: `${customerName} — ${formDate}`,
       date: formDate,
       is_b2b: formIsB2b,
@@ -374,7 +364,111 @@ export default function EventDetailPage() {
       line_items: formLineItems,
       meals: formAdditionalMeals,
       timeline_entries: formTimeline,
-    }, segmentMeta, formCourses, formDishCourses, formMenuChoices);
+    };
+  }
+
+  // ── Server-priced totals ──
+  //
+  // The event page no longer works out what an event costs; it sends the draft to
+  // the pricing engine and renders the answer. `null` when not editing, where the
+  // saved figures stand.
+  //
+  // Tax is stated in full: an event save carries `is_taxable` and no rate, so the
+  // rate has to travel alongside it or the engine prices a taxable booking at
+  // nothing. `??` rather than `||` so an event deliberately set to 0% keeps its own
+  // zero instead of inheriting the org default.
+  const previewDraft = editing
+    ? pricingDraft(buildEventSavePayload(eventSaveInput(), segmentMeta), {
+        is_taxable: formIsTaxable,
+        tax_rate: event?.tax_rate ?? settings.default_tax_rate ?? "0",
+      })
+    : null;
+  const { result: preview, isStale: previewStale, error: previewError, flush: repriceNow } =
+    usePricingPreview(previewDraft);
+
+  // Flipping the taxable switch is a decision, not a keystroke, so the number moves
+  // at once instead of 300 ms later.
+  //
+  // From an EFFECT, not from the change handler: `repriceNow` sends whatever draft
+  // the last render produced, and inside the handler that is still the pre-toggle
+  // one — it would ask the server to re-price the state we just left. Running after
+  // the render that applied the change is what makes "immediately" also mean
+  // "correctly".
+  const taxableSettled = useRef(true);
+  useEffect(() => {
+    if (taxableSettled.current) { taxableSettled.current = false; return; }
+    repriceNow();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formIsTaxable]);
+
+  /** What the card shows before the engine has ever answered — a brand-new event
+   * is worth nothing until it is priced. */
+  const ZERO_CARD: PreviewCardProps = {
+    foodTotal: "0", foodRows: null, meals: [], addOnsTotal: "0", subtotal: "0",
+    serviceCharge: "0", taxAmount: "0", gratuity: "0", total: "0",
+  };
+
+  /** Only a failed refresh earns words — an in-flight one already says so by dimming. */
+  const staleHint = previewError ? "Totals will refresh shortly" : undefined;
+
+  /** Why this draft would be refused if saved, in the save path's own words. */
+  const previewWarnings = editing ? (preview?.warnings ?? []) : [];
+  const warningBanner = previewWarnings.length > 0 ? (
+    <div role="alert" className="rounded-md border border-warning/40 bg-warning/10 px-4 py-3 text-sm font-medium text-warning-foreground">
+      {previewWarnings.map((w, i) => <p key={i}>{w}</p>)}
+    </div>
+  ) : null;
+
+  /** The view-mode card for an event saved BEFORE REL-464, which carries no pricing
+   * snapshot and never will. The pre-REL-465 rendering, kept verbatim and reachable
+   * only here: the flat columns alone cannot say which meals were charged or how the
+   * covers were priced, so building the card from them drops both rows on an event
+   * that is already on the books. Dies with the rest of `quoteTotals.ts` in step 6. */
+  function legacyCardProps(e: EventData): PreviewCardProps {
+    const cs = settings.currency_symbol;
+    const segCounts = Object.fromEntries((e.guest_counts ?? []).map((r) => [r.segment, r.count]));
+    const segPrices = Object.fromEntries(
+      (e.guest_counts ?? []).filter((r) => r.price_per_head != null).map((r) => [r.segment, String(r.price_per_head)]),
+    );
+    const pph = e.price_per_head ?? "0";
+    const guests = e.guest_count || 0;
+    const menuFood = segmentFood(pph, guests, segCounts, segmentMeta, segPrices);
+    const meals = e.additional_meals || [];
+    return {
+      foodTotal: String(menuFood),
+      foodRows: segmentFoodRows(pph, guests, segCounts, segmentMeta, segPrices),
+      meals: bookingMealRows(meals, cs, guests, segCounts, segmentMeta),
+      // The add-ons line, recovered from what the columns do record.
+      addOnsTotal: String(Number(e.subtotal) - menuFood - mealsFood(meals, guests, segCounts, segmentMeta)),
+      subtotal: e.subtotal,
+      serviceCharge: e.service_charge || "0",
+      taxAmount: e.tax_amount,
+      gratuity: e.gratuity || "0",
+      total: e.total,
+    };
+  }
+
+const handleSaveAll = async () => {
+    if (!isNew && !event) return;
+    if (!formDate) {
+      setError("Event date is required");
+      return;
+    }
+    if (!formContact) {
+      setError("Customer is required");
+      return;
+    }
+    if (formIsB2b && !formAccount) {
+      setError("A business is required for a B2B event");
+      return;
+    }
+    if (defaultSegmentRemainder(formGuestCount, formSegmentCounts, segmentMeta) < 0) {
+      setError(`The breakdown is more than the guest count (${formGuestCount})`);
+      return;
+    }
+    setSaving(true);
+    const payload = buildEventSavePayload(
+      eventSaveInput(), segmentMeta, formCourses, formDishCourses, formMenuChoices);
     try {
       if (isNew) {
         const created = await api.createEvent({ ...payload, status: formStatus, assigned_to: formAssigned });
@@ -1094,74 +1188,52 @@ export default function EventDetailPage() {
         </CardContent>
       </Card>
 
-      {/* Pricing Section — shared BookingTotalsCard + engine (same as quotes) */}
+      {/* Pricing — the engine's answer, rendered. Editing: live from the preview.
+          Not editing: the breakdown the save produced. Nothing here is computed. */}
       {(() => {
-        const pph = editing ? parseFloat(formPricePerHead) || 0 : parseFloat(event?.price_per_head || "0");
+        const cs = settings.currency_symbol;
+        const pph = editing ? formPricePerHead : (event?.price_per_head ?? "0");
         const guests = editing ? totalGuests : (event?.guest_count || 0);
-        const viewSegmentCounts = Object.fromEntries((event?.guest_counts ?? []).map((r) => [r.segment, r.count]));
-        const viewSegmentPrices = Object.fromEntries((event?.guest_counts ?? []).filter((r) => r.price_per_head != null).map((r) => [r.segment, String(r.price_per_head)]));
-        const segCounts = editing ? formSegmentCounts : viewSegmentCounts;
-        const segPrices = editing ? formSegmentPrices : viewSegmentPrices;
-        const foodTotal = segmentFood(pph, guests, segCounts, segmentMeta, segPrices);
-        const meals = editing ? formAdditionalMeals : (event?.additional_meals || []);
-        // Audience-scoped meals price by their derived count (mirror of the backend).
-        const mealsTotal = mealsFood(meals, guests, segCounts, segmentMeta);
-        const mealRows = bookingMealRows(meals, settings.currency_symbol, guests, segCounts, segmentMeta);
-        const liItems = editing ? formLineItems : (event?.line_items || []);
-        const addOnsTotal = liItems.reduce((sum, li) => sum + lineItemTotal(li, guests), 0);
         const taxable = editing ? formIsTaxable : (event?.is_taxable || false);
-        const taxRate = parseFloat(event?.tax_rate || settings.default_tax_rate) || 0;
-        // One engine, same rule as quotes (tax on food + meals + taxable add-ons
-        // only). Editing → live preview; viewing → the server's stored totals.
-        const computed = computeBookingTotals(
-          foodTotal + mealsTotal, liItems, guests, taxable ? taxRate : 0,
-          parseFloat(formServiceChargePct || "0"), formServiceChargeTaxable,
-          parseFloat(formGratuityPct || "0"),
-        );
-        const subtotal = editing ? computed.subtotal : parseFloat(event?.subtotal || "0");
-        const taxAmount = editing ? computed.tax_amount : parseFloat(event?.tax_amount || "0");
-        const grandTotal = editing ? computed.total : parseFloat(event?.total || "0");
-        const serviceCharge = editing ? computed.service_charge : parseFloat(event?.service_charge || "0");
-        const gratuity = editing ? computed.gratuity : parseFloat(event?.gratuity || "0");
+        const taxRate = event?.tax_rate ?? settings.default_tax_rate ?? "0";
+
+        const saved = event ? (storedCardProps(event, cs) ?? legacyCardProps(event)) : ZERO_CARD;
+        const card = editing ? (preview ? previewCardProps(preview, cs) : saved) : saved;
 
         return (
+          <>
+          {warningBanner}
           <BookingTotalsCard
             title="Pricing"
-            currencySymbol={settings.currency_symbol}
-            foodTotal={foodTotal}
-            foodRows={segmentFoodRows(pph, guests, segCounts, segmentMeta, segPrices)}
-            foodLabel={`Food (${formatCurrency(pph, settings.currency_symbol)}/head × ${guests} guests)`}
-            meals={mealRows}
-            addOnsTotal={addOnsTotal}
-            subtotal={subtotal}
-            serviceCharge={serviceCharge}
-            serviceChargePct={editing ? parseFloat(formServiceChargePct || "0").toFixed(0) : parseFloat(event?.service_charge_pct || "0").toFixed(0)}
+            currencySymbol={cs}
+            {...card}
+            foodLabel={`Food (${formatCurrency(pph, cs)}/head × ${guests} guests)`}
+            serviceChargePct={editing ? formatPercent(formServiceChargePct || "0") : formatPercent(event?.service_charge_pct || "0")}
             serviceChargeControl={editing ? (
               <span className="flex items-center gap-1">
                 Service charge
                 <input type="number" step="0.01" min={0} max={100}
                   className="w-16 h-7 rounded-md border border-input bg-transparent px-2 text-sm"
                   value={formServiceChargePct}
+                  onBlur={repriceNow}
                   onChange={(e) => setFormServiceChargePct(e.target.value)} />
                 %
               </span>
             ) : undefined}
-            taxAmount={taxAmount}
-            gratuity={gratuity}
-            gratuityPct={editing ? parseFloat(formGratuityPct || "0").toFixed(0) : parseFloat(event?.gratuity_pct || "0").toFixed(0)}
+            gratuityPct={editing ? formatPercent(formGratuityPct || "0") : formatPercent(event?.gratuity_pct || "0")}
             gratuityControl={editing ? (
               <span className="flex items-center gap-1">
                 Gratuity
                 <input type="number" step="0.01" min={0} max={100}
                   className="w-16 h-7 rounded-md border border-input bg-transparent px-2 text-sm"
                   value={formGratuityPct}
+                  onBlur={repriceNow}
                   onChange={(e) => setFormGratuityPct(e.target.value)} />
                 %
               </span>
             ) : undefined}
-            total={grandTotal}
             taxLabel={settings.tax_label}
-            taxPercent={formatPercent(taxRate * 100)}
+            taxPercent={formatPercent(taxRatePercent(taxRate))}
             taxApplied={taxable}
             taxControl={editing ? (
               <label className="flex items-center gap-2 cursor-pointer">
@@ -1171,10 +1243,13 @@ export default function EventDetailPage() {
                   onChange={(e) => setFormIsTaxable(e.target.checked)}
                   className="rounded border-input"
                 />
-                {settings.tax_label} ({(taxRate * 100).toFixed(0)}%)
+                {settings.tax_label} ({formatPercent(taxRatePercent(taxRate))}%)
               </label>
             ) : undefined}
+            isStale={editing && previewStale}
+            staleHint={editing ? staleHint : undefined}
           />
+          </>
         );
       })()}
 
