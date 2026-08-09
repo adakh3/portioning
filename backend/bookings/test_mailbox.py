@@ -22,6 +22,7 @@ from bookings.services import email as email_service
 from bookings.services import mailbox_oauth
 from bookings.services.encryption import decrypt, encrypt
 from bookings.views.mailbox import NONCE_COOKIE, STATE_SALT, _hash_nonce
+from payments.models import Subscription
 from tests.base import get_test_user
 from users.models import Organisation, User
 
@@ -90,7 +91,16 @@ def _make_mailbox(org, provider=ConnectedMailbox.GOOGLE, **kwargs):
 
 
 def _other_org():
-    return Organisation.objects.create(name='Rival Catering', slug='rival', country='US')
+    """A second org standing in for another real customer.
+
+    It needs access explicitly: a brand-new org starts card-required with
+    `status=NONE`, and since REL-473 the callback turns a no-access org away.
+    (The shared `default` test org escapes this only because it predates the
+    grandfathering migration, which comped it.)
+    """
+    org = Organisation.objects.create(name='Rival Catering', slug='rival', country='US')
+    Subscription.objects.filter(organisation=org).update(comped=True)
+    return org
 
 
 _UNSET = object()
@@ -687,6 +697,71 @@ class TestMailboxCallback(TestCase):
         mailbox = ConnectedMailbox.objects.get(organisation=self.org)
         self.assertEqual(mailbox.email_address, 'dev@example.test')
         self.assertEqual(mailbox.status, ConnectedMailbox.CONNECTED)
+
+    # ── The subscription gate can't reach this view (REL-473) ──
+
+    @staticmethod
+    def _lapse(org):
+        """Put the org past its trial with nothing paying for it."""
+        sub = Subscription.objects.get(organisation=org)
+        sub.comped = False
+        sub.status = 'none'
+        sub.trial_ends_at = timezone.now() - timedelta(days=1)
+        sub.save()
+        return sub
+
+    @override_settings(**GOOGLE_CONFIGURED)
+    @patch('bookings.services.mailbox_oauth.requests.post')
+    def test_a_lapsed_org_cannot_connect_when_the_gate_never_saw_the_request(self, post):
+        """AC2 — the provider redirect can arrive with no session cookie at all,
+        and the middleware leaves unauthenticatable requests alone. The signed
+        state still names the org, so the view asks about it directly."""
+        self._lapse(self.org)
+
+        response = self._call(self._state('google'))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/billing', response['Location'])
+        self.assertIn('reason=subscription_required', response['Location'])
+        self.assertFalse(ConnectedMailbox.objects.exists())
+        post.assert_not_called()
+
+    @override_settings(**GOOGLE_CONFIGURED)
+    @patch('bookings.services.mailbox_oauth.requests.post')
+    def test_a_lapsed_org_cannot_connect_on_a_stale_access_token(self, post):
+        """AC1 — the real case: the token expires during the consent screen.
+        `_resolve_user` can't read it, so the gate skips; without this check
+        whether a lapsed org was blocked came down to token freshness."""
+        self._lapse(self.org)
+        self.client.cookies['access_token'] = 'expired.or.unreadable'
+
+        response = self._call(self._state('google'))
+
+        self.assertIn('/billing', response['Location'])
+        self.assertFalse(ConnectedMailbox.objects.exists())
+        post.assert_not_called()
+
+    @override_settings(**GOOGLE_CONFIGURED)
+    @patch('bookings.services.mailbox_oauth.requests.post')
+    def test_an_org_in_good_standing_connects_exactly_as_before(self, post):
+        """AC3 — the check must not cost REL-460 its happy path."""
+        post.return_value = _response(200, {
+            'access_token': 'a', 'refresh_token': 'r', 'expires_in': 3600,
+            'id_token': _id_token('owner@acme.com'),
+        })
+
+        response = self._call(self._state('google'))
+
+        self.assertIn('email=connected', response['Location'])
+        self.assertTrue(ConnectedMailbox.objects.filter(organisation=self.org).exists())
+
+    @override_settings(**GOOGLE_CONFIGURED)
+    @patch('bookings.services.mailbox_oauth.requests.post')
+    def test_a_lapsed_org_is_blocked_before_the_code_is_ever_exchanged(self, post):
+        """No provider round trip, so the authorisation code stays unspent."""
+        self._lapse(self.org)
+        self._call(self._state('google'))
+        post.assert_not_called()
 
     @override_settings(**GOOGLE_CONFIGURED)
     @patch('bookings.services.mailbox_oauth.requests.post')

@@ -20,7 +20,8 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from users.models import Organisation, User
 
 from . import webhook_handlers
-from .models import SubscriptionStatus
+from .access import org_has_access
+from .models import Subscription, SubscriptionStatus
 
 SUBSCRIPTION = "/api/billing/subscription/"
 CHECKOUT = "/api/billing/checkout/"
@@ -481,6 +482,67 @@ class SubscriptionGateTests(TestCase):
         self.expire_trial()
         res = self.cookie_client(self.user).get(SUBSCRIPTION, **self.NAV)
         self.assertEqual(res.status_code, 200)
+
+    def test_a_clients_sign_page_survives_the_caterer_being_locked_out(self):
+        """REL-473 AC4 — the gate skips unauthenticatable requests, and that is
+        load-bearing here: a caterer's billing problem must never stop their
+        client signing. 404 for an unknown token, but never 402."""
+        self.expire_trial()
+        res = APIClient().get(
+            '/api/public/bookings/00000000-0000-0000-0000-000000000000/', **self.NAV,
+        )
+        self.assertNotEqual(res.status_code, 402)
+
+
+class OrgAccessHelperTests(TestCase):
+    """REL-473 AC5 — the middleware and the OAuth callback must agree on what
+    'has access' means, so both go through here."""
+
+    def setUp(self):
+        self.org = Organisation.objects.create(name="AccessCo", slug="accessco", country="US")
+
+    def test_a_brand_new_org_has_no_access(self):
+        """Billing is card-required — a new org starts at NONE and is gated
+        until it subscribes. Worth pinning here because it's the assumption the
+        OAuth callback now leans on."""
+        self.assertFalse(org_has_access(self.org))
+
+    def test_a_live_trial_has_access(self):
+        sub = self.org.subscription
+        sub.status = SubscriptionStatus.TRIALING
+        sub.trial_ends_at = timezone.now() + timedelta(days=5)
+        sub.save()
+        self.assertTrue(org_has_access(self.org))
+
+    def test_an_expired_trial_does_not(self):
+        sub = self.org.subscription
+        sub.status = SubscriptionStatus.TRIALING
+        sub.trial_ends_at = timezone.now() - timedelta(days=1)
+        sub.save()
+        self.assertFalse(org_has_access(self.org))
+
+    def test_a_paying_org_has_access(self):
+        sub = self.org.subscription
+        sub.status = SubscriptionStatus.ACTIVE
+        sub.save()
+        self.assertTrue(org_has_access(self.org))
+
+    def test_a_comped_org_has_access_with_no_plan(self):
+        sub = self.org.subscription
+        sub.status = SubscriptionStatus.NONE
+        sub.trial_ends_at = None
+        sub.comped = True
+        sub.save()
+        self.assertTrue(org_has_access(self.org))
+
+    def test_no_subscription_row_means_no_access(self):
+        """Billing is card-required; a missing row is not a reason to let
+        someone in."""
+        Subscription.objects.filter(organisation=self.org).delete()
+        self.assertFalse(org_has_access(self.org))
+
+    def test_none_is_not_access(self):
+        self.assertFalse(org_has_access(None))
 
 
 class WebhookViewTests(TestCase):
