@@ -12,8 +12,17 @@ we can't authenticate are left alone; the view's own auth returns the 401.
 Exempt paths: auth (so you can log in), billing (so a locked-out org can still
 reach checkout/portal/status and the Stripe webhook), and Django admin.
 Superusers (platform staff) are never gated.
+
+A few ``/api/`` endpoints are reached by the *browser itself* rather than by
+fetch — an OAuth provider redirecting the user back, for instance. A JSON body
+is the right answer for an XHR and a dead end for a navigation, so the block
+response is content-negotiated: navigations get sent to the billing page, which
+is where the frontend routes a 402 anyway.
 """
+from django.conf import settings
 from django.http import JsonResponse
+from django.shortcuts import redirect
+from django.utils.cache import patch_vary_headers
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 
@@ -54,6 +63,46 @@ class SubscriptionGateMiddleware:
             return False
         return True
 
+    def _is_navigation(self, request):
+        """True when the browser is loading this URL as a page, not fetching it.
+
+        `Sec-Fetch-Dest` is the authoritative answer and cannot be forged: it's
+        a forbidden header name, so script can't set it, and browsers send it on
+        every top-level navigation — including the OAuth bounce-back this exists
+        for. Where it's absent (an older browser, curl, a server-side client) we
+        fall back to Accept *starting* with text/html, which is what a real
+        navigation sends. A mere substring test would be wrong: a client asking
+        for `application/json, text/html;q=0.1` prefers JSON and would be
+        redirected into a cross-origin page it can't read.
+        """
+        if request.method != 'GET':
+            return False
+        dest = request.headers.get('Sec-Fetch-Dest')
+        if dest:
+            return dest == 'document'
+        return request.headers.get('Accept', '').strip().startswith('text/html')
+
+    def _blocked(self, request):
+        if self._is_navigation(request):
+            # A JSON body rendered as a page is a dead end. Send them where the
+            # frontend sends every other 402.
+            response = redirect(
+                f'{settings.FRONTEND_BASE_URL.rstrip("/")}/billing?reason=subscription_required'
+            )
+        else:
+            response = JsonResponse(
+                {
+                    'detail': 'subscription_required',
+                    'message': 'Your subscription is inactive. '
+                               'Please subscribe to continue.',
+                },
+                status=402,
+            )
+        # One URL, two bodies, chosen by these headers — say so, or an
+        # intermediary could hand a cached redirect to an XHR.
+        patch_vary_headers(response, ('Accept', 'Sec-Fetch-Dest'))
+        return response
+
     def __call__(self, request):
         if self._is_gated(request):
             user = _resolve_user(request)
@@ -64,12 +113,5 @@ class SubscriptionGateMiddleware:
                 if org is not None:
                     sub = Subscription.objects.filter(organisation=org).first()
                     if sub is None or not sub.has_access:
-                        return JsonResponse(
-                            {
-                                'detail': 'subscription_required',
-                                'message': 'Your subscription is inactive. '
-                                           'Please subscribe to continue.',
-                            },
-                            status=402,
-                        )
+                        return self._blocked(request)
         return self.get_response(request)

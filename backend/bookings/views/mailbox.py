@@ -152,7 +152,14 @@ class MailboxConnectView(APIView):
         response.set_cookie(
             NONCE_COOKIE, nonce,
             max_age=STATE_MAX_AGE, httponly=True, samesite='Lax',
-            secure=not settings.DEBUG, path=COOKIE_PATH,
+            # Secure on any HTTPS connection, and unconditionally outside
+            # DEBUG. `is_secure()` alone would be the tidier rule, but it reads
+            # X-Forwarded-Proto exclusively once SECURE_PROXY_SSL_HEADER is set
+            # — so it only stays true in production because SECURE_SSL_REDIRECT
+            # turns plain HTTP away first. Someone exempting a path from that
+            # redirect shouldn't be able to quietly drop Secure from a
+            # credential-bearing cookie, hence the second clause.
+            secure=request.is_secure() or not settings.DEBUG, path=COOKIE_PATH,
         )
         return response
 
