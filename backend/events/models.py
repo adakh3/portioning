@@ -14,6 +14,15 @@ from users.model_mixins import OrgScopedModel
 from bookings.models.finance import PaymentMethod
 
 
+# The four parts an event's total is made of — the twin of the Quote expression.
+# Defined here rather than imported so `events` keeps no import-time dependency on
+# `bookings.models.quotes` (which imports from events in turn).
+_TOTAL_PARTS = (
+    models.F('subtotal') + models.F('service_charge')
+    + models.F('tax_amount') + models.F('gratuity')
+)
+
+
 def resolve_legacy_segments(organisation, guest_count, gents, ladies, has_split):
     """Build the N-segment guest mix for a booking that has no per-segment
     ``BookingGuestCount`` rows, from its legacy gents/ladies columns.
@@ -180,85 +189,109 @@ def guest_counts_error(organisation, guest_count, raw_counts):
     return None
 
 
+def derive_segment_rows(organisation, guest_count, raw_counts):
+    """The breakdown rows a save WOULD store, as ``[(GuestSegment, count, override)]``.
+
+    Pure — no database writes, no booking required. This is the ONE definition of
+    what a submitted breakdown means, so the live preview can show exactly the rows
+    a save would persist instead of re-deriving the rule and drifting from it.
+
+    Applies, in order: unknown segment names are ignored; a row with no covers is
+    dropped; a per-head override is parsed through the shared guard (an unusable
+    value becomes "no override" rather than a rate nobody chose — REL-449 AC2); the
+    default in-count segment never honours an override, because it IS the base rate;
+    and that default segment is finally set to the remainder of ``guest_count``
+    (REL-459) rather than to whatever the caller sent for it.
+    """
+    segs = {s.name.lower(): s for s in organisation.guest_segments.all()}
+    rows = []
+    explicit_in_count = 0
+    for raw in (raw_counts or []):
+        seg = segs.get((raw.get('segment') or '').lower())
+        if seg is None:
+            continue
+        count = int(raw.get('count') or 0)
+        if count <= 0:
+            continue
+        override, _ = parse_segment_rate(raw.get('price_per_head'))
+        if seg.is_default and seg.counts_toward_total:
+            override = None
+        rows.append((seg, count, override))
+        # Summed from THIS payload, never re-read from the table: the stored rows
+        # still include ones the save is about to delete, and counting those made an
+        # edit that dropped "Kids: 12" leave 138 adults on a 150-guest booking.
+        if seg.counts_toward_total and not seg.is_default:
+            explicit_in_count += count
+
+    default_seg = next(
+        (s for s in segs.values() if s.is_default and s.counts_toward_total), None)
+    if rows and default_seg is not None and (guest_count or 0) > 0:
+        remainder = (guest_count or 0) - explicit_in_count
+        rows = [r for r in rows if r[0].id != default_seg.id]
+        if remainder > 0:
+            rows.append((default_seg, remainder, None))
+    return rows
+
+
+def segments_for_preview(organisation, guest_count, raw_counts):
+    """`derive_segment_rows` in the shape the pricing engine takes.
+
+    Falls back to the legacy resolution (default segment holds the whole count) when
+    the payload carries no usable breakdown, matching `resolve_booking_segments` so
+    a preview of an un-broken-down booking prices like the saved one.
+
+    Rows come back in the SAVE's order — `BookingGuestCount.Meta.ordering`, i.e. the
+    org's segment order. `derive_segment_rows` appends the derived default remainder
+    last because that is when it learns the number, so without this the itemised
+    food lines visibly reshuffled the moment you pressed Save: "Kids, Vendors,
+    Adults" while editing became "Adults, Kids, Vendors" once stored. Same amounts,
+    same total, but on a card a customer is reading, a list that jumps looks like
+    numbers that changed.
+    """
+    rows = derive_segment_rows(organisation, guest_count, raw_counts)
+    rows = sorted(rows, key=lambda r: (r[0].sort_order, r[0].id))
+    if not rows:
+        return resolve_legacy_segments(
+            organisation, guest_count or 0, 0, 0, has_split=False)
+    return [
+        {'name': seg.name, 'count': count,
+         'portion_multiplier': seg.portion_multiplier,
+         'price_multiplier': seg.price_multiplier,
+         'price_override': override,
+         'counts_toward_total': seg.counts_toward_total}
+        for seg, count, override in rows
+    ]
+
+
 def write_booking_segments(booking, raw_counts):
     """Persist a booking's per-segment breakdown (list of ``{'segment','count'}``)
     into ``BookingGuestCount`` rows (quote XOR event), replacing existing rows, and
     mirror any Gents/Ladies counts into the legacy columns so column-reading
     renderers (PDFs) stay correct. Data-driven — the gents/ladies mirror fires only
     when the org actually defines those segments, never by org type.
+
+    WHICH rows to store is decided by `derive_segment_rows` — shared with the live
+    preview, so what the screen shows and what the save writes cannot diverge.
     """
     org = booking.organisation
     parent = {'event': booking} if isinstance(booking, Event) else {'quote': booking}
-    segs = {s.name.lower(): s for s in org.guest_segments.all()}
     seen = []
     gents = ladies = 0
-    explicit_in_count = 0
-    for row in (raw_counts or []):
-        name = (row.get('segment') or '').lower()
-        seg = segs.get(name)
-        if seg is None:
-            continue
-        count = int(row.get('count') or 0)
+    for seg, count, override in derive_segment_rows(org, booking.guest_count, raw_counts):
+        name = seg.name.lower()
         if name == 'gents':
             gents = count
         elif name == 'ladies':
             ladies = count
-        if count > 0:
-            # Parse through the shared guard, so this path can't store what the API
-            # validator rejects — and can't raise InvalidOperation as a 500 either.
-            # An unusable value becomes "no override" (fall back to the multiplier)
-            # rather than a stored rate nobody chose (REL-449 AC2).
-            override, _ = parse_segment_rate(row.get('price_per_head'))
-            # The default in-count segment (Adults) always uses the base price/head —
-            # never an override — so the stored total can't diverge from the preview.
-            # Guard here (not just the UI) so the raw API / AI-agent write path can't
-            # set one either.
-            if seg.is_default and seg.counts_toward_total:
-                override = None
-            BookingGuestCount.objects.update_or_create(
-                segment=seg, defaults={'count': count, 'price_per_head': override}, **parent,
-            )
-            seen.append(seg.id)
-            # Sum the in-count segments THIS payload names, for the remainder below.
-            # Counted here rather than re-read from the table afterwards, because the
-            # table still holds the rows this call is about to delete — summing those
-            # made an edit that dropped "Kids: 12" leave 138 adults on a 150-guest
-            # booking instead of 150.
-            if seg.counts_toward_total and not seg.is_default:
-                explicit_in_count += count
-    # The default in-count segment (Adults) is ALWAYS the remainder of the booking's
-    # own guest_count — never whatever the caller happened to send for it.
-    #
-    # Without this, a breakdown that under-covers the count was accepted silently and
-    # every downstream reader followed it: `resolve_booking_segments` is count-first,
-    # so a booking of 100 carrying only "Kids: 20" priced, portioned and printed as
-    # TWENTY covers, while the signed function sheet still said 100. That is a
-    # £1,000 invoice for a £10,000 event, with no error anywhere (REL-459).
-    #
-    # The UI has always derived this (`defaultSegmentRemainder` /
-    # `buildGuestCountsPayload` in frontend/lib/quoteTotals.ts), so this doesn't
-    # invent a rule — it moves the existing one behind the API, where the raw
-    # write path and an AI agent go. Same reasoning as the price-override guard
-    # above. UI payloads already carry the right number, so this is a no-op for them.
-    default_seg = next(
-        (s for s in segs.values() if s.is_default and s.counts_toward_total), None,
-    )
-    if seen and default_seg is not None and (booking.guest_count or 0) > 0:
-        remainder = (booking.guest_count or 0) - explicit_in_count
-        if remainder > 0:
-            BookingGuestCount.objects.update_or_create(
-                segment=default_seg, defaults={'count': remainder, 'price_per_head': None},
-                **parent,
-            )
-            if default_seg.id not in seen:
-                seen.append(default_seg.id)
-        else:
-            # The breakdown already accounts for every guest — no remainder to hold.
-            seen = [s for s in seen if s != default_seg.id]
+        BookingGuestCount.objects.update_or_create(
+            segment=seg, defaults={'count': count, 'price_per_head': override}, **parent,
+        )
+        seen.append(seg.id)
 
     BookingGuestCount.objects.filter(**parent).exclude(segment_id__in=seen).delete()
     # Keep the legacy gents/ladies columns in sync (PDF/back-compat), only when the
     # org defines those segments and the values actually changed.
+    segs = {s.name.lower() for s in org.guest_segments.all()}
     if ('gents' in segs or 'ladies' in segs) and (booking.gents != gents or booking.ladies != ladies):
         booking.gents = gents
         booking.ladies = ladies
@@ -282,12 +315,16 @@ def resolve_booking_segments(booking):
     if rows:
         return [
             {'name': r.segment.name, 'count': r.count,
+             # portion_multiplier stays a float — it feeds the portion calculator,
+             # which is grams, not money. The two PRICE fields below are Decimals all
+             # the way to the engine: they were cast to float here, so a rate spent a
+             # moment in binary floating point on its way to being money (REL-463).
              'portion_multiplier': r.segment.portion_multiplier,
-             'price_multiplier': float(r.segment.price_multiplier),
+             'price_multiplier': r.segment.price_multiplier,
              # Per-booking per-head override (flat/custom rate); None → use multiplier.
              # The default segment never honours an override (matches the write guard).
              'price_override': (None if r.segment.is_default and r.segment.counts_toward_total
-                                else (float(r.price_per_head) if r.price_per_head is not None else None)),
+                                else r.price_per_head),
              'counts_toward_total': r.segment.counts_toward_total}
             for r in rows
         ]
@@ -533,27 +570,36 @@ class MealAudience(models.TextChoices):
     SEGMENT = 'segment', 'Single segment'   # one org segment (``audience_segment``)
 
 
-def derive_meal_guest_count(meal, segments):
-    """The guest count an additional meal serves, derived from the booking's resolved
-    ``segments`` (as returned by ``resolve_booking_segments``) by the meal's
-    ``audience``:
+def derive_meal_count_from_rows(audience, segment_name, segments):
+    """The audience rule itself, over resolved ``segments`` and plain values.
+
+    Split out from ``derive_meal_guest_count`` so the PREVIEW can run it too: the
+    preview is handed a half-typed JSON draft, not saved model rows, and until it
+    could derive this it trusted whatever count the browser sent — which left the
+    frontend's mirror of this same rule load-bearing for a priced number. One rule,
+    two callers, no mirror.
 
     * ``everyone`` — every cover (all segments: guests + extra covers)
     * ``guests``   — in-count segments only (``counts_toward_total``)
-    * ``segment``  — the single ``audience_segment`` (0 when it isn't in the mix)
+    * ``segment``  — the single named segment (0 when it isn't in the mix)
     * ``custom``   — ``None`` (keep the hand-typed ``guest_count``)
     """
-    audience = meal.audience
     if audience == MealAudience.EVERYONE:
         return sum(s['count'] for s in segments)
     if audience == MealAudience.GUESTS:
         return sum(s['count'] for s in segments if s['counts_toward_total'])
     if audience == MealAudience.SEGMENT:
-        if meal.audience_segment_id is None:
+        if not segment_name:
             return 0
-        name = meal.audience_segment.name
-        return sum(s['count'] for s in segments if s['name'] == name)
+        return sum(s['count'] for s in segments if s['name'] == segment_name)
     return None
+
+
+def derive_meal_guest_count(meal, segments):
+    """The guest count a SAVED additional meal serves, derived from the booking's
+    resolved ``segments`` (as returned by ``resolve_booking_segments``)."""
+    name = meal.audience_segment.name if meal.audience_segment_id is not None else None
+    return derive_meal_count_from_rows(meal.audience, name, segments)
 
 
 def sync_audience_meal_counts(booking):
@@ -676,7 +722,7 @@ class Event(OrgScopedModel, models.Model):
     # negative service charge / gratuity — each of which recomputed the totals and
     # rendered happily into a sendable PDF.
     tax_rate = models.DecimalField(
-        max_digits=5, decimal_places=4, default=Decimal('0'),
+        max_digits=6, decimal_places=5, default=Decimal('0'),
         validators=[MinValueValidator(Decimal('0')), MaxValueValidator(Decimal('1'))],
         help_text='Tax rate as a fraction (0.20 = 20%); applied only when is_taxable.',
     )
@@ -699,6 +745,9 @@ class Event(OrgScopedModel, models.Model):
         help_text='Gratuity as a percentage of the subtotal (post-tax, never taxed)')
     gratuity = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
     total = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+    # The engine's COMPLETE answer — see the twin field on Quote for why both the
+    # columns and the JSON exist.
+    pricing_snapshot = models.JSONField(null=True, blank=True, default=None)
 
     # Timeline
     setup_time = models.DateTimeField(null=True, blank=True)
@@ -732,6 +781,18 @@ class Event(OrgScopedModel, models.Model):
 
     class Meta:
         ordering = ['-event_date']
+        constraints = [
+            # Mirror of the quote invariant — see Quote.Meta for why it is a
+            # half-cent band rather than exact equality (SQLite adds DecimalFields
+            # as floats, so correct-to-the-cent numbers fail an exact check).
+            models.CheckConstraint(
+                name='event_total_is_the_sum_of_its_parts',
+                condition=(
+                    models.Q(total__gte=_TOTAL_PARTS - Decimal('0.005'))
+                    & models.Q(total__lte=_TOTAL_PARTS + Decimal('0.005'))
+                ),
+            ),
+        ]
 
     def __str__(self):
         return f"{self.name} ({self.event_date})"
@@ -773,47 +834,15 @@ class Event(OrgScopedModel, models.Model):
     def food_total(self):
         """Taxable food/menu cost: main menu priced per guest segment
         (``price_per_head × price_multiplier × count``, summed over all segments) +
-        any additional meals (their own price_per_head × guest_count). With no
-        breakdown this reduces to ``price_per_head × guest_count`` (see
-        ``segment_food_total``)."""
-        from bookings.services.totals import round2, segment_food_total
-        total = segment_food_total(self.price_per_head, resolve_booking_segments(self))
-        for meal in self.additional_meals.all():
-            if meal.price_per_head and meal.guest_count:
-                total += meal.price_per_head * meal.guest_count
-        return round2(total)
+        any additional meals. Computed by the engine, identically to Quote."""
+        from bookings.services.booking_pricing import food_total_for
+        return food_total_for(self)
 
     def recalculate_totals(self):
-        # Shared engine — identical math to quotes. See bookings/services/totals.py.
-        from bookings.services.totals import compute_booking_totals
-        rate = self.tax_rate if self.is_taxable else Decimal('0')
-        # Drop any prefetch cache first: a caller may have loaded this event via
-        # prefetch_related('line_items'), and that cache predates rows added in the
-        # same save — so line_items.all() would omit the just-added add-ons and the
-        # stored subtotal would silently drop them.
-        for rel in ('line_items', 'additional_meals'):
-            getattr(self, '_prefetched_objects_cache', {}).pop(rel, None)
-        # Keep audience-scoped meal counts current before pricing (dual-write).
-        sync_audience_meal_counts(self)
-        # Re-derive per-guest lines from the CURRENT guest count before summing them —
-        # a PATCH that moved guest_count without resending line_items would otherwise
-        # be priced off the old count (REL-462 Bug 4).
-        from bookings.models.addons import BookingLineItem
-        lines = BookingLineItem.refreshed_for(self)
-        totals = compute_booking_totals(
-            self.food_total, lines, rate,
-            service_charge_pct=self.service_charge_pct,
-            service_charge_taxable=self.service_charge_taxable,
-            gratuity_pct=self.gratuity_pct,
-        )
-        self.subtotal = totals.subtotal
-        self.service_charge = totals.service_charge
-        self.tax_amount = totals.tax_amount
-        self.gratuity = totals.gratuity
-        self.total = totals.total
-        self.save(update_fields=[
-            'subtotal', 'service_charge', 'tax_amount', 'gratuity', 'total',
-        ])
+        """Re-price through the engine and store. Identical math to quotes, because
+        it is literally the same call — see bookings/services/booking_pricing.py."""
+        from bookings.services.booking_pricing import price_and_store
+        price_and_store(self)
 
     # ── Client payment tracking (advances / part / full) ──
     # Read-only settlement view over the event's EventPayments. These record money

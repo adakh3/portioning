@@ -210,6 +210,10 @@ class Command(BaseCommand):
             ('Linens',               'rental',   'each',      '15.00',  True,  False),
             ('Chafing Dishes',       'rental',   'each',      '20.00',  True,  False),
             ('Delivery & Setup',     'fee',      'flat',      '150.00', True,  True),
+            # Unpriced on purpose — a discount's amount is per-booking. Its category
+            # is what matters: a line created from it computes negative (owner,
+            # 2026-08-10: every new org's picker should offer a Discount).
+            ('Discount',             'discount', 'flat',      '0.00',   False, False),
         ]
         for i, (name, cat, unit, price, taxable, featured) in enumerate(data):
             AddOnProduct.objects.get_or_create(

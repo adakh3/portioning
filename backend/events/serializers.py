@@ -234,7 +234,7 @@ class EventSerializer(OrgScopedModelSerializer):
                   'status', 'status_display', 'is_taxable', 'tax_rate',
                   'subtotal', 'tax_amount', 'total',
                   'service_charge_pct', 'service_charge_taxable', 'service_charge',
-                  'gratuity_pct', 'gratuity',
+                  'gratuity_pct', 'gratuity', 'pricing_snapshot',
                   # Timeline
                   'setup_time', 'guest_arrival_time', 'meal_time', 'end_time',
                   # Guest counts
@@ -251,8 +251,14 @@ class EventSerializer(OrgScopedModelSerializer):
         # guarantee, so letting an ordinary PATCH set final_count would both bypass
         # the check and let a stale event form blank a guarantee someone just
         # recorded. `EventFinalsSerializer` writes them on the model directly.
+        # `pricing_snapshot` is the engine's whole answer for this event AS SAVED.
+        # Read-only for the same reason the amounts are: the save writes it, the
+        # client never sends it. Exposed so a read-only screen RENDERS the breakdown
+        # it already has instead of recomputing one that might not match the stored
+        # total (REL-465). NULL on rows saved before REL-464.
         read_only_fields = ['created_at', 'subtotal', 'tax_amount', 'total',
                             'service_charge', 'gratuity', 'created_by',
+                            'pricing_snapshot',
                             'guaranteed_count', 'final_count', 'final_count_due',
                             'beo_revision', 'beo_revised_at']
         extra_kwargs = {
@@ -552,6 +558,8 @@ EVENT_LIST_EXCLUDE = {
     # `finals_status` stays: it is derived from columns already on the row, so the
     # list pill costs no query.
     'menu_choices', 'menu_lines',
+    # a full breakdown per row, on a list that shows one total per row
+    'pricing_snapshot',
 }
 
 

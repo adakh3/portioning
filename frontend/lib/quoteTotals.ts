@@ -1,21 +1,13 @@
-// Pure helpers for the quote editor — mirror the backend so totals can be
-// previewed live while editing, and so the whole quote saves in one PATCH.
-// The server (bookings/models/quotes.py: recalculate_totals + QuoteLineItem.save)
-// remains the source of truth on save.
-import { EventMealData, CourseData, MenuChoices } from "@/lib/api";
-import type { TimelineEntryValue } from "@/components/BookingTimelineField";
+// The frontend's mirror of the backend money math — kept only while the editing
+// surfaces still compute their own totals.
+//
+// REL-465 is retiring it: a surface asks `POST /api/pricing/preview` for its
+// numbers instead, so what is on screen IS what a save would store. Everything
+// here goes when the last consumer does. What a booking SENDS lives in
+// `bookingPayload.ts` and is staying — don't add payload code here.
 import { formatCurrency } from "@/lib/utils";
-
-export interface LineItemInput {
-  id?: number;
-  variant?: number | null; // AddOnVariant id when the row came from the catalog
-  category: string; // 'food' | 'beverage' | 'rental' | 'labor' | 'fee' | 'discount'
-  description: string;
-  quantity: number | string;
-  unit: string; // 'per_guest' | 'per_hour' | 'flat' | 'each'
-  unit_price: number | string;
-  sort_order?: number;
-}
+import { buildGuestCountsPayload, effectiveMealCount } from "@/lib/bookingPayload";
+import type { GuestSegmentMeta, LineItemInput, MealAudienceInput } from "@/lib/bookingPayload";
 
 export interface BookingTotals {
   food_total: number;
@@ -32,10 +24,22 @@ export type QuoteTotals = BookingTotals;
 
 const round2 = (n: number): number => Math.round((n + Number.EPSILON) * 100) / 100;
 
-/** Line total — mirrors BookingLineItem.save() in the backend. */
+/** A line item's quantity or price — the mirror of `_line_number` in totals.py.
+ *
+ * Keeps the sign (a discount is routinely typed as a negative price) but refuses
+ * anything unusable, INCLUDING an out-of-range magnitude. `Number("1e400")` is
+ * `Infinity`, which is truthy, so `Number(x) || 0` let it through and every total
+ * downstream became `Infinity`; the backend's `Decimal("1e400")` is finite and blew
+ * up in `quantize` instead. Same bound, same answer, on both sides. */
+const lineNumber = (value: unknown): number => {
+  const n = Number(value);
+  return Number.isFinite(n) && Math.abs(n) <= MAX_USABLE_RATE ? n : 0;
+};
+
+/** Line total — mirrors `line_item_total` in the backend engine. */
 export function lineItemTotal(item: LineItemInput, guestCount: number): number {
-  const qty = Number(item.quantity) || 0;
-  const price = Number(item.unit_price) || 0;
+  const qty = lineNumber(item.quantity);
+  const price = lineNumber(item.unit_price);
   if (item.unit === "per_guest") return round2(price * guestCount);
   if (item.category === "discount") return -round2(Math.abs(qty * price));
   return round2(qty * price);
@@ -74,7 +78,9 @@ export function computeBookingTotals(
   // keeps the live preview honest while the user is still typing.
   const chargeBase = Math.max(subtotal, 0);
   const service_charge = round2((chargeBase * (serviceChargePct || 0)) / 100);
-  const tax_base = round2(subtotal + (serviceChargeTaxable ? service_charge : 0));
+  // The tax base is clamped the same way: tax on a negative subtotal is NEGATIVE
+  // tax ("GST −5.00"), and no authority pays a caterer for granting discounts.
+  const tax_base = round2(chargeBase + (serviceChargeTaxable ? service_charge : 0));
   const tax_amount = round2(tax_base * (taxRate || 0));
   const gratuity = round2((chargeBase * (gratuityPct || 0)) / 100);
   return {
@@ -92,74 +98,6 @@ export function computeBookingTotals(
  * Quote convenience wrapper over {@link computeBookingTotals}: food = price/head
  * × guests (quotes have no additional meals). `taxRate` is a decimal fraction.
  */
-/** A meal for count derivation — its audience picks who it serves (REL-426). */
-export interface MealAudienceInput {
-  guest_count: number;
-  audience?: string;               // custom | everyone | guests | segment (default custom)
-  audience_segment?: string | null; // segment NAME when audience=segment
-}
-
-/**
- * The guest count a meal serves — mirror of the backend `derive_meal_guest_count`.
- * ``custom`` (or a meal with no audience) keeps its typed ``guest_count``; the others
- * derive it from the booking's resolved segments (the same rows the save writes).
- */
-export function deriveMealCount(
-  meal: MealAudienceInput,
-  guestCount: number,
-  segmentCounts: Record<string, number>,
-  meta: GuestSegmentMeta[],
-): number {
-  const audience = meal.audience || "custom";
-  if (audience === "custom") return meal.guest_count || 0;
-  return deriveMealCountFromRows(audience, meal.audience_segment, resolvedSegmentRows(guestCount, segmentCounts, meta));
-}
-
-/** The derived-audience core over already-resolved segment rows — the exact mirror of
- * the backend `derive_meal_guest_count` (both run the shared `meal_audience_cases`).
- * ``custom`` has no row-derived value (the caller keeps the typed count). */
-export function deriveMealCountFromRows(
-  audience: string,
-  audienceSegment: string | null | undefined,
-  rows: { name: string; count: number; counts: boolean }[],
-): number {
-  if (audience === "everyone") return rows.reduce((t, r) => t + r.count, 0);
-  if (audience === "guests") return rows.reduce((t, r) => t + (r.counts ? r.count : 0), 0);
-  if (audience === "segment") {
-    if (!audienceSegment) return 0;
-    return rows.filter((r) => r.name === audienceSegment).reduce((t, r) => t + r.count, 0);
-  }
-  return 0;
-}
-
-/** The segment rows a save would write — mirror of the backend `resolve_booking_segments`:
- * the explicit in-count segments + the derived default remainder + additional covers,
- * or (no breakdown) the whole count under the default segment. */
-function resolvedSegmentRows(
-  guestCount: number,
-  explicit: Record<string, number>,
-  meta: GuestSegmentMeta[],
-): { name: string; count: number; counts: boolean }[] {
-  const byName: Record<string, GuestSegmentMeta> = Object.fromEntries(meta.map((m) => [m.name, m]));
-  const built = buildGuestCountsPayload(guestCount, explicit, meta);
-  if (built.length === 0) {
-    const def = meta.find((m) => m.is_default && m.counts_toward_total);
-    return (guestCount || 0) > 0 ? [{ name: def?.name ?? "", count: guestCount, counts: true }] : [];
-  }
-  return built.map((r) => ({ name: r.segment, count: r.count, counts: !!byName[r.segment]?.counts_toward_total }));
-}
-
-/** The effective guest count of a meal (derived for audience meals, typed for custom). */
-function effectiveMealCount(
-  meal: MealAudienceInput,
-  guestCount?: number,
-  segmentCounts?: Record<string, number>,
-  meta?: GuestSegmentMeta[],
-): number {
-  if (meta && guestCount != null) return deriveMealCount(meal, guestCount, segmentCounts || {}, meta);
-  return meal.guest_count || 0;
-}
-
 /** Food cost of additional meals: each meal's price_per_head × its (effective) guests.
  * Pass the booking's segment context to price audience-scoped meals by their derived
  * count; without it, each meal's own `guest_count` is used (back-compat). */
@@ -173,7 +111,11 @@ export function mealsFood(
   for (const m of meals || []) {
     const price = Number(m.price_per_head) || 0;
     const count = effectiveMealCount(m, guestCount, segmentCounts, meta);
-    if (price > 0 && count) total += round2(price * count);
+    // `count > 0`, not just truthy: a negative count was summed here and dropped by
+    // the backend's `meal_rows`, so the preview and the saved total disagreed by a
+    // whole meal. A meal is a charge — neither a negative rate nor a negative head
+    // count is one. Pinned in both engines by the shared `meal_cases`.
+    if (price > 0 && count > 0) total += round2(price * count);
   }
   return round2(total);
 }
@@ -230,60 +172,6 @@ export function computeQuoteTotals(
 // ── Guest segments (kids/vendor buckets) — mirror of the backend resolver +
 // segment_food_total in bookings/services/totals.py (REL-415). ──
 
-export interface GuestSegmentMeta {
-  name: string;
-  is_default: boolean;
-  counts_toward_total: boolean;
-  price_multiplier: string; // decimal string, e.g. "0.5000"
-  sort_order: number;
-}
-
-export interface GuestCountRow {
-  segment: string;
-  count: number;
-  price_per_head?: string; // per-segment per-head override (flat/custom rate); omitted when unset
-}
-
-/**
- * The guest_counts payload for a booking save: `[]` when no breakdown was entered
- * (the whole count is the org's default segment), otherwise every explicit in-count
- * segment plus the **derived default remainder** plus any additional-cover segments.
- * `explicit` is the map of user-entered segment counts (the default is never entered
- * — it is the remainder). Mirrors the backend write path.
- */
-export function buildGuestCountsPayload(
-  guestCount: number,
-  explicit: Record<string, number>,
-  meta: GuestSegmentMeta[],
-  prices: Record<string, string> = {},
-): GuestCountRow[] {
-  const inCountNonDefault = meta.filter((m) => m.counts_toward_total && !m.is_default);
-  const additional = meta.filter((m) => !m.counts_toward_total);
-  const anyExplicit = [...inCountNonDefault, ...additional].some((m) => (explicit[m.name] || 0) > 0);
-  if (!anyExplicit) return [];
-  const row = (segment: string, count: number): GuestCountRow => {
-    const p = prices[segment];
-    return p != null && p !== "" ? { segment, count, price_per_head: p } : { segment, count };
-  };
-  const rows: GuestCountRow[] = [];
-  let sumInCount = 0;
-  for (const m of inCountNonDefault) {
-    const c = explicit[m.name] || 0;
-    if (c > 0) {
-      rows.push(row(m.name, c));
-      sumInCount += c;
-    }
-  }
-  const def = meta.find((m) => m.is_default && m.counts_toward_total);
-  const remainder = (guestCount || 0) - sumInCount;
-  if (def && remainder > 0) rows.push({ segment: def.name, count: remainder }); // default uses base rate
-  for (const m of additional) {
-    const c = explicit[m.name] || 0;
-    if (c > 0) rows.push(row(m.name, c));
-  }
-  return rows;
-}
-
 /** AC14: warn (don't block) when a booking has BOTH a vendor additional-cover
  * count AND a vendor-labelled additional meal — the two ways to feed vendors,
  * entered at once (double-entry). */
@@ -296,18 +184,6 @@ export function hasVendorDoubleEntry(
   const vendorCovers = vendorSeg ? (segmentCounts[vendorSeg.name] || 0) : 0;
   const vendorMeal = (meals || []).some((m) => /vendor/i.test(m.label || ""));
   return vendorCovers > 0 && vendorMeal;
-}
-
-/** The derived remainder shown (read-only) for the org's default segment. */
-export function defaultSegmentRemainder(
-  guestCount: number,
-  explicit: Record<string, number>,
-  meta: GuestSegmentMeta[],
-): number {
-  const sumInCount = meta
-    .filter((m) => m.counts_toward_total && !m.is_default)
-    .reduce((t, m) => t + (explicit[m.name] || 0), 0);
-  return (guestCount || 0) - sumInCount;
 }
 
 /**
@@ -401,20 +277,46 @@ export function segmentFoodRows(
   } else {
     resolved = built.map((r) => ({ name: r.segment, count: r.count, mult: byName[r.segment]?.price_multiplier ?? 1 }));
   }
-  const rows = resolved
-    .filter((r) => r.count > 0)
-    // Order by the org's segment order so the display matches the PDF/backend
-    // (which read rows ordered by sort_order), not the payload's explicit-then-default order.
-    .sort((a, b) => (byName[a.name]?.sort_order ?? 0) - (byName[b.name]?.sort_order ?? 0))
+  return segmentFoodRowsFromRows(
+    pricePerHead,
+    resolved
+      // Order by the org's segment order so the display matches the PDF/backend
+      // (which read rows ordered by sort_order), not the payload's explicit-then-default order.
+      .sort((a, b) => (byName[a.name]?.sort_order ?? 0) - (byName[b.name]?.sort_order ?? 0))
+      .map((r) => ({
+        name: r.name,
+        count: r.count,
+        price_multiplier: r.mult,
+        // A default (Adults) segment never carries an override; others may.
+        price_override:
+          byName[r.name]?.is_default && byName[r.name]?.counts_toward_total
+            ? undefined
+            : prices[r.name],
+      })),
+  );
+}
+
+/** Itemized food lines from ALREADY-RESOLVED segments — the exact mirror of the
+ * backend `segment_food_rows(price_per_head, segments)`, which is handed resolved
+ * rows rather than UI state.
+ *
+ * `segmentFoodRows` above resolves UI state and delegates here, the same way
+ * `segmentFood` pairs with `segmentFoodFromRows`. Splitting it out is what lets the
+ * shared golden `itemized_rows_cases` run against BOTH engines: until this existed,
+ * the two functions took different arguments and could never be compared. */
+export function segmentFoodRowsFromRows(
+  pricePerHead: number | string | null | undefined,
+  rows: { name: string; count: number; price_multiplier: string | number | null | undefined; price_override?: string | number | null }[],
+): SegmentFoodRow[] | null {
+  const built = rows
+    .filter((r) => (r.count || 0) > 0)
     .map((r) => {
-      // A default (Adults) segment never carries an override; others may.
-      const isDefault = byName[r.name]?.is_default && byName[r.name]?.counts_toward_total;
-      const rate = segmentEffectiveRate(pricePerHead, r.mult, isDefault ? undefined : prices[r.name]);
-      return { name: r.name, count: r.count, rate, amount: round2(rate * r.count) };
+      const rate = segmentEffectiveRate(pricePerHead, r.price_multiplier, r.price_override);
+      return { name: r.name ?? "", count: r.count, rate, amount: round2(rate * r.count) };
     });
-  const distinctRates = new Set(rows.map((r) => r.rate));
-  if (!rows.some((r) => r.rate > 0) || rows.length < 2 || distinctRates.size < 2) return null;
-  return rows;
+  const distinctRates = new Set(built.map((r) => r.rate));
+  if (!built.some((r) => r.rate > 0) || built.length < 2 || distinctRates.size < 2) return null;
+  return built;
 }
 
 export function segmentFood(
@@ -441,62 +343,6 @@ export function segmentFood(
   return segmentFoodFromRows(pricePerHead, rows);
 }
 
-export interface QuoteEditData {
-  primary_contact: string;
-  is_b2b: boolean;
-  account: string;
-  event_date: string;
-  guest_count: number;
-  segment_counts: Record<string, number>; // explicit per-segment inputs (default derived)
-  segment_prices: Record<string, string>; // per-segment per-head overrides (blank = use multiplier)
-  big_eaters: boolean;
-  big_eaters_percentage: number;
-  price_per_head: string;
-  venue: string;
-  venue_address: string;
-  event_type: string;
-  meal_type: string;
-  booking_date: string;
-  service_style: string;
-  product: string;
-  setup_time: string;
-  guest_arrival_time: string;
-  meal_time: string;
-  end_time: string;
-  tax_rate: string; // percent string (e.g. "20") as shown in the form
-  service_charge_pct: string; // percent (e.g. "20")
-  service_charge_taxable: boolean;
-  gratuity_pct: string; // percent (e.g. "15")
-  valid_until: string;
-  notes: string;
-  internal_notes: string;
-}
-
-export interface QuoteMenuData {
-  dish_ids: number[];
-  based_on_template: number | null;
-}
-
-/**
- * Assemble the single PATCH body for the whole quote: details + menu + line
- * items together. Replaces the old fragmented saves (details PATCH, MenuBuilder
- * dish-only save, per-line-item CRUD) — and crucially carries price_per_head
- * alongside the menu so the food cost actually reaches the totals.
- */
-/** Serialize add-on line items for a booking save (quote OR event). */
-export function buildLineItemsPayload(lineItems: LineItemInput[]) {
-  return lineItems.map((li) => ({
-    ...(li.id ? { id: li.id } : {}),
-    variant: li.variant ?? null,
-    category: li.category,
-    description: li.description,
-    quantity: li.quantity,
-    unit: li.unit,
-    unit_price: li.unit_price,
-    sort_order: li.sort_order ?? 0,
-  }));
-}
-
 /** A booking's additional meals as read-only timeline rows.
  *
  * Derived on every render rather than copied into entries: the meal owns its
@@ -505,204 +351,18 @@ export function buildLineItemsPayload(lineItems: LineItemInput[]) {
  */
 export function timelineMealRows(
   meals: { label?: string; meal_time?: string | null }[] | undefined,
-): { label: string; time: string }[] {
+): { label: string; time: string; date: string | null }[] {
   return (meals || [])
     .filter((m) => m.meal_time)
     .map((m) => ({
       label: m.label?.trim() || "Additional meal",
       time: m.meal_time!.includes("T") ? m.meal_time!.slice(11, 16) : m.meal_time!.slice(0, 5),
+      // The DAY the meal falls on, kept rather than thrown away (REL-447). A meal
+      // is stored as a full datetime, so a 2am late-night snack belongs to the day
+      // AFTER the event — the backend sorts on (date, time) and would place it
+      // last. Slicing to "HH:MM" alone made it sort FIRST on screen, contradicting
+      // the PDF the customer is holding.
+      date: m.meal_time!.includes("T") ? m.meal_time!.slice(0, 10) : null,
     }))
-    .sort((a, b) => a.time.localeCompare(b.time));
-}
-
-/** Serialize a booking's run-of-show for a save (quote OR event).
- *
- * Rows go out in the order they're shown — the backend turns that position into
- * `sort_order`, so "the order I arranged" is what persists. Rows with no time
- * are dropped: a step without a time isn't a step yet.
- *
- * An empty array is meaningful and IS sent: it clears the timeline and the
- * booking falls back to its four legacy time fields.
- */
-export function buildTimelineEntriesPayload(entries: TimelineEntryValue[] = []) {
-  return entries
-    .filter((e) => e.time)
-    .map((e) => ({
-      time: e.time.length === 5 ? `${e.time}:00` : e.time,
-      label: e.label.trim(),
-      // null, not omitted: a row moved back onto the event day has to clear the
-      // date it used to carry.
-      date: e.date || null,
-    }));
-}
-
-/** Serialize additional meals for a booking save (quote OR event). Sends the meal's
- * audience; ``guest_count`` is the effective count (derived for audience meals, typed
- * for custom) — the backend re-derives and dual-writes it, this keeps the payload
- * consistent for a stale-count-free save. */
-export function buildMealsPayload(
-  meals: EventMealData[],
-  guestCount?: number,
-  segmentCounts?: Record<string, number>,
-  meta?: GuestSegmentMeta[],
-) {
-  return meals.map((m) => {
-    const audience = m.audience || "custom";
-    return {
-      label: m.label,
-      audience,
-      audience_segment: audience === "segment" ? (m.audience_segment ?? null) : null,
-      guest_count: effectiveMealCount(m, guestCount, segmentCounts, meta),
-      price_per_head: m.price_per_head || null,
-      dish_ids: m.dishes,
-      based_on_template: m.based_on_template,
-      meal_time: m.meal_time || null,
-      notes: m.notes,
-    };
-  });
-}
-
-export function buildQuoteSavePayload(
-  editData: QuoteEditData,
-  menuData: QuoteMenuData,
-  lineItems: LineItemInput[],
-  meals: EventMealData[] = [],
-  segmentMeta: GuestSegmentMeta[] = [],
-  timelineEntries: TimelineEntryValue[] = [],
-  courses: CourseData[] = [],
-  dishCourses: Record<string, number> = {},
-  menuChoices: MenuChoices = {},
-) {
-  return {
-    primary_contact: editData.primary_contact ? Number(editData.primary_contact) : null,
-    is_b2b: editData.is_b2b,
-    account: editData.is_b2b && editData.account ? Number(editData.account) : null,
-    event_date: editData.event_date,
-    guest_counts: buildGuestCountsPayload(editData.guest_count, editData.segment_counts, segmentMeta, editData.segment_prices),
-    guest_count: editData.guest_count,
-    big_eaters: editData.big_eaters,
-    big_eaters_percentage: editData.big_eaters_percentage,
-    price_per_head: editData.price_per_head ? editData.price_per_head : null,
-    venue: editData.venue ? Number(editData.venue) : null,
-    venue_address: editData.venue_address,
-    event_type: editData.event_type,
-    meal_type: editData.meal_type || undefined,
-    booking_date: editData.booking_date || null,
-    service_style: editData.service_style || undefined,
-    setup_time: editData.setup_time || null,
-    guest_arrival_time: editData.guest_arrival_time || null,
-    meal_time: editData.meal_time || null,
-    end_time: editData.end_time || null,
-    tax_rate: (parseFloat(editData.tax_rate || "0") / 100).toFixed(4),
-    service_charge_pct: editData.service_charge_pct || "0",
-    service_charge_taxable: editData.service_charge_taxable,
-    gratuity_pct: editData.gratuity_pct || "0",
-    product: editData.product ? Number(editData.product) : null,
-    valid_until: editData.valid_until || null,
-    notes: editData.notes,
-    internal_notes: editData.internal_notes,
-    dish_ids: menuData.dish_ids,
-    based_on_template: menuData.based_on_template,
-    courses,
-    dish_courses: dishCourses,
-    // Which dishes are offered as an entrée choice (REL-419). Always sent so
-    // un-ticking the last one clears it; the counts stay null until finals.
-    menu_choices: menuChoices,
-    line_items: buildLineItemsPayload(lineItems),
-    additional_meals: buildMealsPayload(meals, editData.guest_count, editData.segment_counts, segmentMeta),
-    timeline_entries: buildTimelineEntriesPayload(timelineEntries),
-  };
-}
-
-/** The event save payload. Shares the line-item + meal serialization with quotes;
- * adds the event-only fields (name, gents/ladies split, timeline, counts,
- * kitchen instructions). Pure + unit-tested — the event editor calls this. */
-export interface EventSaveInput {
-  name: string;
-  date: string;
-  is_b2b: boolean;
-  account: number | null;
-  primary_contact: number | null;
-  venue: number | null;
-  venue_address: string;
-  event_type: string;
-  meal_type: string;
-  booking_date: string;
-  service_style: string;
-  product: number | null;
-  price_per_head: string | null;
-  notes: string;
-  kitchen_instructions: string;
-  banquet_instructions: string;
-  setup_instructions: string;
-  guest_count: number;
-  segment_counts: Record<string, number>; // explicit per-segment inputs (default derived)
-  segment_prices: Record<string, string>; // per-segment per-head overrides (blank = use multiplier)
-  big_eaters: boolean;
-  big_eaters_percentage: number;
-  setup_time: string;
-  guest_arrival_time: string;
-  meal_time: string;
-  end_time: string;
-  is_taxable: boolean;
-  service_charge_pct: string;
-  service_charge_taxable: boolean;
-  gratuity_pct: string;
-  dish_ids: number[];
-  based_on_template: number | null;
-  line_items: LineItemInput[];
-  meals: EventMealData[];
-  timeline_entries: TimelineEntryValue[];
-}
-
-export function buildEventSavePayload(
-  v: EventSaveInput,
-  segmentMeta: GuestSegmentMeta[] = [],
-  courses: CourseData[] = [],
-  dishCourses: Record<string, number> = {},
-  menuChoices: MenuChoices = {},
-) {
-  return {
-    name: v.name,
-    date: v.date,
-    courses,
-    dish_courses: dishCourses,
-    // Offered entrée choices (REL-419), `{dish_id: tally or null}`. The finals panel
-    // owns the tallies, but they ride along here UNCHANGED — the map is authoritative
-    // server-side, so dropping them from an ordinary event save would wipe recorded
-    // finals. The editor never edits a count, only which dishes are offered.
-    menu_choices: menuChoices,
-    is_b2b: v.is_b2b,
-    account: v.is_b2b ? v.account : null,
-    primary_contact: v.primary_contact,
-    venue: v.venue,
-    venue_address: v.venue_address,
-    event_type: v.event_type,
-    meal_type: v.meal_type,
-    booking_date: v.booking_date || null,
-    service_style: v.service_style,
-    product: v.product,
-    price_per_head: v.price_per_head || null,
-    notes: v.notes,
-    kitchen_instructions: v.kitchen_instructions,
-    banquet_instructions: v.banquet_instructions,
-    setup_instructions: v.setup_instructions,
-    guest_count: v.guest_count,
-    guest_counts: buildGuestCountsPayload(v.guest_count, v.segment_counts, segmentMeta, v.segment_prices),
-    big_eaters: v.big_eaters,
-    big_eaters_percentage: v.big_eaters_percentage,
-    setup_time: v.setup_time || null,
-    guest_arrival_time: v.guest_arrival_time || null,
-    meal_time: v.meal_time || null,
-    end_time: v.end_time || null,
-    is_taxable: v.is_taxable,
-    service_charge_pct: v.service_charge_pct || "0",
-    service_charge_taxable: v.service_charge_taxable,
-    gratuity_pct: v.gratuity_pct || "0",
-    dish_ids: v.dish_ids,
-    based_on_template: v.based_on_template,
-    line_items: buildLineItemsPayload(v.line_items),
-    additional_meals: buildMealsPayload(v.meals, v.guest_count, v.segment_counts, segmentMeta),
-    timeline_entries: buildTimelineEntriesPayload(v.timeline_entries),
-  };
+    .sort((a, b) => ((a.date || "") + a.time).localeCompare((b.date || "") + b.time));
 }

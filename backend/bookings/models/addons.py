@@ -146,32 +146,38 @@ class BookingLineItem(models.Model):
         return 0
 
     def computed_line_total(self):
-        """What this line is worth right now, from its own inputs — the exact mirror
-        of `lineItemTotal` in frontend/lib/quoteTotals.ts, branch for branch.
+        """What this line is worth right now — delegated to the pricing engine, which
+        owns the rule (REL-463). The model stores the answer; it does not decide it.
 
-        Rounds through `round2` (HALF_UP). A bare `.quantize()` is HALF_EVEN and
-        disagreed with the live preview on an exact half-cent: 1.50 × $0.03 stored
-        $0.04 while the screen showed $0.05 (REL-462 Bug 2). The discount branch
-        rounds the magnitude and negates after, as the frontend does — rounding a
-        negative half-cent HALF_UP would go the other way.
+        The branches used to live here, duplicating `lineItemTotal` in
+        frontend/lib/quoteTotals.ts. Two copies of one rule is how they drift: a bare
+        `.quantize()` here was HALF_EVEN while the preview was half-up, so 1.50 ×
+        $0.03 stored $0.04 against a screen showing $0.05 (REL-462 Bug 2).
         """
-        from bookings.services.totals import round2
-        if self.unit == LineItemUnit.PER_GUEST:
-            return round2(self.unit_price * self._guest_count)
-        if self.category == LineItemCategory.DISCOUNT:
-            return -round2(abs(self.quantity * self.unit_price))
-        return round2(self.quantity * self.unit_price)
+        from bookings.services.totals import line_item_total
+        return line_item_total(
+            self.unit, self.category, self.quantity, self.unit_price,
+            self._guest_count,
+        )
 
     @classmethod
     def refreshed_for(cls, booking):
-        """Return ``booking``'s line items with every ``per_guest`` line re-derived
-        from the booking's CURRENT guest count, persisting any that moved.
+        """Return ``booking``'s line items with EVERY stored ``line_total``
+        re-derived from the engine, persisting any that moved.
 
-        ``line_total`` is stored, and `recalculate_totals` used to trust it. A PATCH
-        that changes `guest_count` without resending `line_items` (admin, curl, an AI
-        agent — the editors happen to resend everything) therefore left per-guest
+        ``line_total`` is a stored column and `recalculate_totals` used to trust it.
+        A PATCH that changes `guest_count` without resending `line_items` (admin,
+        curl, an AI agent — the editors happen to resend everything) left per-guest
         lines priced at the OLD count, and the recompute summed those stale values
         (REL-462 Bug 4).
+
+        **Every unit, not just `per_guest`.** Since REL-463 the subtotal is computed
+        from each line's raw quantity × price rather than from the stored column, so
+        refreshing only per-guest rows left the other units able to *print* one
+        amount while being *summed* at another — a quote PDF whose add-on lines do
+        not add up to the Sub Total beneath them. Any row not written by the engine
+        (a data migration, a `queryset.update()`, a shell fix-up, an older rounding
+        mode) is now healed on the next recompute instead of drifting for good.
 
         Writes with `bulk_update`, which does NOT call `save()` — going through
         `save()` would call `recalculate_totals()` straight back into its caller.
@@ -182,8 +188,6 @@ class BookingLineItem(models.Model):
         parent = booking._meta.model_name  # 'quote' or 'event'
         moved = []
         for line in lines:
-            if line.unit != LineItemUnit.PER_GUEST:
-                continue
             setattr(line, parent, booking)
             fresh = line.computed_line_total()
             if fresh != line.line_total:

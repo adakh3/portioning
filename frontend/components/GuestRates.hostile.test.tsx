@@ -3,7 +3,8 @@ import { render, screen, fireEvent } from "@testing-library/react";
 
 import GuestCountField, { GuestCountValue, breakdownValid } from "./GuestCountField";
 import SegmentRatesField from "./SegmentRatesField";
-import { GuestSegmentMeta, segmentEffectiveRate, segmentFood, defaultSegmentRemainder } from "@/lib/quoteTotals";
+import { segmentEffectiveRate, segmentFood } from "@/lib/quoteTotals";
+import { GuestSegmentMeta, defaultSegmentRemainder } from "@/lib/bookingPayload";
 
 // Hostile inputs for the guest counts and the per-head rates (REL-428). Everything a
 // caterer can physically type into these boxes, plus the org-config values that feed

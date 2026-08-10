@@ -287,7 +287,10 @@ class FollowUpDraftMarkSentView(generics.GenericAPIView):
             from_phone='manual',                # sent from the rep's own device
             body=draft.body,
             direction='outbound',
-            status='sent',
+            # Handed to the rep's own WhatsApp, not sent by us — the ledger says
+            # only what it knows (REL-445). The draft's own status still moves
+            # to 'sent', because the rep did action it.
+            status=WhatsAppMessage.HANDED_OFF,
             sent_by=user,
         )
         draft.status = 'sent'

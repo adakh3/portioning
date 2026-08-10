@@ -1,6 +1,7 @@
 from django.urls import path
 
 from bookings.views import (
+    PricingPreviewView,
     AccountListCreateView, AccountDetailView,
     ContactListCreateView, ContactDetailView,
     CustomerListCreateView, CustomerDetailView,
@@ -40,6 +41,11 @@ from bookings.views import (
     LockedDateListCreateView, LockedDateDeleteView,
     PublicBookingView, PublicBookingSignView, PublicBookingPDFView,
     QuoteSendForSignatureView, EventSendForSignatureView,
+    MailboxStatusView, MailboxConnectView, MailboxCallbackView, MailboxDisconnectView,
+)
+from bookings.views.client_messages import (
+    ClientMessageDraftView, ClientMessageListView, ClientMessageSendView,
+    ClientMessagingStatusView,
 )
 
 urlpatterns = [
@@ -114,11 +120,23 @@ urlpatterns = [
 
     # Quotes & Line Items
     path('bookings/quotes/', QuoteListCreateView.as_view(), name='quote-list'),
+    # What a draft would cost, priced by the engine — the live preview's only
+    # source, so the number on screen and the number that saves are the same one.
+    path('pricing/preview/', PricingPreviewView.as_view(), name='pricing-preview'),
     path('bookings/quotes/<int:pk>/', QuoteDetailView.as_view(), name='quote-detail'),
     path('bookings/quotes/<int:pk>/transition/', QuoteTransitionView.as_view(), name='quote-transition'),
     path('bookings/quotes/<int:pk>/pdf/', QuotePDFView.as_view(), name='quote-pdf'),
     path('bookings/quotes/<int:pk>/mark-shared-whatsapp/', QuoteMarkSharedWhatsAppView.as_view(), name='quote-mark-shared-whatsapp'),
     path('bookings/quotes/<int:pk>/send-for-signature/', QuoteSendForSignatureView.as_view(), name='quote-send-for-signature'),
+
+    # Client messaging — same three verbs for a quote, an event or a lead.
+    path('bookings/quotes/<int:pk>/draft-message/', ClientMessageDraftView.as_view(), {'parent_type': 'quote'}, name='quote-draft-message'),
+    path('bookings/quotes/<int:pk>/send-message/', ClientMessageSendView.as_view(), {'parent_type': 'quote'}, name='quote-send-message'),
+    path('bookings/quotes/<int:pk>/messages/', ClientMessageListView.as_view(), {'parent_type': 'quote'}, name='quote-messages'),
+    path('bookings/quotes/<int:pk>/messaging-status/', ClientMessagingStatusView.as_view(), {'parent_type': 'quote'}, name='quote-messaging-status'),
+    path('bookings/leads/<int:pk>/draft-message/', ClientMessageDraftView.as_view(), {'parent_type': 'lead'}, name='lead-draft-message'),
+    path('bookings/leads/<int:pk>/send-message/', ClientMessageSendView.as_view(), {'parent_type': 'lead'}, name='lead-send-message'),
+    path('bookings/leads/<int:pk>/messaging-status/', ClientMessagingStatusView.as_view(), {'parent_type': 'lead'}, name='lead-messaging-status'),
     path('bookings/quotes/<int:quote_pk>/items/', QuoteLineItemListCreateView.as_view(), name='quote-item-list'),
     path('bookings/quotes/<int:quote_pk>/items/<int:pk>/', QuoteLineItemDetailView.as_view(), name='quote-item-detail'),
 
@@ -167,4 +185,10 @@ urlpatterns = [
 
     # Settings
     path('bookings/settings/', SiteSettingsView.as_view(), name='site-settings'),
+
+    # Client email — the caterer's own connected mailbox (OAuth)
+    path('integrations/email/', MailboxStatusView.as_view(), name='mailbox-status'),
+    path('integrations/email/connect/', MailboxConnectView.as_view(), name='mailbox-connect'),
+    path('integrations/email/callback/', MailboxCallbackView.as_view(), name='mailbox-callback'),
+    path('integrations/email/disconnect/', MailboxDisconnectView.as_view(), name='mailbox-disconnect'),
 ]

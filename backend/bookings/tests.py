@@ -1563,7 +1563,9 @@ class TestSiteSettingsAPI(TestCase):
         self.assertEqual(res.status_code, 200, res.content)
         data = res.json()
         self.assertEqual(data["tax_label"], "GST")
-        self.assertEqual(data["default_tax_rate"], "0.1700")
+        # Five decimals since REL-465 widened the column (NYC's 8.875% needs the
+        # third decimal of percent). Same rate, one more place.
+        self.assertEqual(data["default_tax_rate"], "0.17000")
         self.assertEqual(data["timezone"], "Asia/Karachi")
         self.settings.refresh_from_db()
         self.assertEqual(self.settings.tax_label, "GST")

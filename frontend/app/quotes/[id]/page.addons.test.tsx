@@ -59,6 +59,10 @@ const existingQuote = {
 };
 
 vi.mock("@/lib/hooks", () => ({
+  // REL-445: the quote/event pages read their client-message ledger and
+  // channel availability from these; unmocked they blow up the whole page.
+  useClientMessages: () => ({ data: [], isLoading: false, mutate: vi.fn() }),
+  useMessagingStatus: () => ({ data: undefined }),
   useQuote: () => ({ data: h.id === "new" ? null : existingQuote, error: null, isLoading: false, mutate: vi.fn() }),
   useAccounts: () => ({ data: [] }),
   useContacts: () => ({ data: [{ id: 3, name: "Jane Doe", phone: "", account: null }] }),
@@ -118,14 +122,13 @@ describe("Quote form — add-ons reach the payload in today's shape", () => {
 
     // Quantity via the stepper, price via the click-to-edit subtitle.
     fireEvent.click(line(0).getByLabelText("Increase quantity"));
-    fireEvent.click(line(1).getByLabelText("Edit price, unit and category"));
+    fireEvent.click(line(1).getByLabelText("Edit price and unit"));
     fireEvent.change(line(1).getByLabelText("Unit price"), { target: { value: "500" } });
 
     // And an ad-hoc line the catalogue has never heard of.
     fireEvent.click(screen.getByText("Custom item"));
     fireEvent.change(line(2).getByLabelText("Name"), { target: { value: "Coat check" } });
-    fireEvent.click(line(2).getByLabelText("Edit price, unit and category"));
-    fireEvent.change(line(2).getByLabelText("Category"), { target: { value: "labor" } });
+    fireEvent.click(line(2).getByLabelText("Edit price and unit"));
     fireEvent.change(line(2).getByLabelText("Unit price"), { target: { value: "100" } });
 
     pickCustomer();
@@ -133,14 +136,14 @@ describe("Quote form — add-ons reach the payload in today's shape", () => {
 
     await waitFor(() => expect(h.createQuote).toHaveBeenCalledTimes(1));
     const payload = h.createQuote.mock.calls[0][0] as Record<string, unknown>;
-    // Exactly the pre-REL-454 shape. Note create posts the editor's objects as they
-    // are (it does not go through `buildLineItemsPayload` the way the edit save does),
-    // so there is no `sort_order` here — unchanged by this work, and pinned so a
-    // future tidy-up of that asymmetry is a deliberate decision rather than a slip.
+    // The asymmetry this used to pin is gone (REL-465): create goes through
+    // `buildQuoteSavePayload` — and so `buildLineItemsPayload` — exactly as the edit
+    // save does, which is where `sort_order` comes from. Create and edit now post
+    // the same body for the same state, which is the point of AC6.
     expect(payload.line_items).toEqual([
-      { variant: 11, category: "beverage", description: "Soft Drinks — 1.5L", quantity: "2", unit: "each", unit_price: "150.00" },
-      { variant: null, category: "fee", description: "Delivery & Setup", quantity: "1", unit: "flat", unit_price: "500" },
-      { variant: null, category: "labor", description: "Coat check", quantity: "1", unit: "each", unit_price: "100" },
+      { variant: 11, category: "beverage", description: "Soft Drinks — 1.5L", quantity: "2", unit: "each", unit_price: "150.00", sort_order: 0 },
+      { variant: null, category: "fee", description: "Delivery & Setup", quantity: "1", unit: "flat", unit_price: "500", sort_order: 0 },
+      { variant: null, category: "fee", description: "Coat check", quantity: "1", unit: "each", unit_price: "100", sort_order: 0 },
     ]);
     for (const li of payload.line_items as Record<string, unknown>[]) {
       expect(li).not.toHaveProperty("id");
@@ -166,7 +169,7 @@ describe("Quote form — add-ons reach the payload in today's shape", () => {
     // It reads as a chosen line, priced, not as a ticked catalogue checkbox.
     await screen.findByTestId("addon-line-0");
     expect(line(0).getByLabelText("Edit name")).toHaveTextContent("Soft Drinks — 1.5L");
-    expect(line(0).getByLabelText("Edit price, unit and category")).toHaveTextContent("$150.00 each");
+    expect(line(0).getByLabelText("Edit price and unit")).toHaveTextContent("$150.00 each");
     expect(line(0).getByText("$300.00")).toBeInTheDocument();
 
     fireEvent.click(screen.getByText("Save Quote"));
@@ -211,28 +214,39 @@ describe("Quote form — add-ons reach the payload in today's shape", () => {
   it("EDIT: a per-guest line and a discount line reach the payload with their unit and category", async () => {
     // Two states the quote payload had no coverage for: `per_guest` (whose money the
     // backend recomputes from guest count) and `discount` (whose total goes negative).
-    // Both are chosen through the line's own unit/category controls.
+    // The discount comes from the "Add discount" button — the category dropdown is
+    // gone (owner, 2026-08-10), so the button is the one way to put the category on
+    // a new line.
     h.id = "7";
     render(<QuotePage />);
     fireEvent.click(await screen.findByText("Edit Quote"));
     await screen.findByTestId("addon-line-0");
 
-    fireEvent.click(line(0).getByLabelText("Edit price, unit and category"));
+    fireEvent.click(line(0).getByLabelText("Edit price and unit"));
     fireEvent.change(line(0).getByLabelText("Unit"), { target: { value: "per_guest" } });
 
-    fireEvent.click(screen.getByText("Custom item"));
-    fireEvent.change(line(1).getByLabelText("Name"), { target: { value: "Loyalty discount" } });
-    fireEvent.click(line(1).getByLabelText("Edit price, unit and category"));
-    fireEvent.change(line(1).getByLabelText("Category"), { target: { value: "discount" } });
+    fireEvent.click(screen.getByText("Add discount"));
     fireEvent.change(line(1).getByLabelText("Unit price"), { target: { value: "100" } });
     expect(line(1).getByText("-$100.00")).toBeInTheDocument();
+    // Renaming the prefilled "Discount" still works like any other line.
+    fireEvent.click(line(1).getByLabelText("Edit name"));
+    fireEvent.change(line(1).getByLabelText("Name"), { target: { value: "Loyalty discount" } });
 
     fireEvent.click(screen.getByText("Save Quote"));
     await waitFor(() => expect(h.updateQuote).toHaveBeenCalledTimes(1));
     const payload = h.updateQuote.mock.calls[0][1] as Record<string, unknown>;
     expect(payload.line_items).toEqual([
       { id: 55, variant: 11, category: "beverage", description: "Soft Drinks — 1.5L", quantity: "2", unit: "per_guest", unit_price: "150.00", sort_order: 0 },
-      { variant: null, category: "discount", description: "Loyalty discount", quantity: "1", unit: "each", unit_price: "100", sort_order: 0 },
+      { variant: null, category: "discount", description: "Loyalty discount", quantity: "1", unit: "flat", unit_price: "100", sort_order: 0 },
     ]);
+  });
+
+  it("EDIT: no line offers a category control any more", async () => {
+    h.id = "7";
+    render(<QuotePage />);
+    fireEvent.click(await screen.findByText("Edit Quote"));
+    await screen.findByTestId("addon-line-0");
+    fireEvent.click(line(0).getByLabelText("Edit price and unit"));
+    expect(line(0).queryByLabelText("Category")).toBeNull();
   });
 });

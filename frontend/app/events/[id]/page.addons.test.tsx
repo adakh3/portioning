@@ -75,6 +75,10 @@ const existingEvent = {
 };
 
 vi.mock("@/lib/hooks", () => ({
+  // REL-445: the quote/event pages read their client-message ledger and
+  // channel availability from these; unmocked they blow up the whole page.
+  useClientMessages: () => ({ data: [], isLoading: false, mutate: vi.fn() }),
+  useMessagingStatus: () => ({ data: undefined }),
   useEvent: () => ({ data: existingEvent, error: null, isLoading: false, mutate: vi.fn() }),
   useAccounts: () => ({ data: [] }),
   useContacts: () => ({ data: [{ id: 3, name: "Jane Doe", phone: "", account: null }] }),
@@ -128,7 +132,7 @@ describe("Event edit — add-ons reach the payload in today's shape", () => {
     await startEditing();
     await screen.findByTestId("addon-line-0");
     expect(line(0).getByLabelText("Edit name")).toHaveTextContent("Coffee & Tea Service");
-    expect(line(0).getByLabelText("Edit price, unit and category")).toHaveTextContent("$6.00 per guest × 120 guests");
+    expect(line(0).getByLabelText("Edit price and unit")).toHaveTextContent("$6.00 per guest × 120 guests");
     // 120 guests × $6 — the stored quantity of 1 is not what this line costs (AC3).
     expect(line(0).getByText("$720.00")).toBeInTheDocument();
 
@@ -147,7 +151,7 @@ describe("Event edit — add-ons reach the payload in today's shape", () => {
     fireEvent.click(line(1).getByLabelText("Increase quantity"));
     fireEvent.click(screen.getByText("Custom item"));
     fireEvent.change(line(2).getByLabelText("Name"), { target: { value: "Coat check" } });
-    fireEvent.click(line(2).getByLabelText("Edit price, unit and category"));
+    fireEvent.click(line(2).getByLabelText("Edit price and unit"));
     fireEvent.change(line(2).getByLabelText("Unit price"), { target: { value: "100" } });
 
     const payload = await save();
@@ -164,7 +168,7 @@ describe("Event edit — add-ons reach the payload in today's shape", () => {
   it("a price typed over the catalogue's reaches the payload", async () => {
     await startEditing();
     await screen.findByTestId("addon-line-0");
-    fireEvent.click(line(0).getByLabelText("Edit price, unit and category"));
+    fireEvent.click(line(0).getByLabelText("Edit price and unit"));
     fireEvent.change(line(0).getByLabelText("Unit price"), { target: { value: "8" } });
     expect(line(0).getByText("$960.00")).toBeInTheDocument();
 
@@ -178,5 +182,32 @@ describe("Event edit — add-ons reach the payload in today's shape", () => {
     fireEvent.click(line(0).getByLabelText("Remove"));
     const payload = await save();
     expect(payload.line_items).toEqual([]);
+  });
+
+  it("a discount from the Add discount button reaches the payload (event mirror)", async () => {
+    // The quote-side test proves the button; this proves the event page's wiring of
+    // the same shared editor — mirrored surfaces get mirrored coverage.
+    await startEditing();
+    await screen.findByTestId("addon-line-0");
+    fireEvent.click(screen.getByText("Add discount"));
+    fireEvent.change(line(1).getByLabelText("Unit price"), { target: { value: "100" } });
+    expect(line(1).getByText("-$100.00")).toBeInTheDocument();
+    const payload = await save();
+    expect((payload.line_items as Record<string, unknown>[])[1]).toEqual({
+      variant: null, category: "discount", description: "Discount",
+      quantity: "1", unit: "flat", unit_price: "100", sort_order: 0,
+    });
+  });
+});
+
+describe("Event view — the saved line renders a real multiplication sign", () => {
+  // A × escape in JSX *text* renders as the six literal characters, not ×
+  // (escapes only resolve inside JS strings), so every view-mode line read
+  // "×1.00 @ $6.00". A screenshot-level bug no payload test can see.
+  it("shows ×quantity, not a literal \\u00d7", async () => {
+    render(<EventDetailPage />);
+    await screen.findByText("Coffee & Tea Service");
+    expect(document.body.textContent).toContain("×1");
+    expect(document.body.textContent).not.toContain("\\u00d7");
   });
 });

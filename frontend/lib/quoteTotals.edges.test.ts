@@ -1,13 +1,15 @@
 import {
   computeBookingTotals,
   lineItemTotal,
-  buildGuestCountsPayload,
-  deriveMealCount,
   mealsFood,
   segmentFood,
+} from "./quoteTotals";
+import {
+  buildGuestCountsPayload,
+  deriveMealCount,
   type GuestSegmentMeta,
   type LineItemInput,
-} from "./quoteTotals";
+} from "./bookingPayload";
 
 // The frontend mirror is what the user watches while typing, so it has to hold
 // up under the same abuse the API was probed with. The shared golden cases in

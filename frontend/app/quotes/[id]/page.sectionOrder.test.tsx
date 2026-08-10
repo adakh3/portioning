@@ -42,6 +42,10 @@ const existingQuote = {
 };
 
 vi.mock("@/lib/hooks", () => ({
+  // REL-445: the quote/event pages read their client-message ledger and
+  // channel availability from these; unmocked they blow up the whole page.
+  useClientMessages: () => ({ data: [], isLoading: false, mutate: vi.fn() }),
+  useMessagingStatus: () => ({ data: undefined }),
   useQuote: () => ({ data: h.id === "new" ? null : existingQuote, error: null, isLoading: false, mutate: vi.fn() }),
   useAccounts: () => ({ data: [] }),
   useContacts: () => ({ data: [{ id: 3, name: "Jane Doe", phone: "", account: null }] }),
@@ -125,11 +129,9 @@ describe("Quote form — Timeline sits below the meals (REL-430)", () => {
     await screen.findByText("Edit Quote"); // page loaded, not editing
     const order = sectionOrder();
     expectOrder(order, "Menu", "Additional Meals");
-    // NOT a decision — this DOCUMENTS a known gap. The quote page has only ever had
-    // an edit-mode Timeline card, while the event page renders a read-only one, and
-    // the quote PDF *does* print the run-of-show (bookings/pdf.py). So a caterer
-    // can't see on screen what the customer receives. Out of scope for REL-430,
-    // which is a pure reorder; raised separately. Delete this line when that lands.
-    expect(order).not.toContain("Timeline");
+    // The Timeline card now renders read-only too (REL-447) — this line used to
+    // assert `not.toContain("Timeline")`, documenting the gap where a saved quote
+    // showed no run-of-show while the PDF printed one. It holds the order instead.
+    expectOrder(order, "Additional Meals", "Timeline");
   });
 });

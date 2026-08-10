@@ -1,5 +1,5 @@
 {
-  "_comment": "SHARED SPEC for booking totals — the single source of truth for the MATH, consumed by BOTH the backend engine (bookings/services/totals.py, via bookings/test_totals.py) and the frontend mirror (lib/quoteTotals.ts, via lib/quoteTotals.test.ts). Each case feeds food_total + line items (each with a precomputed signed line_total; discounts are negative) + tax_rate (decimal fraction) and asserts the resulting subtotal/tax_amount/total. food_total already includes any additional meals. Tax applies to the WHOLE subtotal (food + all line items) — there is no per-line taxable/non-taxable split. Change the rule => update this file => BOTH engine tests must conform. See docs/CALCULATION_PARITY.md.",
+  "_comment": "SHARED SPEC for booking totals \u2014 the single source of truth for the MATH, consumed by BOTH the backend engine (bookings/services/totals.py, via bookings/test_totals.py) and the frontend mirror (lib/quoteTotals.ts, via lib/quoteTotals.test.ts). Each case feeds food_total + line items (each with a precomputed signed line_total; discounts are negative) + tax_rate (decimal fraction) and asserts the resulting subtotal/tax_amount/total. food_total already includes any additional meals. Tax applies to the WHOLE subtotal (food + all line items) \u2014 there is no per-line taxable/non-taxable split. Change the rule => update this file => BOTH engine tests must conform. See docs/CALCULATION_PARITY.md.",
   "cases": [
     {
       "name": "food_only_with_tax",
@@ -233,7 +233,7 @@
     },
     {
       "name": "discount_larger_than_subtotal_never_makes_a_negative_service_charge",
-      "_why": "A discount bigger than the booking used to flip the service charge and gratuity negative too (a -95,000 subtotal produced a -19,000 'service charge'), compounding the error. Percentage charges are now taken on max(subtotal, 0). The save path rejects a negative subtotal outright; this pins the engine so the live preview and any already-stored row stay sane.",
+      "_why": "A discount bigger than the booking used to flip the service charge and gratuity negative too (a -95,000 subtotal produced a -19,000 'service charge'), compounding the error. Percentage charges AND the tax base are now taken on max(subtotal, 0). The save path rejects a negative subtotal outright; this pins the engine so the live preview and any already-stored row stay sane.",
       "food_total": "5000",
       "items": [
         {
@@ -247,10 +247,32 @@
       "expected": {
         "subtotal": "-95000.00",
         "service_charge": "0.00",
-        "tax_base": "-95000.00",
+        "tax_base": "0.00",
         "tax_amount": "0.00",
         "gratuity": "0.00",
         "total": "-95000.00"
+      }
+    },
+    {
+      "name": "discount_larger_than_subtotal_never_makes_negative_tax",
+      "_why": "The tax-side twin of the case above, which had tax_rate 0 and so never caught it: a lone -100 discount line with 5% tax rendered 'GST -5.00' and a total of -105 in the live preview — negative tax, as if the authority paid the caterer for discounting. The tax base is clamped to max(subtotal, 0) like the charge base; the save is still rejected, this keeps the preview honest.",
+      "food_total": "0",
+      "items": [
+        {
+          "line_total": "-100"
+        }
+      ],
+      "tax_rate": "0.05",
+      "service_charge_pct": "0",
+      "service_charge_taxable": true,
+      "gratuity_pct": "0",
+      "expected": {
+        "subtotal": "-100.00",
+        "service_charge": "0.00",
+        "tax_base": "0.00",
+        "tax_amount": "0.00",
+        "gratuity": "0.00",
+        "total": "-100.00"
       }
     },
     {
@@ -299,7 +321,7 @@
     },
     {
       "name": "half_up_tax_on_a_005_boundary",
-      "_why": "A .005 boundary — the one place Decimal's default HALF_EVEN and the frontend's Math.round (HALF_UP) disagree. The engines differed by a cent here: the live preview showed 5.01 and the saved value was 5.00, so the total moved under the user on save. Both engines must now round HALF_UP.",
+      "_why": "A .005 boundary \u2014 the one place Decimal's default HALF_EVEN and the frontend's Math.round (HALF_UP) disagree. The engines differed by a cent here: the live preview showed 5.01 and the saved value was 5.00, so the total moved under the user on save. Both engines must now round HALF_UP.",
       "food_total": "100.10",
       "items": [],
       "tax_rate": "0.05",
@@ -347,7 +369,7 @@
     },
     {
       "name": "half_up_tax_on_a_larger_005_boundary",
-      "_why": "2.5% of 200.20 = 5.005 — proves it is the boundary, not the number.",
+      "_why": "2.5% of 200.20 = 5.005 \u2014 proves it is the boundary, not the number.",
       "food_total": "200.20",
       "items": [],
       "tax_rate": "0.025",
@@ -446,7 +468,7 @@
     },
     {
       "name": "rel449_unusable_override_reverts_to_multiplier_negative",
-      "_why": "A negative per-segment override must never pay the customer to attend. It is refused at the API; the engines IGNORE it and the segment reverts to its multiplier — falling back, never making the cover free. 90 adults @10 + 10 kids @5 (0.5x) = 950.00.",
+      "_why": "A negative per-segment override must never pay the customer to attend. It is refused at the API; the engines IGNORE it and the segment reverts to its multiplier \u2014 falling back, never making the cover free. 90 adults @10 + 10 kids @5 (0.5x) = 950.00.",
       "price_per_head": "10",
       "segments": [
         {
@@ -480,7 +502,7 @@
     },
     {
       "name": "rel449_unusable_multiplier_reverts_to_full_price_junk",
-      "_why": "A non-numeric multiplier is bad org config, not typing. It reverts to 1.0 — FULL price — because flooring to zero would turn a config error into a silent discount nobody would spot. 90 @10 + 10 @10 = 1000.00.",
+      "_why": "A non-numeric multiplier is bad org config, not typing. It reverts to 1.0 \u2014 FULL price \u2014 because flooring to zero would turn a config error into a silent discount nobody would spot. 90 @10 + 10 @10 = 1000.00.",
       "price_per_head": "10",
       "segments": [
         {
@@ -546,7 +568,7 @@
     },
     {
       "name": "rel449_whitespace_override_is_not_a_free_cover",
-      "_why": "Number('  ') is 0 in JS while Decimal refuses it — so a bare Number() would price this cover FREE on the frontend and at the multiplier on the backend. Both must fall back: 90 @10 + 10 @5 (0.5x) = 950.00.",
+      "_why": "Number('  ') is 0 in JS while Decimal refuses it \u2014 so a bare Number() would price this cover FREE on the frontend and at the multiplier on the backend. Both must fall back: 90 @10 + 10 @5 (0.5x) = 950.00.",
       "price_per_head": "10",
       "segments": [
         {
@@ -691,6 +713,402 @@
       "audience": "everyone",
       "audience_segment": null,
       "expected": 150
+    }
+  ],
+  "line_item_cases": [
+    {
+      "name": "each_plain",
+      "_why": "The ordinary case: 10 chairs at $5.",
+      "unit": "each",
+      "category": "rental",
+      "quantity": "10",
+      "unit_price": "5.00",
+      "guest_count": 100,
+      "expected_line_total": "50.00"
+    },
+    {
+      "name": "flat_plain",
+      "_why": "A flat fee still multiplies by its quantity.",
+      "unit": "flat",
+      "category": "fee",
+      "quantity": "1",
+      "unit_price": "250.00",
+      "guest_count": 100,
+      "expected_line_total": "250.00"
+    },
+    {
+      "name": "per_hour_plain",
+      "_why": "Hours x rate. The quantity is hours, never a headcount.",
+      "unit": "per_hour",
+      "category": "labor",
+      "quantity": "6",
+      "unit_price": "18.00",
+      "guest_count": 100,
+      "expected_line_total": "108.00"
+    },
+    {
+      "name": "per_guest_uses_guest_count_not_quantity",
+      "_why": "THE per_guest rule: price x guest_count. The quantity field is ignored entirely, so a stale 1 sitting in it must not scale the line.",
+      "unit": "per_guest",
+      "category": "food",
+      "quantity": "1",
+      "unit_price": "6.00",
+      "guest_count": 120,
+      "expected_line_total": "720.00"
+    },
+    {
+      "name": "per_guest_zero_guests_is_zero",
+      "_why": "No guests, no charge - and no crash.",
+      "unit": "per_guest",
+      "category": "food",
+      "quantity": "1",
+      "unit_price": "6.00",
+      "guest_count": 0,
+      "expected_line_total": "0.00"
+    },
+    {
+      "name": "discount_is_negative",
+      "_why": "A discount reduces the subtotal, so it is stored signed.",
+      "unit": "flat",
+      "category": "discount",
+      "quantity": "1",
+      "unit_price": "100.00",
+      "guest_count": 100,
+      "expected_line_total": "-100.00"
+    },
+    {
+      "name": "discount_magnitude_is_absolute",
+      "_why": "A discount typed as a NEGATIVE price must not double-negate into a charge.",
+      "unit": "flat",
+      "category": "discount",
+      "quantity": "1",
+      "unit_price": "-100.00",
+      "guest_count": 100,
+      "expected_line_total": "-100.00"
+    },
+    {
+      "name": "half_cent_rounds_up",
+      "_why": "1.50 x 0.03 = 0.045. HALF_EVEN stored 0.04 while the live preview showed 0.05 (REL-462). Half-up on both sides, or screen and invoice disagree.",
+      "unit": "each",
+      "category": "rental",
+      "quantity": "1.50",
+      "unit_price": "0.03",
+      "guest_count": 100,
+      "expected_line_total": "0.05"
+    },
+    {
+      "name": "half_cent_labor_rounds_up",
+      "_why": "The realistic shape of the same boundary: 2.5 hours at $16.97 = 42.425.",
+      "unit": "per_hour",
+      "category": "labor",
+      "quantity": "2.5",
+      "unit_price": "16.97",
+      "guest_count": 100,
+      "expected_line_total": "42.43"
+    },
+    {
+      "name": "half_cent_discount_rounds_away_from_zero",
+      "_why": "The magnitude rounds up and the sign is applied after. Rounding -42.425 half-up gives -42.42 and quietly shrinks the promised discount.",
+      "unit": "flat",
+      "category": "discount",
+      "quantity": "2.5",
+      "unit_price": "16.97",
+      "guest_count": 100,
+      "expected_line_total": "-42.43"
+    },
+    {
+      "name": "per_guest_beats_discount",
+      "_why": "Branch ORDER, pinned deliberately: per_guest is tested BEFORE discount, so a per_guest line in the discount category prices as a positive per-head charge. Both engines must agree on which branch wins.",
+      "unit": "per_guest",
+      "category": "discount",
+      "quantity": "1",
+      "unit_price": "2.00",
+      "guest_count": 50,
+      "expected_line_total": "100.00"
+    },
+    {
+      "name": "blank_price_is_zero",
+      "_why": "An empty price is nothing - not a crash, not a NaN.",
+      "unit": "each",
+      "category": "rental",
+      "quantity": "3",
+      "unit_price": "",
+      "guest_count": 100,
+      "expected_line_total": "0.00"
+    }
+  ],
+  "itemized_rows_cases": [
+    {
+      "name": "two_distinct_rates_itemize",
+      "_why": "The point of itemizing: adults and kids are charged differently, so the customer sees both lines.",
+      "price_per_head": "100",
+      "segments": [
+        {
+          "name": "Adults",
+          "count": 80,
+          "price_multiplier": "1.0"
+        },
+        {
+          "name": "Kids",
+          "count": 20,
+          "price_multiplier": "0.5"
+        }
+      ],
+      "expected_rows": [
+        {
+          "name": "Adults",
+          "count": 80,
+          "rate": "100.00",
+          "amount": "8000.00"
+        },
+        {
+          "name": "Kids",
+          "count": 20,
+          "rate": "50.00",
+          "amount": "1000.00"
+        }
+      ],
+      "expected_food": "9000.00"
+    },
+    {
+      "name": "single_rate_collapses_to_null",
+      "_why": "A Gents/Ladies org shares one rate, so itemizing would print the same number twice. Null means 'render the single price/head x guests line', which keeps those surfaces byte-identical.",
+      "price_per_head": "50",
+      "segments": [
+        {
+          "name": "Gents",
+          "count": 60,
+          "price_multiplier": "1.0"
+        },
+        {
+          "name": "Ladies",
+          "count": 40,
+          "price_multiplier": "1.0"
+        }
+      ],
+      "expected_rows": null,
+      "expected_food": "5000.00"
+    },
+    {
+      "name": "one_segment_collapses_to_null",
+      "_why": "Nothing to compare a single row against.",
+      "price_per_head": "50",
+      "segments": [
+        {
+          "name": "Adults",
+          "count": 100,
+          "price_multiplier": "1.0"
+        }
+      ],
+      "expected_rows": null,
+      "expected_food": "5000.00"
+    },
+    {
+      "name": "zero_count_segments_are_dropped",
+      "_why": "A segment nobody is in is not a line on the customer's quote.",
+      "price_per_head": "100",
+      "segments": [
+        {
+          "name": "Adults",
+          "count": 50,
+          "price_multiplier": "1.0"
+        },
+        {
+          "name": "Kids",
+          "count": 0,
+          "price_multiplier": "0.5"
+        },
+        {
+          "name": "Vendors",
+          "count": 5,
+          "price_multiplier": "0.4"
+        }
+      ],
+      "expected_rows": [
+        {
+          "name": "Adults",
+          "count": 50,
+          "rate": "100.00",
+          "amount": "5000.00"
+        },
+        {
+          "name": "Vendors",
+          "count": 5,
+          "rate": "40.00",
+          "amount": "200.00"
+        }
+      ],
+      "expected_food": "5200.00"
+    },
+    {
+      "name": "rows_sum_exactly_to_food_total",
+      "_why": "Rounding PER COVER, not once on the aggregate, is what makes the printed lines add up to the subtotal. A half-cent rate is where sum-then-round would drift: 33.33 x 0.5 = 16.665 -> 16.67.",
+      "price_per_head": "33.33",
+      "segments": [
+        {
+          "name": "Adults",
+          "count": 7,
+          "price_multiplier": "1.0"
+        },
+        {
+          "name": "Kids",
+          "count": 3,
+          "price_multiplier": "0.5"
+        }
+      ],
+      "expected_rows": [
+        {
+          "name": "Adults",
+          "count": 7,
+          "rate": "33.33",
+          "amount": "233.31"
+        },
+        {
+          "name": "Kids",
+          "count": 3,
+          "rate": "16.67",
+          "amount": "50.01"
+        }
+      ],
+      "expected_food": "283.32"
+    },
+    {
+      "name": "override_replaces_the_multiplier",
+      "_why": "Happy path for a per-booking flat rate: 15.00 wins over the 0.5x multiplier outright. (That the DEFAULT segment ignores an override is resolver behaviour - the resolver strips it before the engine sees it - so it is pinned in the backend resolver test, not here.)",
+      "price_per_head": "100",
+      "segments": [
+        {
+          "name": "Adults",
+          "count": 10,
+          "price_multiplier": "1.0"
+        },
+        {
+          "name": "Kids",
+          "count": 4,
+          "price_multiplier": "0.5",
+          "price_override": "15.00"
+        }
+      ],
+      "expected_rows": [
+        {
+          "name": "Adults",
+          "count": 10,
+          "rate": "100.00",
+          "amount": "1000.00"
+        },
+        {
+          "name": "Kids",
+          "count": 4,
+          "rate": "15.00",
+          "amount": "60.00"
+        }
+      ],
+      "expected_food": "1060.00"
+    }
+  ],
+  "meal_cases": [
+    {
+      "name": "one_meal_is_rate_times_count",
+      "_why": "The ordinary case: 30 covers of welcome canapes at $10.",
+      "meals": [
+        {
+          "label": "Canapes",
+          "price_per_head": "10.00",
+          "guest_count": 30
+        }
+      ],
+      "expected_meals_food": "300.00"
+    },
+    {
+      "name": "meals_are_rounded_per_meal_then_summed",
+      "_why": "Each meal rounds on its own before the sum, so the printed meal rows add up to the meals total exactly. 3 x 16.665 -> 50.00 (not 49.995).",
+      "meals": [
+        {
+          "label": "A",
+          "price_per_head": "16.665",
+          "guest_count": 3
+        },
+        {
+          "label": "B",
+          "price_per_head": "10.00",
+          "guest_count": 2
+        }
+      ],
+      "expected_meals_food": "70.00"
+    },
+    {
+      "name": "a_meal_nobody_eats_is_dropped",
+      "_why": "A zero-count meal is not a zero-pound row on the customer's quote.",
+      "meals": [
+        {
+          "label": "Cancelled",
+          "price_per_head": "10.00",
+          "guest_count": 0
+        },
+        {
+          "label": "Real",
+          "price_per_head": "5.00",
+          "guest_count": 4
+        }
+      ],
+      "expected_meals_food": "20.00"
+    },
+    {
+      "name": "a_free_meal_is_dropped",
+      "_why": "Priced at nothing is not a charge.",
+      "meals": [
+        {
+          "label": "Free",
+          "price_per_head": "0",
+          "guest_count": 20
+        },
+        {
+          "label": "Real",
+          "price_per_head": "5.00",
+          "guest_count": 4
+        }
+      ],
+      "expected_meals_food": "20.00"
+    },
+    {
+      "name": "a_negative_rate_is_refused_not_credited",
+      "_why": "A meal is a charge. The old backend food_total added a negative rate (reducing the total) while the frontend dropped it - a live parity break. A per-head credit belongs in a discount line item, where both engines agree on the sign.",
+      "meals": [
+        {
+          "label": "Credit",
+          "price_per_head": "-10.00",
+          "guest_count": 30
+        },
+        {
+          "label": "Real",
+          "price_per_head": "5.00",
+          "guest_count": 4
+        }
+      ],
+      "expected_meals_food": "20.00"
+    },
+    {
+      "name": "a_negative_count_is_refused",
+      "_why": "The mirror image, and the direction the FRONTEND got wrong: a negative head count was summed there and dropped by the backend, so preview and saved total differed by a whole meal.",
+      "meals": [
+        {
+          "label": "Bad",
+          "price_per_head": "10.00",
+          "guest_count": -5
+        },
+        {
+          "label": "Real",
+          "price_per_head": "5.00",
+          "guest_count": 4
+        }
+      ],
+      "expected_meals_food": "20.00"
+    },
+    {
+      "name": "no_meals_is_zero",
+      "_why": "The common case - most bookings have none.",
+      "meals": [],
+      "expected_meals_food": "0.00"
     }
   ]
 }

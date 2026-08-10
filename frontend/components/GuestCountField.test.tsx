@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 
 import GuestCountField, { GuestCountValue, breakdownValid } from "./GuestCountField";
-import { GuestSegmentMeta } from "@/lib/quoteTotals";
+import { GuestSegmentMeta } from "@/lib/bookingPayload";
 
 const { mockUseSiteSettings } = vi.hoisted(() => ({
   mockUseSiteSettings: vi.fn(() => ({ data: undefined }) as { data: unknown }),

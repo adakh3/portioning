@@ -22,6 +22,44 @@ export interface ManagedUser {
   product_line_names: string[];
 }
 
+/** The backend pricing engine's answer for a draft booking.
+ *
+ * Every money value is a STRING, deliberately: JSON has one number type and it is
+ * binary floating point, so parsing `9850.00` into a JS number and formatting it
+ * back is exactly the drift this replaced. Render these as they arrive. */
+export interface PricingPreview {
+  food: {
+    menu_food: string;
+    food_rows: { name: string; count: number; rate: string; amount: string }[] | null;
+    meal_rows: { label: string; count: number; rate: string; amount: string }[];
+    meals_food: string;
+    food_total: string;
+  };
+  lines: {
+    items: { description: string; category: string; unit: string; line_total: string }[];
+    add_ons_subtotal: string;
+  };
+  totals: {
+    subtotal: string;
+    charge_base: string;
+    service_charge: string;
+    pre_tax_total: string;
+    tax_base: string;
+    tax_amount: string;
+    gratuity: string;
+    total: string;
+  };
+  rates: {
+    tax_rate: string;
+    service_charge_pct: string;
+    service_charge_taxable: boolean;
+    gratuity_pct: string;
+  };
+  /** Why a save of this draft would be REFUSED, if it would be. Empty for a
+   * healthy draft; the sentences are the save path's own. */
+  warnings: string[];
+}
+
 // ── CSRF token helper ──
 function getCsrfToken(): string | null {
   if (typeof document === "undefined") return null;
@@ -490,6 +528,10 @@ export interface Quote {
   service_style: string;
   valid_until: string | null;
   subtotal: string;
+  /** Whether tax applies at all. Not editable in the quote form — it is set by
+   * admin/API/import — but it gates the tax line, so anything pricing this quote
+   * must send it alongside the rate. */
+  is_taxable: boolean;
   tax_rate: string;
   tax_amount: string;
   service_charge_pct: string;
@@ -498,6 +540,11 @@ export interface Quote {
   gratuity_pct: string;
   gratuity: string;
   total: string;
+  /** The engine's whole answer for this quote AS SAVED — the same shape the live
+   * preview returns, so a read-only screen renders its breakdown without doing any
+   * arithmetic. Absent on the list endpoint, and `null` on quotes saved before
+   * REL-464 (the caller falls back to the flat total columns). */
+  pricing_snapshot?: PricingPreview | null;
   dishes: number[];
   dish_names: string[];
   courses: CourseData[];
@@ -729,6 +776,8 @@ export interface SiteSettingsData {
   whatsapp_enabled?: boolean;
   whatsapp_shortcuts_enabled?: boolean;
   twilio_configured?: boolean;
+  /** Which channel the send modal preselects (REL-445). */
+  default_client_channel?: string;
   twilio_whatsapp_number?: string;
   // AI follow-ups
   ai_followups_enabled?: boolean;
@@ -827,6 +876,9 @@ export interface EventData {
   is_taxable: boolean;
   tax_rate: string;
   // Computed totals (food + add-on line items + tax) — server-side via the shared engine.
+  /** The engine's whole answer for this event AS SAVED — same shape the live
+   * preview returns. Absent on the list endpoint; `null` before REL-464. */
+  pricing_snapshot?: PricingPreview | null;
   subtotal: string;
   tax_amount: string;
   service_charge_pct: string;
@@ -993,20 +1045,106 @@ export interface ReminderCounts {
 // WhatsApp
 export interface WhatsAppMessage {
   id: number;
-  lead: number;
+  lead: number | null;
+  quote: number | null;
+  event: number | null;
   reminder: number | null;
+  channel: ClientChannel;
   to_phone: string;
   from_phone: string;
+  to_email: string;
+  /** The address or number actually used, whichever the channel was. */
+  recipient: string;
+  subject: string;
   body: string;
+  attachment_filename: string;
   direction: string;
   status: string;
   twilio_sid: string;
+  provider_message_id: string;
   error_code: string;
   error_message: string;
   sent_by: number | null;
   sent_by_name: string | null;
+  /** True when the platform sent it without anyone clicking send. */
+  is_automatic: boolean;
   created_at: string;
   updated_at: string;
+}
+
+// Client messaging (REL-445)
+export type ClientChannel = "email" | "whatsapp";
+export type ClientMessageKind = "sign_link" | "signed_copy" | "compose";
+
+/** Why a channel can't be used. The three email causes are deliberately
+ * distinct: two are org problems with different fixes, one is a record problem. */
+export type ChannelBlockedReason =
+  | "no_mailbox"
+  | "mailbox_needs_reconnect"
+  | "no_email_address"
+  | "no_phone"
+  | "whatsapp_disabled";
+
+export interface ChannelAvailability {
+  email: {
+    available: boolean;
+    reason: ChannelBlockedReason | null;
+    address: string;
+    /** The connected mailbox we'd send from. */
+    mailbox: string;
+  };
+  whatsapp: {
+    available: boolean;
+    reason: ChannelBlockedReason | null;
+    address: string;
+    /** 'platform' can send unattended; 'shortcut' always needs a human tap. */
+    mechanism: "platform" | "shortcut";
+    number: string;
+  };
+  default_channel: ClientChannel;
+}
+
+export type ClientMessageParent = "quote" | "event" | "lead";
+
+/** Quotes and leads hang off /bookings/, events off /events/ — the only thing
+ * that differs between the three messaging surfaces. */
+export function clientMessageBase(parent: ClientMessageParent, id: number): string {
+  if (parent === "event") return `/events/${id}`;
+  if (parent === "lead") return `/bookings/leads/${id}`;
+  return `/bookings/quotes/${id}`;
+}
+
+export interface ClientMessageDraft {
+  subject: string;
+  body: string;
+  used_fallback: boolean;
+  model_used: string;
+  kind: ClientMessageKind;
+  channel: ClientChannel;
+  link: string;
+  attachment_filename: string;
+  llm_available: boolean;
+  availability: ChannelAvailability;
+}
+
+// Client email — the caterer's own connected mailbox
+export type MailboxProvider = "google" | "microsoft";
+
+export interface ConnectedMailbox {
+  id: number;
+  provider: MailboxProvider;
+  provider_display: string;
+  email_address: string;
+  status: "connected" | "needs_reconnect";
+  last_error: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MailboxStatus {
+  connected: boolean;
+  mailbox: ConnectedMailbox | null;
+  providers_available: MailboxProvider[];
 }
 
 // AI follow-up drafts
@@ -1347,6 +1485,15 @@ export const api = {
     await fetch(`${API_BASE}/auth/logout/`, { method: "POST", credentials: "include", headers: buildHeaders() });
   },
   getMe: () => fetchApi<AuthUser>("/auth/me/"),
+  /** What this draft would cost, priced by the backend engine — the only source of
+   * totals while editing. `signal` lets a newer keystroke abort an older request so
+   * a slow response can't overwrite a fresh one. */
+  pricingPreview: (draft: unknown, signal?: AbortSignal) =>
+    fetchApi<PricingPreview>("/pricing/preview/", {
+      method: "POST",
+      body: JSON.stringify(draft),
+      signal,
+    }),
   // Superuser org impersonation. orgId: a pk to enter that org, "all" for
   // all-orgs mode, or null to return to the superuser's own org.
   getOrganisations: () => fetchApi<{ id: number; name: string }[]>("/auth/organisations/"),
@@ -1868,6 +2015,39 @@ export const api = {
     fetchApi<WhatsAppMessage>(`/bookings/leads/${leadId}/whatsapp/send/`, { method: "POST", body: JSON.stringify(data) }),
   markWhatsAppRead: (leadId: number) =>
     fetchApi<{ marked_read: number }>(`/bookings/leads/${leadId}/whatsapp/mark-read/`, { method: "POST" }),
+
+  // Client messaging (REL-445). One shape for quotes, events and leads — the
+  // parent only changes the path, never the payload.
+  draftClientMessage: (
+    parent: ClientMessageParent, id: number,
+    data: { kind: ClientMessageKind; channel?: ClientChannel },
+  ) =>
+    fetchApi<ClientMessageDraft>(`${clientMessageBase(parent, id)}/draft-message/`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  sendClientMessage: (
+    parent: ClientMessageParent, id: number,
+    data: { kind: ClientMessageKind; channel: ClientChannel; subject?: string; body: string },
+  ) =>
+    fetchApi<WhatsAppMessage>(`${clientMessageBase(parent, id)}/send-message/`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  getClientMessages: (parent: "quote" | "event", id: number) =>
+    fetchApi<WhatsAppMessage[]>(`${clientMessageBase(parent, id)}/messages/`),
+  getMessagingStatus: (parent: ClientMessageParent, id: number) =>
+    fetchApi<ChannelAvailability>(`${clientMessageBase(parent, id)}/messaging-status/`),
+
+  // Client email — the caterer's own connected mailbox
+  getConnectedMailbox: () =>
+    fetchApi<MailboxStatus>("/integrations/email/"),
+  // Returns the provider consent URL; the browser has to navigate to it, and
+  // the provider then redirects back to /settings?tab=integrations.
+  startMailboxConnect: (provider: MailboxProvider) =>
+    fetchApi<{ auth_url: string }>(`/integrations/email/connect/?provider=${provider}`),
+  disconnectMailbox: () =>
+    fetchApi<void>("/integrations/email/disconnect/", { method: "POST" }),
 
   // AI follow-up drafts
   getFollowUpDrafts: (status: string = "pending") =>

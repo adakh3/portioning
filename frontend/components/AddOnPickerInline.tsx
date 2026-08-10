@@ -1,7 +1,7 @@
 "use client";
 
 import type { AddOnProduct } from "@/lib/api";
-import type { LineItemInput } from "@/lib/quoteTotals";
+import type { LineItemInput } from "@/lib/bookingPayload";
 import InlinePicker from "@/components/InlinePicker";
 import { formatCurrency } from "@/lib/utils";
 import {

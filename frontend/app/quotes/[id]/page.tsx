@@ -1,14 +1,12 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { api, Contact, EventMealData, CourseData, MenuChoices } from "@/lib/api";
-import { useQuote, useAccounts, useContacts, useSiteSettings, useDateFormat, useEventTypes, useServiceStyles, useMealTypes, useTimelinePresets, useAllLeads, useProductLines, useUsers, revalidate } from "@/lib/hooks";
-import { canWhatsApp, waLink } from "@/lib/whatsapp";
-import { MessageCircle } from "lucide-react";
+import { api, ChannelAvailability, ClientChannel, ClientMessageKind, Contact, EventMealData, CourseData, MenuChoices } from "@/lib/api";
+import { useQuote, useAccounts, useContacts, useSiteSettings, useDateFormat, useFormatDateTime, useEventTypes, useServiceStyles, useMealTypes, useTimelinePresets, useAllLeads, useProductLines, useUsers, useClientMessages, useMessagingStatus, revalidate } from "@/lib/hooks";
 import { useAuth } from "@/lib/auth";
-import { formatDate, todayISO } from "@/lib/dateFormat";
+import { formatDate, formatInstantDate, todayISO } from "@/lib/dateFormat";
 import { formatCurrency, formatPercent } from "@/lib/utils";
 import MenuBuilder from "@/components/MenuBuilder";
 import AdditionalMealsEditor from "@/components/AdditionalMealsEditor";
@@ -16,13 +14,19 @@ import { guestsChoose } from "@/lib/menuStructure";
 import GuestCountField, { GuestCountValue } from "@/components/GuestCountField";
 import SegmentRatesField from "@/components/SegmentRatesField";
 import BookingTimelineField, { TimelineEntryValue } from "@/components/BookingTimelineField";
+import BookingTimelineView from "@/components/BookingTimelineView";
 import BookingDetailsForm, { BookingDetailsValue } from "@/components/BookingDetailsForm";
 import AssigneePicker from "@/components/AssigneePicker";
 import SearchableSelect from "@/components/SearchableSelect";
-import { computeQuoteTotals, buildQuoteSavePayload, buildTimelineEntriesPayload, buildGuestCountsPayload, buildMealsPayload, bookingMealRows, timelineMealRows, hasVendorDoubleEntry, segmentFood, segmentFoodRows, LineItemInput, GuestSegmentMeta } from "@/lib/quoteTotals";
+import { timelineMealRows, hasVendorDoubleEntry, segmentFood, segmentFoodRows, bookingMealRows } from "@/lib/quoteTotals";
+import { buildQuoteSavePayload, pricingDraft, taxRatePercent, taxRateFraction, LineItemInput, GuestSegmentMeta } from "@/lib/bookingPayload";
+import { usePricingPreview } from "@/lib/usePricingPreview";
+import { previewCardProps, storedCardProps, type PreviewCardProps } from "@/lib/previewCard";
 import AddOnItemsEditor from "@/components/AddOnItemsEditor";
 import BookingTotalsCard from "@/components/BookingTotalsCard";
 import ESignPanel from "@/components/ESignPanel";
+import SendToClientModal from "@/components/SendToClientModal";
+import ClientMessages from "@/components/ClientMessages";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -76,9 +80,24 @@ export default function QuoteDetailPage() {
   const { data: timelinePresets = [] } = useTimelinePresets();
   const { data: allLeads = [] } = useAllLeads();
   const leads = allLeads.filter((l) => !["won", "lost"].includes(l.status));
+  const formatDateTime = useFormatDateTime();
+  const quoteId = isNew ? null : (Number(id) || null);
+  const { data: clientMessages = [], isLoading: messagesLoading, mutate: mutateMessages } = useClientMessages("quote", quoteId);
+  // What this client can be reached on is decided by the backend; the page
+  // renders that answer rather than working it out from Twilio/mailbox flags.
+  const { data: messagingStatus } = useMessagingStatus("quote", quoteId);
   const [saving, setSaving] = useState(false);
-  const [waAwaitingConfirm, setWaAwaitingConfirm] = useState(false);
   const [editing, setEditing] = useState(false);
+  // One send surface for this quote (REL-445 AC2b) — the old "Share via
+  // WhatsApp" button and its "did you send it?" confirmation are gone.
+  const [sendKind, setSendKind] = useState<ClientMessageKind | null>(null);
+  const [sendPrefill, setSendPrefill] = useState<{ channel: ClientChannel; subject: string; body: string } | null>(null);
+  const [toast, setToast] = useState("");
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(""), 4000);
+    return () => clearTimeout(t);
+  }, [toast]);
   const [error, setError] = useState("");
   const [editData, setEditData] = useState({
     primary_contact: "",
@@ -136,7 +155,11 @@ export default function QuoteDetailPage() {
     meal_time: "",
     end_time: "",
     product: "",
-    tax_rate: "0.2000",
+    // PERCENT, like the edit form and like the field the user types into. The
+    // create form used to hold a fraction here while displaying percent, so the
+    // two modes disagreed about what `tax_rate` meant; `bookingPayload.ts` owns
+    // the single conversion to the stored fraction now.
+    tax_rate: "20",
     service_charge_pct: "0",
     service_charge_taxable: true,
     gratuity_pct: "0",
@@ -190,7 +213,8 @@ export default function QuoteDetailPage() {
     if (isNew && rawSettings && !defaultTaxApplied.current) {
       setCreateData((prev) => ({
         ...prev,
-        tax_rate: rawSettings.default_tax_rate ?? prev.tax_rate,
+        // The org default is stored as a fraction; the form speaks percent.
+        tax_rate: rawSettings.default_tax_rate != null ? taxRatePercent(rawSettings.default_tax_rate) : prev.tax_rate,
         service_charge_pct: rawSettings.service_charge_default_pct ?? prev.service_charge_pct,
         service_charge_taxable: rawSettings.service_charge_taxable_default ?? prev.service_charge_taxable,
         gratuity_pct: rawSettings.gratuity_default_pct ?? prev.gratuity_pct,
@@ -209,6 +233,37 @@ export default function QuoteDetailPage() {
       setCreateData((prev) => (prev.product ? prev : { ...prev, product: String(def.id) }));
     }
   }, [isNew, activeProducts]);
+
+  // ── Server-priced totals ──
+  //
+  // The page no longer works out what a quote costs. It sends the draft to the
+  // pricing engine and renders the answer, so the figure on screen, the figure
+  // that saves and the figure on the PDF are the same figure by construction.
+  //
+  // The draft is narrowed from the SAVE payload rather than assembled separately
+  // — priced input and stored input are then the same object, and a create form
+  // that quietly sent a different shape than the edit form (which is what used to
+  // happen) can't come back.
+  //
+  // `null` in view mode: nothing is being edited, so the stored totals stand.
+  const previewDraft = useMemo(() => {
+    if (!isNew && !editing) return null;
+    const form = isNew ? createData : editData;
+    const save = buildQuoteSavePayload(
+      form, menuData,
+      isNew ? createLineItems : editLineItems,
+      isNew ? createMeals : editMeals,
+      segmentMeta,
+    );
+    return pricingDraft(save, {
+      // The form has no taxable switch — a quote is taxed unless something else
+      // (admin, API, import) turned it off, and that flag is not ours to change
+      // here. Sending it keeps the preview honest about a quote it did not set.
+      is_taxable: isNew ? true : (quote?.is_taxable ?? true),
+      tax_rate: save.tax_rate,
+    });
+  }, [isNew, editing, createData, editData, menuData, createLineItems, editLineItems, createMeals, editMeals, segmentMeta, quote?.is_taxable]);
+  const { result: preview, isStale: previewStale, error: previewError, flush: repriceNow } = usePricingPreview(previewDraft);
 
   const setCreate = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setCreateData({ ...createData, [field]: e.target.value });
@@ -262,44 +317,18 @@ export default function QuoteDetailPage() {
     setSaving(true);
     setError("");
     try {
+      // The SAME builder the edit form saves through. Create used to assemble its
+      // own literal, and the two drifted exactly where you'd expect: raw line
+      // items instead of serialized ones, and a tax fraction where edit sent a
+      // converted percent. `lead` and `assigned_to` are the only create-only
+      // fields — everything else is a quote, whichever screen made it.
       const data = {
+        ...buildQuoteSavePayload(
+          createData, menuData, createLineItems, createMeals, segmentMeta,
+          createTimeline, createCourses, createDishCourses, createMenuChoices,
+        ),
         lead: createData.lead ? Number(createData.lead) : null,
-        primary_contact: createData.primary_contact ? Number(createData.primary_contact) : null,
-        is_b2b: createData.is_b2b,
-        account: createData.is_b2b && createData.account ? Number(createData.account) : null,
-        venue: createData.venue ? Number(createData.venue) : null,
-        venue_address: createData.venue_address,
-        event_date: createData.event_date,
-        guest_counts: buildGuestCountsPayload(createData.guest_count, createData.segment_counts, segmentMeta, createData.segment_prices),
-        guest_count: createData.guest_count,
-        big_eaters: createData.big_eaters,
-        big_eaters_percentage: createData.big_eaters_percentage,
-        price_per_head: createData.price_per_head ? createData.price_per_head : null,
-        product: createData.product ? Number(createData.product) : null,
         assigned_to: formAssigned || null,
-        event_type: createData.event_type,
-        meal_type: createData.meal_type || undefined,
-        booking_date: createData.booking_date || null,
-        service_style: createData.service_style || undefined,
-        setup_time: createData.setup_time || null,
-        guest_arrival_time: createData.guest_arrival_time || null,
-        meal_time: createData.meal_time || null,
-        end_time: createData.end_time || null,
-        tax_rate: createData.tax_rate,
-        service_charge_pct: createData.service_charge_pct || "0",
-        service_charge_taxable: createData.service_charge_taxable,
-        gratuity_pct: createData.gratuity_pct || "0",
-        valid_until: createData.valid_until || null,
-        notes: createData.notes,
-        internal_notes: createData.internal_notes,
-        dish_ids: menuData.dish_ids,
-        based_on_template: menuData.based_on_template,
-        courses: createCourses,
-        dish_courses: createDishCourses,
-        menu_choices: createMenuChoices,
-        line_items: createLineItems,
-        additional_meals: buildMealsPayload(createMeals, createData.guest_count, createData.segment_counts, segmentMeta),
-        timeline_entries: buildTimelineEntriesPayload(createTimeline),
       };
       const newQuote = await api.createQuote(data);
       revalidate("quotes");
@@ -337,7 +366,7 @@ export default function QuoteDetailPage() {
       guest_arrival_time: quote.guest_arrival_time ? quote.guest_arrival_time.slice(0, 16) : "",
       meal_time: quote.meal_time ? quote.meal_time.slice(0, 16) : "",
       end_time: quote.end_time ? quote.end_time.slice(0, 16) : "",
-      tax_rate: String(Math.round(parseFloat(quote.tax_rate) * 10000) / 100),
+      tax_rate: taxRatePercent(quote.tax_rate),
       service_charge_pct: quote.service_charge_pct ?? "0",
       service_charge_taxable: quote.service_charge_taxable ?? true,
       gratuity_pct: quote.gratuity_pct ?? "0",
@@ -455,15 +484,67 @@ export default function QuoteDetailPage() {
   };
 
 
+  /** What the totals card shows before the engine has ever answered.
+   *
+   * A brand-new quote is worth nothing until it's priced, so zeros are the honest
+   * opening state — and they are replaced, not added to, by the first response. */
+  const ZERO_CARD: PreviewCardProps = {
+    foodTotal: "0", foodRows: null, meals: [], addOnsTotal: "0", subtotal: "0",
+    serviceCharge: "0", taxAmount: "0", gratuity: "0", total: "0",
+  };
+
+  /** Shown next to the title when the figures are behind the form. Only a failed
+   * refresh earns words — an in-flight one is already saying so by dimming. */
+  const staleHint = previewError ? "Totals will refresh shortly" : undefined;
+
+  /** Why this draft would be refused if saved, in the save path's own words.
+   *
+   * The endpoint prices drafts honestly, including ones the save rejects — a
+   * breakdown covering more guests than the booking claims prices happily and
+   * then 400s. Without this the card shows a confident figure that cannot exist,
+   * and the user finds out only when Save fails. */
+  const previewWarnings = (editing || isNew) ? (preview?.warnings ?? []) : [];
+  const warningBanner = previewWarnings.length > 0 ? (
+    <div role="alert" className="rounded-md border border-warning/40 bg-warning/10 px-4 py-3 text-sm font-medium text-warning-foreground">
+      {previewWarnings.map((w, i) => <p key={i}>{w}</p>)}
+    </div>
+  ) : null;
+
+  /** The view-mode card for a quote saved BEFORE REL-464, which carries no
+   * pricing snapshot and never will (nothing backfills them).
+   *
+   * This is the pre-REL-465 rendering, kept verbatim and reachable only here. The
+   * flat total columns alone cannot say which meals were charged or how the
+   * segments were priced, so building the card from them drops the meal rows and
+   * the itemisation entirely — on a quote the customer has already accepted. The
+   * mirror is wrong to keep and worse to lose, so it stays until every row has
+   * been saved again, and dies with the rest of `quoteTotals.ts` in step 6. */
+  function legacyCardProps(quoteRow: NonNullable<typeof quote>): PreviewCardProps {
+    const segCounts = Object.fromEntries((quoteRow.guest_counts ?? []).map((r) => [r.segment, r.count]));
+    const segPrices = Object.fromEntries(
+      (quoteRow.guest_counts ?? [])
+        .filter((r) => r.price_per_head != null)
+        .map((r) => [r.segment, String(r.price_per_head)]),
+    );
+    const pph = quoteRow.price_per_head ?? "0";
+    const menuFood = segmentFood(pph, quoteRow.guest_count, segCounts, segmentMeta, segPrices);
+    return {
+      foodTotal: String(menuFood),
+      foodRows: segmentFoodRows(pph, quoteRow.guest_count, segCounts, segmentMeta, segPrices),
+      meals: bookingMealRows(quoteRow.additional_meals || [], cs, quoteRow.guest_count, segCounts, segmentMeta),
+      // The add-ons line, recovered from the two columns that do record it.
+      addOnsTotal: String(Number(quoteRow.subtotal) - Number(quoteRow.food_total)),
+      subtotal: quoteRow.subtotal,
+      serviceCharge: quoteRow.service_charge || "0",
+      taxAmount: quoteRow.tax_amount,
+      gratuity: quoteRow.gratuity || "0",
+      total: quoteRow.total,
+    };
+  }
+
   // Create mode
   if (isNew) {
-    const createTotals = computeQuoteTotals(
-      createData.price_per_head, createData.guest_count,
-      parseFloat(createData.tax_rate || "0"), createLineItems, createMeals,
-      parseFloat(createData.service_charge_pct || "0"), createData.service_charge_taxable,
-      parseFloat(createData.gratuity_pct || "0"),
-      createData.segment_counts, segmentMeta, createData.segment_prices,
-    );
+    const createCard = preview ? previewCardProps(preview, cs) : ZERO_CARD;
     return (
       <div className="space-y-6">
         <div className="flex items-center gap-2 text-sm">
@@ -645,52 +726,56 @@ export default function QuoteDetailPage() {
           </Card>
 
           {/* Quote Total (tax rate + menu + additional items) */}
+          {warningBanner}
           <BookingTotalsCard
             title="Quote Total"
             currencySymbol={cs}
-            foodTotal={segmentFood(createData.price_per_head, createData.guest_count, createData.segment_counts, segmentMeta, createData.segment_prices)}
-            foodRows={segmentFoodRows(createData.price_per_head, createData.guest_count, createData.segment_counts, segmentMeta, createData.segment_prices)}
+            {...createCard}
             foodLabel={`Food / Menu (${formatCurrency(createData.price_per_head || 0, cs)}/head × ${createData.guest_count} guests)`}
-            meals={bookingMealRows(createMeals, cs, createData.guest_count, createData.segment_counts, segmentMeta)}
-            addOnsTotal={Math.round((createTotals.subtotal - createTotals.food_total) * 100) / 100}
-            subtotal={createTotals.subtotal}
-            serviceCharge={createTotals.service_charge}
             serviceChargeControl={
               <span className="flex items-center gap-1">
                 Service charge
                 <ValidatedInput type="number" step="0.01" min={0} max={100} className="w-16 h-7"
                   value={createData.service_charge_pct}
+                  onBlur={repriceNow}
                   onChange={(e) => setCreateData({ ...createData, service_charge_pct: e.target.value })} />
                 %
               </span>
             }
-            taxAmount={createTotals.tax_amount}
-            gratuity={createTotals.gratuity}
             gratuityControl={
               <span className="flex items-center gap-1">
                 Gratuity
                 <ValidatedInput type="number" step="0.01" min={0} max={100} className="w-16 h-7"
                   value={createData.gratuity_pct}
+                  onBlur={repriceNow}
                   onChange={(e) => setCreateData({ ...createData, gratuity_pct: e.target.value })} />
                 %
               </span>
             }
-            total={createTotals.total}
             taxLabel={settings.tax_label}
-            taxPercent={formatPercent(parseFloat(createData.tax_rate || "0") * 100)}
+            // Through the SAME conversion the payload uses, so the label states the
+            // rate that will be charged: formatting the raw form string showed
+            // "7.375%" beside tax actually taken at 7.376%.
+            taxPercent={formatPercent(taxRatePercent(taxRateFraction(createData.tax_rate)))}
             taxRateField={
               <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Tax Rate (%)</label>
+                <label htmlFor="create-tax-rate" className="block text-sm font-medium text-foreground mb-1">Tax Rate (%)</label>
                 <ValidatedInput
+                  id="create-tax-rate"
                   type="number"
-                  step="0.01"
+                  // 0.001: NYC's 8.875% is a real rate, and step="0.01" makes the
+                  // browser refuse it outright.
+                  step="0.001"
                   min={0}
                   max={100}
-                  value={Number.isNaN(parseFloat(createData.tax_rate)) ? "" : Math.round(parseFloat(createData.tax_rate) * 10000) / 100}
-                  onChange={(e) => setCreateData({ ...createData, tax_rate: e.target.value === "" ? "0.0000" : (parseFloat(e.target.value) / 100).toFixed(4) })}
+                  value={createData.tax_rate}
+                  onBlur={repriceNow}
+                  onChange={setCreate("tax_rate")}
                 />
               </div>
             }
+            isStale={previewStale}
+            staleHint={staleHint}
           />
 
           {/* Notes & validity */}
@@ -731,14 +816,6 @@ export default function QuoteDetailPage() {
   // At this point, quote is guaranteed to be defined
   const q = quote!;
   const editGuestCount = editData.guest_count || q.guest_count;
-  const liveTotals = computeQuoteTotals(
-    editData.price_per_head, editData.guest_count,
-    parseFloat(editData.tax_rate || "0") / 100, editLineItems,
-    editing ? editMeals : (q.additional_meals || []),
-    parseFloat(editData.service_charge_pct || "0"), editData.service_charge_taxable,
-    parseFloat(editData.gratuity_pct || "0"),
-    editData.segment_counts, segmentMeta, editData.segment_prices,
-  );
 
   return (
     <div className="space-y-6">
@@ -790,9 +867,9 @@ export default function QuoteDetailPage() {
                 )}
               </div>
               <p className="text-sm text-muted-foreground mt-1">
-                Created {formatDate(q.created_at, dateFormat)}
-                {q.sent_at && ` · Sent ${formatDate(q.sent_at, dateFormat)}`}
-                {q.accepted_at && ` · Accepted ${formatDate(q.accepted_at, dateFormat)}`}
+                Created {formatInstantDate(q.created_at, dateFormat)}
+                {q.sent_at && ` · Sent ${formatInstantDate(q.sent_at, dateFormat)}`}
+                {q.accepted_at && ` · Accepted ${formatInstantDate(q.accepted_at, dateFormat)}`}
               </p>
             </div>
             <div className="text-right">
@@ -826,48 +903,24 @@ export default function QuoteDetailPage() {
             >
               Download PDF
             </Button>
-            {canWhatsApp(q.contact_phone) && (
-              waAwaitingConfirm ? (
-                <span className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground">Did you send it?</span>
-                  <Button
-                    size="sm"
-                    onClick={async () => {
-                      try {
-                        const greeting = `Hi ${q.contact_name?.split(" ")[0] || ""}, here's your quotation for your ${(q.event_type || "event").replace(/_/g, " ")}.`.replace("  ", " ");
-                        const updated = await api.markQuoteSharedWhatsApp(q.id, greeting);
-                        mutateQuote(updated, false);
-                        setWaAwaitingConfirm(false);
-                      } catch (err) {
-                        setError(err instanceof Error ? err.message : "Failed to record the share");
-                      }
-                    }}
-                  >
-                    Mark shared
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={() => setWaAwaitingConfirm(false)}>
-                    Not sent
-                  </Button>
-                </span>
-              ) : (
-                <Button
-                  onClick={() => {
-                    const greeting = `Hello ${q.contact_name?.split(" ")[0] || ""}, sharing your quotation for your ${q.event_type || "event"}.`.replace("  ", " ");
-                    window.open(waLink(q.contact_phone!, greeting), "_blank");
-                    setWaAwaitingConfirm(true);
-                  }}
-                >
-                  <MessageCircle className="w-4 h-4 mr-1.5" aria-hidden />
-                  Share via WhatsApp
-                </Button>
-              )
+            {!["declined", "expired"].includes(q.status) && (
+              <Button
+                // Filled on a draft (the one thing to do next), outline once
+                // sent — by then it's a resend and accepting is the primary.
+                variant={q.status === "draft" ? "default" : "outline"}
+                onClick={() => { setSendPrefill(null); setSendKind("sign_link"); }}
+              >
+                Send to Client
+              </Button>
             )}
             {q.status === "draft" && (
               <>
-                <Button onClick={() => handleTransition("sent")} disabled={saving}>
+                <Button variant="outline" onClick={() => handleTransition("sent")} disabled={saving}>
                   {saving ? "..." : "Mark as Sent"}
                 </Button>
-                <Button onClick={() => setShowAcceptConfirm(true)} disabled={saving} variant="success">
+                {/* Outline on a draft: accepting a quote the client hasn't seen
+                    is the rarer path, and one filled button per screen. */}
+                <Button variant="outline" onClick={() => setShowAcceptConfirm(true)} disabled={saving}>
                   {saving ? "..." : "Accept & Create Event"}
                 </Button>
               </>
@@ -903,7 +956,7 @@ export default function QuoteDetailPage() {
               signed status). Shown for accepted quotes too so an accepted-but-
               unsigned quote can still request a signature rather than dead-end. */}
           {!editing && !["declined", "expired"].includes(q.status) && (
-            <ESignPanel kind="quote" id={q.id} publicToken={q.public_token} signature={q.signature} contactPhone={q.contact_phone} contactName={q.contact_name} subject={q.event_type} />
+            <ESignPanel kind="quote" id={q.id} publicToken={q.public_token} signature={q.signature} />
           )}
 
           {/* Event link when accepted */}
@@ -917,6 +970,19 @@ export default function QuoteDetailPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Client messages — everything this client has been sent about this
+          quote, in one place (AC8). Hidden while editing to keep that view on
+          the form. */}
+      {!editing && quoteId && (
+        <ClientMessages
+          messages={clientMessages}
+          isLoading={messagesLoading}
+          formatDateTime={formatDateTime}
+          onCompose={() => { setSendPrefill(null); setSendKind("compose"); }}
+          onReopen={(row) => { setSendPrefill(row); setSendKind("compose"); }}
+        />
+      )}
 
       {/* Customer & Event (editing) — shared booking details */}
       {editing && (
@@ -1027,7 +1093,9 @@ export default function QuoteDetailPage() {
               </div>
               <div>
                 <span className="text-muted-foreground block">Tax Rate</span>
-                <span className="font-medium text-foreground">{(parseFloat(q.tax_rate) * 100).toFixed(0)}%</span>
+                {/* The shared formatter, not a local `.toFixed(0)`: rounding to a
+                    whole number printed "9%" on a quote charged at 8.875%. */}
+                <span className="font-medium text-foreground">{formatPercent(taxRatePercent(q.tax_rate))}%</span>
               </div>
               <div>
                 <span className="text-muted-foreground block">Valid Until</span>
@@ -1175,12 +1243,17 @@ export default function QuoteDetailPage() {
         />
       )}
 
-      {/* Timeline (editing) — below the meals: the run-of-show is built around the
-          meal times, so it reads after you've said what's being served (REL-430). */}
-      {editing && (
-        <Card>
-          <CardContent className="p-6">
-            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Timeline</h2>
+      {/* Timeline — below the meals: the run-of-show is built around the meal times,
+          so it reads after you've said what's being served (REL-430).
+
+          Rendered in READ-ONLY too (REL-447). This card used to be `{editing && …}`,
+          so a saved quote showed no run-of-show at all — while the quote PDF printed
+          the whole day for the customer. You couldn't check on screen what you'd
+          just sent. Same component the event page uses. */}
+      <Card>
+        <CardContent className="p-6">
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Timeline</h2>
+          {editing ? (
             <BookingTimelineField
               eventDate={editData.event_date}
               timeFormat={timeFormat}
@@ -1191,9 +1264,21 @@ export default function QuoteDetailPage() {
               presets={timelinePresets}
               meals={timelineMealRows(editMeals)}
             />
-          </CardContent>
-        </Card>
-      )}
+          ) : (
+            <BookingTimelineView
+              entries={q.timeline_entries}
+              meals={timelineMealRows(q.additional_meals)}
+              eventDate={q.event_date}
+              setupTime={q.setup_time}
+              guestArrivalTime={q.guest_arrival_time}
+              mealTime={q.meal_time}
+              endTime={q.end_time}
+              dateFormat={dateFormat}
+              timeFormat={timeFormat}
+            />
+          )}
+        </CardContent>
+      </Card>
 
 
       {/* Additional Items */}
@@ -1242,59 +1327,53 @@ export default function QuoteDetailPage() {
         </CardContent>
       </Card>
 
-      {/* Quote Total (menu + additional items) */}
+      {/* Quote Total (menu + additional items).
+          Editing: the engine's live answer for the current draft. Not editing:
+          the engine's answer as saved. Either way the page prints figures it was
+          given — while the first preview is still in flight, the saved ones stay
+          up rather than the card going blank. */}
       {(() => {
-        const fullFood = editing ? liveTotals.food_total : parseFloat(q.food_total);
-        const subtotal = editing ? liveTotals.subtotal : parseFloat(q.subtotal);
-        const mealsList = editing ? editMeals : (q.additional_meals || []);
-        const pph = parseFloat((editing ? editData.price_per_head : q.price_per_head) || "0") || 0;
-        const guests = editing ? editGuestCount : q.guest_count;
-        const viewSegmentCounts = Object.fromEntries((q.guest_counts ?? []).map((r) => [r.segment, r.count]));
-        const viewSegmentPrices = Object.fromEntries((q.guest_counts ?? []).filter((r) => r.price_per_head != null).map((r) => [r.segment, String(r.price_per_head)]));
-        const segCounts = editing ? editData.segment_counts : viewSegmentCounts;
-        const segPrices = editing ? editData.segment_prices : viewSegmentPrices;
-        const mainFood = segmentFood(pph, guests, segCounts, segmentMeta, segPrices);
+        const saved = storedCardProps(q, cs) ?? legacyCardProps(q);
+        const card = editing ? (preview ? previewCardProps(preview, cs) : saved) : saved;
         return (
+      <>
+      {warningBanner}
       <BookingTotalsCard
         title="Quote Total"
         currencySymbol={cs}
-        foodTotal={mainFood}
-        foodRows={segmentFoodRows(pph, guests, segCounts, segmentMeta, segPrices)}
+        {...card}
         foodLabel={`Food / Menu (${formatCurrency(editing ? editData.price_per_head : (q.price_per_head ?? 0), cs)}/head × ${editing ? editGuestCount : q.guest_count} guests)`}
-        meals={bookingMealRows(mealsList, cs, guests, segCounts, segmentMeta)}
-        addOnsTotal={Math.round((subtotal - fullFood) * 100) / 100}
-        subtotal={subtotal}
-        serviceCharge={editing ? liveTotals.service_charge : parseFloat(q.service_charge || "0")}
-        serviceChargePct={editing ? parseFloat(editData.service_charge_pct || "0").toFixed(0) : parseFloat(q.service_charge_pct || "0").toFixed(0)}
+        serviceChargePct={editing ? formatPercent(editData.service_charge_pct || "0") : formatPercent(q.service_charge_pct || "0")}
         serviceChargeControl={editing ? (
           <span className="flex items-center gap-1">
             Service charge
             <ValidatedInput type="number" step="0.01" min={0} max={100} className="w-16 h-7"
-              value={editData.service_charge_pct} onChange={setEdit("service_charge_pct")} />
+              value={editData.service_charge_pct} onBlur={repriceNow} onChange={setEdit("service_charge_pct")} />
             %
           </span>
         ) : undefined}
-        taxAmount={editing ? liveTotals.tax_amount : parseFloat(q.tax_amount)}
-        gratuity={editing ? liveTotals.gratuity : parseFloat(q.gratuity || "0")}
-        gratuityPct={editing ? parseFloat(editData.gratuity_pct || "0").toFixed(0) : parseFloat(q.gratuity_pct || "0").toFixed(0)}
+        gratuityPct={editing ? formatPercent(editData.gratuity_pct || "0") : formatPercent(q.gratuity_pct || "0")}
         gratuityControl={editing ? (
           <span className="flex items-center gap-1">
             Gratuity
             <ValidatedInput type="number" step="0.01" min={0} max={100} className="w-16 h-7"
-              value={editData.gratuity_pct} onChange={setEdit("gratuity_pct")} />
+              value={editData.gratuity_pct} onBlur={repriceNow} onChange={setEdit("gratuity_pct")} />
             %
           </span>
         ) : undefined}
-        total={editing ? liveTotals.total : parseFloat(q.total)}
         taxLabel={settings.tax_label}
-        taxPercent={editing ? formatPercent(editData.tax_rate || "0") : formatPercent(parseFloat(q.tax_rate) * 100)}
+        taxPercent={editing ? formatPercent(taxRatePercent(taxRateFraction(editData.tax_rate))) : formatPercent(taxRatePercent(q.tax_rate))}
         taxRateField={editing ? (
           <div>
-            <label className="block text-sm font-medium text-foreground mb-1">Tax Rate (%)</label>
-            <ValidatedInput type="number" step="0.01" min={0} max={100} value={editData.tax_rate} onChange={setEdit("tax_rate")} />
+            <label htmlFor="edit-tax-rate" className="block text-sm font-medium text-foreground mb-1">Tax Rate (%)</label>
+            <ValidatedInput id="edit-tax-rate" type="number" step="0.001" min={0} max={100} value={editData.tax_rate}
+              onBlur={repriceNow} onChange={setEdit("tax_rate")} />
           </div>
         ) : undefined}
+        isStale={editing && previewStale}
+        staleHint={editing ? staleHint : undefined}
       />
+      </>
         );
       })()}
 
@@ -1328,6 +1407,36 @@ export default function QuoteDetailPage() {
           <Button variant="outline" onClick={() => setEditing(false)} disabled={saving}>
             Cancel
           </Button>
+        </div>
+      )}
+
+      {sendKind && quoteId && (
+        <SendToClientModal
+          open
+          parent="quote"
+          parentId={quoteId}
+          kind={sendKind}
+          subtitle={`Q-${q.id} · v${q.version} — ${q.contact_name || ""}${q.event_date ? `, ${formatDate(q.event_date, dateFormat)}` : ""}`}
+          availability={messagingStatus}
+          prefill={sendPrefill}
+          onClose={() => { setSendKind(null); setSendPrefill(null); }}
+          onSent={(_msg, note) => {
+            setToast(note);
+            mutateMessages();
+            // A sign-link send moves a draft quote to sent, server-side.
+            mutateQuote();
+          }}
+        />
+      )}
+
+      {/* Send results are transient, so they're a toast — banners are reserved
+          for config states that persist. */}
+      {toast && (
+        <div
+          role="status"
+          className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-lg bg-foreground px-4 py-2 text-sm text-background shadow-lg"
+        >
+          {toast}
         </div>
       )}
     </div>

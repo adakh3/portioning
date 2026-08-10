@@ -10,6 +10,8 @@ Signing a quote runs the same ``accept_quote`` pipeline as the staff endpoint
 (so the confirmed event is created identically); signing an event confirms it.
 Each signature is an immutable snapshot (see ``BookingSignature``).
 """
+import logging
+
 from django.http import HttpResponse
 from django.utils import timezone
 from rest_framework import status
@@ -19,6 +21,8 @@ from rest_framework.views import APIView
 
 from bookings.pdf import generate_quote_pdf, generate_event_pdf
 from users.mixins import get_org_object_or_404
+
+logger = logging.getLogger(__name__)
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
@@ -143,6 +147,18 @@ def sign_booking(booking, *, signer_name, signer_email, signature_image, ip, use
            else generate_event_pdf(event, signature=sig))
     sig.signed_pdf = pdf
     sig.save(update_fields=['signed_pdf'])
+
+    # Get the client their signed copy. Deliberately last, and deliberately
+    # swallowing everything: the signature is already saved, and no messaging
+    # problem — a dead mailbox, a Twilio outage, a bug in here — may cost a
+    # client the booking they just signed (REL-445 AC6). Failures land in the
+    # ledger, which is where staff look for them.
+    try:
+        from bookings.services.messaging import send_signed_copy
+        send_signed_copy(booking, sig)
+    except Exception:
+        logger.exception('Signed-copy send failed for booking %s', booking.pk)
+
     return sig
 
 
