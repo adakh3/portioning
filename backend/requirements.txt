@@ -13,5 +13,6 @@ openpyxl>=3.1
 twilio>=9.0
 stripe>=9.0
 cryptography>=42.0
+requests>=2.31
 anthropic>=0.40
 openai>=1.60

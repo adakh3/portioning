@@ -3,12 +3,10 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { api, Contact, EventMealData, CourseData, MenuChoices } from "@/lib/api";
-import { useQuote, useAccounts, useContacts, useSiteSettings, useDateFormat, useEventTypes, useServiceStyles, useMealTypes, useTimelinePresets, useAllLeads, useProductLines, useUsers, revalidate } from "@/lib/hooks";
-import { canWhatsApp, waLink } from "@/lib/whatsapp";
-import { MessageCircle } from "lucide-react";
+import { api, ChannelAvailability, ClientChannel, ClientMessageKind, Contact, EventMealData, CourseData, MenuChoices } from "@/lib/api";
+import { useQuote, useAccounts, useContacts, useSiteSettings, useDateFormat, useFormatDateTime, useEventTypes, useServiceStyles, useMealTypes, useTimelinePresets, useAllLeads, useProductLines, useUsers, useClientMessages, useMessagingStatus, revalidate } from "@/lib/hooks";
 import { useAuth } from "@/lib/auth";
-import { formatDate, todayISO } from "@/lib/dateFormat";
+import { formatDate, formatInstantDate, todayISO } from "@/lib/dateFormat";
 import { formatCurrency, formatPercent } from "@/lib/utils";
 import MenuBuilder from "@/components/MenuBuilder";
 import AdditionalMealsEditor from "@/components/AdditionalMealsEditor";
@@ -16,6 +14,7 @@ import { guestsChoose } from "@/lib/menuStructure";
 import GuestCountField, { GuestCountValue } from "@/components/GuestCountField";
 import SegmentRatesField from "@/components/SegmentRatesField";
 import BookingTimelineField, { TimelineEntryValue } from "@/components/BookingTimelineField";
+import BookingTimelineView from "@/components/BookingTimelineView";
 import BookingDetailsForm, { BookingDetailsValue } from "@/components/BookingDetailsForm";
 import AssigneePicker from "@/components/AssigneePicker";
 import SearchableSelect from "@/components/SearchableSelect";
@@ -26,6 +25,8 @@ import { previewCardProps, storedCardProps, type PreviewCardProps } from "@/lib/
 import AddOnItemsEditor from "@/components/AddOnItemsEditor";
 import BookingTotalsCard from "@/components/BookingTotalsCard";
 import ESignPanel from "@/components/ESignPanel";
+import SendToClientModal from "@/components/SendToClientModal";
+import ClientMessages from "@/components/ClientMessages";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -79,9 +80,24 @@ export default function QuoteDetailPage() {
   const { data: timelinePresets = [] } = useTimelinePresets();
   const { data: allLeads = [] } = useAllLeads();
   const leads = allLeads.filter((l) => !["won", "lost"].includes(l.status));
+  const formatDateTime = useFormatDateTime();
+  const quoteId = isNew ? null : (Number(id) || null);
+  const { data: clientMessages = [], isLoading: messagesLoading, mutate: mutateMessages } = useClientMessages("quote", quoteId);
+  // What this client can be reached on is decided by the backend; the page
+  // renders that answer rather than working it out from Twilio/mailbox flags.
+  const { data: messagingStatus } = useMessagingStatus("quote", quoteId);
   const [saving, setSaving] = useState(false);
-  const [waAwaitingConfirm, setWaAwaitingConfirm] = useState(false);
   const [editing, setEditing] = useState(false);
+  // One send surface for this quote (REL-445 AC2b) — the old "Share via
+  // WhatsApp" button and its "did you send it?" confirmation are gone.
+  const [sendKind, setSendKind] = useState<ClientMessageKind | null>(null);
+  const [sendPrefill, setSendPrefill] = useState<{ channel: ClientChannel; subject: string; body: string } | null>(null);
+  const [toast, setToast] = useState("");
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(""), 4000);
+    return () => clearTimeout(t);
+  }, [toast]);
   const [error, setError] = useState("");
   const [editData, setEditData] = useState({
     primary_contact: "",
@@ -851,9 +867,9 @@ export default function QuoteDetailPage() {
                 )}
               </div>
               <p className="text-sm text-muted-foreground mt-1">
-                Created {formatDate(q.created_at, dateFormat)}
-                {q.sent_at && ` · Sent ${formatDate(q.sent_at, dateFormat)}`}
-                {q.accepted_at && ` · Accepted ${formatDate(q.accepted_at, dateFormat)}`}
+                Created {formatInstantDate(q.created_at, dateFormat)}
+                {q.sent_at && ` · Sent ${formatInstantDate(q.sent_at, dateFormat)}`}
+                {q.accepted_at && ` · Accepted ${formatInstantDate(q.accepted_at, dateFormat)}`}
               </p>
             </div>
             <div className="text-right">
@@ -887,48 +903,24 @@ export default function QuoteDetailPage() {
             >
               Download PDF
             </Button>
-            {canWhatsApp(q.contact_phone) && (
-              waAwaitingConfirm ? (
-                <span className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground">Did you send it?</span>
-                  <Button
-                    size="sm"
-                    onClick={async () => {
-                      try {
-                        const greeting = `Hi ${q.contact_name?.split(" ")[0] || ""}, here's your quotation for your ${(q.event_type || "event").replace(/_/g, " ")}.`.replace("  ", " ");
-                        const updated = await api.markQuoteSharedWhatsApp(q.id, greeting);
-                        mutateQuote(updated, false);
-                        setWaAwaitingConfirm(false);
-                      } catch (err) {
-                        setError(err instanceof Error ? err.message : "Failed to record the share");
-                      }
-                    }}
-                  >
-                    Mark shared
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={() => setWaAwaitingConfirm(false)}>
-                    Not sent
-                  </Button>
-                </span>
-              ) : (
-                <Button
-                  onClick={() => {
-                    const greeting = `Hello ${q.contact_name?.split(" ")[0] || ""}, sharing your quotation for your ${q.event_type || "event"}.`.replace("  ", " ");
-                    window.open(waLink(q.contact_phone!, greeting), "_blank");
-                    setWaAwaitingConfirm(true);
-                  }}
-                >
-                  <MessageCircle className="w-4 h-4 mr-1.5" aria-hidden />
-                  Share via WhatsApp
-                </Button>
-              )
+            {!["declined", "expired"].includes(q.status) && (
+              <Button
+                // Filled on a draft (the one thing to do next), outline once
+                // sent — by then it's a resend and accepting is the primary.
+                variant={q.status === "draft" ? "default" : "outline"}
+                onClick={() => { setSendPrefill(null); setSendKind("sign_link"); }}
+              >
+                Send to Client
+              </Button>
             )}
             {q.status === "draft" && (
               <>
-                <Button onClick={() => handleTransition("sent")} disabled={saving}>
+                <Button variant="outline" onClick={() => handleTransition("sent")} disabled={saving}>
                   {saving ? "..." : "Mark as Sent"}
                 </Button>
-                <Button onClick={() => setShowAcceptConfirm(true)} disabled={saving} variant="success">
+                {/* Outline on a draft: accepting a quote the client hasn't seen
+                    is the rarer path, and one filled button per screen. */}
+                <Button variant="outline" onClick={() => setShowAcceptConfirm(true)} disabled={saving}>
                   {saving ? "..." : "Accept & Create Event"}
                 </Button>
               </>
@@ -964,7 +956,7 @@ export default function QuoteDetailPage() {
               signed status). Shown for accepted quotes too so an accepted-but-
               unsigned quote can still request a signature rather than dead-end. */}
           {!editing && !["declined", "expired"].includes(q.status) && (
-            <ESignPanel kind="quote" id={q.id} publicToken={q.public_token} signature={q.signature} contactPhone={q.contact_phone} contactName={q.contact_name} subject={q.event_type} />
+            <ESignPanel kind="quote" id={q.id} publicToken={q.public_token} signature={q.signature} />
           )}
 
           {/* Event link when accepted */}
@@ -978,6 +970,19 @@ export default function QuoteDetailPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Client messages — everything this client has been sent about this
+          quote, in one place (AC8). Hidden while editing to keep that view on
+          the form. */}
+      {!editing && quoteId && (
+        <ClientMessages
+          messages={clientMessages}
+          isLoading={messagesLoading}
+          formatDateTime={formatDateTime}
+          onCompose={() => { setSendPrefill(null); setSendKind("compose"); }}
+          onReopen={(row) => { setSendPrefill(row); setSendKind("compose"); }}
+        />
+      )}
 
       {/* Customer & Event (editing) — shared booking details */}
       {editing && (
@@ -1238,12 +1243,17 @@ export default function QuoteDetailPage() {
         />
       )}
 
-      {/* Timeline (editing) — below the meals: the run-of-show is built around the
-          meal times, so it reads after you've said what's being served (REL-430). */}
-      {editing && (
-        <Card>
-          <CardContent className="p-6">
-            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Timeline</h2>
+      {/* Timeline — below the meals: the run-of-show is built around the meal times,
+          so it reads after you've said what's being served (REL-430).
+
+          Rendered in READ-ONLY too (REL-447). This card used to be `{editing && …}`,
+          so a saved quote showed no run-of-show at all — while the quote PDF printed
+          the whole day for the customer. You couldn't check on screen what you'd
+          just sent. Same component the event page uses. */}
+      <Card>
+        <CardContent className="p-6">
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Timeline</h2>
+          {editing ? (
             <BookingTimelineField
               eventDate={editData.event_date}
               timeFormat={timeFormat}
@@ -1254,9 +1264,21 @@ export default function QuoteDetailPage() {
               presets={timelinePresets}
               meals={timelineMealRows(editMeals)}
             />
-          </CardContent>
-        </Card>
-      )}
+          ) : (
+            <BookingTimelineView
+              entries={q.timeline_entries}
+              meals={timelineMealRows(q.additional_meals)}
+              eventDate={q.event_date}
+              setupTime={q.setup_time}
+              guestArrivalTime={q.guest_arrival_time}
+              mealTime={q.meal_time}
+              endTime={q.end_time}
+              dateFormat={dateFormat}
+              timeFormat={timeFormat}
+            />
+          )}
+        </CardContent>
+      </Card>
 
 
       {/* Additional Items */}
@@ -1385,6 +1407,36 @@ export default function QuoteDetailPage() {
           <Button variant="outline" onClick={() => setEditing(false)} disabled={saving}>
             Cancel
           </Button>
+        </div>
+      )}
+
+      {sendKind && quoteId && (
+        <SendToClientModal
+          open
+          parent="quote"
+          parentId={quoteId}
+          kind={sendKind}
+          subtitle={`Q-${q.id} · v${q.version} — ${q.contact_name || ""}${q.event_date ? `, ${formatDate(q.event_date, dateFormat)}` : ""}`}
+          availability={messagingStatus}
+          prefill={sendPrefill}
+          onClose={() => { setSendKind(null); setSendPrefill(null); }}
+          onSent={(_msg, note) => {
+            setToast(note);
+            mutateMessages();
+            // A sign-link send moves a draft quote to sent, server-side.
+            mutateQuote();
+          }}
+        />
+      )}
+
+      {/* Send results are transient, so they're a toast — banners are reserved
+          for config states that persist. */}
+      {toast && (
+        <div
+          role="status"
+          className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-lg bg-foreground px-4 py-2 text-sm text-background shadow-lg"
+        >
+          {toast}
         </div>
       )}
     </div>

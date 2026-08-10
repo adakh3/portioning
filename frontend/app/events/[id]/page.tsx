@@ -10,6 +10,8 @@ import {
   CourseData,
   MenuChoices,
   Contact,
+  ClientChannel,
+  ClientMessageKind,
 } from "@/lib/api";
 import {
   useEvent,
@@ -25,7 +27,12 @@ import {
   useTimelinePresets,
   useUsers,
   useProductLines,
+  useClientMessages,
+  useMessagingStatus,
+  useFormatDateTime,
 } from "@/lib/hooks";
+import SendToClientModal from "@/components/SendToClientModal";
+import ClientMessages from "@/components/ClientMessages";
 import DealWonDialog from "@/components/DealWonDialog";
 import EventPaymentsCard from "@/components/EventPaymentsCard";
 import { useAuth } from "@/lib/auth";
@@ -44,6 +51,7 @@ import FinalsPill from "@/components/FinalsPill";
 import GuestCountField, { GuestCountValue } from "@/components/GuestCountField";
 import SegmentRatesField from "@/components/SegmentRatesField";
 import BookingTimelineField, { TimelineEntryValue } from "@/components/BookingTimelineField";
+import BookingTimelineView from "@/components/BookingTimelineView";
 import BookingDetailsForm, { BookingDetailsValue } from "@/components/BookingDetailsForm";
 import AssigneePicker from "@/components/AssigneePicker";
 import { Button } from "@/components/ui/button";
@@ -86,6 +94,21 @@ export default function EventDetailPage() {
 
   // SWR hooks
   const { data: event, error: loadError, isLoading: eventLoading, mutate: mutateEvent } = useEvent(isNew || isNaN(eventId) ? null : eventId);
+  const messagingId = isNew || isNaN(eventId) ? null : eventId;
+  // The page's own formatDateTime moved into BookingTimelineView on main; the
+  // ledger uses the shared hook rather than reviving a local copy.
+  const formatDateTime = useFormatDateTime();
+  const { data: clientMessages = [], isLoading: messagesLoading, mutate: mutateMessages } = useClientMessages("event", messagingId);
+  const { data: messagingStatus } = useMessagingStatus("event", messagingId);
+  // Same single send surface as the quote page (REL-445).
+  const [sendKind, setSendKind] = useState<ClientMessageKind | null>(null);
+  const [sendPrefill, setSendPrefill] = useState<{ channel: ClientChannel; subject: string; body: string } | null>(null);
+  const [messageToast, setMessageToast] = useState("");
+  useEffect(() => {
+    if (!messageToast) return;
+    const t = setTimeout(() => setMessageToast(""), 4000);
+    return () => clearTimeout(t);
+  }, [messageToast]);
   const { data: accounts = [] } = useAccounts();
   const { data: orgContacts = [] } = useContacts();
   const { data: laborRoles = [] } = useLaborRoles();
@@ -683,11 +706,6 @@ export default function EventDetailPage() {
   ) ?? 0;
 
 
-  const formatDateTime = (dt: string | null) => {
-    if (!dt) return "\u2014";
-    return sharedFormatDateTime(dt, dateFormat, timeFormat);
-  };
-
   return (
     <div className="space-y-6">
       <Button variant="outline" size="sm" asChild>
@@ -904,10 +922,53 @@ export default function EventDetailPage() {
           </div>
           {/* Client e-signature — for a booking created directly as an event */}
           {event && (event.signature || event.status === "tentative") && (
-            <ESignPanel kind="event" id={event.id} publicToken={event.public_token} signature={event.signature} contactPhone={event.contact_phone} contactName={event.contact_name} subject={event.event_type} />
+            <ESignPanel kind="event" id={event.id} publicToken={event.public_token} signature={event.signature} />
+          )}
+          {event && event.status !== "cancelled" && (
+            <div className="mt-4">
+              <Button
+                variant="outline"
+                onClick={() => { setSendPrefill(null); setSendKind(event.signature ? "signed_copy" : "sign_link"); }}
+              >
+                Send to Client
+              </Button>
+            </div>
           )}
         </CardContent>
       </Card>
+
+      {!isNew && messagingId && (
+        <ClientMessages
+          messages={clientMessages}
+          isLoading={messagesLoading}
+          formatDateTime={formatDateTime}
+          onCompose={() => { setSendPrefill(null); setSendKind("compose"); }}
+          onReopen={(row) => { setSendPrefill(row); setSendKind("compose"); }}
+        />
+      )}
+
+      {sendKind && messagingId && event && (
+        <SendToClientModal
+          open
+          parent="event"
+          parentId={messagingId}
+          kind={sendKind}
+          subtitle={`E-${event.id} — ${event.contact_name || event.name}`}
+          availability={messagingStatus}
+          prefill={sendPrefill}
+          onClose={() => { setSendKind(null); setSendPrefill(null); }}
+          onSent={(_msg, note) => { setMessageToast(note); mutateMessages(); }}
+        />
+      )}
+
+      {messageToast && (
+        <div
+          role="status"
+          className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-lg bg-foreground px-4 py-2 text-sm text-background shadow-lg"
+        >
+          {messageToast}
+        </div>
+      )}
 
       {/* Delete confirmation */}
       {!isNew && showDeleteConfirm && (
@@ -1144,26 +1205,20 @@ export default function EventDetailPage() {
                 presets={timelinePresets}
                 meals={timelineMealRows(formAdditionalMeals)}
               />
-            ) : (event!.timeline_entries || []).length > 0 ? (
-              /* The booking's own run-of-show replaces the four legacy slots. */
-              <dl className="space-y-1">
-                {(event!.timeline_entries || []).map((entry) => (
-                  <InfoRow key={entry.id} label={formatTime(entry.time.slice(0, 5), timeFormat)}
-                    value={entry.label} />
-                ))}
-              </dl>
-            ) : (event!.setup_time || event!.guest_arrival_time || event!.meal_time || event!.end_time) ? (
-              /* The four legacy slots show only on a booking that actually has
-                 them — they're how old bookings stored their times, not an empty
-                 shape every new event should carry. */
-              <dl className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <InfoRow label="Setup Time" value={formatDateTime(event!.setup_time)} />
-                <InfoRow label="Guest Arrival" value={formatDateTime(event!.guest_arrival_time)} />
-                <InfoRow label="Meal Time" value={formatDateTime(event!.meal_time)} />
-                <InfoRow label="End Time" value={formatDateTime(event!.end_time)} />
-              </dl>
             ) : (
-              <p className="text-sm text-muted-foreground">No timeline set.</p>
+              /* Shared with the quote page (REL-447) — extracted, not copied, so the
+                 two can't drift apart again. Same three fallbacks as before. */
+              <BookingTimelineView
+                entries={event!.timeline_entries}
+                meals={timelineMealRows(event!.additional_meals)}
+                eventDate={event!.date}
+                setupTime={event!.setup_time}
+                guestArrivalTime={event!.guest_arrival_time}
+                mealTime={event!.meal_time}
+                endTime={event!.end_time}
+                dateFormat={dateFormat}
+                timeFormat={timeFormat}
+              />
             )}
         </CardContent>
       </Card>
@@ -1185,7 +1240,7 @@ export default function EventDetailPage() {
                 <div key={li.id} className="flex items-baseline gap-2">
                   <span className="text-sm text-foreground font-medium">{li.description}</span>
                   <span className="text-sm text-muted-foreground">
-                    \u00d7{li.quantity}
+                    &times;{li.quantity}
                     {parseFloat(li.unit_price) > 0 && ` @ ${formatCurrency(li.unit_price, settings.currency_symbol)}`}
                   </span>
                   <span className="ml-auto text-sm text-foreground">{formatCurrency(li.line_total, settings.currency_symbol)}</span>

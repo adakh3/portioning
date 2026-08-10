@@ -17,7 +17,7 @@ class ContactSerializer(serializers.ModelSerializer):
         model = Contact
         fields = [
             'id', 'account', 'name', 'first_name', 'last_name', 'email', 'phone', 'address', 'role',
-            'is_primary', 'notes', 'created_at', 'updated_at',
+            'preferred_channel', 'is_primary', 'notes', 'created_at', 'updated_at',
         ]
         read_only_fields = ['created_at', 'updated_at']
         extra_kwargs = {

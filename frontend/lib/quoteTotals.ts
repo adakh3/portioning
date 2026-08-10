@@ -78,7 +78,9 @@ export function computeBookingTotals(
   // keeps the live preview honest while the user is still typing.
   const chargeBase = Math.max(subtotal, 0);
   const service_charge = round2((chargeBase * (serviceChargePct || 0)) / 100);
-  const tax_base = round2(subtotal + (serviceChargeTaxable ? service_charge : 0));
+  // The tax base is clamped the same way: tax on a negative subtotal is NEGATIVE
+  // tax ("GST −5.00"), and no authority pays a caterer for granting discounts.
+  const tax_base = round2(chargeBase + (serviceChargeTaxable ? service_charge : 0));
   const tax_amount = round2(tax_base * (taxRate || 0));
   const gratuity = round2((chargeBase * (gratuityPct || 0)) / 100);
   return {
@@ -349,12 +351,18 @@ export function segmentFood(
  */
 export function timelineMealRows(
   meals: { label?: string; meal_time?: string | null }[] | undefined,
-): { label: string; time: string }[] {
+): { label: string; time: string; date: string | null }[] {
   return (meals || [])
     .filter((m) => m.meal_time)
     .map((m) => ({
       label: m.label?.trim() || "Additional meal",
       time: m.meal_time!.includes("T") ? m.meal_time!.slice(11, 16) : m.meal_time!.slice(0, 5),
+      // The DAY the meal falls on, kept rather than thrown away (REL-447). A meal
+      // is stored as a full datetime, so a 2am late-night snack belongs to the day
+      // AFTER the event — the backend sorts on (date, time) and would place it
+      // last. Slicing to "HH:MM" alone made it sort FIRST on screen, contradicting
+      // the PDF the customer is holding.
+      date: m.meal_time!.includes("T") ? m.meal_time!.slice(0, 10) : null,
     }))
-    .sort((a, b) => a.time.localeCompare(b.time));
+    .sort((a, b) => ((a.date || "") + a.time).localeCompare((b.date || "") + b.time));
 }

@@ -117,6 +117,17 @@ class OrgSettings(models.Model):
         help_text='Twilio WhatsApp sender number, e.g. +14155238886',
     )
 
+    # Which channel the send modal preselects. Only a preselection — it never
+    # restricts what the rep can pick, and a contact's own preferred_channel
+    # overrides it. Seeded from the org's country for new orgs (US -> email);
+    # existing orgs keep 'whatsapp', so nothing changes for them.
+    default_client_channel = models.CharField(
+        max_length=10,
+        choices=[('whatsapp', 'WhatsApp'), ('email', 'Email')],
+        default='whatsapp',
+        help_text='Channel preselected when messaging a client. Contacts can override it.',
+    )
+
     # Commission & targets (per-org)
     commission_model = models.CharField(
         max_length=20, choices=COMMISSION_MODEL_CHOICES, default='flat',

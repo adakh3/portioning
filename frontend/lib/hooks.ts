@@ -18,6 +18,9 @@ import {
   DishCategory,
   MenuTemplate,
   SiteSettingsData,
+  MailboxStatus,
+  ChannelAvailability,
+  ClientMessageParent,
   ProductLine,
   ChoiceOption,
   StaffMember,
@@ -123,6 +126,12 @@ export function useVenues() {
 export function useSiteSettings() {
   return useSWR<SiteSettingsData>("settings", () => api.getSiteSettings(), {
     dedupingInterval: 300000,
+    revalidateOnFocus: false,
+  });
+}
+
+export function useConnectedMailbox() {
+  return useSWR<MailboxStatus>("connected-mailbox", () => api.getConnectedMailbox(), {
     revalidateOnFocus: false,
   });
 }
@@ -512,6 +521,25 @@ export function useReminderCounts() {
   return useSWR<ReminderCounts>("reminder-counts", () => api.getReminderCounts(), {
     dedupingInterval: 30000,
   });
+}
+
+/** A booking's client-message ledger (REL-445 AC8). */
+export function useClientMessages(parent: "quote" | "event", id: number | null) {
+  return useSWR<WhatsAppMessage[]>(
+    id ? `client-messages-${parent}-${id}` : null,
+    () => api.getClientMessages(parent, id!),
+    { dedupingInterval: 15000 }
+  );
+}
+
+/** What this client can be reached on, and why not — decided by the backend so
+ * no surface has to re-derive mechanism or availability for itself. */
+export function useMessagingStatus(parent: ClientMessageParent, id: number | null) {
+  return useSWR<ChannelAvailability>(
+    id ? `messaging-status-${parent}-${id}` : null,
+    () => api.getMessagingStatus(parent, id!),
+    { revalidateOnFocus: false }
+  );
 }
 
 export function useLeadWhatsAppMessages(leadId: number | null) {

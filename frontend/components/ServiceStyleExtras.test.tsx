@@ -42,7 +42,15 @@ describe("ServiceStyleExtras", () => {
   it("names the style it belongs to, so a row of checkboxes is readable", () => {
     render(<ServiceStyleExtras option={style()} patch={vi.fn()} />);
     expect(
-      screen.getByLabelText("Guests choose between dishes on Drop-off / Delivery"),
+      screen.getByLabelText("Guests pre-pick dishes on Drop-off / Delivery"),
     ).toBeInTheDocument();
+  });
+
+  it("carries its meaning on the control, not in a distant column header", () => {
+    // Owner, 2026-08-10: a bare checkbox under a far-away "Guests choose" header
+    // answered neither "choose what?" nor "which row am I ticking?". The label
+    // is on the control itself now.
+    render(<ServiceStyleExtras option={style()} patch={vi.fn()} />);
+    expect(screen.getByText("Guests pre-pick dishes")).toBeInTheDocument();
   });
 });

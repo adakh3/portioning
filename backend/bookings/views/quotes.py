@@ -245,7 +245,10 @@ class QuoteMarkSharedWhatsAppView(APIView):
                 from_phone='manual',
                 body=body,
                 direction='outbound',
-                status='sent',
+                # The rep sent this from their own WhatsApp; we never saw it
+                # leave. Recording it `sent` would make `sent` mean two
+                # different things in the same ledger (REL-445).
+                status=WhatsAppMessage.HANDED_OFF,
                 sent_by=user,
             )
         return Response(QuoteSerializer(quote).data)

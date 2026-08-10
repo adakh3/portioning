@@ -39,24 +39,18 @@ describe("ESignPanel (staff-side)", () => {
     expect(screen.queryByRole("button", { name: /send for signature/i })).not.toBeInTheDocument();
   });
 
-  it("offers a WhatsApp send with the sign link when the contact is reachable", () => {
+  // REL-445 AC2b: this panel used to carry its own wa.me share, which made it
+  // the third rival send button on the page and left the send unrecorded.
+  // Sending now belongs to the "Send to Client" modal, which drafts the message
+  // and writes it to the ledger; the panel only mints and shows the link.
+  it("no longer offers its own send — the link and copy button are all it does", () => {
     const open = vi.spyOn(window, "open").mockImplementation(() => null);
-    render(
-      <ESignPanel kind="quote" id={7} publicToken="tok-9" signature={null} contactPhone="+447700900123" contactName="Aisha Khan" subject="baby_shower" />
-    );
-    fireEvent.click(screen.getByRole("button", { name: /send via whatsapp/i }));
-    expect(open).toHaveBeenCalledTimes(1);
-    const url = open.mock.calls[0][0] as string;
-    const msg = decodeURIComponent(url);
-    expect(url).toContain("wa.me/447700900123"); // E.164 stripped of '+'
-    expect(msg).toContain("/b/tok-9"); // sign link is in the message
-    expect(msg).toContain("baby shower"); // event type humanized…
-    expect(msg).not.toContain("baby_shower"); // …not the raw slug
-    open.mockRestore();
-  });
+    render(<ESignPanel kind="quote" id={7} publicToken="tok-9" signature={null} />);
 
-  it("hides the WhatsApp send when the contact has no valid phone", () => {
-    render(<ESignPanel kind="quote" id={7} publicToken="tok-9" signature={null} contactPhone={null} contactName="Aisha" />);
-    expect(screen.queryByRole("button", { name: /send via whatsapp/i })).not.toBeInTheDocument();
+    expect(screen.getByDisplayValue(/\/b\/tok-9$/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /copy link/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /whatsapp/i })).not.toBeInTheDocument();
+    expect(open).not.toHaveBeenCalled();
+    open.mockRestore();
   });
 });

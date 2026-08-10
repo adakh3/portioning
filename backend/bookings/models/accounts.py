@@ -88,6 +88,14 @@ class Contact(models.Model):
         choices=ContactRole.choices,
         default=ContactRole.COORDINATOR,
     )
+    # Blank means "no preference" and defers to OrgSettings.default_client_channel.
+    # A real value here always wins — this person asked to be contacted this way.
+    preferred_channel = models.CharField(
+        max_length=10,
+        choices=[('whatsapp', 'WhatsApp'), ('email', 'Email')],
+        blank=True, default='',
+        help_text="This contact's preferred channel. Blank uses the organisation default.",
+    )
     is_primary = models.BooleanField(default=False)
     notes = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)

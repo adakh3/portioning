@@ -6,13 +6,19 @@ from bookings.services.whatsapp_templates import TEMPLATES
 
 class WhatsAppMessageSerializer(serializers.ModelSerializer):
     sent_by_name = serializers.SerializerMethodField()
+    # Read straight off the model properties so the ledger UI never re-derives
+    # "was this automatic" or "which address" from the raw columns.
+    is_automatic = serializers.BooleanField(read_only=True)
+    recipient = serializers.CharField(read_only=True)
 
     class Meta:
         model = WhatsAppMessage
         fields = [
-            'id', 'lead', 'reminder', 'to_phone', 'from_phone', 'body',
-            'direction', 'status', 'twilio_sid', 'error_code', 'error_message',
-            'sent_by', 'sent_by_name', 'created_at', 'updated_at',
+            'id', 'lead', 'quote', 'event', 'reminder', 'channel',
+            'to_phone', 'from_phone', 'to_email', 'recipient', 'subject', 'body',
+            'attachment_filename', 'direction', 'status', 'twilio_sid',
+            'provider_message_id', 'error_code', 'error_message',
+            'sent_by', 'sent_by_name', 'is_automatic', 'created_at', 'updated_at',
         ]
 
     def get_sent_by_name(self, obj):

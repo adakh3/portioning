@@ -25,6 +25,9 @@ COUNTRY_DEFAULTS = {
         'timezone': 'America/New_York', 'date_format': 'MM/DD/YYYY',
         'time_format': '12h', 'service_charge_default_pct': Decimal('20.00'),
         'price_rounding_step': 1,
+        # US caterers send documents by email; everywhere else we start on
+        # WhatsApp (the model default), which is why only this entry sets it.
+        'default_client_channel': 'email',
     },
     'GB': {
         'currency_symbol': '£', 'currency_code': 'GBP',

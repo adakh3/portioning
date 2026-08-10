@@ -5,7 +5,11 @@ import { render, screen, fireEvent } from "@testing-library/react";
 vi.mock("@/components/MenuBuilder", () => ({
   default: ({ pricePerHead }: { pricePerHead: string }) => <div data-testid="menu-builder">menu:{pricePerHead}</div>,
 }));
-vi.mock("@/lib/dateFormat", () => ({ formatDateTime: (s: string) => `fmt(${s})`, formatTime: (s: string) => s }));
+// NOT mocked. The first attempt kept a `formatDateTime: (s) => `fmt(${s})`` stub
+// "so the real formatters run" — but formatDateTime was the function WITH the bug,
+// and `fmt(2026-09-01T19:00:00Z)` contains the substring "19:00", so the new
+// regression test passed against the pre-fix component in every timezone. A mock
+// that stubs the thing under test cannot test it.
 
 import AdditionalMealsEditor from "./AdditionalMealsEditor";
 import { EventMealData } from "@/lib/api";
@@ -60,6 +64,16 @@ describe("AdditionalMealsEditor", () => {
   // extra meal charges everyone the same. That IS the behaviour (REL-426 AC3
   // deferred per-segment rates on extras) — so it has to be stated, or it reads as
   // a bug. Remove this note only when extras really do price by guest type.
+  // REL-447 — found by driving the real app: the Timeline card said 7:00 PM and
+  // this card said 8:00 PM for the SAME meal, because this one ran the value
+  // through `new Date()` (browser-local) while the timeline and the PDF use the
+  // stored time. One meal, two times, one screen.
+  it("shows the meal time as STORED, not shifted into the viewer's timezone", () => {
+    setup([meal({ meal_time: "2026-09-01T19:00:00Z" })], false);
+    expect(screen.getByText(/19:00|7:00 PM/)).toBeInTheDocument();
+    expect(screen.queryByText(/20:00|8:00 PM/)).not.toBeInTheDocument();
+  });
+
   it("says the extra meal's price is one flat rate for everyone it serves", () => {
     setup([meal()]);
     expect(screen.getByText(/one flat rate for everyone this meal serves/i)).toBeInTheDocument();

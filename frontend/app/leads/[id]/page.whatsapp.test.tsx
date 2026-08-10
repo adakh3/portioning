@@ -35,6 +35,7 @@ const LEAD = {
 };
 
 let mockSettings: Record<string, unknown> | undefined;
+let mockMessages: Record<string, unknown>[] = [];
 const empty = { data: [], mutate: vi.fn() };
 vi.mock("@/lib/hooks", () => ({
   useLead: () => ({ data: LEAD, error: null, isLoading: false, mutate: vi.fn() }),
@@ -50,7 +51,7 @@ vi.mock("@/lib/hooks", () => ({
   useLeadStatuses: () => empty,
   useLostReasons: () => empty,
   useLeadReminders: () => empty,
-  useLeadWhatsAppMessages: () => empty,
+  useLeadWhatsAppMessages: () => ({ data: mockMessages, mutate: vi.fn() }),
   useLeadFollowUpDrafts: () => empty,
   useAccounts: () => empty,
   revalidate: vi.fn(),
@@ -61,13 +62,19 @@ vi.mock("@/lib/api", () => ({
   api: {
     logLeadReply: (id: number) => logLeadReply(id),
     getAccounts: vi.fn().mockResolvedValue([]),
+    // Only the Twilio-mode thread calls these; it mounts in the handed-off test.
+    markWhatsAppRead: vi.fn().mockResolvedValue({}),
+    sendWhatsApp: vi.fn().mockResolvedValue({}),
   },
 }));
 
 import LeadPage from "./page";
 
 describe("Lead page WhatsApp shortcuts section", () => {
-  beforeEach(() => logLeadReply.mockClear());
+  beforeEach(() => {
+    logLeadReply.mockClear();
+    mockMessages = [];
+  });
 
   it("shows the wa.me chip and logs a reply when Twilio is not active", async () => {
     mockSettings = { twilio_configured: false, whatsapp_shortcuts_enabled: true };
@@ -78,6 +85,23 @@ describe("Lead page WhatsApp shortcuts section", () => {
     fireEvent.click(screen.getByRole("button", { name: "Customer replied" }));
     await waitFor(() => expect(logLeadReply).toHaveBeenCalledWith(10));
     expect(screen.getByRole("button", { name: "Reply logged" })).toBeTruthy();
+  });
+
+  it("shows a handed-off message as handed off, not as sent or as a raw value", () => {
+    // A shortcut share is logged but never confirmed (REL-445). The thread must
+    // neither claim delivery nor leak the stored machine name at the user.
+    mockSettings = { twilio_configured: true, whatsapp_enabled: true };
+    mockMessages = [{
+      id: 1, body: "Here is your quote", status: "handed_off",
+      direction: "outbound", created_at: "2026-08-01T10:00:00Z",
+      sent_by_name: "Owner", to_phone: "whatsapp:+923001269792",
+    }];
+    render(<LeadPage />);
+
+    expect(screen.getByText("handed off")).toBeTruthy();
+    expect(screen.queryByText("handed_off")).toBeNull();
+    expect(screen.queryByText("sent")).toBeNull();
+    expect(screen.queryByText("delivered")).toBeNull();
   });
 
   it("hides the shortcuts section when the org disabled shortcuts", () => {
