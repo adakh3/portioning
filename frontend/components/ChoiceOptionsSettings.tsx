@@ -51,10 +51,22 @@ export default function ChoiceOptionsSettings({
       revalidate(revalidateKey);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong");
+      // Roll back any optimistic value to what the server actually has.
+      await mutate();
     } finally {
       setBusy(false);
     }
   }
+
+  /** Patch one row optimistically: the control shows the new value IMMEDIATELY,
+   * then the save + refetch reconcile behind it. Without this the row is bound
+   * straight to server data, so a ticked checkbox visibly un-ticked itself for
+   * the whole PATCH round-trip — imperceptible on localhost, but on production
+   * latency it reads as "the checkbox doesn't work" (owner, 2026-08-10). */
+  const patchOption = (id: number, data: Partial<ChoiceOption>) => {
+    mutate(options.map((o) => (o.id === id ? { ...o, ...data } : o)), { revalidate: false });
+    return run(() => api.updateChoiceOption(base, id, data));
+  };
 
   const add = () => {
     const label = newLabel.trim();
@@ -100,7 +112,7 @@ export default function ChoiceOptionsSettings({
               <SortableContext items={ordered.map((o) => o.id)} strategy={verticalListSortingStrategy}>
                 {ordered.map((o) => (
                   <OptionRow key={o.id} option={o} busy={busy} renderExtra={renderExtra}
-                    onPatch={(data) => run(() => api.updateChoiceOption(base, o.id, data))}
+                    onPatch={(data) => patchOption(o.id, data)}
                     onRemove={() => run(() => api.deleteChoiceOption(base, o.id))} />
                 ))}
               </SortableContext>

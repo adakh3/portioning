@@ -1,4 +1,5 @@
 from django.db import models
+from bookings.names import TITLE_CHOICES
 from users.managers import TenantManager
 
 
@@ -76,6 +77,13 @@ class Contact(models.Model):
         Account, on_delete=models.SET_NULL, null=True, blank=True, related_name='contacts',
     )
     name = models.CharField(max_length=200)
+    # Same field a Lead carries, so it survives the conversion into a customer.
+    # With it set, messages address the person properly ('Hello Ms Rizvi,');
+    # without it they fall back to the first name, which is the old behaviour.
+    title = models.CharField(
+        max_length=10, blank=True, default='', choices=TITLE_CHOICES,
+        help_text='How to address this customer in messages (e.g. Ms Rizvi)',
+    )
     first_name = models.CharField(max_length=100, blank=True, default='')
     last_name = models.CharField(max_length=100, blank=True, default='')
     email = models.EmailField(blank=True)

@@ -71,7 +71,20 @@ export function collectErrorMessages(node: unknown, prefix = ""): string[] {
 }
 
 function sanitizeError(status: number, text: string): string {
-  if (status >= 500) return `Server error (${status})`;
+  if (status >= 500) {
+    // A 5xx body is usually a stack trace or the gateway's own HTML, and must
+    // never reach a user. But our transport failures answer 502 with JSON whose
+    // `detail` is the only thing the rep can act on — blanket-discarding it is
+    // how a revoked mailbox surfaced as "Server error (502)" with the real
+    // reason sitting unread in the response (REL-481). Show a structured
+    // detail; fall back to the status for anything we didn't author.
+    try {
+      const json = JSON.parse(text);
+      const detail = (json as { detail?: unknown })?.detail;
+      if (typeof detail === "string" && detail.trim()) return detail;
+    } catch { /* not JSON — almost certainly not ours */ }
+    return `Server error (${status})`;
+  }
   try {
     const json = JSON.parse(text);
     if (typeof json === "string") return json;
@@ -349,6 +362,7 @@ export interface AddOnProduct {
 
 export interface Contact {
   id: number;
+  title?: string;
   first_name?: string;
   last_name?: string;
   account: number | null;
@@ -1086,6 +1100,8 @@ export interface ClientMessageDraft {
   channel: ClientChannel;
   link: string;
   attachment_filename: string;
+  /** Whether this parent+channel could carry the booking PDF at all. */
+  attachment_available: boolean;
   llm_available: boolean;
   availability: ChannelAvailability;
 }
@@ -1974,7 +1990,7 @@ export const api = {
   // parent only changes the path, never the payload.
   draftClientMessage: (
     parent: ClientMessageParent, id: number,
-    data: { kind: ClientMessageKind; channel?: ClientChannel },
+    data: { kind: ClientMessageKind; channel?: ClientChannel; attach?: boolean },
   ) =>
     fetchApi<ClientMessageDraft>(`${clientMessageBase(parent, id)}/draft-message/`, {
       method: "POST",
@@ -1982,7 +1998,7 @@ export const api = {
     }),
   sendClientMessage: (
     parent: ClientMessageParent, id: number,
-    data: { kind: ClientMessageKind; channel: ClientChannel; subject?: string; body: string },
+    data: { kind: ClientMessageKind; channel: ClientChannel; subject?: string; body: string; attach?: boolean },
   ) =>
     fetchApi<WhatsAppMessage>(`${clientMessageBase(parent, id)}/send-message/`, {
       method: "POST",

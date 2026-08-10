@@ -42,12 +42,12 @@ vi.mock("@/components/ChoiceOptionsSettings", () => ({
 import SettingsPage from "./page";
 
 describe("Settings → Service Styles carries the guests-choose flag", () => {
-  it("gives the service-style rows a Guests choose checkbox", () => {
+  it("gives the service-style rows a Guests pre-pick checkbox", () => {
     render(<SettingsPage />);
     const list = screen.getByTestId("list-Service Styles");
     expect(list).toHaveTextContent("Service Styles");
     expect(
-      screen.getByLabelText("Guests choose between dishes on Drop-off / Delivery"),
+      screen.getByLabelText("Guests pre-pick dishes on Drop-off / Delivery"),
     ).toBeInTheDocument();
   });
 

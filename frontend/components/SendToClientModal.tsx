@@ -89,32 +89,50 @@ export default function SendToClientModal({
   const [fromPrefill, setFromPrefill] = useState(false);
   const [llmAvailable, setLlmAvailable] = useState(false);
   const [attachment, setAttachment] = useState("");
+  // Whether a composed message carries the booking PDF. Opt-in: most ad-hoc
+  // messages are a quick question, and every one of them dragging a full quote
+  // along would be worse than forgetting it occasionally (REL-478).
+  const [attach, setAttach] = useState(false);
+  const [attachAvailable, setAttachAvailable] = useState(false);
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [error, setError] = useState("");
   // Guards against a slow first draft landing after a newer one — otherwise
   // switching channel twice quickly can leave the wrong text in the box.
   const requestId = useRef(0);
+  // Read inside the draft effect without making every toggle redraft; the
+  // toggle handler decides that for itself.
+  const attachRef = useRef(false);
+  // The last wording we produced. If the box still matches it, the rep hasn't
+  // touched it and we may safely redraft over the top.
+  const draftedBody = useRef("");
 
   const emailAvailable = availability?.email.available ?? false;
   const whatsappAvailable = availability?.whatsapp.available ?? false;
   const noChannel = !emailAvailable && !whatsappAvailable;
   const shortcut = channel === "whatsapp" && availability?.whatsapp.mechanism !== "platform";
-  const attaches = kind !== "compose" && channel === "email" && !!attachment;
+  // The backend names the file only when one is actually going, so this covers
+  // both the always-attached kinds and an opted-in composed message.
+  const attaches = channel === "email" && !!attachment;
+  const canOfferAttach = kind === "compose" && channel === "email" && attachAvailable;
 
-  const draft = useCallback(async (ch: ClientChannel) => {
+  const draft = useCallback(async (ch: ClientChannel, wantsAttachment: boolean) => {
     const mine = ++requestId.current;
     setLoading(true);
     setFromPrefill(false);
     setError("");
     try {
-      const res = await api.draftClientMessage(parent, parentId, { kind, channel: ch });
+      const res = await api.draftClientMessage(parent, parentId, {
+        kind, channel: ch, attach: wantsAttachment,
+      });
       if (mine !== requestId.current) return;   // superseded
       setSubject(res.subject);
       setBody(res.body);
+      draftedBody.current = res.body;
       setUsedFallback(res.used_fallback);
       setLlmAvailable(res.llm_available);
       setAttachment(res.attachment_filename);
+      setAttachAvailable(res.attachment_available);
     } catch (err) {
       if (mine !== requestId.current) return;
       // Drafting failing must never block sending — leave the box empty and
@@ -133,6 +151,10 @@ export default function SendToClientModal({
   useEffect(() => {
     if (!open) return;
     setSending(false);
+    // Each opening decides afresh; a previous message's choice must not leak
+    // into the next one.
+    setAttach(false);
+    attachRef.current = false;
     if (prefill) {
       setChannel(prefill.channel);
       return;
@@ -155,7 +177,7 @@ export default function SendToClientModal({
       setLoading(false);
       return;
     }
-    draft(channel);
+    draft(channel, attachRef.current);
     // Any in-flight draft is abandoned on unmount by the request-id guard.
     return () => { requestId.current++; };
   }, [open, channel, kind, draft, prefill]);
@@ -166,6 +188,15 @@ export default function SendToClientModal({
   const cta = channel === "email"
     ? "Send email"
     : shortcut ? "Open in WhatsApp" : "Send WhatsApp message";
+
+  function toggleAttach(next: boolean) {
+    setAttach(next);
+    attachRef.current = next;
+    // Redraft so the wording matches what's actually going — but only while the
+    // text is still ours. Overwriting something the rep typed to fix a sentence
+    // about an attachment would be a poor trade.
+    if (body === draftedBody.current) draft(channel, next);
+  }
 
   async function handleSend() {
     setSending(true);
@@ -179,6 +210,7 @@ export default function SendToClientModal({
     try {
       const msg = await api.sendClientMessage(parent, parentId, {
         kind, channel, subject: channel === "email" ? subject : undefined, body,
+        attach: attach && canOfferAttach,
       });
       onSent?.(msg, shortcut
         ? "Opened in WhatsApp — send it there and it stays logged here."
@@ -275,6 +307,22 @@ export default function SendToClientModal({
           </p>
         )}
 
+        {canOfferAttach && (
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={attach}
+              onChange={(e) => toggleAttach(e.target.checked)}
+              disabled={sending}
+              className="h-4 w-4 rounded border-input"
+            />
+            <span>Attach the PDF</span>
+            <span className="text-xs text-muted-foreground">
+              so they have a copy to keep, not just a link
+            </span>
+          </label>
+        )}
+
         {attaches && (
           <div>
             <span className="mb-1 block text-xs font-medium text-muted-foreground">Attached</span>
@@ -325,7 +373,7 @@ export default function SendToClientModal({
                     ? "Standard template"
                     : <><AiMark className="mr-1" />AI draft</>}
               </span>
-              <Button size="sm" variant="outline" onClick={() => draft(channel)} disabled={sending}>
+              <Button size="sm" variant="outline" onClick={() => draft(channel, attach)} disabled={sending}>
                 {!usedFallback && llmAvailable && <AiMark className="mr-1.5" />}Regenerate
               </Button>
             </div>

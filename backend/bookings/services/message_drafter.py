@@ -11,6 +11,7 @@ model outage can never stop a caterer emailing their client.
 import logging
 import re
 
+from bookings.services.greeting import GREETING_RULE, greeting_context_lines
 from bookings.services.message_templates import format_event_date, render_client_message
 from bookings.services.messaging_kinds import KIND_COMPOSE, KIND_SIGN_LINK, KIND_SIGNED_COPY
 from portioning import llm
@@ -25,9 +26,7 @@ SYSTEM_PROMPT = (
     "not sending anything.\n\n"
     "Rules:\n"
     "- Warm and professional. No emoji, no exclamation marks, no sales language.\n"
-    "- Open with 'Hello ' and the client's first name if you were given one, "
-    "then a comma. If you have no first name, use 'Hello,'. Never address "
-    "someone by their full name.\n"
+    f"{GREETING_RULE}"
     "- Write about what the client already knows: their event, its date, the "
     "guest count, the menu, the total. Never mention internal information — "
     "costs, margins, staffing, internal notes or pipeline status.\n"
@@ -70,8 +69,11 @@ _STAGE_NOTE = {
         'their signed copy. Do not ask them to sign anything.'
     ),
     KIND_COMPOSE: (
+        # Says nothing about attachments: a composed message may now carry the
+        # booking PDF (REL-478), and the attachment line below is the one place
+        # that decides. Two sources would eventually disagree.
         'Stage: an ordinary message about this booking. There is nothing to '
-        'sign and nothing attached; keep it brief and useful.'
+        'sign; keep it brief and useful.'
     ),
 }
 
@@ -101,12 +103,15 @@ def build_context(booking, kind, channel, *, url='', attachment_name=''):
         _STAGE_NOTE.get(kind, _STAGE_NOTE[KIND_COMPOSE]),
     ]
 
-    if data.get('customer_name'):
-        contact = getattr(booking, 'primary_contact', None)
-        first = getattr(contact, 'first_name', '') if contact else ''
-        lines.append(f"Client name: {data['customer_name']}")
-        if first:
-            lines.append(f"Client first name: {first}")
+    contact = getattr(booking, 'primary_contact', None)
+    account = getattr(contact, 'account', None) if contact else None
+    lines.extend(greeting_context_lines(
+        name=data.get('customer_name') or '',
+        title=getattr(contact, 'title', '') if contact else '',
+        first_name=getattr(contact, 'first_name', '') if contact else '',
+        last_name=getattr(contact, 'last_name', '') if contact else '',
+        account_name=getattr(account, 'name', '') if account else '',
+    ))
 
     for label, key in (
         ('Event type', 'event_type_label'),
@@ -167,10 +172,13 @@ def _lead_context(lead, kind, channel, *, url=''):
         _STAGE_NOTE.get(kind, _STAGE_NOTE[KIND_COMPOSE]),
         "This is an enquiry, not a confirmed booking. Nothing has been agreed.",
     ]
-    if lead.contact_name:
-        lines.append(f"Client name: {lead.contact_name}")
-    if lead.contact_first_name:
-        lines.append(f"Client first name: {lead.contact_first_name}")
+    lines.extend(greeting_context_lines(
+        name=lead.contact_name,
+        title=lead.contact_title,
+        first_name=lead.contact_first_name,
+        last_name=lead.contact_last_name,
+        account_name=getattr(lead.account, 'name', '') if lead.account_id else '',
+    ))
     if lead.event_type:
         lines.append(f"Event type: {lead.event_type}")
     event_date = format_event_date(lead.event_date)

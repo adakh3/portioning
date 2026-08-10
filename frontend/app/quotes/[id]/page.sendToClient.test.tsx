@@ -124,15 +124,18 @@ describe("Quote page — Send to Client", () => {
       channel: "email",
       subject: "Your proposal, revised",
       body: "Hello Nadia, here it is.",
+      // sign_link always carries its PDF; the opt-in flag is for composed
+      // messages only, so it is false here (REL-478).
+      attach: false,
     });
   });
 
   it("asks the backend to draft for the channel actually selected", async () => {
     const dialog = await openSendModal();
-    await waitFor(() => expect(h.draftClientMessage).toHaveBeenCalledWith("quote", 42, { kind: "sign_link", channel: "email" }));
+    await waitFor(() => expect(h.draftClientMessage).toHaveBeenCalledWith("quote", 42, { kind: "sign_link", channel: "email", attach: false }));
 
     fireEvent.click(within(dialog).getByRole("button", { name: "WhatsApp" }));
-    await waitFor(() => expect(h.draftClientMessage).toHaveBeenCalledWith("quote", 42, { kind: "sign_link", channel: "whatsapp" }));
+    await waitFor(() => expect(h.draftClientMessage).toHaveBeenCalledWith("quote", 42, { kind: "sign_link", channel: "whatsapp", attach: false }));
   });
 
   it("opens wa.me AND records the send when WhatsApp is shortcut-mode", async () => {
