@@ -101,7 +101,7 @@ describe("AddOnItemsEditor — the chosen-lines card", () => {
   it("AC1: shows name, unit-price subtitle, stepper, line total and a remove", () => {
     render(<Harness initial={[waitstaff]} />);
     expect(line(0).getByLabelText("Edit name")).toHaveTextContent("Server / Waitstaff");
-    expect(line(0).getByLabelText("Edit price, unit and category")).toHaveTextContent("$220.00 each");
+    expect(line(0).getByLabelText("Edit price and unit")).toHaveTextContent("$220.00 each");
     expect(line(0).getByLabelText("Quantity")).toHaveValue(8);
     expect(line(0).getByText("$1,760.00")).toBeInTheDocument();
     expect(line(0).getByLabelText("Remove")).toBeInTheDocument();
@@ -131,7 +131,7 @@ describe("AddOnItemsEditor — the chosen-lines card", () => {
     };
     render(<Harness initial={[coffee]} guests={120} />);
     // The subtitle names the number the line is actually multiplied by.
-    expect(line(0).getByLabelText("Edit price, unit and category")).toHaveTextContent("$6.00 per guest × 120 guests");
+    expect(line(0).getByLabelText("Edit price and unit")).toHaveTextContent("$6.00 per guest × 120 guests");
     expect(line(0).getByText("$720.00")).toBeInTheDocument();
     // The stepper writes a quantity; the money ignores it — exactly as both engines do.
     fireEvent.click(line(0).getByLabelText("Increase quantity"));
@@ -143,14 +143,14 @@ describe("AddOnItemsEditor — the chosen-lines card", () => {
 
   it("AC4: the price subtitle opens price + unit + category, and reprices the line", () => {
     render(<Harness initial={[waitstaff]} />);
-    fireEvent.click(line(0).getByLabelText("Edit price, unit and category"));
+    fireEvent.click(line(0).getByLabelText("Edit price and unit"));
     const input = line(0).getByLabelText("Unit price");
     expect(input).toHaveFocus();
     fireEvent.change(input, { target: { value: "250" } });
     expect(line(0).getByText("$2,000.00")).toBeInTheDocument();
     expect(parse()[0].unit_price).toBe("250");
     fireEvent.click(line(0).getByText("Done"));
-    expect(line(0).getByLabelText("Edit price, unit and category")).toHaveTextContent("$250.00 each");
+    expect(line(0).getByLabelText("Edit price and unit")).toHaveTextContent("$250.00 each");
   });
 
   it("AC5: ✕ removes the line and drops the subtotal by its total", () => {
@@ -232,7 +232,7 @@ describe("AddOnItemsEditor — every line stays editable", () => {
     expect(line(0).getByLabelText("Name")).toHaveValue("Soft Drinks");
     fireEvent.keyDown(name, { key: "Enter" });
 
-    fireEvent.click(line(0).getByLabelText("Edit price, unit and category"));
+    fireEvent.click(line(0).getByLabelText("Edit price and unit"));
     fireEvent.change(line(0).getByLabelText("Unit"), { target: { value: "per_guest" } });
     fireEvent.change(line(0).getByLabelText("Unit price"), { target: { value: "3" } });
     expect(parse()[0]).toMatchObject({ description: "Soft Drinks", unit: "per_guest", unit_price: "3" });
@@ -247,11 +247,10 @@ describe("AddOnItemsEditor — every line stays editable", () => {
     render(<Harness initial={[{ variant: 71, category: "rental", description: "Chair Covers — Ivory", quantity: "1", unit: "each", unit_price: "4.00" }]} />);
     fireEvent.click(line(0).getByLabelText("Edit name"));
     fireEvent.change(line(0).getByLabelText("Name"), { target: { value: "Chair covers (ivory), 120" } });
-    fireEvent.click(line(0).getByLabelText("Edit price, unit and category"));
+    fireEvent.click(line(0).getByLabelText("Edit price and unit"));
     fireEvent.change(line(0).getByLabelText("Unit"), { target: { value: "flat" } });
-    fireEvent.change(line(0).getByLabelText("Category"), { target: { value: "fee" } });
     expect(parse()[0]).toMatchObject({
-      variant: 71, description: "Chair covers (ivory), 120", unit: "flat", category: "fee",
+      variant: 71, description: "Chair covers (ivory), 120", unit: "flat", category: "rental",
     });
   });
 
@@ -291,9 +290,9 @@ describe("AddOnItemsEditor — the catalogue picker", () => {
   it("esc inside a line's price editor closes that editor, not the picker", () => {
     render(<Harness initial={[waitstaff]} />);
     openPicker();
-    fireEvent.click(line(0).getByLabelText("Edit price, unit and category"));
+    fireEvent.click(line(0).getByLabelText("Edit price and unit"));
     fireEvent.keyDown(line(0).getByLabelText("Unit price"), { key: "Escape" });
-    expect(line(0).getByLabelText("Edit price, unit and category")).toBeInTheDocument();
+    expect(line(0).getByLabelText("Edit price and unit")).toBeInTheDocument();
     expect(screen.getByTestId("addon-picker")).toBeInTheDocument();
   });
 
@@ -364,7 +363,7 @@ describe("AddOnItemsEditor — the catalogue picker", () => {
       { variant: 11, category: "beverage", description: "Soft Drinks — 1.5L", quantity: "1", unit: "each", unit_price: "150.00" },
     ]);
     expect(line(0).getByLabelText("Edit name")).toHaveTextContent("Soft Drinks — 1.5L");
-    expect(line(0).getByLabelText("Edit price, unit and category")).toHaveTextContent("$150.00 each");
+    expect(line(0).getByLabelText("Edit price and unit")).toHaveTextContent("$150.00 each");
 
     // That chip is spent; its sibling is not.
     expect(within(picker()).getByLabelText("Soft Drinks — 1.5L — already on quote")).toBeDisabled();
@@ -417,16 +416,44 @@ describe("AddOnItemsEditor — the catalogue picker", () => {
 
     fireEvent.change(line(0).getByLabelText("Name"), { target: { value: "Coat check" } });
     fireEvent.keyDown(line(0).getByLabelText("Name"), { key: "Enter" });
-    fireEvent.click(line(0).getByLabelText("Edit price, unit and category"));
-    fireEvent.change(line(0).getByLabelText("Category"), { target: { value: "labor" } });
+    fireEvent.click(line(0).getByLabelText("Edit price and unit"));
     fireEvent.change(line(0).getByLabelText("Unit"), { target: { value: "per_hour" } });
     fireEvent.change(line(0).getByLabelText("Unit price"), { target: { value: "100" } });
     fireEvent.click(line(0).getByLabelText("Increase quantity"));
 
     expect(parse()[0]).toEqual({
-      variant: null, category: "labor", description: "Coat check",
+      variant: null, category: "fee", description: "Coat check",
       quantity: "2", unit: "per_hour", unit_price: "100",
     });
     expect(line(0).getByText("$200.00")).toBeInTheDocument();
+  });
+
+  it("offers no category control — a line keeps the category it arrived with", () => {
+    // Owner, 2026-08-10: the user doesn't need to change category on this form at
+    // all. The strip edits price and unit; category comes from the catalogue
+    // product (or `fee` for custom lines) and only groups documents/picker tabs.
+    render(<Harness initial={[{ variant: 71, category: "rental", description: "Chair Covers", quantity: "1", unit: "each", unit_price: "4.00" }]} />);
+    fireEvent.click(line(0).getByLabelText("Edit price and unit"));
+    expect(line(0).queryByLabelText("Category")).toBeNull();
+    fireEvent.change(line(0).getByLabelText("Unit price"), { target: { value: "9" } });
+    expect(parse()[0]).toMatchObject({ category: "rental", unit_price: "9" });
+  });
+
+  it("Add discount creates a negative flat line, price focused and renameable", () => {
+    // The one way to put the `discount` category on a new row now that the
+    // dropdown is gone. Interim until REL-475's totals-card control.
+    render(<Harness initial={[]} />);
+    fireEvent.click(screen.getByText("Add discount"));
+    expect(parse()).toEqual([
+      { variant: null, category: "discount", description: "Discount", quantity: "1", unit: "flat", unit_price: "" },
+    ]);
+    // It opens into the price — the name is prefilled, the amount is what's missing.
+    expect(line(0).getByLabelText("Unit price")).toHaveFocus();
+    fireEvent.change(line(0).getByLabelText("Unit price"), { target: { value: "100" } });
+    // Typed positive, rendered negative — the category supplies the sign.
+    expect(line(0).getByText("-$100.00")).toBeInTheDocument();
+    fireEvent.click(line(0).getByLabelText("Edit name"));
+    fireEvent.change(line(0).getByLabelText("Name"), { target: { value: "Returning client" } });
+    expect(parse()[0]).toMatchObject({ category: "discount", description: "Returning client" });
   });
 });

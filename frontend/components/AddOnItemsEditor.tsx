@@ -6,7 +6,7 @@ import { useAddOnProducts } from "@/lib/hooks";
 import { LineItemInput, lineItemTotal } from "@/lib/quoteTotals";
 import { formatCurrency } from "@/lib/utils";
 import AddOnPickerInline from "@/components/AddOnPickerInline";
-import { ADDON_CATEGORIES, ADDON_UNITS, unitLabel } from "@/lib/addOns";
+import { ADDON_UNITS, unitLabel } from "@/lib/addOns";
 
 const smallInput = "h-7 rounded border border-input bg-transparent px-2 text-sm";
 const spinnerless =
@@ -23,14 +23,21 @@ const spinnerless =
  * once ticked.
  *
  * **Every row is the same row.** There is deliberately no "catalogue line" vs "custom
- * line" split: a line's name, price, unit and category are all editable in place,
- * whether it came from the picker or was typed by hand. An earlier cut of this card
- * decided the shape from the description (a line named after a catalogue product read
- * as a catalogue line), which meant a row could change shape *while you were typing
- * into it* and strand itself on the wrong unit with no control left to fix it — on the
+ * line" split: a line's name, price and unit are all editable in place, whether it
+ * came from the picker or was typed by hand. An earlier cut of this card decided the
+ * shape from the description (a line named after a catalogue product read as a
+ * catalogue line), which meant a row could change shape *while you were typing into
+ * it* and strand itself on the wrong unit with no control left to fix it — on the
  * common path, since every product in the US starter catalogue is variant-less. One
  * shape cannot do that. The description is still matched by name in the *picker*, to
  * decide what reads "on quote"; that is a display hint, and nothing depends on it.
+ *
+ * **Category is not edited here** (owner, 2026-08-10): a line's category comes from
+ * its catalogue product, or is `fee` for hand-typed lines, or `discount` via the
+ * "Add discount" button — the one category with behaviour (it negates the line).
+ * Categories still group the picker's tabs and the document sections; there is just
+ * no re-categorising a line that is already on the booking. The button is interim:
+ * REL-475's booking-level discount control replaces it.
  *
  * The money is untouched by all of this: every line total is `lineItemTotal`, the same
  * mirror of the backend the totals card uses. In particular a `per_guest` line is
@@ -70,6 +77,14 @@ export default function AddOnItemsEditor({
     setEditingName(items.length);
     setEditingDetails(null);
     add({ variant: null, category: "fee", description: "", quantity: "1", unit: "each", unit_price: "" });
+  };
+  /** A discount is not a product, so it doesn't come from the picker: this is the one
+   * way to put the `discount` category (which negates the line) on a new row. Opens
+   * into the price — the name is prefilled and the amount is what's missing. */
+  const addDiscount = () => {
+    setEditingName(null);
+    setEditingDetails(items.length);
+    add({ variant: null, category: "discount", description: "Discount", quantity: "1", unit: "flat", unit_price: "" });
   };
 
   const fmt = (v: string | number) => formatCurrency(v, currencySymbol);
@@ -172,16 +187,6 @@ export default function AddOnItemsEditor({
                           <option key={v} value={v}>{l}</option>
                         ))}
                       </select>
-                      <select
-                        aria-label="Category"
-                        value={it.category}
-                        onChange={(e) => update(i, "category", e.target.value)}
-                        className={smallInput}
-                      >
-                        {ADDON_CATEGORIES.map(([v, l]) => (
-                          <option key={v} value={v}>{l}</option>
-                        ))}
-                      </select>
                       <button
                         type="button"
                         onClick={() => setEditingDetails(null)}
@@ -193,7 +198,7 @@ export default function AddOnItemsEditor({
                   ) : (
                     <button
                       type="button"
-                      aria-label="Edit price, unit and category"
+                      aria-label="Edit price and unit"
                       onClick={() => setEditingDetails(i)}
                       className="group/price flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
                     >
@@ -281,6 +286,9 @@ export default function AddOnItemsEditor({
         </button>
         <button type="button" onClick={addCustom} className="text-sm text-primary hover:underline">
           Custom item
+        </button>
+        <button type="button" onClick={addDiscount} className="text-sm text-primary hover:underline">
+          Add discount
         </button>
       </div>
     </div>
