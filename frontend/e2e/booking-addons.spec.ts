@@ -40,7 +40,7 @@ test.describe("Add-on lines survive a save and a reload", () => {
     //    (a correct per-guest total). Setting it here makes the spec independent of
     //    seeding history and exercises the unit control at the same time.
     await addAddOn(page, "Soft Drinks — 1.5L", "Soft Drinks");
-    await row(0).getByRole("button", { name: "Edit price, unit and category" }).click();
+    await row(0).getByRole("button", { name: "Edit price and unit" }).click();
     await row(0).getByLabel("Unit", { exact: true }).selectOption("each");
     await row(0).getByRole("button", { name: "Done" }).click();
     await row(0).getByLabel("Quantity", { exact: true }).fill("12");
@@ -51,7 +51,7 @@ test.describe("Add-on lines survive a save and a reload", () => {
     await page.getByRole("button", { name: "Custom item" }).click();
     await row(1).getByLabel("Name", { exact: true }).fill("Coat check");
     await row(1).getByLabel("Name", { exact: true }).press("Enter");
-    await row(1).getByRole("button", { name: "Edit price, unit and category" }).click();
+    await row(1).getByRole("button", { name: "Edit price and unit" }).click();
     await row(1).getByLabel("Unit price", { exact: true }).fill("100");
     await expect(row(1)).toContainText("$100.00");
 
@@ -79,7 +79,7 @@ test.describe("Add-on lines survive a save and a reload", () => {
     //    and prices back as decimals ("12.00"), which is what the row hydrates from.
     await page.getByRole("button", { name: "Edit Quote" }).click();
     await expect(row(0).getByLabel("Quantity", { exact: true })).toHaveValue("12.00");
-    await expect(row(0).getByRole("button", { name: "Edit price, unit and category" }))
+    await expect(row(0).getByRole("button", { name: "Edit price and unit" }))
       .toContainText("$150.00 each");
     await expect(row(0)).toContainText("$1,800.00");
     await expect(row(1).getByRole("button", { name: "Edit name" })).toContainText("Coat check");

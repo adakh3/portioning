@@ -25,6 +25,12 @@ class StarterCatalogTests(TestCase):
         self.assertEqual(Dish.objects.filter(organisation=org).count(), 18)
         self.assertEqual(MenuTemplate.objects.filter(organisation=org).count(), 2)
         self.assertTrue(AddOnProduct.objects.filter(organisation=org).exists())
+        # Every new org gets a Discount product (owner, 2026-08-10) — with the
+        # per-line category dropdown gone, the picker (plus the Add discount
+        # button) is how a discount line gets its category. Unpriced: the amount
+        # is per-booking; the category is the point.
+        self.assertTrue(AddOnProduct.objects.filter(
+            organisation=org, category='discount', unit_price=0).exists())
         self.assertTrue(LaborRole.objects.filter(organisation=org, name='Server').exists())
         self.assertTrue(GlobalConfig.objects.filter(organisation=org).exists())
         self.assertTrue(BudgetProfile.objects.filter(organisation=org, is_default=True).exists())
