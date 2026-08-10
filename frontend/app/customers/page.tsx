@@ -8,8 +8,13 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { TITLE_OPTIONS } from "@/lib/titles";
 
-const selectClass =
-  "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring";
+// Width is deliberately NOT in the base. Appending `w-[80px]` to a class that
+// already carries `w-full` does not override it — Tailwind emits both and
+// stylesheet order decides — which is how the title select ended up full-width
+// and shoved the name inputs across the Phone column.
+const selectBase =
+  "flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring";
+const selectClass = `${selectBase} w-full`;
 
 const EMPTY = { title: "", first_name: "", last_name: "", phone: "", email: "", address: "", account: "" };
 
@@ -104,7 +109,7 @@ export default function CustomersPage() {
                     {/* Optional, and deliberately first: with a title set, messages
                         address them as 'Ms Rizvi' rather than by first name. */}
                     <select
-                      className={`${selectClass} w-[80px] shrink-0`}
+                      className={`${selectBase} w-[84px] shrink-0`}
                       aria-label="Title"
                       value={form.title}
                       onChange={(e) => setForm({ ...form, title: e.target.value })}
