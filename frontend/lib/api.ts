@@ -93,6 +93,19 @@ function redirectToBilling() {
   }
 }
 
+// A 401 from these three is the answer itself, not a stale access token:
+// refreshing on a failed refresh recurses, and refreshing on a rejected login
+// would hide a wrong password behind a retry. Every *other* /auth/ endpoint is
+// an ordinary authenticated call and must be allowed to refresh like any other
+// path. /auth/me/ especially — it is the first call the app makes, so excluding
+// it meant an expired access token logged the user out on the spot while a
+// perfectly good refresh token sat unused in the cookie jar (REL-477).
+const NO_REFRESH_PATHS = ["/auth/login/", "/auth/logout/", "/auth/refresh/"];
+
+function canRefresh(path: string): boolean {
+  return !NO_REFRESH_PATHS.some((p) => path.startsWith(p));
+}
+
 async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     credentials: "include",
@@ -103,7 +116,7 @@ async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
     redirectToBilling();
     throw new Error("subscription_required");
   }
-  if (res.status === 401 && !path.startsWith("/auth/")) {
+  if (res.status === 401 && canRefresh(path)) {
     const refreshed = await tryRefresh();
     if (refreshed) {
       const retry = await fetch(`${API_BASE}${path}`, {
