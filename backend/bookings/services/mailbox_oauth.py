@@ -25,7 +25,14 @@ PROVIDERS = (GOOGLE, MICROSOFT)
 # registered with Google/Microsoft byte for byte.
 CALLBACK_PATH = '/api/integrations/email/callback/'
 
+# Interactive OAuth: a caterer is watching a redirect complete and would rather
+# wait than start again, so this stays generous.
 HTTP_TIMEOUT = 20
+
+# Sending gets its own, much shorter budget than interactive OAuth — see
+# settings.OUTBOUND_SEND_TIMEOUT for why.
+def send_timeout():
+    return settings.OUTBOUND_SEND_TIMEOUT
 
 _CONFIG = {
     GOOGLE: {
@@ -184,7 +191,10 @@ def refresh_access_token(provider, refresh_token):
     }
     if provider == MICROSOFT:
         payload['scope'] = _CONFIG[MICROSOFT]['scopes']
-    data = _post_token(provider, payload)
+    # A refresh only ever happens on the way to a send, so it shares the send
+    # budget rather than the interactive one — otherwise a stale token silently
+    # doubles how long a client waits on the sign page.
+    data = _post_token(provider, payload, timeout=send_timeout())
 
     access_token = data.get('access_token', '')
     if not access_token:
@@ -196,9 +206,9 @@ def refresh_access_token(provider, refresh_token):
     }
 
 
-def _post_token(provider, payload):
+def _post_token(provider, payload, timeout=HTTP_TIMEOUT):
     response = requests.post(
-        _CONFIG[provider]['token_url'], data=payload, timeout=HTTP_TIMEOUT,
+        _CONFIG[provider]['token_url'], data=payload, timeout=timeout,
     )
     if response.status_code >= 400:
         # Never log `payload` — it carries the client secret and the refresh token.
@@ -280,7 +290,7 @@ def _send_google(access_token, from_address, to, subject, body, attachments):
         _CONFIG[GOOGLE]['send_url'],
         headers={'Authorization': f'Bearer {access_token}'},
         json={'raw': raw},
-        timeout=HTTP_TIMEOUT,
+        timeout=send_timeout(),
     )
     _raise_for_send(response)
     try:
@@ -310,7 +320,7 @@ def _send_microsoft(access_token, to, subject, body, attachments):
         _CONFIG[MICROSOFT]['send_url'],
         headers={'Authorization': f'Bearer {access_token}'},
         json={'message': message, 'saveToSentItems': True},
-        timeout=HTTP_TIMEOUT,
+        timeout=send_timeout(),
     )
     _raise_for_send(response)
     # Graph's sendMail answers 202 with an empty body. The only way to get a

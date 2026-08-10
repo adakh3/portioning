@@ -55,7 +55,14 @@ def send_via_twilio(org, *, to_phone, body, parent, reminder=None, sent_by=None)
 
     try:
         from twilio.rest import Client
-        client = Client(settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN)
+        from twilio.http.http_client import TwilioHttpClient
+        # Twilio's default client sets no timeout at all, so a hung provider
+        # hangs whatever is calling us — including a client's own request on the
+        # public sign page, where the signed-copy send runs (REL-474).
+        client = Client(
+            settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN,
+            http_client=TwilioHttpClient(timeout=settings.OUTBOUND_SEND_TIMEOUT),
+        )
         twilio_msg = client.messages.create(
             body=body,
             from_=from_phone,
