@@ -336,6 +336,7 @@ export interface AddOnProduct {
 
 export interface Contact {
   id: number;
+  title?: string;
   first_name?: string;
   last_name?: string;
   account: number | null;
@@ -1073,6 +1074,8 @@ export interface ClientMessageDraft {
   channel: ClientChannel;
   link: string;
   attachment_filename: string;
+  /** Whether this parent+channel could carry the booking PDF at all. */
+  attachment_available: boolean;
   llm_available: boolean;
   availability: ChannelAvailability;
 }
@@ -1961,7 +1964,7 @@ export const api = {
   // parent only changes the path, never the payload.
   draftClientMessage: (
     parent: ClientMessageParent, id: number,
-    data: { kind: ClientMessageKind; channel?: ClientChannel },
+    data: { kind: ClientMessageKind; channel?: ClientChannel; attach?: boolean },
   ) =>
     fetchApi<ClientMessageDraft>(`${clientMessageBase(parent, id)}/draft-message/`, {
       method: "POST",
@@ -1969,7 +1972,7 @@ export const api = {
     }),
   sendClientMessage: (
     parent: ClientMessageParent, id: number,
-    data: { kind: ClientMessageKind; channel: ClientChannel; subject?: string; body: string },
+    data: { kind: ClientMessageKind; channel: ClientChannel; subject?: string; body: string; attach?: boolean },
   ) =>
     fetchApi<WhatsAppMessage>(`${clientMessageBase(parent, id)}/send-message/`, {
       method: "POST",

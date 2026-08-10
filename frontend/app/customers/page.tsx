@@ -6,11 +6,12 @@ import { useContacts, useAccounts } from "@/lib/hooks";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
+import { TITLE_OPTIONS } from "@/lib/titles";
 
 const selectClass =
   "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring";
 
-const EMPTY = { first_name: "", last_name: "", phone: "", email: "", address: "", account: "" };
+const EMPTY = { title: "", first_name: "", last_name: "", phone: "", email: "", address: "", account: "" };
 
 export default function CustomersPage() {
   const { data: customers = [], error: loadError, isLoading: loading, mutate } = useContacts();
@@ -39,6 +40,7 @@ export default function CustomersPage() {
   function openEdit(c: Contact) {
     setEditingId(c.id);
     setForm({
+      title: c.title || "",
       first_name: c.first_name || "", last_name: c.last_name || "",
       phone: c.phone, email: c.email, address: c.address,
       account: c.account != null ? String(c.account) : "",
@@ -52,6 +54,7 @@ export default function CustomersPage() {
     setSaving(true);
     setError("");
     const payload = {
+      title: form.title,
       first_name: form.first_name,
       last_name: form.last_name,
       phone: form.phone,
@@ -98,6 +101,19 @@ export default function CustomersPage() {
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Name</label>
                   <div className="flex gap-2">
+                    {/* Optional, and deliberately first: with a title set, messages
+                        address them as 'Ms Rizvi' rather than by first name. */}
+                    <select
+                      className={`${selectClass} w-[80px] shrink-0`}
+                      aria-label="Title"
+                      value={form.title}
+                      onChange={(e) => setForm({ ...form, title: e.target.value })}
+                    >
+                      <option value="">—</option>
+                      {TITLE_OPTIONS.map((t) => (
+                        <option key={t} value={t}>{t}</option>
+                      ))}
+                    </select>
                     <Input type="text" required maxLength={100} placeholder="First *" aria-label="First name" className="min-w-[90px]" value={form.first_name}
                       onChange={(e) => setForm({ ...form, first_name: e.target.value })} />
                     <Input type="text" maxLength={100} placeholder="Last" aria-label="Last name" className="min-w-[90px]" value={form.last_name}
