@@ -1,5 +1,6 @@
 from django.db import models
 from django.utils import timezone
+from bookings.names import TITLE_CHOICES as SHARED_TITLE_CHOICES
 from users.managers import TenantManager, TenantQuerySet
 from users.model_mixins import OrgScopedModel
 
@@ -80,10 +81,9 @@ class Lead(OrgScopedModel, models.Model):
         'bookings.Account', null=True, blank=True,
         on_delete=models.SET_NULL, related_name='leads',
     )
-    TITLE_CHOICES = [
-        ('Mr', 'Mr'), ('Mrs', 'Mrs'), ('Ms', 'Ms'), ('Miss', 'Miss'),
-        ('Dr', 'Dr'), ('Prof', 'Prof'),
-    ]
+    # Kept as a class attribute for existing references; the list itself now
+    # lives in bookings/names.py so Contact shares it (REL-479).
+    TITLE_CHOICES = SHARED_TITLE_CHOICES
     contact_title = models.CharField(
         max_length=10, blank=True, default='', choices=TITLE_CHOICES,
         help_text='How to address the contact in messages (e.g. Ms Rizvi)',

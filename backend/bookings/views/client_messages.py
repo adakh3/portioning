@@ -47,6 +47,15 @@ def _validated_kind(request, parent, *, sending=False):
     return kind
 
 
+def _wants_attachment(request):
+    """Did the rep ask for the booking PDF on this composed message?
+
+    Absent means no: an attachment is something you opt into, and defaulting it
+    on would have every ad-hoc "quick question" message drag a full quote along.
+    """
+    return bool(request.data.get('attach'))
+
+
 def _validated_channel(request, parent):
     """The requested channel, or the resolved default. Never a guess.
 
@@ -76,9 +85,13 @@ class ClientMessageDraftView(APIView):
 
         org = parent.organisation
         url = '' if isinstance(parent, Lead) else messaging.booking_public_url(parent)
+        # A sign link and a signed copy always carry their document. A composed
+        # message carries one only when the rep asked for it, so the draft has to
+        # be told which — a draft that says "as attached" on a message going out
+        # bare is worse than one that never mentions it (REL-478).
+        can_attach = messaging.compose_attachment_available(parent, channel)
         attachment_name = ''
-        if (channel == messaging.CHANNEL_EMAIL and kind != KIND_COMPOSE
-                and not isinstance(parent, Lead)):
+        if can_attach and (kind != KIND_COMPOSE or _wants_attachment(request)):
             attachment_name = messaging.attachment_filename(parent, kind)
 
         draft = draft_client_message(
@@ -90,6 +103,9 @@ class ClientMessageDraftView(APIView):
             'channel': channel,
             'link': url,
             'attachment_filename': attachment_name,
+            # Whether to offer the toggle at all. The UI must not have to
+            # re-derive "email, and not a lead" for itself.
+            'attachment_available': can_attach,
             # Lets the UI decide whether to show the AI marker at all, without
             # inferring it from used_fallback (which is also true on an error).
             'llm_available': is_available(),
@@ -116,7 +132,8 @@ class ClientMessageSendView(APIView):
                             status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            msg = self._send(parent, kind, channel, subject, body, request.user)
+            msg = self._send(parent, kind, channel, subject, body, request.user,
+                             attach=_wants_attachment(request))
         except messaging.ChannelUnavailable as exc:
             return Response({'detail': str(exc), 'reason': exc.reason},
                             status=status.HTTP_400_BAD_REQUEST)
@@ -143,11 +160,15 @@ class ClientMessageSendView(APIView):
         return Response(WhatsAppMessageSerializer(msg).data,
                         status=status.HTTP_201_CREATED)
 
-    def _send(self, parent, kind, channel, subject, body, user):
+    def _send(self, parent, kind, channel, subject, body, user, attach=False):
         if kind == KIND_COMPOSE or isinstance(parent, Lead):
             if channel == messaging.CHANNEL_EMAIL:
+                attachment = None
+                if attach and messaging.compose_attachment_available(parent, channel):
+                    attachment = messaging.compose_attachment(parent)
                 return messaging.send_client_email(
                     parent, subject=subject, body=body, sent_by=user,
+                    attachment=attachment,
                 )
             return self._send_whatsapp(parent, body, user)
         return messaging.send_booking_link(

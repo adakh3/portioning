@@ -14,6 +14,7 @@ import re
 from django.contrib.contenttypes.models import ContentType
 
 from bookings.models import ActivityLog, WhatsAppMessage
+from bookings.services.greeting import GREETING_RULE
 from portioning import llm
 
 logger = logging.getLogger(__name__)
@@ -26,12 +27,10 @@ SYSTEM_PROMPT = (
     "can review and send it.\n\n"
     "Rules:\n"
     "- Formal, professional tone — polite and warm, never chatty. No emoji.\n"
-    "- Open with a proper greeting: 'Hello' followed by the contact's title and "
-    "surname if a title is present in the contact record (Mr, Mrs, Ms, Miss, Dr, "
-    "Prof — copy the title exactly as stored, never infer or choose one based on "
-    "the name). If no title is present, greet by first name (e.g. 'Hello "
-    "Batool,'). If neither a title nor a first name is available, use 'Hello,' "
-    "with no name. Never address someone by their bare full name.\n"
+    # One rule for every drafter — see bookings/services/greeting.py. The text is
+    # unchanged from what this file used to spell out inline, so what leads
+    # receive is exactly what they received before.
+    f"{GREETING_RULE}"
     "- Keep it to 2-4 short sentences after the greeting.\n"
     "- If a detail (event type, guest count, date, etc.) appears in both a "
     "structured field and a note, and they conflict or the note is more "
