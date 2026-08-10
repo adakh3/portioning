@@ -2,7 +2,7 @@
 
 import { ChoiceOption } from "@/lib/api";
 
-/** The "Guests choose" control on a Service Style row in Settings (REL-452).
+/** The "Guests pre-pick dishes" control on a Service Style row in Settings (REL-452).
  *
  * This is the one behaviour that depends on how food is served: when it's on, a
  * booking in this style can mark two dishes in a course as the guest's options,
@@ -11,9 +11,9 @@ import { ChoiceOption } from "@/lib/api";
  * dinner, and of boxed lunches where everyone pre-picks, which is why it has to be
  * the org's call rather than a name we recognise.
  *
- * Before this, the rule was a hardcoded check for the slug `plated` — invisible
- * here, since slugs are generated from labels and never shown, so an admin could
- * neither see why one row behaved differently nor make another behave the same.
+ * The label lives ON the control (owner, 2026-08-10): the earlier cut was a bare
+ * checkbox under a distant "Guests choose" column header, which answered neither
+ * "choose what?" nor "which row am I ticking?".
  */
 export default function ServiceStyleExtras({
   option,
@@ -24,16 +24,17 @@ export default function ServiceStyleExtras({
 }) {
   return (
     <label
-      className="w-28 flex justify-center"
-      title="Bookings in this style can offer the guest a choice of dish"
+      className="flex items-center gap-1.5 whitespace-nowrap text-xs text-muted-foreground cursor-pointer"
+      title="Each guest picks their dish in advance (plated dinners, pre-picked boxed lunches). Bookings in this style can offer a choice of dish per course and collect the tallies with the final numbers."
     >
       <input
         type="checkbox"
-        aria-label={`Guests choose between dishes on ${option.label}`}
+        aria-label={`Guests pre-pick dishes on ${option.label}`}
         checked={!!option.guests_choose}
         onChange={(e) => patch({ guests_choose: e.target.checked })}
         className="h-4 w-4"
       />
+      Guests pre-pick dishes
     </label>
   );
 }
