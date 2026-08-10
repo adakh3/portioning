@@ -11,6 +11,7 @@ from rest_framework.views import APIView
 
 from bookings.models import Lead, Quote, WhatsAppMessage
 from bookings.serializers.whatsapp import WhatsAppMessageSerializer
+from bookings.services import email as email_service
 from bookings.services import messaging
 from bookings.services.message_drafter import draft_client_message, is_available
 from bookings.services.messaging_kinds import ALL_KINDS, KIND_COMPOSE, KIND_SIGNED_COPY
@@ -135,6 +136,19 @@ class ClientMessageSendView(APIView):
                              attach=_wants_attachment(request))
         except messaging.ChannelUnavailable as exc:
             return Response({'detail': str(exc), 'reason': exc.reason},
+                            status=status.HTTP_400_BAD_REQUEST)
+        except email_service.MailboxNeedsReconnect as exc:
+            # The grant died between the pre-flight check and the provider call
+            # — the caterer revoked us, or the token expired mid-send. That is
+            # the same state `_email_blocker` reports before we start, and it is
+            # not a server error: it is a thing the caterer can fix in about
+            # thirty seconds. Answer with the same shape the pre-flight uses, so
+            # the UI can say "reconnect" instead of showing a status code
+            # (REL-481).
+            return Response({'detail': str(exc), 'reason': messaging.MAILBOX_NEEDS_RECONNECT},
+                            status=status.HTTP_400_BAD_REQUEST)
+        except email_service.MailboxNotConnected as exc:
+            return Response({'detail': str(exc), 'reason': messaging.NO_MAILBOX},
                             status=status.HTTP_400_BAD_REQUEST)
         except messaging.MessagingError as exc:
             return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)

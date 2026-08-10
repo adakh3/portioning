@@ -71,7 +71,20 @@ export function collectErrorMessages(node: unknown, prefix = ""): string[] {
 }
 
 function sanitizeError(status: number, text: string): string {
-  if (status >= 500) return `Server error (${status})`;
+  if (status >= 500) {
+    // A 5xx body is usually a stack trace or the gateway's own HTML, and must
+    // never reach a user. But our transport failures answer 502 with JSON whose
+    // `detail` is the only thing the rep can act on — blanket-discarding it is
+    // how a revoked mailbox surfaced as "Server error (502)" with the real
+    // reason sitting unread in the response (REL-481). Show a structured
+    // detail; fall back to the status for anything we didn't author.
+    try {
+      const json = JSON.parse(text);
+      const detail = (json as { detail?: unknown })?.detail;
+      if (typeof detail === "string" && detail.trim()) return detail;
+    } catch { /* not JSON — almost certainly not ours */ }
+    return `Server error (${status})`;
+  }
   try {
     const json = JSON.parse(text);
     if (typeof json === "string") return json;
