@@ -26,6 +26,7 @@ from bookings.permissions import IsAdminOrOwner
 from bookings.serializers.mailbox import ConnectedMailboxSerializer
 from bookings.services import mailbox_oauth
 from bookings.services.email import get_mailbox, store_tokens
+from payments.access import org_has_access
 from users.mixins import get_request_org
 
 logger = logging.getLogger(__name__)
@@ -61,6 +62,14 @@ def _settings_redirect(**params):
     """Back to the Settings integrations tab, with a result to show."""
     query = urlencode({'tab': 'integrations', **params})
     return redirect(f'{settings.FRONTEND_BASE_URL.rstrip("/")}/settings?{query}')
+
+
+def _billing_redirect():
+    """Where a blocked org goes — the same place the subscription gate sends
+    every other browser navigation it turns away."""
+    return redirect(
+        f'{settings.FRONTEND_BASE_URL.rstrip("/")}/billing?reason=subscription_required'
+    )
 
 
 class MailboxStatusView(APIView):
@@ -152,7 +161,14 @@ class MailboxConnectView(APIView):
         response.set_cookie(
             NONCE_COOKIE, nonce,
             max_age=STATE_MAX_AGE, httponly=True, samesite='Lax',
-            secure=not settings.DEBUG, path=COOKIE_PATH,
+            # Secure on any HTTPS connection, and unconditionally outside
+            # DEBUG. `is_secure()` alone would be the tidier rule, but it reads
+            # X-Forwarded-Proto exclusively once SECURE_PROXY_SSL_HEADER is set
+            # — so it only stays true in production because SECURE_SSL_REDIRECT
+            # turns plain HTTP away first. Someone exempting a path from that
+            # redirect shouldn't be able to quietly drop Secure from a
+            # credential-bearing cookie, hence the second clause.
+            secure=request.is_secure() or not settings.DEBUG, path=COOKIE_PATH,
         )
         return response
 
@@ -202,6 +218,15 @@ class MailboxCallbackView(APIView):
         user = User.objects.filter(pk=state.get('user')).first()
         if org is None:
             return _settings_redirect(email_error='invalid_state')
+
+        # The subscription gate can't cover this view: it's unauthenticated by
+        # design, and it resolves the user from an access-token cookie that may
+        # well have expired during the consent screen (tokens live 30 minutes,
+        # this state 15). Whether a lapsed org got blocked was therefore down to
+        # token freshness. The signed state names the org outright, so ask here
+        # instead — same question the middleware asks, same answer.
+        if not org_has_access(org):
+            return _billing_redirect()
 
         try:
             tokens = self._get_tokens(provider, code, state)

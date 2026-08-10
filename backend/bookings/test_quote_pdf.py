@@ -135,3 +135,104 @@ class QuotePDFContentTests(TestCase):
         self.assertIn("Hi-Tea", text)
         self.assertIn("Samosa", text)       # the meal's own menu is rendered
         self.assertIn("Spring Roll", text)
+
+
+class QuoteTimelineScreenParityTests(TestCase):
+    """REL-447 — the quote PDF and the quote page must show the SAME run-of-show.
+
+    The page used to render no timeline at all once a quote was saved, while the PDF
+    printed the whole day, so a caterer couldn't check on screen what the customer
+    received. The screen now renders it (`frontend/components/BookingTimelineView.tsx`).
+    These pin the PDF half of that contract, so the two can't drift apart again:
+    each rule asserted here has a mirror in `BookingTimelineView.test.tsx`.
+    """
+
+    def setUp(self):
+        if not HAVE_PYPDF:
+            self.skipTest("pypdf not installed")
+        self.org = _make_org(slug="pdf-timeline-parity")
+        self.contact = make_contact(org=self.org)
+
+    def _quote(self, **kwargs):
+        # Pin the event date to the day `_aug()` builds on. The timeline sorts by
+        # (day, time) — an entry has no date of its own so it takes the booking's —
+        # so a meal on a DIFFERENT day would correctly sort after every entry, and
+        # the test would be measuring the fixture rather than the merge.
+        kwargs.setdefault("event_date", "2026-08-01")
+        q = make_quote(org=self.org, primary_contact=self.contact, **kwargs)
+        q.recalculate_totals()
+        q.refresh_from_db()
+        return q
+
+    def _entry(self, quote, time, label, sort_order=0):
+        from events.models import BookingTimelineEntry
+        return BookingTimelineEntry.objects.create(
+            quote=quote, time=time, label=label, sort_order=sort_order,
+        )
+
+    def test_entries_print_and_replace_the_legacy_slots(self):
+        # Screen mirror: "AC1: entries WIN over the legacy slots".
+        q = self._quote(guest_count=10, price_per_head=Decimal("10"),
+                        setup_time=_aug(10), meal_time=_aug(20))
+        self._entry(q, datetime.time(15, 0), "Staff arrive", 0)
+        self._entry(q, datetime.time(21, 0), "Cake cutting", 1)
+        text = pdf_text(q)
+
+        self.assertIn("Staff arrive", text)
+        self.assertIn("Cake cutting", text)
+        # The four legacy slots are gone once a run-of-show exists.
+        self.assertNotIn("Setup Time", text)
+        self.assertNotIn("Meal Time", text)
+        self.assertLess(text.find("Staff arrive"), text.find("Cake cutting"))
+
+    def test_a_timed_meal_merges_into_the_run_of_show(self):
+        # Screen mirror: "AC4: additional meals merge into the run-of-show".
+        q = self._quote(guest_count=10, price_per_head=Decimal("10"))
+        self._entry(q, datetime.time(15, 0), "Staff arrive", 0)
+        self._entry(q, datetime.time(21, 0), "Cake cutting", 1)
+        BookingMeal.objects.create(quote=q, label="Late-night snack", guest_count=10,
+                                   price_per_head=Decimal("5"), meal_time=_aug(19))
+        text = pdf_text(q)
+
+        timeline = text[text.find("TIMELINE"):text.find("FOOD / MENU")]
+        self.assertIn("Late-night snack", timeline)
+        self.assertLess(timeline.find("Staff arrive"), timeline.find("Late-night snack"))
+        self.assertLess(timeline.find("Late-night snack"), timeline.find("Cake cutting"))
+
+    def test_a_meal_is_NOT_merged_into_the_legacy_fallback(self):
+        # Screen mirror: "AC4: meals are NOT merged into the legacy-slot fallback".
+        # Deliberate: merging them would change the rendered timeline of every
+        # existing booking with a timed meal, including quotes already signed.
+        q = self._quote(guest_count=10, price_per_head=Decimal("10"), setup_time=_aug(10))
+        BookingMeal.objects.create(quote=q, label="Late-night snack", guest_count=10,
+                                   price_per_head=Decimal("5"), meal_time=_aug(19))
+        text = pdf_text(q)
+
+        timeline = text[text.find("TIMELINE"):text.find("FOOD / MENU")]
+        self.assertIn("Setup Time", timeline)
+        self.assertNotIn("Late-night snack", timeline)
+
+    def test_a_meal_after_midnight_prints_LAST(self):
+        """The case the fixture above deliberately pins away from — asserted here
+        rather than avoided. A 2am late-night snack belongs to the day AFTER the
+        event, so it sorts last; the screen mirror is
+        "AC6: a meal after midnight sorts LAST, as the PDF orders it".
+        """
+        q = self._quote(guest_count=10, price_per_head=Decimal("10"))
+        self._entry(q, datetime.time(15, 0), "Staff arrive", 0)
+        self._entry(q, datetime.time(21, 0), "Cake cutting", 1)
+        BookingMeal.objects.create(
+            quote=q, label="Late-night snack", guest_count=10, price_per_head=Decimal("5"),
+            meal_time=datetime.datetime(2026, 8, 2, 2, 0, tzinfo=datetime.timezone.utc),
+        )
+        text = pdf_text(q)
+
+        timeline = text[text.find("TIMELINE"):text.find("FOOD / MENU")]
+        self.assertLess(timeline.find("Cake cutting"), timeline.find("Late-night snack"))
+
+    def test_no_times_at_all_prints_no_timeline_section(self):
+        # Screen mirror: "AC3: neither entries nor legacy times reads 'No timeline set.'"
+        # The PDF omits the section entirely; the screen says so in words, because a
+        # blank card on screen reads as broken while a missing PDF section does not.
+        q = self._quote(guest_count=10, price_per_head=Decimal("10"))
+        self.assertNotIn("TIMELINE", pdf_text(q))

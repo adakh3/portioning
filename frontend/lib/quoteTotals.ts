@@ -505,14 +505,20 @@ export function buildLineItemsPayload(lineItems: LineItemInput[]) {
  */
 export function timelineMealRows(
   meals: { label?: string; meal_time?: string | null }[] | undefined,
-): { label: string; time: string }[] {
+): { label: string; time: string; date: string | null }[] {
   return (meals || [])
     .filter((m) => m.meal_time)
     .map((m) => ({
       label: m.label?.trim() || "Additional meal",
       time: m.meal_time!.includes("T") ? m.meal_time!.slice(11, 16) : m.meal_time!.slice(0, 5),
+      // The DAY the meal falls on, kept rather than thrown away (REL-447). A meal
+      // is stored as a full datetime, so a 2am late-night snack belongs to the day
+      // AFTER the event — the backend sorts on (date, time) and would place it
+      // last. Slicing to "HH:MM" alone made it sort FIRST on screen, contradicting
+      // the PDF the customer is holding.
+      date: m.meal_time!.includes("T") ? m.meal_time!.slice(0, 10) : null,
     }))
-    .sort((a, b) => a.time.localeCompare(b.time));
+    .sort((a, b) => ((a.date || "") + a.time).localeCompare((b.date || "") + b.time));
 }
 
 /** Serialize a booking's run-of-show for a save (quote OR event).

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 
 // The EVENT mirror of app/quotes/[id]/page.timeline.test.tsx (REL-418 AC7).
 // Same shared component, but the event page owns its own state wiring — which is
@@ -140,6 +140,28 @@ describe("Event form — the run-of-show reaches the payload", () => {
     expect(await screen.findByText("Staff arrive")).toBeInTheDocument();
     expect(screen.getByText("Cake cutting")).toBeInTheDocument();
     expect(screen.queryByText("Setup Time")).not.toBeInTheDocument();
+  });
+
+  // REL-447 — the read-only view now merges timed additional meals, matching the
+  // PDF. New behaviour on THIS page (it previously showed entries only), so it is
+  // pinned here and not only in the component's own test.
+  it("READ-ONLY: a timed additional meal merges into the run-of-show", async () => {
+    h.id = "8";
+    existingEvent.additional_meals = [{
+      id: 3, label: "Late-night snack", guest_count: 10, price_per_head: "5.00",
+      meal_time: "2026-09-01T19:00:00Z", date: null, dishes: [], based_on_template: null,
+      notes: "", audience: "custom", audience_segment: null, sort_order: 0,
+    }] as unknown as typeof existingEvent.additional_meals;
+    render(<EventPage />);
+
+    // Scope to the Timeline card: the meal legitimately appears twice on the page,
+    // here and in the Additional Meals section it belongs to.
+    const heading = await screen.findByText("Timeline");
+    const card = heading.closest("div")!.parentElement!;
+    expect(within(card).getByText("Late-night snack")).toBeInTheDocument();
+    const text = card.textContent ?? "";
+    expect(text.indexOf("Staff arrive")).toBeLessThan(text.indexOf("Late-night snack"));
+    existingEvent.additional_meals = [];
   });
 
   it("EDIT: existing entries hydrate, and a reorder is what gets saved", async () => {

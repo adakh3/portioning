@@ -121,19 +121,13 @@ function BookingView({
               <div key={`${i}-${t.label}`} className="flex justify-between">
                 <dt className="text-neutral-500">{t.label}</dt>
                 <dd className="text-neutral-800">
-                  {/* Run-of-show entries carry a bare time the browser can't parse
-                      as a date, so the server pre-formats them; the four legacy
-                      slots have a full datetime and render as they always have. */}
-                  {t.time_display
-                    ? t.time_display
-                    : t.time
-                    ? new Date(t.time).toLocaleString(undefined, {
-                        day: "numeric",
-                        month: "short",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })
-                    : "—"}
+                  {/* The server formats EVERY row (REL-447). This used to fall back
+                      to `new Date(...).toLocaleString()` for legacy slots and meals,
+                      which rendered them in the CUSTOMER's timezone: a 19:00 meal
+                      read as 12:00 PM in Los Angeles, sitting in the same list as
+                      entries the server had formatted in UTC. Two timezones in one
+                      list, on the document being signed. Nothing is converted here. */}
+                  {t.time_display || "—"}
                 </dd>
               </div>
             ))}

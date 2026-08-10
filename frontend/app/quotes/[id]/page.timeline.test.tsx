@@ -152,6 +152,22 @@ describe("Quote form — the run-of-show reaches the payload", () => {
     expect(payload.timeline_entries).toContainEqual({ time: "19:30:00", label: "", date: null });
   });
 
+  // REL-447 — the mirror of the event page's read-only case. Until this landed the
+  // quote's Timeline card was `{editing && …}`, so a saved quote showed no
+  // run-of-show at all while the quote PDF printed the whole day for the customer.
+  it("READ-ONLY: a saved quote shows its run-of-show without clicking Edit", async () => {
+    h.id = "7";
+    render(<QuotePage />);
+
+    await screen.findByText("Edit Quote"); // loaded, NOT editing
+    expect(screen.getByText("Cocktail hour")).toBeInTheDocument();
+    expect(screen.getByText("Dinner service")).toBeInTheDocument();
+    expect(screen.getByText("17:00")).toBeInTheDocument();
+    // Entries replace the four legacy slots, exactly as on the event page.
+    expect(screen.queryByText("Setup Time")).not.toBeInTheDocument();
+    expect(screen.queryByText("No timeline set.")).not.toBeInTheDocument();
+  });
+
   it("EDIT: existing entries hydrate, and a reorder is what gets saved", async () => {
     h.id = "7";
     render(<QuotePage />);
