@@ -449,6 +449,10 @@ describe("AddOnItemsEditor — the catalogue picker", () => {
     ]);
     // It opens into the price — the name is prefilled, the amount is what's missing.
     expect(line(0).getByLabelText("Unit price")).toHaveFocus();
+    // A priceless discount is −|0| = negative zero in JS; it must read $0.00,
+    // not "$-0.00".
+    expect(line(0).getByText("$0.00")).toBeInTheDocument();
+    expect(line(0).queryByText(/-\s*\$?\s*-?0\.00|\$-0\.00/)).toBeNull();
     fireEvent.change(line(0).getByLabelText("Unit price"), { target: { value: "100" } });
     // Typed positive, rendered negative — the category supplies the sign.
     expect(line(0).getByText("-$100.00")).toBeInTheDocument();

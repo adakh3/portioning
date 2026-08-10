@@ -88,8 +88,10 @@ export default function AddOnItemsEditor({
   };
 
   const fmt = (v: string | number) => formatCurrency(v, currencySymbol);
-  /** Money that can be negative (a discount line) reads "-$100.00", not "$-100.00". */
-  const money = (n: number) => (n < 0 ? `-${fmt(Math.abs(n))}` : fmt(n));
+  /** Money that can be negative (a discount line) reads "-$100.00", not "$-100.00".
+   * `n + 0` collapses the negative zero a priceless discount line produces
+   * (−|0| = −0 in JS), which otherwise formats as "$-0.00". */
+  const money = (n: number) => ((n = n + 0) < 0 ? `-${fmt(Math.abs(n))}` : fmt(n));
 
   const subtotal =
     Math.round(items.reduce((t, it) => t + lineItemTotal(it, guestCount), 0) * 100) / 100;
