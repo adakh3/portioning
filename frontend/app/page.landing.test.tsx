@@ -19,7 +19,7 @@ describe("Root page for logged-out visitors (REL-482 AC1)", () => {
   it("renders the landing page instead of the dashboard", () => {
     render(<HomePage />);
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
-      "You cook. Let AI do the paperwork.",
+      "From the first inquiry to the last gram.",
     );
     expect(screen.queryByText("Overview of your catering operations")).not.toBeInTheDocument();
   });

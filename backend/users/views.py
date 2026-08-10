@@ -282,22 +282,54 @@ class UserManageDetailView(generics.RetrieveUpdateAPIView):
         return super().update(request, *args, **kwargs)
 
 
+# The hidden field a human never sees. Deliberately not called "website" or
+# anything else a password manager recognises: browsers and 1Password happily
+# autofill a text input named for a URL, which would make the honeypot fire on
+# real people instead of bots.
+DEMO_HONEYPOT_FIELD = "referral_source"
+
+
+class DemoRequestThrottle(ScopedRateThrottle):
+    """Throttle the public demo form on the caller's real IP.
+
+    DRF's default `get_ident` returns the *whole* X-Forwarded-For header when
+    `NUM_PROXIES` is unset, and that header is client-supplied — so a spammer
+    varying it by one byte per request mints a fresh bucket every time and the
+    limit may as well not exist. The address the trusted proxy in front of us
+    appended is the last entry, so key on that.
+
+    Scoped to this view rather than fixed globally via `NUM_PROXIES`: if the
+    proxy count in front of the app ever changes, the blast radius of getting
+    it wrong is one marketing form, not the client-facing sign page.
+    """
+
+    def get_ident(self, request):
+        forwarded = request.META.get("HTTP_X_FORWARDED_FOR")
+        if forwarded:
+            return forwarded.split(",")[-1].strip()
+        return request.META.get("REMOTE_ADDR")
+
+
 class DemoRequestCreateView(APIView):
     """Public Book-a-Demo endpoint for the landing page (REL-482).
 
-    Spam guard: a hidden honeypot field ("website") that humans never see —
-    if it arrives filled, pretend success but save nothing — plus a tight
-    scoped throttle.
+    Spam guard: the hidden honeypot field above. When it arrives filled we
+    validate and answer *exactly* as a genuine submission would but save
+    nothing — the response has to be indistinguishable from success in both
+    directions. A bot that can spot the difference simply stops filling the
+    field, and a human whose password manager filled it must never be shown an
+    error for a lead we quietly dropped.
     """
 
     permission_classes = [AllowAny]
-    throttle_classes = [ScopedRateThrottle]
+    throttle_classes = [DemoRequestThrottle]
     throttle_scope = "demo_requests"
 
     def post(self, request):
-        if request.data.get("website"):
-            return Response(status=status.HTTP_201_CREATED)
+        # Validate first: it rejects a non-dict body (a bare JSON list used to
+        # reach `.get` below and raise AttributeError → an unauthenticated 500).
         serializer = DemoRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        serializer.save()
+        if not request.data.get(DEMO_HONEYPOT_FIELD):
+            serializer.save()
         return Response(serializer.data, status=status.HTTP_201_CREATED)

@@ -10,8 +10,8 @@ import DemoModal from "./DemoModal";
 const STEPS = [
   {
     n: "01",
-    title: "The enquiry lands",
-    body: "Enquiries from your site, WhatsApp and inbox arrive on one board with the guest count, date and budget already pulled out.",
+    title: "The inquiry lands",
+    body: "Inquiries from your website, WhatsApp and inbox arrive on one board with the guest count, date and budget already pulled out.",
   },
   {
     n: "02",
@@ -51,11 +51,11 @@ export default function LandingPage() {
       <section className="px-6 pt-14 md:px-10 md:pt-[72px]">
         <div className="mx-auto grid max-w-[1120px] items-end gap-10 md:grid-cols-[1.15fr_0.85fr] md:gap-[72px]">
           <h1 className="font-display text-balance text-5xl font-normal leading-[0.98] tracking-[-0.02em] sm:text-6xl lg:text-[86px] lg:leading-[0.96]">
-            You cook. Let AI do the <em className="italic text-[#A9421F]">paperwork</em>.
+            From the first inquiry to the <em className="italic text-[#A9421F]">last gram</em>.
           </h1>
           <div>
             <p className="text-pretty text-lg leading-relaxed text-[#574E45]">
-              Enquiries, quotes, signatures and grams per guest in one place — with AI drafting the
+              Inquiries, quotes, signatures and grams per guest in one place — with AI drafting the
               messages and sizing the portions.
             </p>
             <button
@@ -82,7 +82,7 @@ export default function LandingPage() {
             />
           </div>
           <p className="font-display mt-3 text-[15px] italic text-[#6B6259]">
-            Plated service at a marquee wedding.
+            Plated service at a tent wedding.
           </p>
         </div>
       </section>

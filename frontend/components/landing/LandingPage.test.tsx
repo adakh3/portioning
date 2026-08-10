@@ -15,18 +15,29 @@ describe("LandingPage (REL-482)", () => {
   it("renders the hero, product section and footer (AC1)", () => {
     render(<LandingPage />);
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
-      "You cook. Let AI do the paperwork.",
+      "From the first inquiry to the last gram.",
     );
     expect(screen.getByText("A lead comes in. The kitchen gets grams.")).toBeInTheDocument();
     expect(screen.getByText("© 2026 Relogue Catering")).toBeInTheDocument();
   });
 
   it("has no pricing nav or content (AC6)", () => {
-    render(<LandingPage />);
-    expect(screen.queryByRole("link", { name: "Pricing" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Pricing" })).not.toBeInTheDocument();
-    // No plan cards / dollar-per-month pricing anywhere.
-    expect(screen.queryByText(/\/ month|billed yearly|Most popular/)).not.toBeInTheDocument();
+    const { container } = render(<LandingPage />);
+    expect(screen.queryByRole("link", { name: /pricing/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /pricing/i })).not.toBeInTheDocument();
+    // No plan cards, tiers or per-period pricing anywhere. Checked against the
+    // rendered text rather than a keyword list, so a differently-worded pricing
+    // section ("$99 per site", "Starter / Pro") can't slip through.
+    expect(container.textContent).not.toMatch(
+      /\/ ?month|per month|billed (yearly|monthly)|Most popular|Starter|Enterprise/i,
+    );
+  });
+
+  it("uses US English throughout — the design came from a UK prototype (US-first market)", () => {
+    const { container } = render(<LandingPage />);
+    expect(container.textContent).not.toMatch(/enquir/i);
+    expect(container.textContent).not.toMatch(/marquee|aubergine|jewelled/i);
+    expect(container.textContent).toMatch(/Inquiries/);
   });
 
   it("links Sign in to /login (AC4)", () => {
@@ -38,7 +49,7 @@ describe("LandingPage (REL-482)", () => {
     render(<LandingPage />);
     const img = screen.getByAltText("A chef garnishing plated dishes at a wedding service");
     expect(img).toHaveAttribute("src", "/landing/hero.jpg");
-    expect(screen.getByText("Plated service at a marquee wedding.")).toBeInTheDocument();
+    expect(screen.getByText("Plated service at a tent wedding.")).toBeInTheDocument();
   });
 
   it("opens the demo modal from every Book a Demo button (AC4)", () => {

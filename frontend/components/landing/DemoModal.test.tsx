@@ -36,7 +36,7 @@ describe("DemoModal (REL-482)", () => {
       name: "Jane Doe",
       email: "jane@kitchen.com",
       events_per_month: "12",
-      website: "",
+      referral_source: "",
     });
   });
 
@@ -56,21 +56,66 @@ describe("DemoModal (REL-482)", () => {
     expect(createDemoRequest).not.toHaveBeenCalled();
   });
 
-  it("surfaces an API failure as an inline error", async () => {
-    const boom = new Error("boom");
-    createDemoRequest.mockImplementation(() => Promise.reject(boom));
+  it("shows the server's own reason rather than a generic failure", async () => {
+    // The API layer already sanitises 4xx bodies into a readable sentence;
+    // throwing it away left a throttled or over-long submission looking like an
+    // unexplained crash, which just loses the lead.
+    createDemoRequest.mockImplementation(() =>
+      Promise.reject(new Error("Request was throttled. Expected available in 42 seconds.")),
+    );
     render(<DemoModal open onClose={() => {}} />);
     fill("Jane Doe", "jane@kitchen.com");
     fireEvent.click(screen.getByRole("button", { name: "Request Demo" }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Request was throttled/)).toBeInTheDocument();
+    });
+  });
+
+  it("falls back to a generic message when the failure carries no detail", async () => {
+    createDemoRequest.mockImplementation(() => Promise.reject(new Error("")));
+    render(<DemoModal open onClose={() => {}} />);
+    fill("Jane Doe", "jane@kitchen.com");
+    fireEvent.click(screen.getByRole("button", { name: "Request Demo" }));
+
     await waitFor(() => {
       expect(screen.getByText(/Something went wrong/)).toBeInTheDocument();
     });
   });
 
-  it("closes via the close button", () => {
+  it("reopens on a blank form after a successful submission", async () => {
+    // Without a reset the modal is one-shot per page load: anyone who submits
+    // and then spots a typo reopens onto the old success screen, with no fields
+    // and no way to correct it short of reloading the page.
+    createDemoRequest.mockResolvedValue({});
+    const { rerender } = render(<DemoModal open onClose={() => {}} />);
+    fill("Jane Doe", "jane@kitchne.com");
+    fireEvent.click(screen.getByRole("button", { name: "Request Demo" }));
+    expect(await screen.findByText(/Request received/)).toBeInTheDocument();
+
+    rerender(<DemoModal open={false} onClose={() => {}} />);
+    rerender(<DemoModal open onClose={() => {}} />);
+
+    expect(screen.queryByText(/Request received/)).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Your name")).toHaveValue("");
+    expect(screen.getByLabelText("Work email")).toHaveValue("");
+  });
+
+  it("closes via the close button, the backdrop and Escape", () => {
     const onClose = vi.fn();
     render(<DemoModal open onClose={onClose} />);
+
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
-    expect(onClose).toHaveBeenCalled();
+    expect(onClose).toHaveBeenCalledTimes(1);
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(onClose).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps a click inside the dialog from closing it", () => {
+    const onClose = vi.fn();
+    render(<DemoModal open onClose={onClose} />);
+    fireEvent.click(screen.getByRole("dialog"));
+    expect(onClose).not.toHaveBeenCalled();
   });
 });

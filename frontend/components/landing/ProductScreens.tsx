@@ -21,95 +21,101 @@ const TABS: { id: TabId; label: string }[] = [
 
 const SCREEN_HEADERS: Record<TabId, { title: string; meta: string }> = {
   leads: { title: "Leads", meta: "Kanban · 6 statuses" },
-  eventform: { title: "New Event", meta: "Okonjo–Adeyemi Wedding · draft" },
-  portioning: { title: "Portioning", meta: "180 guests · 90 gents / 90 ladies · 6 dishes" },
-  drafting: { title: "Send to Client", meta: "Quote v2 · $24,120.00" },
-  triage: { title: "Lead Triage", meta: "1 new enquiry · WhatsApp" },
+  eventform: { title: "New Event", meta: "Harper–Ross Wedding · draft" },
+  portioning: { title: "Portioning", meta: "180 guests · 150 adults / 30 kids · 5 dishes" },
+  drafting: { title: "Send to Client", meta: "Quote v2 · $28,080.00" },
+  triage: { title: "Lead Triage", meta: "1 new inquiry · WhatsApp" },
 };
 
 const KANBAN_COLUMNS = [
   {
     name: "New", count: 12, headClass: "bg-[hsl(221_83%_53%)]",
     cards: [
-      { name: "Nadia Okonjo", meta: "Wedding · 14 Mar 2026", guests: "180 guests", product: "Fine Dining", initials: "MR" },
-      { name: "Halcyon Group", meta: "Corporate lunch · 02 Apr 2026", guests: "90 guests", product: "Corporate", initials: "AH" },
+      { name: "Emily Harper", meta: "Wedding · Mar 14, 2026", guests: "180 guests", product: "Fine Dining", initials: "MR" },
+      { name: "Halcyon Group", meta: "Corporate lunch · Apr 2, 2026", guests: "90 guests", product: "Corporate", initials: "AH" },
     ],
   },
   {
     name: "Contacted", count: 9, headClass: "bg-[hsl(189_94%_43%)]",
-    cards: [{ name: "Fern & Fig Ltd", meta: "Product launch · 19 Apr 2026", guests: "240 guests", product: "Corporate", initials: "PN" }],
+    cards: [{ name: "Fern & Fig Co.", meta: "Product launch · Apr 19, 2026", guests: "240 guests", product: "Corporate", initials: "PN" }],
   },
   {
     name: "Menu sent", count: 6, headClass: "bg-[hsl(258_90%_66%)]",
-    cards: [{ name: "Ridgeway School", meta: "Gala dinner · 09 May 2026", guests: "320 guests", product: "Fine Dining", initials: "AH" }],
+    cards: [{ name: "Northside High School", meta: "Gala dinner · May 9, 2026", guests: "320 guests", product: "Fine Dining", initials: "AH" }],
   },
   {
     name: "Negotiating", count: 5, headClass: "bg-[hsl(38_92%_50%)]",
-    cards: [{ name: "Aurora Weddings", meta: "Wedding · 06 Jun 2026", guests: "260 guests", product: "Fine Dining", initials: "MR" }],
+    cards: [{ name: "Aurora Weddings", meta: "Wedding · Jun 6, 2026", guests: "260 guests", product: "Fine Dining", initials: "MR" }],
   },
 ];
 
 const PORTION_ROWS: ({ group: string } | { name: string; yours: number; rec: number })[] = [
   { group: "Starters" },
-  { name: "Grilled halloumi skewers", yours: 60, rec: 60 },
-  { name: "Smoked aubergine dip", yours: 40, rec: 45 },
+  { name: "Whipped ricotta crostini", yours: 60, rec: 60 },
+  { name: "Smoked eggplant dip", yours: 40, rec: 45 },
   { group: "Mains" },
-  { name: "Saffron chicken thigh", yours: 170, rec: 180 },
+  { name: "Herb-roasted chicken", yours: 170, rec: 180 },
   { name: "Slow-braised short rib", yours: 210, rec: 200 },
   { group: "Sides" },
-  { name: "Herbed jewelled rice", yours: 140, rec: 140 },
+  { name: "Herbed wild rice", yours: 140, rec: 140 },
 ];
 
 const FORM_FIELDS = [
-  { label: "Event Name", value: "Okonjo–Adeyemi Wedding", full: true },
-  { label: "Customer", value: "Nadia Okonjo" },
-  { label: "Venue", value: "Thornbury Hall" },
-  { label: "Event Date", value: "14 Mar 2026" },
+  { label: "Event Name", value: "Harper–Ross Wedding", full: true },
+  { label: "Customer", value: "Emily Harper" },
+  { label: "Venue", value: "Cedar Ridge Barn" },
+  { label: "Event Date", value: "Mar 14, 2026" },
   { label: "Service Style", value: "Plated" },
-  { label: "Gents", value: "90" },
-  { label: "Ladies", value: "90" },
+  { label: "Adults", value: "150" },
+  { label: "Kids", value: "30" },
 ];
 
+// Deliberately consistent arithmetic: five dishes at 180 covers sum to the
+// subtotal, 20% service charge on top gives the total, and the same total
+// appears on the Send-to-Client screen. Caterers check the math on a page
+// like this, and numbers that don't add up cost more trust than they save.
 const MENU_LINES = [
-  { name: "Grilled halloumi skewers", course: "Starter", price: "$1,080.00" },
-  { name: "Saffron chicken thigh", course: "Main", price: "$8,640.00" },
+  { name: "Whipped ricotta crostini", course: "Starter", price: "$1,080.00" },
+  { name: "Smoked eggplant dip", course: "Starter", price: "$720.00" },
+  { name: "Herb-roasted chicken", course: "Main", price: "$8,640.00" },
   { name: "Slow-braised short rib", course: "Main", price: "$10,800.00" },
-  { name: "Herbed jewelled rice", course: "Side", price: "$2,160.00" },
+  { name: "Herbed wild rice", course: "Side", price: "$2,160.00" },
 ];
 
 const SUMMARY_ROWS = [
   { label: "Guests", value: "180" },
-  { label: "Food per person", value: "622g" },
-  { label: "Service charge (10%)", value: "$2,193.00" },
-  { label: "Total", value: "$24,120.00" },
+  { label: "Food per person", value: "620g" },
+  { label: "Subtotal", value: "$23,400.00" },
+  { label: "Service charge (20%)", value: "$4,680.00" },
+  { label: "Total", value: "$28,080.00" },
 ];
 
 const LEDGER = [
   { channel: "Email", when: "Today, 09:14", text: "Quote v2 sent · opened twice", pill: "bg-[hsl(221_83%_53%/.15)] text-[hsl(221_83%_40%)]" },
   { channel: "WhatsApp", when: "Yesterday, 18:02", text: "Nadia: can we swap the dessert?", pill: "bg-[hsl(142_71%_45%/.15)] text-[hsl(142_71%_26%)]" },
-  { channel: "Email", when: "12 Feb", text: "Tasting confirmation · delivered", pill: "bg-[hsl(221_83%_53%/.15)] text-[hsl(221_83%_40%)]" },
-  { channel: "System", when: "10 Feb", text: "Lead created from web enquiry", pill: "bg-[hsl(215_16%_47%/.15)] text-[hsl(215_20%_32%)]" },
+  { channel: "Email", when: "Feb 12", text: "Tasting confirmation · delivered", pill: "bg-[hsl(221_83%_53%/.15)] text-[hsl(221_83%_40%)]" },
+  { channel: "System", when: "Feb 10", text: "Lead created from web inquiry", pill: "bg-[hsl(215_16%_47%/.15)] text-[hsl(215_20%_32%)]" },
 ];
 
 const EXTRACTED = [
-  { label: "Customer", value: "Nadia Okonjo" },
+  { label: "Customer", value: "Emily Harper" },
   { label: "Event type", value: "Wedding" },
-  { label: "Date", value: "14 Mar 2026" },
-  { label: "Guests", value: "180 · 90 / 90" },
+  { label: "Date", value: "Mar 14, 2026" },
+  { label: "Guests", value: "180 · 150 adults / 30 kids" },
   { label: "Service style", value: "Plated" },
-  { label: "Dietary", value: "No pork · Vegetarian" },
-  { label: "Budget", value: "$25,000" },
+  { label: "Dietary", value: "Gluten-free · Vegetarian" },
+  { label: "Budget", value: "$30,000" },
 ];
 
 const DRAFT_BODY =
-  "Hi Nadia — the quote for 14 March is attached: plated service for 180, with the halloumi " +
-  "skewers and short rib you liked at the tasting. It holds until 28 February. Sign on the " +
-  "link and we'll lock the date.";
+  "Hi Emily — the quote for March 14 is attached: plated service for 180, with the crostini " +
+  "and short rib you liked at the tasting. It holds until February 28. Sign on the link and " +
+  "we'll lock the date.";
 
-const ENQUIRY_TEXT =
-  "Hi! We're getting married at Thornbury Hall on 14 March next year, about 180 guests, half " +
-  "and half. Looking for plated service, no pork, a few vegetarians. Budget is around 25k. " +
-  "Can you send a menu?";
+const INQUIRY_TEXT =
+  "Hi! We're getting married at Cedar Ridge Barn on March 14 next year, about 180 guests — " +
+  "150 adults and 30 kids. Looking for plated service, a couple of gluten-free and vegetarian " +
+  "guests. Budget is around 30k. Can you send a menu?";
 
 const PANE_HEAD =
   "border-b border-[hsl(0_0%_89.8%)] bg-[hsl(0_0%_96.1%)] px-3 py-2.5 text-xs font-semibold uppercase tracking-[0.06em] text-[hsl(0_0%_25%)]";
@@ -194,8 +200,8 @@ function PortioningScreen() {
         <tfoot>
           <tr className="border-t-2 border-[hsl(0_0%_89.8%)] bg-[hsl(0_0%_96.1%)] font-semibold">
             <td className="px-3 py-2.5 text-sm">Food per Person</td>
-            <td className="px-3 py-2.5 text-right text-sm">622g</td>
-            <td className="px-3 py-2.5 text-right font-mono text-[13px] font-normal text-[hsl(0_0%_45%)]">627g</td>
+            <td className="px-3 py-2.5 text-right text-sm">620g</td>
+            <td className="px-3 py-2.5 text-right font-mono text-[13px] font-normal text-[hsl(0_0%_45%)]">625g</td>
             <td className="px-3 py-2.5 text-right font-mono text-[13px] font-normal text-[hsl(142_71%_32%)]">-5g</td>
           </tr>
         </tfoot>
@@ -234,7 +240,7 @@ function EventFormScreen() {
           ))}
           <div className="flex items-center justify-between bg-[hsl(0_0%_96.1%)] px-3 py-2.5 text-[13px] font-semibold">
             <span>Total</span>
-            <span className="tabular-nums">$24,120.00</span>
+            <span className="tabular-nums">$23,400.00</span>
           </div>
         </div>
       </div>
@@ -273,7 +279,7 @@ function DraftingScreen() {
               WhatsApp
             </span>
           </div>
-          <div className="text-xs text-[hsl(0_0%_45%)]">To — nadia.okonjo@gmail.com · from hello@relogue.co</div>
+          <div className="text-xs text-[hsl(0_0%_45%)]">To — emily.harper@gmail.com · from hello@relogue.co</div>
           <div className="rounded-md border border-[hsl(0_0%_89.8%)] p-3 text-[13px] leading-relaxed text-[hsl(0_0%_20%)]">
             {DRAFT_BODY}
           </div>
@@ -308,9 +314,9 @@ function TriageScreen() {
     <div className="grid items-start gap-5 p-5 md:grid-cols-2">
       <div className="rounded-lg border border-[hsl(0_0%_89.8%)] p-3.5">
         <div className="mb-2.5 text-xs font-semibold uppercase tracking-[0.06em] text-[hsl(0_0%_25%)]">
-          Incoming enquiry — WhatsApp
+          Incoming inquiry — WhatsApp
         </div>
-        <div className="text-[13px] leading-relaxed text-[hsl(0_0%_20%)]">{ENQUIRY_TEXT}</div>
+        <div className="text-[13px] leading-relaxed text-[hsl(0_0%_20%)]">{INQUIRY_TEXT}</div>
       </div>
       <div className="rounded-lg border border-[hsl(0_0%_89.8%)] p-3.5">
         <div className="mb-2.5 text-xs font-semibold uppercase tracking-[0.06em] text-primary">Lead filled by AI</div>

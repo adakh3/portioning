@@ -1460,8 +1460,14 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ email, password }),
     }),
-  // Public Book-a-Demo request from the landing page; "website" is a honeypot.
-  createDemoRequest: (data: { name: string; email: string; events_per_month?: string; website?: string }) =>
+  // Public Book-a-Demo request from the landing page. `referral_source` is the
+  // honeypot — hidden from humans, so a filled one marks the caller as a bot.
+  createDemoRequest: (data: {
+    name: string;
+    email: string;
+    events_per_month?: string;
+    referral_source?: string;
+  }) =>
     fetchApi<{ name: string; email: string; events_per_month: string }>("/demo-requests/", {
       method: "POST",
       body: JSON.stringify(data),

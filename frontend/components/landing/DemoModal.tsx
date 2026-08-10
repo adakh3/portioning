@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 
 const INPUT =
@@ -12,11 +12,37 @@ export default function DemoModal({ open, onClose }: { open: boolean; onClose: (
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [events, setEvents] = useState("");
-  // Honeypot: humans never see this field; bots that fill it get a fake success.
-  const [website, setWebsite] = useState("");
+  // Honeypot: humans never see this field, so anything in it came from a bot.
+  // Named to look like nothing a password manager wants to autofill — a field
+  // called "website" gets filled with the current URL for real people.
+  const [referralSource, setReferralSource] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [sent, setSent] = useState(false);
+  const nameRef = useRef<HTMLInputElement>(null);
+
+  // Closing clears everything, so the next open starts on a fresh form. Without
+  // this the modal is one-shot per page load: anyone who submits and then spots
+  // a typo reopens onto the old success screen with no way back to the fields.
+  useEffect(() => {
+    if (open) return;
+    setName("");
+    setEmail("");
+    setEvents("");
+    setReferralSource("");
+    setError("");
+    setSent(false);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    nameRef.current?.focus();
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [open, onClose]);
 
   if (!open) return null;
 
@@ -35,23 +61,31 @@ export default function DemoModal({ open, onClose }: { open: boolean; onClose: (
         name: trimmedName,
         email: trimmedEmail,
         events_per_month: events.trim(),
-        website,
+        referral_source: referralSource,
       });
       setSent(true);
-    } catch {
-      setError("Something went wrong — please try again.");
+    } catch (err) {
+      // The API layer already sanitises these into something safe to show, and
+      // the specifics matter: "too long" and "you've been throttled" are both
+      // actionable, where a fixed "something went wrong" just loses the lead.
+      const detail = err instanceof Error ? err.message.trim() : "";
+      setError(detail || "Something went wrong — please try again.");
     } finally {
       setSubmitting(false);
     }
   }
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-6 sm:p-8">
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-6 sm:p-8"
+      onClick={onClose}
+    >
       <div
         role="dialog"
         aria-modal="true"
         aria-label="Book a demo"
         className="w-full max-w-[440px] rounded-lg bg-white p-[30px] text-[#17130F] shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-4">
           <h2 className="font-display text-[32px] font-normal leading-[1.05]">Book a demo</h2>
@@ -95,9 +129,11 @@ export default function DemoModal({ open, onClose }: { open: boolean; onClose: (
 
             <div className="mt-5 grid gap-3.5">
               <input
+                ref={nameRef}
                 type="text"
                 aria-label="Your name"
                 placeholder="Your name"
+                maxLength={200}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 className={INPUT}
@@ -106,6 +142,7 @@ export default function DemoModal({ open, onClose }: { open: boolean; onClose: (
                 type="email"
                 aria-label="Work email"
                 placeholder="Work email"
+                maxLength={254}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className={INPUT}
@@ -114,15 +151,16 @@ export default function DemoModal({ open, onClose }: { open: boolean; onClose: (
                 type="text"
                 aria-label="Events per month"
                 placeholder="Events per month"
+                maxLength={100}
                 value={events}
                 onChange={(e) => setEvents(e.target.value)}
                 className={INPUT}
               />
               <input
                 type="text"
-                name="website"
-                value={website}
-                onChange={(e) => setWebsite(e.target.value)}
+                name="referral_source"
+                value={referralSource}
+                onChange={(e) => setReferralSource(e.target.value)}
                 tabIndex={-1}
                 autoComplete="off"
                 aria-hidden="true"
