@@ -3,6 +3,11 @@
 import { useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth";
+import DemoModal from "@/components/landing/DemoModal";
+
+const INPUT =
+  "h-10 w-full rounded-md border border-[#D5CFC4] bg-white px-3 text-sm text-[#17130F] outline-none " +
+  "focus:border-[#A9421F] focus:ring-2 focus:ring-[#A9421F]/20";
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -11,6 +16,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [demoOpen, setDemoOpen] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -27,54 +33,70 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="w-full max-w-sm">
-      <div className="bg-card border border-border rounded-lg shadow-sm p-8">
-        <h1 className="text-xl font-semibold text-center mb-1">Relogue Catering</h1>
-        <p className="text-sm text-muted-foreground text-center mb-6">Sign in to your account</p>
+    <div className="w-full max-w-[400px]">
+      <h1 className="font-display text-[44px] font-normal leading-[1.04] tracking-[-0.02em]">Sign in</h1>
+      <p className="mt-3 text-sm leading-relaxed text-[#6B6259]">
+        Use the email address your admin set up. Ask them for an invite if you don&apos;t have one
+        yet.
+      </p>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {error && (
-            <div className="bg-destructive/10 text-destructive text-sm rounded-md px-3 py-2">
-              {error}
-            </div>
-          )}
+      {error && (
+        <div className="mt-5 rounded-md border border-red-500/20 bg-red-500/10 px-3.5 py-2.5 text-[13px] text-red-800">
+          {error}
+        </div>
+      )}
 
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium mb-1">Email</label>
-            <input
-              id="email"
-              type="email"
-              required
-              autoFocus
-              autoComplete="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-            />
-          </div>
+      <form onSubmit={handleSubmit} className="mt-6 grid gap-4">
+        <label className="grid gap-[7px]">
+          <span className="text-[13px] font-medium">Email</span>
+          <input
+            id="email"
+            type="email"
+            required
+            autoFocus
+            autoComplete="email"
+            placeholder="you@yourkitchen.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className={INPUT}
+          />
+        </label>
 
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium mb-1">Password</label>
-            <input
-              id="password"
-              type="password"
-              required
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-            />
-          </div>
+        <label className="grid gap-[7px]">
+          <span className="text-[13px] font-medium">Password</span>
+          <input
+            id="password"
+            type="password"
+            required
+            autoComplete="current-password"
+            placeholder="••••••••"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className={INPUT}
+          />
+        </label>
 
-          <button
-            type="submit"
-            disabled={submitting}
-            className="w-full rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 disabled:opacity-50"
-          >
-            {submitting ? "Signing in..." : "Sign in"}
-          </button>
-        </form>
-      </div>
+        <button
+          type="submit"
+          disabled={submitting}
+          className="mt-1.5 h-11 rounded-full bg-[#A9421F] text-[15px] font-medium text-white transition-colors hover:bg-[#8B3417] disabled:pointer-events-none disabled:opacity-50"
+        >
+          {submitting ? "Signing in..." : "Sign in"}
+        </button>
+      </form>
+
+      <p className="mt-6 text-center text-[13px] text-[#6B6259]">
+        No account yet?{" "}
+        <button
+          type="button"
+          onClick={() => setDemoOpen(true)}
+          className="text-[13px] text-[#A9421F] hover:text-[#7E3016]"
+        >
+          Book a demo
+        </button>
+      </p>
+
+      <DemoModal open={demoOpen} onClose={() => setDemoOpen(false)} />
     </div>
   );
 }

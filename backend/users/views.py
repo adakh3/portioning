@@ -7,6 +7,7 @@ from django.utils.decorators import method_decorator
 from rest_framework import serializers as drf_serializers, status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -14,7 +15,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework import generics
 
 from .models import Organisation, User
-from .serializers import LoginSerializer, UserSerializer, UserManageSerializer
+from .serializers import DemoRequestSerializer, LoginSerializer, UserSerializer, UserManageSerializer
 
 logger = logging.getLogger(__name__)
 
@@ -279,3 +280,24 @@ class UserManageDetailView(generics.RetrieveUpdateAPIView):
                     status=status.HTTP_403_FORBIDDEN,
                 )
         return super().update(request, *args, **kwargs)
+
+
+class DemoRequestCreateView(APIView):
+    """Public Book-a-Demo endpoint for the landing page (REL-482).
+
+    Spam guard: a hidden honeypot field ("website") that humans never see —
+    if it arrives filled, pretend success but save nothing — plus a tight
+    scoped throttle.
+    """
+
+    permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "demo_requests"
+
+    def post(self, request):
+        if request.data.get("website"):
+            return Response(status=status.HTTP_201_CREATED)
+        serializer = DemoRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_201_CREATED)

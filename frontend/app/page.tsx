@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth";
+import LandingPage from "@/components/landing/LandingPage";
 import { useEvents, useQuotes, useLeads, useDashboardStats, useMyDashboardStats, useSiteSettings, useReminderCounts,
   useFollowUpStats, useDateFormat } from "@/lib/hooks";
 import { useOrgLocale } from "@/lib/orgLocale";
@@ -83,7 +84,7 @@ function FollowUpStatsPanel({ stats, periodLabel }: { stats: FollowUpStats | und
   );
 }
 
-export default function Dashboard() {
+function Dashboard() {
   const { user } = useAuth();
   const isManager = user?.role === "manager" || user?.role === "owner" || user?.role === "admin";
   const [period, setPeriod] = useState<string>("all");
@@ -692,4 +693,12 @@ function DashboardCard({
       </CardContent>
     </Card>
   );
+}
+
+// The root serves two audiences: logged-out visitors get the public marketing
+// landing (AppShell renders it bare), signed-in staff get the dashboard (REL-482).
+export default function HomePage() {
+  const { user } = useAuth();
+  if (!user) return <LandingPage />;
+  return <Dashboard />;
 }

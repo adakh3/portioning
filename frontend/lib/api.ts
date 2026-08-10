@@ -1431,6 +1431,12 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ email, password }),
     }),
+  // Public Book-a-Demo request from the landing page; "website" is a honeypot.
+  createDemoRequest: (data: { name: string; email: string; events_per_month?: string; website?: string }) =>
+    fetchApi<{ name: string; email: string; events_per_month: string }>("/demo-requests/", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   logout: async () => {
     await fetch(`${API_BASE}/auth/logout/`, { method: "POST", credentials: "include", headers: buildHeaders() });
   },

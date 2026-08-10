@@ -198,6 +198,7 @@ REST_FRAMEWORK = {
     ],
     'DEFAULT_THROTTLE_RATES': {
         'anon': '100/hour',
+        'demo_requests': '10/hour',
         'user': '1000/hour',
     },
     'EXCEPTION_HANDLER': 'portioning.exception_handler.custom_exception_handler',

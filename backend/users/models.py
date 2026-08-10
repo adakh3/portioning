@@ -79,3 +79,22 @@ class User(AbstractUser):
                     'account), or uncheck Staff status and Superuser status.'
                 ),
             })
+
+
+class DemoRequest(models.Model):
+    """A Book-a-Demo request submitted from the public landing page (REL-482).
+
+    Platform-level, not org-scoped: the requester has no account yet. Reviewed
+    in Django admin — there is no email notification (no platform sending).
+    """
+
+    name = models.CharField(max_length=200)
+    email = models.EmailField()
+    events_per_month = models.CharField(max_length=100, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.name} <{self.email}>"

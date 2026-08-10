@@ -5,7 +5,7 @@ from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from bookings.models.settings import OrgSettings
 from payments.models import Subscription
 
-from .models import Organisation, User
+from .models import DemoRequest, Organisation, User
 
 
 # ── Inlines that turn the Organisation page into a one-stop hub ──
@@ -153,3 +153,13 @@ class UserAdmin(BaseUserAdmin):
             "fields": ("email", "first_name", "last_name", "role", "organisation", "password1", "password2"),
         }),
     )
+
+
+@admin.register(DemoRequest)
+class DemoRequestAdmin(admin.ModelAdmin):
+    list_display = ["name", "email", "events_per_month", "created_at"]
+    readonly_fields = ["name", "email", "events_per_month", "created_at"]
+    search_fields = ["name", "email"]
+
+    def has_add_permission(self, request):
+        return False
