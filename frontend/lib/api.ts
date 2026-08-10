@@ -71,7 +71,20 @@ export function collectErrorMessages(node: unknown, prefix = ""): string[] {
 }
 
 function sanitizeError(status: number, text: string): string {
-  if (status >= 500) return `Server error (${status})`;
+  if (status >= 500) {
+    // A 5xx body is usually a stack trace or the gateway's own HTML, and must
+    // never reach a user. But our transport failures answer 502 with JSON whose
+    // `detail` is the only thing the rep can act on — blanket-discarding it is
+    // how a revoked mailbox surfaced as "Server error (502)" with the real
+    // reason sitting unread in the response (REL-481). Show a structured
+    // detail; fall back to the status for anything we didn't author.
+    try {
+      const json = JSON.parse(text);
+      const detail = (json as { detail?: unknown })?.detail;
+      if (typeof detail === "string" && detail.trim()) return detail;
+    } catch { /* not JSON — almost certainly not ours */ }
+    return `Server error (${status})`;
+  }
   try {
     const json = JSON.parse(text);
     if (typeof json === "string") return json;
@@ -93,6 +106,19 @@ function redirectToBilling() {
   }
 }
 
+// A 401 from these three is the answer itself, not a stale access token:
+// refreshing on a failed refresh recurses, and refreshing on a rejected login
+// would hide a wrong password behind a retry. Every *other* /auth/ endpoint is
+// an ordinary authenticated call and must be allowed to refresh like any other
+// path. /auth/me/ especially — it is the first call the app makes, so excluding
+// it meant an expired access token logged the user out on the spot while a
+// perfectly good refresh token sat unused in the cookie jar (REL-477).
+const NO_REFRESH_PATHS = ["/auth/login/", "/auth/logout/", "/auth/refresh/"];
+
+function canRefresh(path: string): boolean {
+  return !NO_REFRESH_PATHS.some((p) => path.startsWith(p));
+}
+
 async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     credentials: "include",
@@ -103,7 +129,7 @@ async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
     redirectToBilling();
     throw new Error("subscription_required");
   }
-  if (res.status === 401 && !path.startsWith("/auth/")) {
+  if (res.status === 401 && canRefresh(path)) {
     const refreshed = await tryRefresh();
     if (refreshed) {
       const retry = await fetch(`${API_BASE}${path}`, {
@@ -336,6 +362,7 @@ export interface AddOnProduct {
 
 export interface Contact {
   id: number;
+  title?: string;
   first_name?: string;
   last_name?: string;
   account: number | null;
@@ -1073,6 +1100,8 @@ export interface ClientMessageDraft {
   channel: ClientChannel;
   link: string;
   attachment_filename: string;
+  /** Whether this parent+channel could carry the booking PDF at all. */
+  attachment_available: boolean;
   llm_available: boolean;
   availability: ChannelAvailability;
 }
@@ -1967,7 +1996,7 @@ export const api = {
   // parent only changes the path, never the payload.
   draftClientMessage: (
     parent: ClientMessageParent, id: number,
-    data: { kind: ClientMessageKind; channel?: ClientChannel },
+    data: { kind: ClientMessageKind; channel?: ClientChannel; attach?: boolean },
   ) =>
     fetchApi<ClientMessageDraft>(`${clientMessageBase(parent, id)}/draft-message/`, {
       method: "POST",
@@ -1975,7 +2004,7 @@ export const api = {
     }),
   sendClientMessage: (
     parent: ClientMessageParent, id: number,
-    data: { kind: ClientMessageKind; channel: ClientChannel; subject?: string; body: string },
+    data: { kind: ClientMessageKind; channel: ClientChannel; subject?: string; body: string; attach?: boolean },
   ) =>
     fetchApi<WhatsAppMessage>(`${clientMessageBase(parent, id)}/send-message/`, {
       method: "POST",

@@ -23,6 +23,7 @@ import SendToClientModal from "./SendToClientModal";
 const DRAFT = {
   subject: "S", body: "B", used_fallback: false, model_used: "openai:test",
   kind: "compose", channel: "email", link: "", attachment_filename: "",
+  attachment_available: true,
   llm_available: true, availability: null,
 };
 
@@ -138,5 +139,137 @@ describe("Send modal — drafting never blocks sending", () => {
     show();
     await screen.findByLabelText("Message");
     expect((screen.getByRole("button", { name: "Send email" }) as HTMLButtonElement).disabled).toBe(true);
+  });
+});
+
+/**
+ * Attaching the booking PDF to an ordinary composed message (REL-478).
+ *
+ * The rule that matters: what the draft SAYS and what actually goes must agree.
+ * A message reading "please find attached" with nothing attached is worse than
+ * one that never mentions a document.
+ */
+describe("Send modal — attaching the PDF to a composed message", () => {
+  beforeEach(() => { h.draft.mockReset().mockResolvedValue(DRAFT); h.send.mockReset(); });
+
+  const attachBox = () => screen.getByRole("checkbox", { name: /attach the pdf/i });
+
+  it("offers the option on email, switched off", async () => {
+    show();
+    await waitFor(() => expect(attachBox()).toBeTruthy());
+    expect((attachBox() as HTMLInputElement).checked).toBe(false);
+  });
+
+  it("redrafts when switched on, so the wording can mention the attachment", async () => {
+    show();
+    await waitFor(() => expect(attachBox()).toBeTruthy());
+    h.draft.mockClear();
+    fireEvent.click(attachBox());
+    await waitFor(() => expect(h.draft).toHaveBeenCalled());
+    expect(h.draft.mock.calls[0][2]).toMatchObject({ attach: true });
+  });
+
+  it("sends the flag the rep actually chose", async () => {
+    h.send.mockResolvedValue({ id: 1 });
+    show();
+    await waitFor(() => expect(attachBox()).toBeTruthy());
+    fireEvent.click(attachBox());
+    await waitFor(() => expect((attachBox() as HTMLInputElement).checked).toBe(true));
+    fireEvent.click(screen.getByRole("button", { name: /send email/i }));
+    await waitFor(() => expect(h.send).toHaveBeenCalled());
+    expect(h.send.mock.calls[0][2]).toMatchObject({ attach: true });
+  });
+
+  it("sends nothing attached when left alone", async () => {
+    h.send.mockResolvedValue({ id: 1 });
+    show();
+    await waitFor(() => expect(attachBox()).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: /send email/i }));
+    await waitFor(() => expect(h.send).toHaveBeenCalled());
+    expect(h.send.mock.calls[0][2]).toMatchObject({ attach: false });
+  });
+
+  it("never discards wording the rep typed", async () => {
+    // Redrafting to mention an attachment is not worth losing a sentence
+    // someone wrote themselves.
+    show();
+    await waitFor(() => expect(attachBox()).toBeTruthy());
+    fireEvent.change(screen.getByLabelText("Message"), {
+      target: { value: "My own carefully written note" },
+    });
+    h.draft.mockClear();
+    fireEvent.click(attachBox());
+    await waitFor(() => expect((attachBox() as HTMLInputElement).checked).toBe(true));
+    expect(h.draft).not.toHaveBeenCalled();
+    expect((screen.getByLabelText("Message") as HTMLTextAreaElement).value)
+      .toBe("My own carefully written note");
+  });
+
+  it("is not offered on WhatsApp, which carries a link", async () => {
+    h.draft.mockResolvedValue({ ...DRAFT, channel: "whatsapp", attachment_available: false });
+    show({ availability: availability({ default_channel: "whatsapp" }) });
+    await waitFor(() => expect(h.draft).toHaveBeenCalled());
+    expect(screen.queryByRole("checkbox", { name: /attach the pdf/i })).toBeNull();
+  });
+
+  it("is not offered where there is no document — a lead", async () => {
+    h.draft.mockResolvedValue({ ...DRAFT, attachment_available: false });
+    show({ parent: "lead" });
+    await waitFor(() => expect(h.draft).toHaveBeenCalled());
+    expect(screen.queryByRole("checkbox", { name: /attach the pdf/i })).toBeNull();
+  });
+
+  it("names the file once one is actually going", async () => {
+    h.draft.mockResolvedValue({ ...DRAFT, attachment_filename: "Quote-92.pdf" });
+    show();
+    expect(await screen.findByText("Quote-92.pdf")).toBeTruthy();
+  });
+});
+
+/**
+ * Every combination of the two channels being configured or not. Each renders
+ * something different, so each is asserted rather than assumed.
+ */
+describe("Send modal — the channel matrix", () => {
+  beforeEach(() => { h.draft.mockReset().mockResolvedValue(DRAFT); h.send.mockReset(); });
+
+  const btn = (name: RegExp) => screen.getByRole("button", { name });
+
+  it("both configured: either channel can be picked", async () => {
+    show();
+    await waitFor(() => expect(h.draft).toHaveBeenCalled());
+    expect((btn(/^email$/i) as HTMLButtonElement).disabled).toBe(false);
+    expect((btn(/^whatsapp$/i) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("email only: WhatsApp is disabled, not hidden", async () => {
+    show({ availability: availability({
+      whatsapp: { available: false, reason: "no_phone", address: "", mechanism: "shortcut", number: "" },
+    }) });
+    await waitFor(() => expect(h.draft).toHaveBeenCalled());
+    expect((btn(/^whatsapp$/i) as HTMLButtonElement).disabled).toBe(true);
+    expect((btn(/^email$/i) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("WhatsApp only: email is disabled and the reason is shown", async () => {
+    show({ availability: availability({
+      email: { available: false, reason: "no_mailbox", address: "", mailbox: "" },
+      default_channel: "whatsapp",
+    }) });
+    await waitFor(() => expect(h.draft).toHaveBeenCalled());
+    expect((btn(/^email$/i) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByRole("link", { name: /connect your email/i })).toBeTruthy();
+  });
+
+  it("neither: says so plainly and refuses to send", async () => {
+    show({ availability: availability({
+      email: { available: false, reason: "no_email_address", address: "", mailbox: "owner@acme.com" },
+      whatsapp: { available: false, reason: "no_phone", address: "", mechanism: "shortcut", number: "" },
+    }) });
+    expect(await screen.findByText(/no email address and no whatsapp number/i)).toBeTruthy();
+    await waitFor(() => {
+      const send = screen.getByRole("button", { name: /send|open in whatsapp/i }) as HTMLButtonElement;
+      expect(send.disabled).toBe(true);
+    });
   });
 });
