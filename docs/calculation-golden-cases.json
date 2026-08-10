@@ -233,7 +233,7 @@
     },
     {
       "name": "discount_larger_than_subtotal_never_makes_a_negative_service_charge",
-      "_why": "A discount bigger than the booking used to flip the service charge and gratuity negative too (a -95,000 subtotal produced a -19,000 'service charge'), compounding the error. Percentage charges are now taken on max(subtotal, 0). The save path rejects a negative subtotal outright; this pins the engine so the live preview and any already-stored row stay sane.",
+      "_why": "A discount bigger than the booking used to flip the service charge and gratuity negative too (a -95,000 subtotal produced a -19,000 'service charge'), compounding the error. Percentage charges AND the tax base are now taken on max(subtotal, 0). The save path rejects a negative subtotal outright; this pins the engine so the live preview and any already-stored row stay sane.",
       "food_total": "5000",
       "items": [
         {
@@ -247,10 +247,32 @@
       "expected": {
         "subtotal": "-95000.00",
         "service_charge": "0.00",
-        "tax_base": "-95000.00",
+        "tax_base": "0.00",
         "tax_amount": "0.00",
         "gratuity": "0.00",
         "total": "-95000.00"
+      }
+    },
+    {
+      "name": "discount_larger_than_subtotal_never_makes_negative_tax",
+      "_why": "The tax-side twin of the case above, which had tax_rate 0 and so never caught it: a lone -100 discount line with 5% tax rendered 'GST -5.00' and a total of -105 in the live preview — negative tax, as if the authority paid the caterer for discounting. The tax base is clamped to max(subtotal, 0) like the charge base; the save is still rejected, this keeps the preview honest.",
+      "food_total": "0",
+      "items": [
+        {
+          "line_total": "-100"
+        }
+      ],
+      "tax_rate": "0.05",
+      "service_charge_pct": "0",
+      "service_charge_taxable": true,
+      "gratuity_pct": "0",
+      "expected": {
+        "subtotal": "-100.00",
+        "service_charge": "0.00",
+        "tax_base": "0.00",
+        "tax_amount": "0.00",
+        "gratuity": "0.00",
+        "total": "-100.00"
       }
     },
     {

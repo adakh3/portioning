@@ -166,8 +166,9 @@ def compute_booking_totals(food_total, line_items, tax_rate,
     taxable).
 
     All-percentages-zero reduces **exactly** to the pre-service-charge math
-    (service_charge = gratuity = 0, tax_base = subtotal), which keeps every existing
-    booking's stored totals unchanged.
+    (service_charge = gratuity = 0, tax_base = max(subtotal, 0)), which keeps every
+    existing booking's stored totals unchanged — a saveable booking's subtotal is
+    never negative.
     """
     food_total = Decimal(food_total or 0)
     tax_rate = Decimal(tax_rate or 0)
@@ -189,7 +190,10 @@ def compute_booking_totals(food_total, line_items, tax_rate,
     # preview said 5.01 and the saved value was 5.00, so the total changed under the
     # user on save. segment_food_total already used _round2 for this exact reason.
     service_charge = _round2(charge_base * service_charge_pct / 100)
-    tax_base = subtotal + (service_charge if service_charge_taxable else Decimal('0.00'))
+    # The tax base is clamped the same way: tax on a negative subtotal is NEGATIVE
+    # tax (5% of -100 rendered as "-5.00" in the preview), and no authority pays a
+    # caterer for granting discounts. Tax on nothing is nothing.
+    tax_base = charge_base + (service_charge if service_charge_taxable else Decimal('0.00'))
     tax_amount = _round2(tax_base * tax_rate)
     gratuity = _round2(charge_base * gratuity_pct / 100)
     total = subtotal + service_charge + tax_amount + gratuity
