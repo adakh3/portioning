@@ -59,6 +59,10 @@ const existingQuote = {
 };
 
 vi.mock("@/lib/hooks", () => ({
+  // REL-445: the quote/event pages read their client-message ledger and
+  // channel availability from these; unmocked they blow up the whole page.
+  useClientMessages: () => ({ data: [], isLoading: false, mutate: vi.fn() }),
+  useMessagingStatus: () => ({ data: undefined }),
   useQuote: () => ({ data: h.id === "new" ? null : existingQuote, error: null, isLoading: false, mutate: vi.fn() }),
   useAccounts: () => ({ data: [] }),
   useContacts: () => ({ data: [{ id: 3, name: "Jane Doe", phone: "", account: null }] }),

@@ -1250,6 +1250,15 @@ function LeadWhatsApp({ leadId, contactPhone, contactName, eventType, eventDate 
     failed: "text-red-600",
     undelivered: "text-red-500",
     queued: "text-muted-foreground",
+    // Handed to the rep's own WhatsApp — logged, never confirmed. Amber, not
+    // green: it must not read as delivered.
+    handed_off: "text-amber-600",
+    to_send: "text-amber-600",
+  };
+  // The stored values are machine names; nobody should be shown "handed_off".
+  const statusLabel: Record<string, string> = {
+    handed_off: "handed off",
+    to_send: "to send",
   };
 
   return (
@@ -1305,7 +1314,7 @@ function LeadWhatsApp({ leadId, contactPhone, contactName, eventType, eventDate 
                 <div className="flex items-start justify-between gap-2">
                   <p className="text-sm text-foreground whitespace-pre-wrap flex-1">{m.body}</p>
                   <span className={`text-xs font-medium shrink-0 ${statusColor[m.status] || "text-muted-foreground"}`}>
-                    {m.status}
+                    {statusLabel[m.status] || m.status}
                   </span>
                 </div>
                 <div className="flex items-center gap-3 mt-1">

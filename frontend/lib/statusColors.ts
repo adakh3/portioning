@@ -30,3 +30,38 @@ export const STATUS_COLOR_TOKENS = Object.keys(STATUS_COLORS);
 export function statusColor(token?: string | null): StatusColorClasses {
   return STATUS_COLORS[token || ""] || STATUS_COLORS.slate;
 }
+
+// ── Client-message statuses (REL-445) ────────────────────────────────────────
+// One vocabulary for every surface that shows a message, so the quote ledger and
+// the lead thread can't end up disagreeing about what a status means.
+//
+// `handed_off` and `to_send` are amber on purpose: both mean the platform did
+// NOT send anything, and neither may ever read as delivered.
+export const MESSAGE_STATUS_COLORS: Record<string, string> = {
+  queued: "gray",
+  sent: "blue",
+  delivered: "blue",
+  read: "green",
+  received: "cyan",
+  handed_off: "amber",
+  to_send: "amber",
+  failed: "red",
+  undelivered: "red",
+};
+
+const MESSAGE_STATUS_LABELS: Record<string, string> = {
+  handed_off: "handed off",
+  to_send: "to send",
+};
+
+/** Statuses that must never be presented as a completed send. */
+export const UNCONFIRMED_MESSAGE_STATUSES = ["handed_off", "to_send"];
+
+/** Human wording for a stored status — nobody should be shown "handed_off". */
+export function messageStatusLabel(status: string): string {
+  return MESSAGE_STATUS_LABELS[status] || status;
+}
+
+export function messageStatusColor(status: string): StatusColorClasses {
+  return statusColor(MESSAGE_STATUS_COLORS[status]);
+}

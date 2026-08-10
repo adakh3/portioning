@@ -19,7 +19,7 @@ import TimelineStepExtras from "@/components/TimelineStepExtras";
 import ServiceStyleExtras from "@/components/ServiceStyleExtras";
 import ProductLinesSettings from "@/components/ProductLinesSettings";
 import CommissionSettings from "@/components/CommissionSettings";
-import ClientEmailSettings from "@/components/ClientEmailSettings";
+import ClientCommunicationsSettings from "@/components/ClientCommunicationsSettings";
 import BillingPanel from "@/components/BillingPanel";
 
 // default_tax_rate is stored as a fraction (0.20 = 20%); show it as a percentage.
@@ -55,12 +55,6 @@ export default function SettingsPage() {
   // unsaved changes reliably (independent of how `settings` is recomputed).
   const [savedSnapshot, setSavedSnapshot] = useState<string | null>(null);
 
-  // WhatsApp toggle state (separate save)
-  const [waEnabled, setWaEnabled] = useState(false);
-  const [waSaving, setWaSaving] = useState(false);
-  const [waError, setWaError] = useState("");
-  const [waSuccess, setWaSuccess] = useState("");
-
   useEffect(() => {
     if (settings) {
       const f = {
@@ -79,7 +73,6 @@ export default function SettingsPage() {
       };
       setFormData(f);
       setSavedSnapshot(JSON.stringify(f));
-      setWaEnabled(settings.whatsapp_enabled || false);
     }
   }, [settings]);
 
@@ -98,23 +91,6 @@ export default function SettingsPage() {
       setError(err instanceof Error ? err.message : "Failed to save settings");
     } finally {
       setSaving(false);
-    }
-  }
-
-  async function handleWhatsAppToggle(enabled: boolean) {
-    setWaSaving(true);
-    setWaError("");
-    setWaSuccess("");
-    try {
-      await api.updateSiteSettings({ whatsapp_enabled: enabled });
-      setWaEnabled(enabled);
-      mutateSettings();
-      setWaSuccess(enabled ? "WhatsApp enabled." : "WhatsApp disabled.");
-      setTimeout(() => setWaSuccess(""), 3000);
-    } catch (err) {
-      setWaError(err instanceof Error ? err.message : "Failed to save");
-    } finally {
-      setWaSaving(false);
     }
   }
 
@@ -441,8 +417,9 @@ export default function SettingsPage() {
 
       {tab === "integrations" && (
       <div className="space-y-6 max-w-2xl">
-        <ClientEmailSettings />
-        <WhatsAppSettings settings={settings} onSave={() => mutateSettings()} />
+        {/* One card, not three: default channel, email and WhatsApp are one
+            question — "how do my messages reach clients?" (REL-445). */}
+        <ClientCommunicationsSettings settings={settings} onSave={() => mutateSettings()} />
         <AIFollowUpSettings settings={settings} onSave={() => mutateSettings()} />
       </div>
       )}
@@ -453,117 +430,6 @@ export default function SettingsPage() {
       </div>
       )}
     </div>
-  );
-}
-
-
-function WhatsAppSettings({ settings, onSave }: { settings: SiteSettingsData | undefined; onSave: () => void }) {
-  const [enabled, setEnabled] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
-
-  const [shortcutsEnabled, setShortcutsEnabled] = useState(true);
-  const [shortcutsSaving, setShortcutsSaving] = useState(false);
-
-  useEffect(() => {
-    if (settings) {
-      setEnabled(settings.whatsapp_enabled || false);
-      setShortcutsEnabled(settings.whatsapp_shortcuts_enabled !== false);
-    }
-  }, [settings]);
-
-  async function handleShortcutsToggle(val: boolean) {
-    setShortcutsSaving(true);
-    setError("");
-    try {
-      await api.updateSiteSettings({ whatsapp_shortcuts_enabled: val });
-      setShortcutsEnabled(val);
-      onSave();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save");
-    } finally {
-      setShortcutsSaving(false);
-    }
-  }
-
-  async function handleToggle(val: boolean) {
-    setSaving(true);
-    setError("");
-    setSuccess("");
-    try {
-      await api.updateSiteSettings({ whatsapp_enabled: val });
-      setEnabled(val);
-      onSave();
-      setSuccess(val ? "WhatsApp enabled." : "WhatsApp disabled.");
-      setTimeout(() => setSuccess(""), 3000);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle>WhatsApp</CardTitle>
-          {settings?.twilio_configured ? (
-            <Badge variant="success">Connected</Badge>
-          ) : (
-            <Badge variant="secondary">Not connected</Badge>
-          )}
-        </div>
-      </CardHeader>
-      <CardContent>
-        {error && <p className="text-destructive mb-3 text-sm">{error}</p>}
-        {success && <p className="text-success mb-3 text-sm">{success}</p>}
-        {settings?.twilio_configured ? (
-          <div className="space-y-4">
-            <div className="text-sm text-muted-foreground">
-              WhatsApp number: <span className="font-medium text-foreground">{settings.twilio_whatsapp_number}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-foreground">WhatsApp Messaging</p>
-                <p className="text-xs text-muted-foreground">Send and receive messages from leads via WhatsApp.</p>
-              </div>
-              <Button
-                variant={enabled ? "default" : "outline"}
-                size="sm"
-                onClick={() => handleToggle(!enabled)}
-                disabled={saving}
-              >
-                {saving ? "Saving..." : enabled ? "Enabled" : "Disabled"}
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <p className="text-sm text-muted-foreground">
-            WhatsApp has not been set up for your organisation yet. Please contact support to connect your WhatsApp Business number.
-          </p>
-        )}
-        <div className="flex items-center justify-between mt-4 pt-4 border-t border-border">
-          <div>
-            <p className="text-sm font-medium text-foreground">WhatsApp shortcuts</p>
-            <p className="text-xs text-muted-foreground">
-              When in-app sending isn&apos;t active, show buttons that open WhatsApp on the
-              salesperson&apos;s own device with the message prefilled. Turn off to disallow
-              personal-number outreach.
-            </p>
-          </div>
-          <Button
-            variant={shortcutsEnabled ? "default" : "outline"}
-            size="sm"
-            onClick={() => handleShortcutsToggle(!shortcutsEnabled)}
-            disabled={shortcutsSaving}
-          >
-            {shortcutsSaving ? "Saving..." : shortcutsEnabled ? "Enabled" : "Disabled"}
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
   );
 }
 

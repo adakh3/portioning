@@ -10,6 +10,8 @@ import {
   CourseData,
   MenuChoices,
   Contact,
+  ClientChannel,
+  ClientMessageKind,
 } from "@/lib/api";
 import {
   useEvent,
@@ -25,7 +27,12 @@ import {
   useTimelinePresets,
   useUsers,
   useProductLines,
+  useClientMessages,
+  useMessagingStatus,
+  useFormatDateTime,
 } from "@/lib/hooks";
+import SendToClientModal from "@/components/SendToClientModal";
+import ClientMessages from "@/components/ClientMessages";
 import DealWonDialog from "@/components/DealWonDialog";
 import EventPaymentsCard from "@/components/EventPaymentsCard";
 import { useAuth } from "@/lib/auth";
@@ -84,6 +91,21 @@ export default function EventDetailPage() {
 
   // SWR hooks
   const { data: event, error: loadError, isLoading: eventLoading, mutate: mutateEvent } = useEvent(isNew || isNaN(eventId) ? null : eventId);
+  const messagingId = isNew || isNaN(eventId) ? null : eventId;
+  // The page's own formatDateTime moved into BookingTimelineView on main; the
+  // ledger uses the shared hook rather than reviving a local copy.
+  const formatDateTime = useFormatDateTime();
+  const { data: clientMessages = [], isLoading: messagesLoading, mutate: mutateMessages } = useClientMessages("event", messagingId);
+  const { data: messagingStatus } = useMessagingStatus("event", messagingId);
+  // Same single send surface as the quote page (REL-445).
+  const [sendKind, setSendKind] = useState<ClientMessageKind | null>(null);
+  const [sendPrefill, setSendPrefill] = useState<{ channel: ClientChannel; subject: string; body: string } | null>(null);
+  const [messageToast, setMessageToast] = useState("");
+  useEffect(() => {
+    if (!messageToast) return;
+    const t = setTimeout(() => setMessageToast(""), 4000);
+    return () => clearTimeout(t);
+  }, [messageToast]);
   const { data: accounts = [] } = useAccounts();
   const { data: orgContacts = [] } = useContacts();
   const { data: laborRoles = [] } = useLaborRoles();
@@ -795,10 +817,53 @@ export default function EventDetailPage() {
           </div>
           {/* Client e-signature — for a booking created directly as an event */}
           {event && (event.signature || event.status === "tentative") && (
-            <ESignPanel kind="event" id={event.id} publicToken={event.public_token} signature={event.signature} contactPhone={event.contact_phone} contactName={event.contact_name} subject={event.event_type} />
+            <ESignPanel kind="event" id={event.id} publicToken={event.public_token} signature={event.signature} />
+          )}
+          {event && event.status !== "cancelled" && (
+            <div className="mt-4">
+              <Button
+                variant="outline"
+                onClick={() => { setSendPrefill(null); setSendKind(event.signature ? "signed_copy" : "sign_link"); }}
+              >
+                Send to Client
+              </Button>
+            </div>
           )}
         </CardContent>
       </Card>
+
+      {!isNew && messagingId && (
+        <ClientMessages
+          messages={clientMessages}
+          isLoading={messagesLoading}
+          formatDateTime={formatDateTime}
+          onCompose={() => { setSendPrefill(null); setSendKind("compose"); }}
+          onReopen={(row) => { setSendPrefill(row); setSendKind("compose"); }}
+        />
+      )}
+
+      {sendKind && messagingId && event && (
+        <SendToClientModal
+          open
+          parent="event"
+          parentId={messagingId}
+          kind={sendKind}
+          subtitle={`E-${event.id} — ${event.contact_name || event.name}`}
+          availability={messagingStatus}
+          prefill={sendPrefill}
+          onClose={() => { setSendKind(null); setSendPrefill(null); }}
+          onSent={(_msg, note) => { setMessageToast(note); mutateMessages(); }}
+        />
+      )}
+
+      {messageToast && (
+        <div
+          role="status"
+          className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-lg bg-foreground px-4 py-2 text-sm text-background shadow-lg"
+        >
+          {messageToast}
+        </div>
+      )}
 
       {/* Delete confirmation */}
       {!isNew && showDeleteConfirm && (

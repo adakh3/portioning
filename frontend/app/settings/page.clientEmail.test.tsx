@@ -70,10 +70,11 @@ const CONNECTED: MailboxStatus = {
   },
 };
 
-// The WhatsApp card sits on the same tab and says "Not connected" too, so every
-// assertion is scoped to this card rather than the whole page.
+// REL-445 folded this into the "Client communications" card as its Email row,
+// so assertions scope to that row — the sibling rows carry their own badges and
+// would otherwise collide on words like "Connected".
 function card() {
-  return within(screen.getByText("Client email").closest("div.rounded-lg") as HTMLElement);
+  return within(screen.getByTestId("settings-email-row"));
 }
 
 function stubNavigation() {
@@ -98,7 +99,7 @@ describe("Settings → Integrations → Client email", () => {
   it("offers both providers when nothing is connected", () => {
     render(<SettingsPage />);
 
-    expect(card().getByText("Client email")).toBeTruthy();
+    expect(card().getByRole("heading", { name: "Email" })).toBeTruthy();
     expect(card().getByText("Not connected")).toBeTruthy();
     expect(card().getByRole("button", { name: "Connect Google" })).toBeTruthy();
     expect(card().getByRole("button", { name: "Connect Microsoft" })).toBeTruthy();

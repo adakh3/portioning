@@ -46,6 +46,8 @@ class OrgSettingsSerializer(serializers.ModelSerializer):
             'fiscal_year_start_month', 'fiscal_year_start_month_choices',
             # WhatsApp (read-only config, org can only toggle enabled)
             'whatsapp_enabled', 'whatsapp_shortcuts_enabled', 'twilio_configured', 'twilio_whatsapp_number',
+            # Which channel the send modal preselects (editable in Settings).
+            'default_client_channel',
             # AI follow-ups
             'ai_followups_enabled', 'followup_gap_first_days', 'followup_gap_second_days',
             'followup_gap_final_days', 'followup_max_drafts_per_lead',

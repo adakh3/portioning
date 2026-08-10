@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 
 vi.mock("@/lib/auth", () => ({ useAuth: () => ({ user: { id: 1, role: "owner" } }) }));
 vi.mock("@/lib/useQueryState", () => ({
@@ -87,10 +87,41 @@ describe("Settings → Integrations → WhatsApp shortcuts toggle", () => {
     );
   });
 
+  // REL-445 — the default-channel picker moved into this card, and the whole
+  // point of the card is that all three dials live in one place.
+  it("saves the default channel the modal will preselect", async () => {
+    mockSettings = { ...BASE, default_client_channel: "whatsapp" };
+    render(<SettingsPage />);
+
+    const picker = screen.getByLabelText("Default channel") as HTMLSelectElement;
+    expect(picker.value).toBe("whatsapp");
+    fireEvent.change(picker, { target: { value: "email" } });
+
+    await waitFor(() =>
+      expect(updateSiteSettings).toHaveBeenCalledWith({ default_client_channel: "email" }),
+    );
+  });
+
+  it("keeps all three dials in one card, not three rival cards", () => {
+    mockSettings = { ...BASE, twilio_configured: false };
+    render(<SettingsPage />);
+    expect(screen.getByText("Client communications")).toBeTruthy();
+    expect(screen.getByTestId("settings-default-channel-row")).toBeTruthy();
+    expect(screen.getByTestId("settings-email-row")).toBeTruthy();
+    expect(screen.getByTestId("settings-whatsapp-row")).toBeTruthy();
+    // The old standalone cards are gone, not merely hidden.
+    expect(screen.queryByText("Client email")).toBeNull();
+    expect(screen.queryByRole("heading", { name: /^WhatsApp$/ })).not.toBeNull();
+  });
+
   it("shows the shortcuts toggle even without Twilio connected", () => {
     mockSettings = { ...BASE, twilio_configured: false, whatsapp_shortcuts_enabled: true };
     render(<SettingsPage />);
     expect(screen.getByText("WhatsApp shortcuts")).toBeTruthy();
-    expect(screen.getByText(/has not been set up/)).toBeTruthy();
+    // REL-445 replaced "contact support" with the derived-capability wording:
+    // no Twilio isn't a broken setup, it's the shortcut mechanism.
+    const whatsappRow = within(screen.getByTestId("settings-whatsapp-row"));
+    expect(whatsappRow.getByText("Shortcuts")).toBeTruthy();
+    expect(whatsappRow.getByText(/Add a WhatsApp business number/)).toBeTruthy();
   });
 });

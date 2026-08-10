@@ -729,6 +729,8 @@ export interface SiteSettingsData {
   whatsapp_enabled?: boolean;
   whatsapp_shortcuts_enabled?: boolean;
   twilio_configured?: boolean;
+  /** Which channel the send modal preselects (REL-445). */
+  default_client_channel?: string;
   twilio_whatsapp_number?: string;
   // AI follow-ups
   ai_followups_enabled?: boolean;
@@ -993,20 +995,86 @@ export interface ReminderCounts {
 // WhatsApp
 export interface WhatsAppMessage {
   id: number;
-  lead: number;
+  lead: number | null;
+  quote: number | null;
+  event: number | null;
   reminder: number | null;
+  channel: ClientChannel;
   to_phone: string;
   from_phone: string;
+  to_email: string;
+  /** The address or number actually used, whichever the channel was. */
+  recipient: string;
+  subject: string;
   body: string;
+  attachment_filename: string;
   direction: string;
   status: string;
   twilio_sid: string;
+  provider_message_id: string;
   error_code: string;
   error_message: string;
   sent_by: number | null;
   sent_by_name: string | null;
+  /** True when the platform sent it without anyone clicking send. */
+  is_automatic: boolean;
   created_at: string;
   updated_at: string;
+}
+
+// Client messaging (REL-445)
+export type ClientChannel = "email" | "whatsapp";
+export type ClientMessageKind = "sign_link" | "signed_copy" | "compose";
+
+/** Why a channel can't be used. The three email causes are deliberately
+ * distinct: two are org problems with different fixes, one is a record problem. */
+export type ChannelBlockedReason =
+  | "no_mailbox"
+  | "mailbox_needs_reconnect"
+  | "no_email_address"
+  | "no_phone"
+  | "whatsapp_disabled";
+
+export interface ChannelAvailability {
+  email: {
+    available: boolean;
+    reason: ChannelBlockedReason | null;
+    address: string;
+    /** The connected mailbox we'd send from. */
+    mailbox: string;
+  };
+  whatsapp: {
+    available: boolean;
+    reason: ChannelBlockedReason | null;
+    address: string;
+    /** 'platform' can send unattended; 'shortcut' always needs a human tap. */
+    mechanism: "platform" | "shortcut";
+    number: string;
+  };
+  default_channel: ClientChannel;
+}
+
+export type ClientMessageParent = "quote" | "event" | "lead";
+
+/** Quotes and leads hang off /bookings/, events off /events/ — the only thing
+ * that differs between the three messaging surfaces. */
+export function clientMessageBase(parent: ClientMessageParent, id: number): string {
+  if (parent === "event") return `/events/${id}`;
+  if (parent === "lead") return `/bookings/leads/${id}`;
+  return `/bookings/quotes/${id}`;
+}
+
+export interface ClientMessageDraft {
+  subject: string;
+  body: string;
+  used_fallback: boolean;
+  model_used: string;
+  kind: ClientMessageKind;
+  channel: ClientChannel;
+  link: string;
+  attachment_filename: string;
+  llm_available: boolean;
+  availability: ChannelAvailability;
 }
 
 // Client email — the caterer's own connected mailbox
@@ -1888,6 +1956,29 @@ export const api = {
     fetchApi<WhatsAppMessage>(`/bookings/leads/${leadId}/whatsapp/send/`, { method: "POST", body: JSON.stringify(data) }),
   markWhatsAppRead: (leadId: number) =>
     fetchApi<{ marked_read: number }>(`/bookings/leads/${leadId}/whatsapp/mark-read/`, { method: "POST" }),
+
+  // Client messaging (REL-445). One shape for quotes, events and leads — the
+  // parent only changes the path, never the payload.
+  draftClientMessage: (
+    parent: ClientMessageParent, id: number,
+    data: { kind: ClientMessageKind; channel?: ClientChannel },
+  ) =>
+    fetchApi<ClientMessageDraft>(`${clientMessageBase(parent, id)}/draft-message/`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  sendClientMessage: (
+    parent: ClientMessageParent, id: number,
+    data: { kind: ClientMessageKind; channel: ClientChannel; subject?: string; body: string },
+  ) =>
+    fetchApi<WhatsAppMessage>(`${clientMessageBase(parent, id)}/send-message/`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  getClientMessages: (parent: "quote" | "event", id: number) =>
+    fetchApi<WhatsAppMessage[]>(`${clientMessageBase(parent, id)}/messages/`),
+  getMessagingStatus: (parent: ClientMessageParent, id: number) =>
+    fetchApi<ChannelAvailability>(`${clientMessageBase(parent, id)}/messaging-status/`),
 
   // Client email — the caterer's own connected mailbox
   getConnectedMailbox: () =>

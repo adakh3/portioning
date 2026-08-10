@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { MessageCircle } from "lucide-react";
 import { api, BookingSignatureInfo } from "@/lib/api";
-import { canWhatsApp, waLink } from "@/lib/whatsapp";
 import { Button } from "@/components/ui/button";
 
 interface Props {
@@ -11,16 +10,11 @@ interface Props {
   id: number;
   publicToken: string | null;
   signature: BookingSignatureInfo | null;
-  /** Client contact — enables the "Send via WhatsApp" shortcut (same wa.me
-   * deep-link the quote uses); the sign link is dropped into the message. */
-  contactPhone?: string | null;
-  contactName?: string | null;
-  subject?: string | null;
 }
 
 /** Staff-side control: mint the client sign link and show its signed status.
  * For v1 the staff copies the link to send it (WhatsApp/email send comes later). */
-export default function ESignPanel({ kind, id, publicToken, signature, contactPhone, contactName, subject }: Props) {
+export default function ESignPanel({ kind, id, publicToken, signature }: Props) {
   const [token, setToken] = useState<string | null>(publicToken);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -52,17 +46,6 @@ export default function ESignPanel({ kind, id, publicToken, signature, contactPh
     } catch {
       /* clipboard blocked — the link is still visible to copy manually */
     }
-  }
-
-  function sendWhatsApp() {
-    if (!signUrl || !contactPhone) return;
-    const first = contactName?.split(" ")[0]?.trim();
-    const eventLabel = (subject || "").replace(/_/g, " ").trim(); // "baby_shower" → "baby shower"
-    const doc = kind === "quote" ? "quote" : "booking";
-    const greeting = first ? `Hi ${first},` : "Hi,";
-    const forEvent = eventLabel ? ` for your ${eventLabel}` : "";
-    const msg = `${greeting} here's your ${doc}${forEvent} — please review and sign it here: ${signUrl}`;
-    window.open(waLink(contactPhone, msg), "_blank");
   }
 
   if (signature) {
@@ -107,12 +90,9 @@ export default function ESignPanel({ kind, id, publicToken, signature, contactPh
           <Button variant="outline" onClick={copy}>
             {copied ? "Copied!" : "Copy link"}
           </Button>
-          {canWhatsApp(contactPhone) && (
-            <Button variant="outline" onClick={sendWhatsApp}>
-              <MessageCircle className="w-4 h-4 mr-1.5" aria-hidden />
-              Send via WhatsApp
-            </Button>
-          )}
+          {/* No send button here on purpose (REL-445 AC2b): sending is the
+              "Send to Client" modal's job, which drafts the message and records
+              it. This panel mints and shows the link, nothing more. */}
         </div>
       )}
 
