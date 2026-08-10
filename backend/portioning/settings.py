@@ -60,6 +60,14 @@ if not DEBUG and ALLOWED_HOSTS == ['localhost', '127.0.0.1']:
 # Twilio is the platform's single account; each org configures only its own
 # WhatsApp sender number (OrgSettings.twilio_whatsapp_number). LLM keys are
 # likewise platform-level — orgs only toggle AI features on/off.
+# How long any outbound client message (email via the mailbox, WhatsApp via
+# Twilio) may spend talking to its provider. Deliberately short: a send can run
+# inside a *client's* request — the signed-copy send happens while the customer
+# waits on the public sign page — and nothing in that response depends on it
+# finishing. A slow provider should cost them a few seconds, not a timeout
+# page for a booking they successfully signed (REL-474).
+OUTBOUND_SEND_TIMEOUT = int(os.environ.get('OUTBOUND_SEND_TIMEOUT', '8'))
+
 TWILIO_ACCOUNT_SID = os.environ.get('TWILIO_ACCOUNT_SID', '')
 TWILIO_AUTH_TOKEN = os.environ.get('TWILIO_AUTH_TOKEN', '')
 
