@@ -184,3 +184,15 @@ describe("Event edit — add-ons reach the payload in today's shape", () => {
     expect(payload.line_items).toEqual([]);
   });
 });
+
+describe("Event view — the saved line renders a real multiplication sign", () => {
+  // A × escape in JSX *text* renders as the six literal characters, not ×
+  // (escapes only resolve inside JS strings), so every view-mode line read
+  // "×1.00 @ $6.00". A screenshot-level bug no payload test can see.
+  it("shows ×quantity, not a literal \\u00d7", async () => {
+    render(<EventDetailPage />);
+    await screen.findByText("Coffee & Tea Service");
+    expect(document.body.textContent).toContain("×1");
+    expect(document.body.textContent).not.toContain("\\u00d7");
+  });
+});

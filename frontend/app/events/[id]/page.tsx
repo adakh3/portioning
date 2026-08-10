@@ -1135,7 +1135,7 @@ export default function EventDetailPage() {
                 <div key={li.id} className="flex items-baseline gap-2">
                   <span className="text-sm text-foreground font-medium">{li.description}</span>
                   <span className="text-sm text-muted-foreground">
-                    \u00d7{li.quantity}
+                    &times;{li.quantity}
                     {parseFloat(li.unit_price) > 0 && ` @ ${formatCurrency(li.unit_price, settings.currency_symbol)}`}
                   </span>
                   <span className="ml-auto text-sm text-foreground">{formatCurrency(li.line_total, settings.currency_symbol)}</span>
