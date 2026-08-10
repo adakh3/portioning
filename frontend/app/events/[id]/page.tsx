@@ -29,6 +29,7 @@ import {
   useProductLines,
   useClientMessages,
   useMessagingStatus,
+  useFormatDateTime,
 } from "@/lib/hooks";
 import SendToClientModal from "@/components/SendToClientModal";
 import ClientMessages from "@/components/ClientMessages";
@@ -91,6 +92,9 @@ export default function EventDetailPage() {
   // SWR hooks
   const { data: event, error: loadError, isLoading: eventLoading, mutate: mutateEvent } = useEvent(isNew || isNaN(eventId) ? null : eventId);
   const messagingId = isNew || isNaN(eventId) ? null : eventId;
+  // The page's own formatDateTime moved into BookingTimelineView on main; the
+  // ledger uses the shared hook rather than reviving a local copy.
+  const formatDateTime = useFormatDateTime();
   const { data: clientMessages = [], isLoading: messagesLoading, mutate: mutateMessages } = useClientMessages("event", messagingId);
   const { data: messagingStatus } = useMessagingStatus("event", messagingId);
   // Same single send surface as the quote page (REL-445).
