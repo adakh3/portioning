@@ -57,6 +57,23 @@ describe("ChoiceOptionsSettings", () => {
     await waitFor(() => expect(updateChoiceOption).toHaveBeenCalledWith(BASE, 2, { label: "Word of mouth" }));
   });
 
+  it("patches optimistically — the cache gets the new value before the API answers", async () => {
+    // The row's controls are bound to the SWR data, so without this write the
+    // clicked value visibly reverted for the whole PATCH round-trip — on
+    // production latency that read as "the checkbox doesn't work" (2026-08-10).
+    mutate.mockClear();
+    renderIt();
+    fireEvent.click(screen.getAllByText("Active")[0]);
+    expect(mutate).toHaveBeenCalledWith(
+      [{ ...data[0], is_active: false }, data[1]],
+      { revalidate: false },
+    );
+    expect(mutate.mock.invocationCallOrder[0]).toBeLessThan(
+      updateChoiceOption.mock.invocationCallOrder[0],
+    );
+    await waitFor(() => expect(updateChoiceOption).toHaveBeenCalledWith(BASE, 1, { is_active: false }));
+  });
+
   // `renderExtra` is how a list that carries more than a label gets its controls —
   // the timeline steps' standard-day placement, and now the service styles'
   // "Guests choose" (REL-452). Both depend on it patching the RIGHT row.
