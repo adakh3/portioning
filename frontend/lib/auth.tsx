@@ -15,6 +15,18 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
+/** Only ever return to a path on this site.
+ *
+ * `returnTo` is read straight off the query string, so without this a crafted
+ * `/login?returnTo=https://elsewhere.example` would send someone off-site the
+ * moment they signed in — with their guard down, having just typed a password.
+ * A leading `//` is the same trick in protocol-relative clothing.
+ */
+export function safeReturnTo(value: string | null): string {
+  if (!value || !value.startsWith("/") || value.startsWith("//")) return "/";
+  return value;
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
@@ -44,17 +56,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // must never bounce a logged-out customer to the staff login.
     const isPublicPage = isLoginPage || pathname.startsWith("/b/");
     if (!user && !isPublicPage) {
-      router.replace(`/login?returnTo=${encodeURIComponent(pathname)}`);
+      // Keep the query string. `usePathname()` drops it, which is how a bounce
+      // from /settings?tab=integrations&email=connected came back as a bare
+      // /settings — losing both the tab and the "mailbox connected" result the
+      // user was being sent there to see (REL-477).
+      const query = searchParams.toString();
+      const target = query ? `${pathname}?${query}` : pathname;
+      router.replace(`/login?returnTo=${encodeURIComponent(target)}`);
     } else if (user && isLoginPage) {
-      const returnTo = searchParams.get("returnTo") || "/";
-      router.replace(returnTo);
+      router.replace(safeReturnTo(searchParams.get("returnTo")));
     }
   }, [user, loading, pathname, searchParams, router]);
 
   const login = useCallback(async (email: string, password: string, returnTo?: string) => {
     const u = await api.login(email, password);
     setUser(u);
-    router.push(returnTo || "/");
+    // Same untrusted source as the guard above — the login page reads it off
+    // the query string and hands it here verbatim.
+    router.push(safeReturnTo(returnTo ?? null));
   }, [router]);
 
   const logout = useCallback(async () => {

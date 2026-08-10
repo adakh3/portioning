@@ -18,6 +18,7 @@ from pathlib import Path
 import dj_database_url
 from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
+from urllib.parse import urlparse
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -56,6 +57,39 @@ if not DEBUG and ALLOWED_HOSTS == ['localhost', '127.0.0.1']:
         "ALLOWED_HOSTS must be explicitly set in production (DEBUG=False)."
     )
 
+# Hostnames that mean "this machine" — fine as a dev default, never a public URL.
+_LOCAL_HOSTNAMES = frozenset({'localhost', '127.0.0.1', '::1', '0.0.0.0'})
+
+
+def _require_public_url(name, value, *, debug):
+    """Refuse to boot on a public URL that still points at localhost (REL-476).
+
+    These settings are not merely redirect targets: FRONTEND_BASE_URL builds the
+    booking link that gets *emailed to a client*. Left at its dev default in
+    production the app stays healthy, the send reports success, and the client
+    receives a link only the sender's own machine can open. Nothing downstream
+    can detect that, so the check has to happen before anything serves.
+
+    `debug` is a parameter rather than a read of the module global so the rule
+    itself is testable without reimporting settings.
+    """
+    if debug:
+        return value
+    parsed = urlparse((value or '').strip())
+    if parsed.scheme not in ('http', 'https') or not parsed.hostname:
+        raise ImproperlyConfigured(
+            f"{name} must be an absolute URL including the scheme "
+            f"(e.g. https://example.com) when DEBUG=False. Got: {value!r}"
+        )
+    if parsed.hostname.lower() in _LOCAL_HOSTNAMES:
+        raise ImproperlyConfigured(
+            f"{name} still points at {parsed.hostname} with DEBUG=False. It is used to "
+            f"build URLs that leave this server — including the booking links sent to "
+            f"clients — so a localhost value produces links nobody else can open. "
+            f"Set it to this deployment's public URL."
+        )
+    return value
+
 # ── Platform integrations (shared across all orgs) ──
 # Twilio is the platform's single account; each org configures only its own
 # WhatsApp sender number (OrgSettings.twilio_whatsapp_number). LLM keys are
@@ -89,7 +123,11 @@ MS_OAUTH_CLIENT_SECRET = os.environ.get('MS_OAUTH_CLIENT_SECRET', '')
 # Public origin the provider redirects back to — must exactly match the
 # redirect URI registered in Google Cloud Console / Entra. Prod:
 # https://catering.relogue.com
-OAUTH_REDIRECT_BASE = os.environ.get('OAUTH_REDIRECT_BASE', 'http://localhost:8000')
+OAUTH_REDIRECT_BASE = _require_public_url(
+    'OAUTH_REDIRECT_BASE',
+    os.environ.get('OAUTH_REDIRECT_BASE', 'http://localhost:8000'),
+    debug=DEBUG,
+)
 # Key for encrypting mailbox refresh tokens at rest. Optional: falls back to
 # SECRET_KEY-derived. Set it in prod so rotating SECRET_KEY doesn't make every
 # caterer reconnect — and so the JWT signing key isn't also the key to their
@@ -164,7 +202,11 @@ STRIPE_PUBLISHABLE_KEY = os.environ.get('STRIPE_PUBLISHABLE_KEY', '')
 STRIPE_WEBHOOK_SECRET = os.environ.get('STRIPE_WEBHOOK_SECRET', '')
 STRIPE_PRICE_ID = os.environ.get('STRIPE_PRICE_ID', '')  # default plan's Price id
 # Where Checkout / Billing Portal redirect back to (the Next.js app).
-FRONTEND_BASE_URL = os.environ.get('FRONTEND_BASE_URL', 'http://localhost:3000')
+FRONTEND_BASE_URL = _require_public_url(
+    'FRONTEND_BASE_URL',
+    os.environ.get('FRONTEND_BASE_URL', 'http://localhost:3000'),
+    debug=DEBUG,
+)
 # Length of the no-card free trial granted to every new org on sign-up.
 DEFAULT_TRIAL_DAYS = int(os.environ.get('DEFAULT_TRIAL_DAYS', '7'))
 
