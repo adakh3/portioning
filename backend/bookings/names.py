@@ -8,6 +8,15 @@ it is the first name; a single word is a first name with no surname.
 """
 
 
+# How we may address someone, when they've told us. Shared by Lead and Contact
+# so a lead converting into a customer keeps the same vocabulary — and so the
+# frontend has one list to mirror (frontend/lib/titles.ts).
+TITLE_CHOICES = [
+    ('Mr', 'Mr'), ('Mrs', 'Mrs'), ('Ms', 'Ms'), ('Miss', 'Miss'),
+    ('Dr', 'Dr'), ('Prof', 'Prof'),
+]
+
+
 def split_full_name(full):
     """Last word is the surname, everything before it the first name.
 

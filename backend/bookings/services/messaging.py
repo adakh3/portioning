@@ -300,6 +300,37 @@ def _booking_pdf(booking, kind, signature=None):
             content, 'application/pdf')
 
 
+def compose_attachment_available(parent, channel):
+    """Can an ordinary composed message carry a document at all?
+
+    Only over email, and only for a booking: WhatsApp goes out as a link, and a
+    lead has no document to send.
+    """
+    from bookings.models import Lead
+    return channel == CHANNEL_EMAIL and not isinstance(parent, Lead)
+
+
+def compose_attachment(booking):
+    """The booking's own PDF for a composed message, or None if it won't render.
+
+    Deliberately swallows a render failure. The rep is emailing their client;
+    losing the attachment is a smaller harm than losing the message, and the
+    ledger row records what actually went — no attachment filename — rather than
+    claiming one that never left.
+    """
+    from bookings.models import Lead
+    if isinstance(booking, Lead):
+        return None
+    try:
+        return _booking_pdf(booking, KIND_COMPOSE)
+    except Exception:
+        logger.exception(
+            'Could not render the PDF for a composed message on %s %s',
+            type(booking).__name__, booking.pk,
+        )
+        return None
+
+
 # ── the sends ────────────────────────────────────────────────────────────────
 
 def send_client_email(parent, *, subject, body, sent_by=None, attachment=None,
