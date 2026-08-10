@@ -82,9 +82,12 @@ languages. This doc is how we stop that.
 - **service_charge** = charge_base × `service_charge_pct` / 100, rounded to 2 dp
   (a percentage, e.g. 20). US orgs default to 20%; others to 0.
 - **tax** = **tax_base** × tax_rate, rounded to 2 dp, where
-  **tax_base** = subtotal + (service_charge if `service_charge_taxable` else 0).
-  Tax applies to the whole subtotal (no per-line split); quotes use the quote's
-  `tax_rate`, events use it when `is_taxable`, else 0.
+  **tax_base** = charge_base + (service_charge if `service_charge_taxable` else 0).
+  The clamp matters for the same transient-preview state as above: tax on a
+  negative subtotal is *negative tax* (a lone −100 discount line at 5% rendered
+  "GST −5.00"), as if the authority paid the caterer for discounting. Tax applies
+  to the whole subtotal (no per-line split); quotes use the quote's `tax_rate`,
+  events use it when `is_taxable`, else 0.
 - **gratuity** = charge_base × `gratuity_pct` / 100, rounded to 2 dp — **always
   post-tax and never taxed**.
 - **total** = subtotal + service_charge + tax + gratuity.

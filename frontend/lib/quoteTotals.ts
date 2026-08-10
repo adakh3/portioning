@@ -74,7 +74,9 @@ export function computeBookingTotals(
   // keeps the live preview honest while the user is still typing.
   const chargeBase = Math.max(subtotal, 0);
   const service_charge = round2((chargeBase * (serviceChargePct || 0)) / 100);
-  const tax_base = round2(subtotal + (serviceChargeTaxable ? service_charge : 0));
+  // The tax base is clamped the same way: tax on a negative subtotal is NEGATIVE
+  // tax ("GST −5.00"), and no authority pays a caterer for granting discounts.
+  const tax_base = round2(chargeBase + (serviceChargeTaxable ? service_charge : 0));
   const tax_amount = round2(tax_base * (taxRate || 0));
   const gratuity = round2((chargeBase * (gratuityPct || 0)) / 100);
   return {
