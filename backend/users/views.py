@@ -120,6 +120,18 @@ class RefreshView(APIView):
             )
         try:
             old_refresh = RefreshToken(raw_refresh)
+            # Whose token is it, and is that account still allowed in? Checked
+            # on every refresh, not just the rotating branch: simplejwt blocks a
+            # de-activated user's *access* token at use, but nothing stopped the
+            # refresh chain from minting new ones for the rest of its 7-day life
+            # — and the whole chain sprang back if the account was ever
+            # re-activated. A deleted user used to raise DoesNotExist straight
+            # past the handler below as an unauthenticated 500 (REL-486).
+            user_id = old_refresh.payload.get("user_id")
+            if user_id is None:
+                raise InvalidToken("Refresh token carries no user.")
+            user = User.objects.get(pk=user_id, is_active=True)
+
             # Get new access token from the old refresh token
             access_token = str(old_refresh.access_token)
 
@@ -138,7 +150,6 @@ class RefreshView(APIView):
             # With ROTATE_REFRESH_TOKENS, blacklist the old token and issue a new one
             if settings.SIMPLE_JWT.get("ROTATE_REFRESH_TOKENS", False):
                 old_refresh.blacklist()
-                user = User.objects.get(pk=old_refresh.payload.get("user_id"))
                 new_refresh = RefreshToken.for_user(user)
                 response.set_cookie(
                     "refresh_token",
@@ -148,7 +159,7 @@ class RefreshView(APIView):
                 )
 
             return response
-        except (InvalidToken, TokenError):
+        except (InvalidToken, TokenError, User.DoesNotExist):
             return Response(
                 {"detail": "Invalid refresh token."},
                 status=status.HTTP_401_UNAUTHORIZED,
