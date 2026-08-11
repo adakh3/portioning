@@ -1,5 +1,7 @@
 from rest_framework import serializers
 
+from .models import DemoRequest
+
 
 class UserSerializer(serializers.Serializer):
     id = serializers.IntegerField(read_only=True)
@@ -90,3 +92,9 @@ class UserManageSerializer(serializers.ModelSerializer):
 class LoginSerializer(serializers.Serializer):
     email = serializers.EmailField()
     password = serializers.CharField()
+
+
+class DemoRequestSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DemoRequest
+        fields = ["name", "email", "events_per_month"]

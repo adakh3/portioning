@@ -53,8 +53,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (loading) return;
     const isLoginPage = pathname === "/login";
     // Public, unauthenticated client-facing pages (e.g. the /b/<token> sign link)
-    // must never bounce a logged-out customer to the staff login.
-    const isPublicPage = isLoginPage || pathname.startsWith("/b/");
+    // must never bounce a logged-out customer to the staff login. The root is
+    // public too: logged-out visitors get the marketing landing there (REL-482).
+    const isPublicPage = isLoginPage || pathname.startsWith("/b/") || pathname === "/";
     if (!user && !isPublicPage) {
       // Keep the query string. `usePathname()` drops it, which is how a bounce
       // from /settings?tab=integrations&email=connected came back as a bare

@@ -27,6 +27,9 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
   // Show nothing while checking auth (prevents flash)
   if (loading) return null;
 
+  // Logged-out visitors at the root get the public marketing landing, bare.
+  if (!user && pathname === "/") return <>{children}</>;
+
   // Login page — no shell
   if (isLoginPage) return <>{children}</>;
 

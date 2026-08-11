@@ -1,6 +1,8 @@
 from django.contrib import admin
 from django.urls import path, include
 
+from users.views import DemoRequestCreateView
+
 from .views import health
 
 urlpatterns = [
@@ -15,4 +17,5 @@ urlpatterns = [
     path('api/', include('equipment.urls')),
     path('api/', include('payments.urls')),
     path('api/auth/', include('users.urls')),
+    path('api/demo-requests/', DemoRequestCreateView.as_view(), name='demo-request-create'),
 ]

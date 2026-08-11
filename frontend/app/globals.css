@@ -83,3 +83,8 @@
     @apply bg-background text-foreground font-sans antialiased;
   }
 }
+
+/* Display face for the public landing + sign-in pages (Instrument Serif via next/font). */
+.font-display {
+  font-family: var(--font-instrument-serif), Georgia, serif;
+}
