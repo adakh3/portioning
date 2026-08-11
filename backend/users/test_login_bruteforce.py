@@ -245,6 +245,23 @@ class LoginRateThrottleTests(AuthEndpointTestCase):
             LOGIN, {"email": self.user.email, "password": WRONG}, format="json", **extra,
         )
 
+    def test_the_throttle_message_is_written_for_a_person(self):
+        """DRF's default is developer-facing, and this lands on the sign-in page.
+
+        The reader is a caterer who mistyped their password, not someone
+        debugging an API.
+        """
+        for _ in range(4):
+            resp = self._post()
+        self.assertEqual(resp.status_code, 429)
+        detail = resp.data["detail"]
+        self.assertIn("Too many sign-in attempts from this device", detail)
+        self.assertRegex(detail, r"Try again in \d+ seconds?\.")
+        self.assertNotIn("Request was throttled", detail)
+        self.assertNotIn("Expected available", detail)
+        # wait must survive, or DRF cannot set Retry-After.
+        self.assertIn("Retry-After", resp.headers)
+
     def test_too_many_attempts_from_one_address_are_throttled(self):
         statuses = [self._post().status_code for _ in range(5)]
         self.assertEqual(statuses[:3], [401, 401, 401])

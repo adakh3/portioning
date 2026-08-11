@@ -13,8 +13,29 @@ their own `get_ident` anyway: the endpoints here are the ones worth protecting
 even if that setting is ever changed or mis-set for an environment with a
 different proxy depth, and being wrong here is a login page anyone can hammer.
 """
+from rest_framework.exceptions import Throttled
 from rest_framework.permissions import SAFE_METHODS
 from rest_framework.throttling import ScopedRateThrottle
+
+
+class SignInThrottled(Throttled):
+    """DRF's 429 wording, rewritten for someone signing in.
+
+    The default is developer-facing — "Request was throttled. Expected available
+    in 11 seconds." — and it lands on the sign-in page, where the reader is a
+    caterer who mistyped their password, not someone debugging an API. Overriding
+    the `extra_detail_*` templates rather than passing a finished string keeps
+    `wait` populated, and `wait` is what DRF turns into the Retry-After header.
+    """
+
+    default_detail = 'Too many sign-in attempts from this device.'
+    extra_detail_singular = 'Try again in {wait} second.'
+    extra_detail_plural = 'Try again in {wait} seconds.'
+
+
+def raise_sign_in_throttled(wait):
+    """For an APIView's `throttled()` hook — see LoginView."""
+    raise SignInThrottled(wait=wait)
 
 
 def client_ip(request) -> str:

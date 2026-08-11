@@ -17,7 +17,10 @@ from rest_framework import generics
 
 from .models import Organisation, User
 from .serializers import DemoRequestSerializer, LoginSerializer, UserSerializer, UserManageSerializer
-from .throttling import LoginRateThrottle, TokenRefreshRateThrottle, TrustedIdentThrottle
+from .throttling import (
+    LoginRateThrottle, TokenRefreshRateThrottle, TrustedIdentThrottle,
+    raise_sign_in_throttled,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +74,10 @@ class LoginView(APIView):
     # (REL-485). Axes fires inside authenticate() below.
     throttle_classes = [LoginRateThrottle]
     throttle_scope = 'login'
+
+    def throttled(self, request, wait):
+        # This 429 is read by a person on the sign-in page, not by a developer.
+        raise_sign_in_throttled(wait)
 
     def post(self, request):
         serializer = LoginSerializer(data=request.data)
@@ -143,6 +150,11 @@ class RefreshView(APIView):
     permission_classes = [AllowAny]
     throttle_classes = [TokenRefreshRateThrottle]
     throttle_scope = 'token_refresh'
+
+    def throttled(self, request, wait):
+        # A throttled refresh bounces the user to the sign-in page, where this
+        # message is what they read.
+        raise_sign_in_throttled(wait)
 
     def post(self, request):
         raw_refresh = request.COOKIES.get("refresh_token")
