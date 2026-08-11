@@ -90,6 +90,39 @@ def _require_public_url(name, value, *, debug):
         )
     return value
 
+
+def _require_token_encryption_key(value, *, debug):
+    """Refuse to boot in production without a dedicated mailbox-token key (REL-487).
+
+    Left unset, `bookings.services.encryption` falls back to a SECRET_KEY-derived
+    key. That fallback is convenient in dev and a real exposure in production: it
+    makes one value both the JWT/OAuth-state signing key and the key to every
+    caterer's Gmail/Outlook refresh token, so a single leak forges sessions *and*
+    decrypts live mailbox credentials. They should fail independently.
+
+    To adopt the key on an environment that has been running on the fallback,
+    list the current SECRET_KEY in TOKEN_ENCRYPTION_KEY_FALLBACKS — fallbacks
+    decrypt only, so existing ciphertext keeps reading while every new write goes
+    out under the dedicated key.
+
+    `debug` is a parameter rather than a read of the module global so the rule is
+    testable without reimporting settings.
+    """
+    if debug:
+        return value
+    if not (value or '').strip():
+        raise ImproperlyConfigured(
+            "TOKEN_ENCRYPTION_KEY must be set when DEBUG=False. Without it, "
+            "mailbox refresh tokens are encrypted under a SECRET_KEY-derived "
+            "key, so leaking SECRET_KEY would also expose every connected "
+            "mailbox. Generate one with "
+            "`python -c \"from cryptography.fernet import Fernet; "
+            "print(Fernet.generate_key().decode())\"`. If this environment has "
+            "been running without it, also set TOKEN_ENCRYPTION_KEY_FALLBACKS "
+            "to the current SECRET_KEY so existing tokens still decrypt."
+        )
+    return value
+
 # ── Platform integrations (shared across all orgs) ──
 # Twilio is the platform's single account; each org configures only its own
 # WhatsApp sender number (OrgSettings.twilio_whatsapp_number). LLM keys are
@@ -128,13 +161,16 @@ OAUTH_REDIRECT_BASE = _require_public_url(
     os.environ.get('OAUTH_REDIRECT_BASE', 'http://localhost:8000'),
     debug=DEBUG,
 )
-# Key for encrypting mailbox refresh tokens at rest. Optional: falls back to
-# SECRET_KEY-derived. Set it in prod so rotating SECRET_KEY doesn't make every
-# caterer reconnect — and so the JWT signing key isn't also the key to their
+# Key for encrypting mailbox refresh tokens at rest. REQUIRED when DEBUG=False
+# (see _require_token_encryption_key); in dev it falls back to a SECRET_KEY-
+# derived key. Having its own key means rotating SECRET_KEY doesn't make every
+# caterer reconnect — and that the JWT signing key isn't also the key to their
 # mailboxes. When set it is used alone; to change keys without stranding
 # existing ciphertext, list the previous one (or SECRET_KEY) in the fallbacks,
 # which decrypt only.
-TOKEN_ENCRYPTION_KEY = os.environ.get('TOKEN_ENCRYPTION_KEY', '')
+TOKEN_ENCRYPTION_KEY = _require_token_encryption_key(
+    os.environ.get('TOKEN_ENCRYPTION_KEY', ''), debug=DEBUG,
+)
 TOKEN_ENCRYPTION_KEY_FALLBACKS = os.environ.get('TOKEN_ENCRYPTION_KEY_FALLBACKS', '')
 
 # Capture outgoing client email instead of calling a provider, for local dev and
