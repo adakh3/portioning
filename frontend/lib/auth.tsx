@@ -80,6 +80,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = useCallback(async () => {
     await api.logout();
     setUser(null);
+    // Drop every cached query on the way out.
+    //
+    // Signing out is a client-side navigation — the page never reloads — so
+    // without this the whole SWR cache survives into the next session. The next
+    // person to sign in on this browser then reads the previous user's org data
+    // (their settings, customers, leads) until each query happens to refetch,
+    // which is both a privacy problem and how one org's currency symbol can turn
+    // up on another org's totals.
+    //
+    // `revalidate: false` because we are unauthenticated by now: refetching
+    // would only fire a burst of requests that 401. Switching org keeps you
+    // signed in, so that path revalidates instead.
+    await mutate(() => true, undefined, { revalidate: false });
     router.push("/login");
   }, [router]);
 
