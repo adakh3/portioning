@@ -213,9 +213,51 @@ INSTALLED_APPS = [
     'users',
     'payments',
     'rest_framework_simplejwt.token_blacklist',
+    'axes',
 ]
 
 AUTH_USER_MODEL = "users.User"
+
+# ── Brute-force protection (REL-485) ──
+# AxesStandaloneBackend must come first: it is a gate, not a backend that can
+# authenticate anyone. It raises for a locked-out identity before ModelBackend
+# gets to spend a password hash on the attempt.
+AUTHENTICATION_BACKENDS = [
+    'axes.backends.AxesStandaloneBackend',
+    'django.contrib.auth.backends.ModelBackend',
+]
+
+# Lock the ACCOUNT, not the IP. Credential-stuffing against one known email is
+# distributed by definition — a per-IP limit is one rented proxy away from
+# useless, while a per-account limit costs the attacker the thing they cannot
+# spread across hosts.
+AXES_LOCKOUT_PARAMETERS = ['username']
+AXES_FAILURE_LIMIT = int(os.environ.get('AXES_FAILURE_LIMIT', '8'))
+# Auto-expiring, so a locked-out colleague is never waiting on an admin. Long
+# enough that 8-per-30-minutes is hopeless for guessing, short enough that
+# someone who genuinely forgot their password can retry over a coffee.
+AXES_COOLOFF_TIME = timedelta(
+    minutes=int(os.environ.get('AXES_COOLOFF_MINUTES', '30')),
+)
+AXES_RESET_ON_SUCCESS = True
+# The API authenticates with `email=`, and a DRF JSON body never populates
+# request.POST — so the form-field lookup axes uses by default would read every
+# attempt as an empty username and lock one shared bucket for all accounts.
+AXES_USERNAME_CALLABLE = 'users.throttling.axes_username'
+AXES_USERNAME_FORM_FIELD = 'email'
+# Only ever trust the hop our own proxy appended; see users.throttling.
+AXES_IPWARE_PROXY_COUNT = int(os.environ.get('NUM_PROXIES', '1'))
+AXES_IPWARE_META_PRECEDENCE_ORDER = ['HTTP_X_FORWARDED_FOR', 'REMOTE_ADDR']
+# Never silently pass an attempt through because the lockout store is unhappy.
+AXES_ENABLE_ACCESS_FAILURE_LOG = True
+
+# axes.W006 objects that AXES_LOCKOUT_PARAMETERS omits 'ip_address'. That is the
+# point: including it would let an attacker with a pool of addresses keep getting
+# a fresh allowance for the same account, which is precisely the credential-
+# stuffing shape this exists to stop. The accepted cost is that someone can
+# deliberately lock a colleague out by failing their login on purpose —
+# time-boxed by AXES_COOLOFF_TIME, which expires on its own.
+SILENCED_SYSTEM_CHECKS = ['axes.W006']
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -230,6 +272,10 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'users.middleware.CSPMiddleware',
+    # Last: it turns the PermissionDenied that AxesStandaloneBackend raises for
+    # a locked-out identity into a real lockout response, so it has to wrap the
+    # view that calls authenticate().
+    'axes.middleware.AxesMiddleware',
 ]
 
 # Stripe (SaaS subscription billing — see the `payments` app)
@@ -278,7 +324,20 @@ REST_FRAMEWORK = {
         'anon': '100/hour',
         'demo_requests': '10/hour',
         'user': '1000/hour',
+        # Cheap first line in front of the per-account lockout: it costs an
+        # attacker nothing to be locked out of an account they don't own, but
+        # it does cost them request volume. Tunable because the key is an
+        # address, and a whole office behind one NAT shares it — as does the
+        # e2e stack, which signs in ~30 times from one host in a few minutes.
+        'login': os.environ.get('LOGIN_RATE_LIMIT', '10/min'),
+        'token_refresh': os.environ.get('TOKEN_REFRESH_RATE_LIMIT', '30/min'),
     },
+    # How many proxies sit in front of the app, so the throttle key is the hop
+    # OUR proxy appended rather than whatever the client put in X-Forwarded-For.
+    # Left unset, DRF keys on the entire client-supplied header, and varying it
+    # by one byte per request mints a fresh bucket every time — the limit may as
+    # well not exist (REL-485).
+    'NUM_PROXIES': int(os.environ.get('NUM_PROXIES', '1')),
     'EXCEPTION_HANDLER': 'portioning.exception_handler.custom_exception_handler',
     'DEFAULT_PAGINATION_CLASS': 'bookings.pagination.OptionalPagination',
     'PAGE_SIZE': 50,

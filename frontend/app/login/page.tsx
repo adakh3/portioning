@@ -25,8 +25,14 @@ export default function LoginPage() {
     try {
       const returnTo = searchParams.get("returnTo") || undefined;
       await login(email, password, returnTo);
-    } catch {
-      setError("Invalid email or password.");
+    } catch (err) {
+      // Show what the server said when it said something specific. A wrong
+      // password is still "Invalid email or password", but a locked-out account
+      // now answers 429 with the reason and the fact that waiting fixes it —
+      // rewriting that as a credentials error tells someone to keep retrying
+      // the thing that is locking them out (REL-485).
+      const detail = err instanceof Error ? err.message.trim() : "";
+      setError(detail || "Invalid email or password.");
     } finally {
       setSubmitting(false);
     }

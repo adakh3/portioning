@@ -1,13 +1,14 @@
 import logging
 
+from axes.handlers.proxy import AxesProxyHandler
 from django.conf import settings
 from django.contrib.auth import authenticate
+from django.contrib.auth.signals import user_logged_in
 from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
 from django.utils.decorators import method_decorator
 from rest_framework import serializers as drf_serializers, status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
-from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -16,6 +17,7 @@ from rest_framework import generics
 
 from .models import Organisation, User
 from .serializers import DemoRequestSerializer, LoginSerializer, UserSerializer, UserManageSerializer
+from .throttling import LoginRateThrottle, TokenRefreshRateThrottle, TrustedIdentThrottle
 
 logger = logging.getLogger(__name__)
 
@@ -63,22 +65,48 @@ def _clear_auth_cookies(response):
 @method_decorator(ensure_csrf_cookie, name='dispatch')
 class LoginView(APIView):
     permission_classes = [AllowAny]
+    # Two layers, because they stop different attacks: this bounds how fast one
+    # host can try anything, while django-axes locks the ACCOUNT after
+    # AXES_FAILURE_LIMIT failures no matter how many hosts they come from
+    # (REL-485). Axes fires inside authenticate() below.
+    throttle_classes = [LoginRateThrottle]
+    throttle_scope = 'login'
 
     def post(self, request):
         serializer = LoginSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        user = authenticate(
-            request,
-            email=serializer.validated_data["email"],
-            password=serializer.validated_data["password"],
-        )
+        credentials = {
+            "email": serializer.validated_data["email"],
+            "password": serializer.validated_data["password"],
+        }
+        user = authenticate(request, **credentials)
         if user is None:
-            logger.warning("Failed login attempt for email: %s", serializer.validated_data["email"])
+            logger.warning("Failed login attempt for email: %s", credentials["email"])
+            # django.contrib.auth.authenticate() swallows the PermissionDenied
+            # that AxesStandaloneBackend raises for a locked-out identity and
+            # just returns None, so AxesMiddleware never sees it and a lockout
+            # is indistinguishable from a typo. Ask axes directly, or the person
+            # who actually forgot their password is told "invalid password" for
+            # half an hour with no hint that waiting is what fixes it.
+            if AxesProxyHandler.is_locked(request, credentials):
+                return Response(
+                    {"detail": "Too many failed sign-in attempts for this account. "
+                               "Try again later."},
+                    status=status.HTTP_429_TOO_MANY_REQUESTS,
+                )
             return Response(
                 {"detail": "Invalid email or password."},
                 status=status.HTTP_401_UNAUTHORIZED,
             )
+
+        # Cookie-JWT auth never calls django.contrib.auth.login(), so nothing
+        # was sending this signal — which is what axes resets its failure count
+        # on. Without it a successful sign-in cleared nothing and failures
+        # accumulated across sessions until an ordinary user hit the lockout for
+        # typos spread over weeks. It also gives us last_login, which this path
+        # was likewise never writing (REL-485).
+        user_logged_in.send(sender=user.__class__, request=request, user=user)
 
         refresh = RefreshToken.for_user(user)
         response = Response(UserSerializer(user).data)
@@ -110,6 +138,8 @@ class LogoutView(APIView):
 @method_decorator(csrf_exempt, name='dispatch')
 class RefreshView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [TokenRefreshRateThrottle]
+    throttle_scope = 'token_refresh'
 
     def post(self, request):
         raw_refresh = request.COOKIES.get("refresh_token")
@@ -300,25 +330,15 @@ class UserManageDetailView(generics.RetrieveUpdateAPIView):
 DEMO_HONEYPOT_FIELD = "referral_source"
 
 
-class DemoRequestThrottle(ScopedRateThrottle):
+class DemoRequestThrottle(TrustedIdentThrottle):
     """Throttle the public demo form on the caller's real IP.
 
-    DRF's default `get_ident` returns the *whole* X-Forwarded-For header when
-    `NUM_PROXIES` is unset, and that header is client-supplied — so a spammer
-    varying it by one byte per request mints a fresh bucket every time and the
-    limit may as well not exist. The address the trusted proxy in front of us
-    appended is the last entry, so key on that.
-
-    Scoped to this view rather than fixed globally via `NUM_PROXIES`: if the
-    proxy count in front of the app ever changes, the blast radius of getting
-    it wrong is one marketing form, not the client-facing sign page.
+    The ident rule this used to carry inline now lives in `users.throttling`,
+    shared with the login and refresh throttles — see that module for why the
+    client-supplied part of X-Forwarded-For can never be the key.
     """
 
-    def get_ident(self, request):
-        forwarded = request.META.get("HTTP_X_FORWARDED_FOR")
-        if forwarded:
-            return forwarded.split(",")[-1].strip()
-        return request.META.get("REMOTE_ADDR")
+    scope = "demo_requests"
 
 
 class DemoRequestCreateView(APIView):

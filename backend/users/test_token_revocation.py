@@ -5,12 +5,13 @@ change to the account behind it. Without revocation, "reset the password" and
 "de-activate the account" both leave the holder's refresh chain rotating into
 fresh tokens for the full 7-day REFRESH_TOKEN_LIFETIME.
 """
-from django.test import TestCase, override_settings
+from django.test import override_settings
 from rest_framework.test import APIClient
 from rest_framework_simplejwt.token_blacklist.models import (
     BlacklistedToken, OutstandingToken,
 )
 
+from users.auth_testing import NoLoginThrottleTestCase
 from users.models import Organisation, User
 from users.tokens import revoke_user_tokens
 
@@ -20,8 +21,12 @@ PASSWORD = "testpass123"
 
 
 @override_settings(LOGGING={})
-class TokenRevocationTests(TestCase):
+class TokenRevocationTests(NoLoginThrottleTestCase):
+    """These sign in several times per test to build the scenario, so the login
+    throttle and the axes counters are lifted — neither is what's under test."""
+
     def setUp(self):
+        super().setUp()
         self.org = Organisation.objects.create(name="TokenCo", slug="tokenco", country="US")
         self.user = User.objects.create_user(
             email="staff@tokenco.com", password=PASSWORD,
