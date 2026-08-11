@@ -85,4 +85,17 @@ describe("Customer form — title", () => {
     expect(h.update.mock.calls[0][0]).toBe(7);
     expect(h.update.mock.calls[0][1]).toMatchObject({ title: "Prof" });
   });
+
+  it("does not stretch the title select across the name row", () => {
+    // Caught by hand on production, not by the payload tests above. Appending a
+    // width to a class that already carries `w-full` does not override it —
+    // Tailwind emits both and stylesheet order wins — so the select went
+    // full-width and pushed First/Last across the Phone column.
+    render(<CustomersPage />);
+    fireEvent.click(screen.getByRole("button", { name: /new customer/i }));
+
+    const title = screen.getByLabelText("Title");
+    expect(title.className).not.toContain("w-full");
+    expect(title.className).toContain("shrink-0");
+  });
 });
