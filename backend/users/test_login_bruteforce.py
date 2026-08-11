@@ -270,3 +270,41 @@ class LoginRateThrottleTests(AuthEndpointTestCase):
             REMOTE_ADDR="192.0.2.50", HTTP_X_FORWARDED_FOR="10.0.0.1, 192.0.2.50",
         )
         self.assertEqual(other.status_code, 401)
+
+    def _login_ok(self):
+        return APIClient().post(
+            LOGIN, {"email": self.user.email, "password": PASSWORD}, format="json",
+            REMOTE_ADDR="203.0.113.7",
+        )
+
+    def test_successful_sign_ins_do_not_spend_the_budget(self):
+        """Everyone in one office shares an address.
+
+        Counting successes means a dozen colleagues signing in at 9am lock out
+        the office — and it is what made the e2e suite, which signs in once per
+        spec, fail halfway through its run.
+        """
+        for _ in range(8):
+            self.assertEqual(self._login_ok().status_code, 200)
+
+    def test_the_csrf_cookie_fetch_does_not_spend_the_budget(self):
+        """Every visit to the sign-in page makes this GET.
+
+        Counting it locked people out of the page before they could type
+        anything, and each redirect to /login burned another — which is what
+        broke the e2e suite even after successful sign-ins stopped counting.
+        """
+        client = APIClient()
+        for _ in range(12):
+            resp = client.get(LOGIN, REMOTE_ADDR="203.0.113.7")
+            self.assertEqual(resp.status_code, 200)
+        # And the POST budget is untouched by all those GETs.
+        self.assertEqual(self._post().status_code, 401)
+
+    def test_failures_still_count_after_a_success(self):
+        """The refund must return one attempt, not clear the whole history."""
+        self._post()
+        self._post()
+        self.assertEqual(self._login_ok().status_code, 200)
+        self._post()
+        self.assertEqual(self._post().status_code, 429)

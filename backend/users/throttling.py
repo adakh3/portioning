@@ -13,6 +13,7 @@ their own `get_ident` anyway: the endpoints here are the ones worth protecting
 even if that setting is ever changed or mis-set for an environment with a
 different proxy depth, and being wrong here is a login page anyone can hammer.
 """
+from rest_framework.permissions import SAFE_METHODS
 from rest_framework.throttling import ScopedRateThrottle
 
 
@@ -52,17 +53,59 @@ class TrustedIdentThrottle(ScopedRateThrottle):
     def get_ident(self, request):
         return client_ip(request)
 
+    @classmethod
+    def refund(cls, request, view):
+        """Give back the allowance this request just consumed.
+
+        DRF charges the bucket before the view runs, so it cannot tell a brute-
+        force sweep from a busy morning. Refunding on success makes the limit
+        mean "N *failed* attempts per minute", which is the thing worth
+        bounding: the address is shared by everyone behind one NAT, so counting
+        successes means a dozen colleagues signing in at 9am lock out the
+        office — and it is why the e2e suite, which signs in once per spec,
+        started failing halfway through its run.
+
+        Silent no-op if the scope has no rate configured.
+        """
+        throttle = cls()
+        throttle.scope = getattr(view, throttle.scope_attr, None) or cls.scope
+        rate = throttle.get_rate()
+        if not rate:
+            return
+        throttle.num_requests, throttle.duration = throttle.parse_rate(rate)
+        key = throttle.get_cache_key(request, view)
+        if key is None:
+            return
+        history = throttle.cache.get(key, [])
+        if history:
+            # allow_request inserts the newest timestamp at position 0.
+            history.pop(0)
+            throttle.cache.set(key, history, throttle.duration)
+
 
 class LoginRateThrottle(TrustedIdentThrottle):
-    """Bound how fast one address can attempt logins, whatever email it tries.
+    """Bound how fast one address can FAIL logins, whatever email it tries.
 
     Complements the per-account lockout rather than duplicating it: the lockout
     stops one account being ground down from anywhere, this stops one host
     working through many accounts. Keyed on address alone — deliberately not
     address+email, which an attacker resets for free by changing the email.
+
+    A successful sign-in is refunded by the view, so the budget is spent only on
+    failures. See `refund`.
     """
 
     scope = 'login'
+
+    def allow_request(self, request, view):
+        # GET /api/auth/login/ only hands back a CSRF cookie — it verifies no
+        # credentials and reveals nothing, so it is not an attempt and must not
+        # spend the budget. Every visit to the sign-in page makes one, so
+        # counting them locked people out of the page *before* they could type
+        # anything, and each redirect to /login burned another.
+        if request.method in SAFE_METHODS:
+            return True
+        return super().allow_request(request, view)
 
 
 class TokenRefreshRateThrottle(TrustedIdentThrottle):

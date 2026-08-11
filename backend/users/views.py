@@ -107,6 +107,9 @@ class LoginView(APIView):
         # typos spread over weeks. It also gives us last_login, which this path
         # was likewise never writing (REL-485).
         user_logged_in.send(sender=user.__class__, request=request, user=user)
+        # Only failures should spend the per-address budget — see the refund
+        # docstring. Everyone in one office shares an address.
+        LoginRateThrottle.refund(request, self)
 
         refresh = RefreshToken.for_user(user)
         response = Response(UserSerializer(user).data)
