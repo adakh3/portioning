@@ -364,7 +364,7 @@ class FollowupApiTests(TestCase):
         self.assertEqual(res.status_code, 200, res.content)
         self.draft.refresh_from_db()
         self.assertEqual(self.draft.status, 'sent')
-        self.assertEqual(self.draft.whatsapp_message_id, msg.id)
+        self.assertEqual(self.draft.client_message_id, msg.id)
         self.assertEqual(self.draft.reviewed_by, self.user)
 
     def test_approve_with_edited_body(self):
@@ -665,7 +665,7 @@ class DrafterContextTests(TestCase):
         ctx = _build_context(lead)
         self.assertIn('Follow-ups already sent to this lead: 1', ctx)
         self.assertIn('Most recent follow-up sent:', ctx)
-        self.assertIn('The lead has never replied on WhatsApp.', ctx)
+        self.assertIn('The lead has never replied to us.', ctx)
         # pipeline status is aspiration, not fact — it is no longer shared
         self.assertNotIn('pipeline status', ctx)
 

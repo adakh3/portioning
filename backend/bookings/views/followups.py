@@ -8,8 +8,12 @@ from bookings.activity import log_activity
 from bookings.models import FollowUpDraft, Lead, OrgSettings, WhatsAppMessage
 from bookings.permissions import is_salesperson
 from bookings.serializers.followups import FollowUpDraftSerializer
-from bookings.services.followup_scheduler import find_stale_leads, lead_last_touch, run_scheduled
-from bookings.services.followup_drafter import draft_followup
+from bookings.services import email as email_service
+from bookings.services import messaging
+from bookings.services.followup_scheduler import (
+    choose_channel, find_stale_leads, lead_last_touch, run_scheduled,
+)
+from bookings.services.followup_drafter import draft_followup, fallback_subject
 from bookings.services.whatsapp import WhatsAppService
 from bookings.views.dashboard import parse_period_window
 from users.mixins import (
@@ -56,28 +60,102 @@ def _scoped_drafts(request):
     return qs
 
 
+def _apply_overrides(draft, data):
+    """Apply the rep's send-time edits to a draft. Returns an error, or None.
+
+    Shared by approve and mark-sent so a channel switch means the same thing on
+    both: the rep can flip an email draft to WhatsApp and hand it to their own
+    phone, which is the ONLY way a shortcuts-mode org sends WhatsApp at all.
+    Persisting it here (rather than only inside approve) is what stops mark-sent
+    refusing a message the client has already received.
+    """
+    changed = []
+    for field in ('body', 'subject'):
+        value = data.get(field)
+        if value is None:
+            continue
+        limit = FollowUpDraft._meta.get_field(field).max_length
+        if limit and len(value) > limit:
+            # SQLite ignores max_length and Postgres raises — so a long subject
+            # is a clean 400 here rather than a 500 in production only.
+            return f'The {field} is too long (maximum {limit} characters).'
+        setattr(draft, field, value)
+        changed.append(field)
+
+    channel = data.get('channel')
+    if channel is not None:
+        if channel not in dict(FollowUpDraft.CHANNEL_CHOICES):
+            return f'Unknown channel {channel!r}.'
+        draft.channel = channel
+        changed.append('channel')
+
+    if changed:
+        draft.save(update_fields=[*changed, 'updated_at'])
+    return None
+
+
 def _approve_draft(draft, user):
-    """Send a draft's message via WhatsApp and mark it sent. Returns (ok, error)."""
+    """Send a draft on its own channel and mark it sent. Returns (ok, error).
+
+    Email goes through the same service quotes and events send through, so a
+    follow-up lands in the lead's history next to everything else we ever told
+    them. A failure returns its real reason and leaves the draft pending, which
+    is what makes "reconnect your mailbox, then press send again" possible
+    rather than a dead end (REL-501 AC7).
+    """
     org = draft.organisation
-    try:
-        msg = WhatsAppService(org).send_message(draft.lead, draft.body, sent_by=user)
-    except ValueError as exc:
-        return False, str(exc)
+    if draft.channel == WhatsAppMessage.CHANNEL_EMAIL:
+        try:
+            msg = messaging.send_client_email(
+                draft.lead,
+                subject=draft.subject or fallback_subject(draft.lead),
+                body=draft.body,
+                sent_by=user,
+            )
+        except (messaging.ChannelUnavailable, email_service.MailboxError) as exc:
+            return False, str(exc)
+        description = 'Approved & sent an AI-drafted follow-up by email'
+    else:
+        try:
+            msg = WhatsAppService(org).send_message(draft.lead, draft.body, sent_by=user)
+        except ValueError as exc:
+            return False, str(exc)
+        description = 'Approved & sent an AI-drafted follow-up'
 
     draft.status = 'sent'
-    draft.whatsapp_message = msg
+    draft.client_message = msg
     draft.reviewed_by = user
     draft.reviewed_at = timezone.now()
-    draft.save(update_fields=['status', 'whatsapp_message', 'reviewed_by', 'reviewed_at', 'updated_at'])
+    draft.save(update_fields=['status', 'client_message', 'reviewed_by', 'reviewed_at', 'updated_at'])
     log_activity(
         draft.lead, 'updated', user=user,
         field_name='followup_draft',
-        description='Approved & sent an AI-drafted follow-up',
+        description=description,
     )
     return True, None
 
 
-class FollowUpDraftListView(generics.ListAPIView):
+class _DraftListContextMixin:
+    """Resolve the org-level half of "can this draft go by email" once per request.
+
+    Without it the serializer reads the mailbox per row, which is the same N+1
+    the last-touch annotations exist to avoid.
+    """
+
+    def get_serializer_context(self):
+        from bookings.models import ConnectedMailbox
+        context = super().get_serializer_context()
+        org = get_request_org(self.request)
+        mailbox = email_service.get_mailbox(org) if org else None
+        context['mailbox_state'] = (
+            messaging.NO_MAILBOX if mailbox is None
+            else messaging.MAILBOX_NEEDS_RECONNECT
+            if mailbox.status != ConnectedMailbox.CONNECTED else None
+        )
+        return context
+
+
+class FollowUpDraftListView(_DraftListContextMixin, generics.ListAPIView):
     """GET /api/bookings/followup-drafts/ — the review queue (pending by default)."""
     serializer_class = FollowUpDraftSerializer
 
@@ -92,7 +170,7 @@ class FollowUpDraftListView(generics.ListAPIView):
         return qs
 
 
-class LeadFollowUpDraftListView(generics.ListAPIView):
+class LeadFollowUpDraftListView(_DraftListContextMixin, generics.ListAPIView):
     """GET /api/bookings/leads/<pk>/followup-drafts/ — drafts for one lead."""
     serializer_class = FollowUpDraftSerializer
 
@@ -115,11 +193,12 @@ class FollowUpDraftApproveView(generics.GenericAPIView):
         if draft.status != 'pending':
             return Response({'detail': 'Draft is not pending.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Allow the reviewer to tweak the wording before it goes out.
-        edited_body = request.data.get('body')
-        if edited_body is not None:
-            draft.body = edited_body
-            draft.save(update_fields=['body', 'updated_at'])
+        # Allow the reviewer to tweak the wording — and the channel — before it
+        # goes out. The rep is the one who knows this client; a drafted channel
+        # is a suggestion, not a decision (AC4).
+        error = _apply_overrides(draft, request.data)
+        if error:
+            return Response({'detail': error}, status=status.HTTP_400_BAD_REQUEST)
 
         user = request.user if request.user.is_authenticated else None
         ok, error = _approve_draft(draft, user)
@@ -274,10 +353,28 @@ class FollowUpDraftMarkSentView(generics.GenericAPIView):
         if draft.status != 'pending':
             return Response({'detail': 'Draft is not pending.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # The rep may have edited the text before opening WhatsApp.
-        edited_body = request.data.get('body')
-        if edited_body is not None:
-            draft.body = edited_body
+        # The rep may have edited the text — and switched the channel — before
+        # opening WhatsApp. Taking the switch here is what lets an email draft
+        # be handed to the rep's own phone instead: by the time they press
+        # "Mark sent" the client already has the message, so refusing it would
+        # lose a real send from the ledger.
+        error = _apply_overrides(draft, request.data)
+        if error:
+            return Response({'detail': error}, status=status.HTTP_400_BAD_REQUEST)
+
+        if draft.channel == WhatsAppMessage.CHANNEL_EMAIL:
+            # Still email: this endpoint writes a WhatsApp handoff row, and an
+            # email draft has no shortcut to hand off to — it sends through the
+            # mailbox or not at all. Logging one would put a lie in the ledger.
+            return Response(
+                {'detail': 'This is an email draft — send it with Send via Email.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not draft.lead.contact_phone:
+            return Response(
+                {'detail': 'This lead has no phone number to send WhatsApp to.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         user = request.user if request.user.is_authenticated else None
         WhatsAppMessage.objects.create(
@@ -406,7 +503,17 @@ class FollowUpGenerateView(generics.GenericAPIView):
                 'detail': 'Lead is no longer eligible (touched recently, has a pending draft, or hit the draft cap).',
             })
 
-        result = draft_followup(lead)
+        channel = choose_channel(lead)
+        if channel is None:
+            # Belt-and-braces: find_stale_leads already filters these out, but a
+            # mailbox can die between the two, and drafting a message we cannot
+            # send is worse than saying so.
+            return Response({
+                'status': 'ineligible',
+                'detail': 'This lead has no phone number and no usable email address.',
+            })
+
+        result = draft_followup(lead, channel=channel)
         if result is None:
             return Response(
                 {'status': 'failed', 'detail': 'The AI call failed — try again.'},
@@ -418,6 +525,8 @@ class FollowUpGenerateView(generics.GenericAPIView):
         draft = FollowUpDraft.objects.create(
             organisation=org,
             lead=lead,
+            channel=channel,
+            subject=result.get('subject', ''),
             body=result['message'],
             reasoning=result.get('reasoning', ''),
             model_used=result.get('model_used', ''),
