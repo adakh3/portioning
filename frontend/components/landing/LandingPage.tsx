@@ -11,17 +11,17 @@ const STEPS = [
   {
     n: "01",
     title: "The inquiry lands",
-    body: "Inquiries from your website, WhatsApp and inbox arrive on one board with the guest count, date and budget already pulled out.",
+    body: "Inquiries from your website, WhatsApp and inbox arrive on one board with the guest count, date and budget already pulled out — and AI triages which to chase first.",
   },
   {
     n: "02",
     title: "The quote goes out",
-    body: "Build from your menu pricing, send from your own mailbox or WhatsApp, and the client signs on their phone.",
+    body: "Built from your pricing in minutes, sent from your own mailbox or WhatsApp, signed on the client's phone. AI drafts the follow-ups so nothing goes cold.",
   },
   {
     n: "03",
-    title: "The kitchen gets numbers",
-    body: "Signing turns the quote into an event: grams per person per dish, prep sheets, equipment and staff.",
+    title: "You get paid",
+    body: "Deposits, invoices and your whole pipeline in one place — see conversion, revenue against target and every deal still open.",
   },
 ];
 
@@ -51,12 +51,12 @@ export default function LandingPage() {
       <section className="px-6 pt-14 md:px-10 md:pt-[72px]">
         <div className="mx-auto grid max-w-[1120px] items-end gap-10 md:grid-cols-[1.15fr_0.85fr] md:gap-[72px]">
           <h1 className="font-display text-balance text-5xl font-normal leading-[0.98] tracking-[-0.02em] sm:text-6xl lg:text-[86px] lg:leading-[0.96]">
-            From the first inquiry to the <em className="italic text-[#A9421F]">last gram</em>.
+            Quote fast. <em className="italic text-[#A9421F]">Win more</em>.
           </h1>
           <div>
             <p className="text-pretty text-lg leading-relaxed text-[#574E45]">
-              Inquiries, quotes, signatures and grams per guest in one place — with AI drafting the
-              messages and sizing the portions.
+              Capture every inquiry, quote in minutes, and close more events — with AI drafting the
+              follow-ups and triaging your leads.
             </p>
             <button
               type="button"
@@ -90,7 +90,7 @@ export default function LandingPage() {
       <section className="px-6 pt-20 md:px-10 md:pt-[88px]">
         <div className="mx-auto max-w-[1120px]">
           <h2 className="font-display text-4xl font-normal leading-[1.02] tracking-[-0.02em] sm:text-[52px]">
-            A lead comes in. The kitchen gets grams.
+            Every inquiry, quoted and closed.
           </h2>
           <div className="mt-8">
             <ProductScreens />

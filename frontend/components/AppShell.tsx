@@ -2,23 +2,36 @@
 
 import { Suspense, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import Sidebar from "@/components/Sidebar";
 import TopNav from "@/components/TopNav";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { OrgLocaleProvider } from "@/lib/orgLocale";
 import { canAccess } from "@/lib/routeAccess";
+import { useSiteSettings } from "@/lib/hooks";
+
+// The operations suite (portioning, kitchen, staffing, help) is hidden behind
+// the OPERATIONS_ENABLED launch flag. These paths are only reachable when the
+// flag is on; otherwise a typed URL redirects home.
+const OPERATIONS_ROUTES = ["/calculate", "/help", "/kitchen", "/staff"];
 
 function AppShellInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { user, loading } = useAuth();
+  const { data: settings } = useSiteSettings();
   const isLoginPage = pathname === "/login";
 
   // Redirect users who reach a role-restricted page by typing its URL.
   const allowed = canAccess(pathname, user?.role);
+  // Gate operations routes on the launch flag. `undefined` while settings load
+  // — we hold rendering (below) rather than flash the page before deciding.
+  const onOperationsRoute = OPERATIONS_ROUTES.some(
+    (p) => pathname === p || pathname.startsWith(p + "/"),
+  );
+  const operationsBlocked = onOperationsRoute && settings ? !settings.operations_enabled : false;
   useEffect(() => {
     if (!loading && user && !allowed) router.replace("/");
-  }, [loading, user, allowed, router]);
+    else if (!loading && user && operationsBlocked) router.replace("/");
+  }, [loading, user, allowed, operationsBlocked, router]);
 
   // Public client-facing pages (e.g. /b/<token> sign links) render bare — no
   // app chrome, and without waiting on the staff auth bootstrap.
@@ -39,18 +52,18 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
   // Don't flash restricted content before the redirect lands
   if (!allowed) return null;
 
+  // On an operations route, wait for the flag to resolve, then block if off.
+  if (onOperationsRoute && (!settings || operationsBlocked)) return null;
+
   const widePages = ["/leads", "/dashboard"];
   const isWidePage = widePages.some((p) => pathname === p || pathname.startsWith(p + "/"));
 
   return (
-    <div className="flex min-h-screen">
-      <Sidebar />
-      <div className="flex-1 flex flex-col min-w-0">
-        <TopNav />
-        <main className={`flex-1 w-full mx-auto px-6 py-8 ${isWidePage ? "" : "max-w-7xl"}`}>
-          {children}
-        </main>
-      </div>
+    <div className="flex flex-col min-h-screen">
+      <TopNav />
+      <main className={`flex-1 w-full mx-auto px-6 py-8 ${isWidePage ? "" : "max-w-7xl"}`}>
+        {children}
+      </main>
     </div>
   );
 }

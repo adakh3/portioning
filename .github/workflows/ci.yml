@@ -116,6 +116,11 @@ jobs:
       SECRET_KEY: ci-insecure-test-key
       DEBUG: "True"
       ALLOWED_HOSTS: "localhost,127.0.0.1"
+      # The operations suite (portioning, kitchen, staffing) is hidden in the
+      # product by default, but its pages/engine still exist and their e2e specs
+      # (calculate, kitchen, menu-choices, booking-*) drive those surfaces —
+      # so the e2e stack runs with the launch flag ON to exercise them.
+      OPERATIONS_ENABLED: "True"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

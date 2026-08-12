@@ -15,6 +15,9 @@ export interface ProtectedRoute {
 export const PROTECTED_ROUTES: ProtectedRoute[] = [
   { prefix: "/settings", roles: ["owner", "admin"] },
   { prefix: "/team", roles: ["owner", "admin"] },
+  // Admin-only tooling, surfaced in the top-right user menu (not the main bar):
+  { prefix: "/menus", roles: ["owner", "admin"] },
+  { prefix: "/equipment", roles: ["owner", "admin"] },
 ];
 
 /** Roles required to view a path, or null if the path is unrestricted. */

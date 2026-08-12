@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { getVisiblePages, getActiveDepartment, departments, type NavPage } from "./navigation";
+import {
+  getVisiblePages,
+  isActivePath,
+  primaryNav,
+  adminNav,
+  type NavPage,
+} from "./navigation";
 
 describe("getVisiblePages", () => {
   const pages: NavPage[] = [
@@ -30,64 +36,99 @@ describe("getVisiblePages", () => {
     const result = getVisiblePages(pages, "salesperson");
     expect(result.map((p) => p.label)).toEqual(["Public", "All Roles"]);
   });
-});
 
-describe("getActiveDepartment", () => {
-  it("returns Sales for /leads", () => {
-    expect(getActiveDepartment("/leads")?.name).toBe("Sales");
+  it("hides flag-gated pages when the flag is off (default)", () => {
+    const flagged: NavPage[] = [
+      { label: "Always", href: "/a" },
+      { label: "Ops", href: "/ops", flag: "operations" },
+    ];
+    expect(getVisiblePages(flagged, "owner").map((p) => p.label)).toEqual(["Always"]);
+    expect(getVisiblePages(flagged, "owner", {}).map((p) => p.label)).toEqual(["Always"]);
   });
 
-  it("returns Sales for nested lead path /leads/123", () => {
-    expect(getActiveDepartment("/leads/123")?.name).toBe("Sales");
-  });
-
-  it("returns Kitchen for /calculate", () => {
-    expect(getActiveDepartment("/calculate")?.name).toBe("Kitchen");
-  });
-
-  it("returns Kitchen for /kitchen/events", () => {
-    expect(getActiveDepartment("/kitchen/events")?.name).toBe("Kitchen");
-  });
-
-  it("returns Warehouse for /equipment", () => {
-    expect(getActiveDepartment("/equipment")?.name).toBe("Warehouse");
-  });
-
-  it("returns Admin for /settings", () => {
-    expect(getActiveDepartment("/settings")?.name).toBe("Admin");
-  });
-
-  it("returns null for unknown path", () => {
-    expect(getActiveDepartment("/unknown")).toBeNull();
-  });
-
-  it("returns Sales for root path /", () => {
-    expect(getActiveDepartment("/")?.name).toBe("Sales");
+  it("shows flag-gated pages when the flag is on", () => {
+    const flagged: NavPage[] = [
+      { label: "Always", href: "/a" },
+      { label: "Ops", href: "/ops", flag: "operations" },
+    ];
+    expect(
+      getVisiblePages(flagged, "owner", { operations: true }).map((p) => p.label),
+    ).toEqual(["Always", "Ops"]);
   });
 });
 
-describe("role gating for admin settings", () => {
-  const admin = departments.find((d) => d.name === "Admin")!;
-  const sales = departments.find((d) => d.name === "Sales")!;
-  const labels = (role?: string, dept = admin) => getVisiblePages(dept.pages, role).map((p) => p.label);
+describe("operations suite is hidden until the launch flag flips", () => {
+  const opsHrefs = ["/calculate", "/kitchen/events", "/help", "/staff"];
 
-  it("hides Settings and Team from manager / salesperson / chef", () => {
+  it("hides every operations page from the primary + admin nav by default", () => {
+    const visible = [
+      ...getVisiblePages(primaryNav, "owner"),
+      ...getVisiblePages(adminNav, "owner"),
+    ].map((p) => p.href);
+    for (const href of opsHrefs) expect(visible).not.toContain(href);
+  });
+
+  it("reveals the operations pages when the flag is on", () => {
+    const visible = [
+      ...getVisiblePages(primaryNav, "owner", { operations: true }),
+      ...getVisiblePages(adminNav, "owner", { operations: true }),
+    ].map((p) => p.href);
+    for (const href of opsHrefs) expect(visible).toContain(href);
+  });
+});
+
+describe("primary nav is the revenue story", () => {
+  it("shows the core revenue pages to a salesperson", () => {
+    const labels = getVisiblePages(primaryNav, "salesperson").map((p) => p.label);
+    for (const l of ["Dashboard", "Leads", "Follow-ups", "Quotes", "Events", "Menu Pricing"]) {
+      expect(labels).toContain(l);
+    }
+  });
+
+  it("never leaks admin tooling into the primary bar", () => {
+    const hrefs = primaryNav.map((p) => p.href);
+    for (const href of ["/settings", "/team", "/menus", "/equipment"]) {
+      expect(hrefs).not.toContain(href);
+    }
+  });
+});
+
+describe("admin menu gating", () => {
+  const labels = (role?: string, flags?: { operations?: boolean }) =>
+    getVisiblePages(adminNav, role, flags).map((p) => p.label);
+
+  it("hides admin tooling from manager / salesperson / chef", () => {
     for (const role of ["manager", "salesperson", "chef"]) {
       expect(labels(role)).not.toContain("Settings");
       expect(labels(role)).not.toContain("Team");
+      expect(labels(role)).not.toContain("Equipment");
+      expect(labels(role)).not.toContain("Menu Templates");
     }
   });
 
-  it("shows Settings and Team to admin and owner", () => {
+  it("gives admins Settings, Team, Equipment and Menu Templates now", () => {
     for (const role of ["admin", "owner"]) {
-      expect(labels(role)).toContain("Settings");
-      expect(labels(role)).toContain("Team");
+      expect(labels(role)).toEqual(
+        expect.arrayContaining(["Menu Templates", "Equipment", "Settings", "Team"]),
+      );
     }
   });
 
-  it("shows Dashboard to every role, including salespeople", () => {
-    for (const role of ["salesperson", "manager", "admin", "owner"]) {
-      expect(labels(role, sales)).toContain("Dashboard");
-    }
+  it("keeps Staff hidden for admins until the operations flag is on", () => {
+    expect(labels("owner")).not.toContain("Staff");
+    expect(labels("owner", { operations: true })).toContain("Staff");
+  });
+});
+
+describe("isActivePath", () => {
+  it("matches root only exactly", () => {
+    expect(isActivePath("/", "/")).toBe(true);
+    expect(isActivePath("/leads", "/")).toBe(false);
+  });
+
+  it("matches a page and its nested paths", () => {
+    expect(isActivePath("/leads", "/leads")).toBe(true);
+    expect(isActivePath("/leads/123", "/leads")).toBe(true);
+    expect(isActivePath("/leadsX", "/leads")).toBe(false);
   });
 });

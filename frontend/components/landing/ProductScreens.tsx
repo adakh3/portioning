@@ -9,20 +9,18 @@ import { useState } from "react";
  * around them uses the warm marketing palette.
  */
 
-type TabId = "leads" | "eventform" | "portioning" | "drafting" | "triage";
+type TabId = "leads" | "eventform" | "drafting" | "triage";
 
 const TABS: { id: TabId; label: string }[] = [
   { id: "leads", label: "Leads" },
-  { id: "eventform", label: "Event Form" },
-  { id: "portioning", label: "Portioning" },
+  { id: "eventform", label: "Quote Builder" },
   { id: "drafting", label: "AI Drafting" },
   { id: "triage", label: "AI Lead Triage" },
 ];
 
 const SCREEN_HEADERS: Record<TabId, { title: string; meta: string }> = {
   leads: { title: "Leads", meta: "Kanban · 6 statuses" },
-  eventform: { title: "New Event", meta: "Harper–Ross Wedding · draft" },
-  portioning: { title: "Portioning", meta: "180 guests · 150 adults / 30 kids · 5 dishes" },
+  eventform: { title: "New Quote", meta: "Harper–Ross Wedding · draft" },
   drafting: { title: "Send to Client", meta: "Quote v2 · $28,080.00" },
   triage: { title: "Lead Triage", meta: "1 new inquiry · WhatsApp" },
 };
@@ -49,17 +47,6 @@ const KANBAN_COLUMNS = [
   },
 ];
 
-const PORTION_ROWS: ({ group: string } | { name: string; yours: number; rec: number })[] = [
-  { group: "Starters" },
-  { name: "Whipped ricotta crostini", yours: 60, rec: 60 },
-  { name: "Smoked eggplant dip", yours: 40, rec: 45 },
-  { group: "Mains" },
-  { name: "Herb-roasted chicken", yours: 170, rec: 180 },
-  { name: "Slow-braised short rib", yours: 210, rec: 200 },
-  { group: "Sides" },
-  { name: "Herbed wild rice", yours: 140, rec: 140 },
-];
-
 const FORM_FIELDS = [
   { label: "Event Name", value: "Harper–Ross Wedding", full: true },
   { label: "Customer", value: "Emily Harper" },
@@ -70,7 +57,7 @@ const FORM_FIELDS = [
   { label: "Kids", value: "30" },
 ];
 
-// Deliberately consistent arithmetic: five dishes at 180 covers sum to the
+// Deliberately consistent arithmetic: five dishes for 180 guests sum to the
 // subtotal, 20% service charge on top gives the total, and the same total
 // appears on the Send-to-Client screen. Caterers check the math on a page
 // like this, and numbers that don't add up cost more trust than they save.
@@ -84,7 +71,7 @@ const MENU_LINES = [
 
 const SUMMARY_ROWS = [
   { label: "Guests", value: "180" },
-  { label: "Food per person", value: "620g" },
+  { label: "Per head", value: "$130.00" },
   { label: "Subtotal", value: "$23,400.00" },
   { label: "Service charge (20%)", value: "$4,680.00" },
   { label: "Total", value: "$28,080.00" },
@@ -154,62 +141,6 @@ function LeadsScreen() {
   );
 }
 
-function PortioningScreen() {
-  return (
-    <div className="overflow-x-auto p-5">
-      <div className="mb-4 rounded-md border border-[hsl(142_71%_45%/.2)] bg-[hsl(142_71%_45%/.1)] px-3.5 py-2.5 text-[13px] text-[hsl(142_71%_24%)]">
-        All clear — your portions are within all constraints.
-      </div>
-      <table className="w-full border-collapse">
-        <thead>
-          <tr className="border-b border-[hsl(0_0%_89.8%)] bg-[hsl(0_0%_96.1%)]">
-            <th className="px-3 py-2 text-left text-[13px] font-medium text-[hsl(0_0%_25%)]">Dish</th>
-            <th className="w-32 px-3 py-2 text-right text-[13px] font-medium text-[hsl(0_0%_25%)]">Your Portion</th>
-            <th className="w-28 px-3 py-2 text-right text-[13px] font-medium text-[hsl(0_0%_25%)]">Engine Rec</th>
-            <th className="w-[132px] px-3 py-2 text-right text-[13px] font-medium text-[hsl(0_0%_25%)]">Delta</th>
-          </tr>
-        </thead>
-        <tbody>
-          {PORTION_ROWS.map((row) =>
-            "group" in row ? (
-              <tr key={row.group} className="border-t border-[hsl(0_0%_89.8%)] bg-[hsl(0_0%_96.1%)]">
-                <td colSpan={4} className="px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.06em] text-[hsl(0_0%_20%)]">
-                  {row.group}
-                </td>
-              </tr>
-            ) : (
-              <tr key={row.name} className="border-b border-[hsl(0_0%_89.8%)]">
-                <td className="py-1.5 pl-6 pr-3 text-sm">{row.name}</td>
-                <td className="px-3 py-1.5 text-right text-sm">{row.yours}g</td>
-                <td className="px-3 py-1.5 text-right font-mono text-[13px] text-[hsl(0_0%_45%)]">{row.rec}g</td>
-                <td
-                  className={`px-3 py-1.5 text-right font-mono text-[13px] ${
-                    Math.abs(((row.yours - row.rec) / row.rec) * 100) <= 10
-                      ? "text-[hsl(142_71%_32%)]"
-                      : "text-[hsl(38_92%_30%)]"
-                  }`}
-                >
-                  {row.yours - row.rec > 0 ? "+" : ""}
-                  {row.yours - row.rec}g ({row.yours - row.rec > 0 ? "+" : ""}
-                  {Math.round(((row.yours - row.rec) / row.rec) * 100)}%)
-                </td>
-              </tr>
-            ),
-          )}
-        </tbody>
-        <tfoot>
-          <tr className="border-t-2 border-[hsl(0_0%_89.8%)] bg-[hsl(0_0%_96.1%)] font-semibold">
-            <td className="px-3 py-2.5 text-sm">Food per Person</td>
-            <td className="px-3 py-2.5 text-right text-sm">620g</td>
-            <td className="px-3 py-2.5 text-right font-mono text-[13px] font-normal text-[hsl(0_0%_45%)]">625g</td>
-            <td className="px-3 py-2.5 text-right font-mono text-[13px] font-normal text-[hsl(142_71%_32%)]">-5g</td>
-          </tr>
-        </tfoot>
-      </table>
-    </div>
-  );
-}
-
 function EventFormScreen() {
   return (
     <div className="grid items-start gap-5 p-5 md:grid-cols-[1.5fr_1fr]">
@@ -254,10 +185,10 @@ function EventFormScreen() {
         ))}
         <div className="mt-1 grid gap-2">
           <span className="flex h-[34px] items-center justify-center rounded-md bg-[hsl(142_71%_40%)] text-[13px] font-medium text-white">
-            Save Event
+            Save Quote
           </span>
           <span className="flex h-[34px] items-center justify-center rounded-md border border-[hsl(0_0%_89.8%)] text-[13px]">
-            View Portions
+            Send to Client
           </span>
         </div>
       </div>
@@ -345,7 +276,6 @@ function TriageScreen() {
 const SCREENS: Record<TabId, () => React.ReactElement> = {
   leads: LeadsScreen,
   eventform: EventFormScreen,
-  portioning: PortioningScreen,
   drafting: DraftingScreen,
   triage: TriageScreen,
 };
