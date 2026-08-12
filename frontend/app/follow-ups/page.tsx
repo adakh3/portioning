@@ -334,9 +334,18 @@ function ChannelToggle({
   address?: string;
   disabled?: boolean;
 }) {
+  // A disabled option must say why on hover, not only when it happens to be the
+  // one selected — otherwise the commonest case (WhatsApp draft, Email greyed
+  // out) is a dead button with no explanation anywhere on screen.
   const options = [
-    { value: "email" as const, label: "Email", enabled: emailAvailable },
-    { value: "whatsapp" as const, label: "WhatsApp", enabled: whatsappAvailable },
+    {
+      value: "email" as const, label: "Email", enabled: emailAvailable,
+      why: emailAvailable ? undefined : emailBlockedText(emailReason),
+    },
+    {
+      value: "whatsapp" as const, label: "WhatsApp", enabled: whatsappAvailable,
+      why: whatsappAvailable ? undefined : "This lead has no valid WhatsApp number.",
+    },
   ];
   const blocked = channel === "email" && !emailAvailable
     ? emailBlockedText(emailReason)
@@ -349,25 +358,30 @@ function ChannelToggle({
       <div className="flex items-center gap-3">
         <div className="flex w-fit overflow-hidden rounded-md border border-input">
           {options.map((opt) => (
-            <button
-              key={opt.value}
-              type="button"
-              disabled={disabled || !opt.enabled}
-              aria-pressed={channel === opt.value}
-              onClick={() => onChange(opt.value)}
-              className={cn(
-                "h-7 px-3 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-45",
-                channel === opt.value
-                  ? "bg-primary font-medium text-primary-foreground"
-                  : "bg-background text-muted-foreground hover:bg-accent",
-              )}
-            >
-              {opt.label}
-            </button>
+            // The title lives on the wrapper, not the button: a disabled button
+            // receives no mouse events in Chrome, so its own tooltip never shows.
+            <span key={opt.value} title={opt.why} className="flex">
+              <button
+                type="button"
+                disabled={disabled || !opt.enabled}
+                aria-pressed={channel === opt.value}
+                onClick={() => onChange(opt.value)}
+                className={cn(
+                  "h-7 px-3 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-45",
+                  channel === opt.value
+                    ? "bg-primary font-medium text-primary-foreground"
+                    : "bg-background text-muted-foreground hover:bg-accent",
+                )}
+              >
+                {opt.label}
+              </button>
+            </span>
           ))}
         </div>
         {address && <span className="text-xs text-muted-foreground truncate">{address}</span>}
       </div>
+      {/* Spelled out under the control when the rep has actually landed on the
+          dead channel; the hover covers the rest. */}
       {blocked && <p className="text-xs text-muted-foreground">{blocked}</p>}
     </div>
   );

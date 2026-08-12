@@ -338,6 +338,33 @@ describe("Email follow-up drafts", () => {
     expect(emailOption.disabled).toBe(true);
   });
 
+  it("says why a greyed-out channel is greyed out, even when it isn't selected", () => {
+    // The commonest shape by far: a WhatsApp draft on an org with no mailbox.
+    // The inline hint only covers the SELECTED channel, so without the hover
+    // this is a dead button with no explanation anywhere on screen.
+    mockDrafts = [{ ...DRAFT, email_available: false, email_reason: "no_mailbox" }];
+    render(<FollowUpsPage />);
+    const emailOption = screen.getByRole("button", { name: "Email" });
+    expect(emailOption.closest("[title]")?.getAttribute("title"))
+      .toMatch(/Connect your email in Settings/);
+  });
+
+  it("explains a reconnect on hover too, not a first-time connect", () => {
+    mockDrafts = [{
+      ...DRAFT, email_available: false, email_reason: "mailbox_needs_reconnect",
+    }];
+    render(<FollowUpsPage />);
+    const emailOption = screen.getByRole("button", { name: "Email" });
+    expect(emailOption.closest("[title]")?.getAttribute("title"))
+      .toMatch(/needs renewing/);
+  });
+
+  it("an available channel carries no tooltip", () => {
+    render(<FollowUpsPage />);
+    const emailOption = screen.getByRole("button", { name: "Email" });
+    expect(emailOption.closest("[title]")).toBeNull();
+  });
+
   it("tells a caterer with a dead mailbox to renew it, not to connect one", () => {
     mockDrafts = [{ ...EMAIL_DRAFT, email_available: false, email_reason: "mailbox_needs_reconnect" }];
     render(<FollowUpsPage />);
