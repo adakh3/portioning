@@ -29,6 +29,7 @@ from bookings.views import (
     TimelinePresetManageListCreateView, TimelinePresetManageDetailView,
     LostReasonManageListCreateView, LostReasonManageDetailView,
     AddOnProductListView,
+    AddOnProductManageListCreateView, AddOnProductManageDetailView,
     ReminderListCreateView, ReminderDetailView,
     LeadReminderListCreateView, ReminderCountsView,
     WhatsAppMessageListView, WhatsAppSendView, WhatsAppMarkReadView, TwilioWebhookView,
@@ -168,6 +169,8 @@ urlpatterns = [
     path('bookings/settings/timeline-presets/<int:pk>/', TimelinePresetManageDetailView.as_view(), name='timeline-preset-manage-detail'),
 
     path('bookings/addon-products/', AddOnProductListView.as_view(), name='addon-product-list'),
+    path('bookings/settings/addon-products/', AddOnProductManageListCreateView.as_view(), name='addon-product-manage-list'),
+    path('bookings/settings/addon-products/<int:pk>/', AddOnProductManageDetailView.as_view(), name='addon-product-manage-detail'),
 
     # WhatsApp
     path('bookings/leads/<int:lead_pk>/whatsapp/', WhatsAppMessageListView.as_view(), name='whatsapp-message-list'),

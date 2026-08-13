@@ -36,7 +36,10 @@ from .choices import (
     LostReasonManageListCreateView, LostReasonManageDetailView,
     TimelinePresetManageListCreateView, TimelinePresetManageDetailView,
 )
-from .addons import AddOnProductListView
+from .addons import (
+    AddOnProductListView,
+    AddOnProductManageListCreateView, AddOnProductManageDetailView,
+)
 from .reminders import (
     ReminderListCreateView, ReminderDetailView,
     LeadReminderListCreateView, ReminderCountsView,

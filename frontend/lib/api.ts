@@ -342,7 +342,9 @@ export interface Account {
 export interface AddOnVariant {
   id: number;
   name: string;
-  unit_price: string;
+  // On the read endpoint this is the resolved price (own price, or the product's
+  // when inherited); on the manage endpoint it's the raw override (null = inherit).
+  unit_price: string | null;
   is_active: boolean;
   sort_order: number;
 }
@@ -1603,6 +1605,14 @@ export const api = {
 
   // Bookings: add-on catalog (priced products + variants)
   getAddOnProducts: () => fetchList<AddOnProduct>("/bookings/addon-products/?page_size=all"),
+  // Management (owner/admin) — includes inactive products/variants; full CRUD.
+  getManagedAddOnProducts: () => fetchList<AddOnProduct>("/bookings/settings/addon-products/?page_size=all"),
+  createAddOnProduct: (data: Partial<AddOnProduct>) =>
+    fetchApi<AddOnProduct>("/bookings/settings/addon-products/", { method: "POST", body: JSON.stringify(data) }),
+  updateAddOnProduct: (id: number, data: Partial<AddOnProduct>) =>
+    fetchApi<AddOnProduct>(`/bookings/settings/addon-products/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
+  deleteAddOnProduct: (id: number) =>
+    fetchApi<void>(`/bookings/settings/addon-products/${id}/`, { method: "DELETE" }),
 
   // Bookings: Customers (people, person-first) — selectable independently of a business
   getContacts: () => fetchList<Contact>("/bookings/contacts/?page_size=all"),
