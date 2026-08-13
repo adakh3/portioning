@@ -158,6 +158,21 @@ EMAIL_FAKE_TRANSPORT = os.environ.get(
     'True' if (DEBUG or 'test' in sys.argv) else 'False',
 ).lower() in ('true', '1', 'yes')
 
+# ── Meta (Facebook/Instagram) lead capture (REL-506) ──
+# One platform-level Meta app (Business type) fronts every org: each org connects
+# its own Page(s) by OAuth (Facebook Login for Business) and we store per-Page
+# tokens encrypted, reusing TOKEN_ENCRYPTION_KEY and OAUTH_REDIRECT_BASE above.
+# The app id/secret are platform credentials, so they live here; the secret is
+# never sent to the frontend. Provisioned in REL-505.
+META_APP_ID = os.environ.get('META_APP_ID', '')
+META_APP_SECRET = os.environ.get('META_APP_SECRET', '')
+# Launch flag gating the whole Meta integration surface (Settings card, nav,
+# and the connect endpoints), same pattern as OPERATIONS_ENABLED. Default OFF;
+# echoed to the frontend via /bookings/settings/ as `meta_leads_enabled`.
+META_LEADS_ENABLED = os.environ.get(
+    'META_LEADS_ENABLED', 'False',
+).lower() in ('true', '1', 'yes')
+
 # Which model each AI task runs on, as 'provider:model' — see portioning/llm.py.
 # Switching supplier or model per task is a one-env-var change, nothing else.
 LLM_FOLLOWUP_DRAFTER = os.environ.get('LLM_FOLLOWUP_DRAFTER', 'openai:gpt-5.4-nano')

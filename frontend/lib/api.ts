@@ -771,6 +771,9 @@ export interface SiteSettingsData {
    *  operations suite — portioning, kitchen events, staffing and the portioning
    *  Help page. Equipment/Menu Templates are admin-only, not gated by this. */
   operations_enabled?: boolean;
+  /** Platform launch flag (env META_LEADS_ENABLED). Off by default; gates the
+   *  "Connect Facebook & Instagram" card in Settings → Integrations (REL-506). */
+  meta_leads_enabled?: boolean;
 }
 
 export interface CommissionPlanConfig {
@@ -1128,6 +1131,39 @@ export interface MailboxStatus {
   connected: boolean;
   mailbox: ConnectedMailbox | null;
   providers_available: MailboxProvider[];
+}
+
+// Meta (Facebook/Instagram) connected Pages — REL-506
+export interface ConnectedMetaPage {
+  id: number;
+  page_id: string;
+  page_name: string;
+  instagram_account_id: string;
+  instagram_username: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MetaStatus {
+  /** Whether this deployment has a real Meta app (vs. local-dev fake mode). */
+  app_configured: boolean;
+  /** The org has completed Meta consent — its Pages can be listed/connected. */
+  authorized: boolean;
+  pages: ConnectedMetaPage[];
+}
+
+/** A Page offered in the picker after consent. Never carries a token. */
+export interface MetaAvailablePage {
+  page_id: string;
+  page_name: string;
+  instagram_account_id: string;
+  instagram_username: string;
+  connected: boolean;
+}
+
+export interface MetaPagesResult {
+  pages: ConnectedMetaPage[];
+  errors: { page_id: string; detail: string }[];
 }
 
 // AI follow-up drafts
@@ -2034,6 +2070,22 @@ export const api = {
     fetchApi<{ auth_url: string }>(`/integrations/email/connect/?provider=${provider}`),
   disconnectMailbox: () =>
     fetchApi<void>("/integrations/email/disconnect/", { method: "POST" }),
+
+  // Meta (Facebook/Instagram) Page connection — REL-506
+  getMetaStatus: () => fetchApi<MetaStatus>("/integrations/meta/"),
+  startMetaConnect: () =>
+    fetchApi<{ auth_url: string }>("/integrations/meta/connect/"),
+  getMetaPages: () => fetchApi<MetaAvailablePage[]>("/integrations/meta/pages/"),
+  connectMetaPages: (pageIds: string[]) =>
+    fetchApi<MetaPagesResult>("/integrations/meta/pages/", {
+      method: "POST",
+      body: JSON.stringify({ page_ids: pageIds }),
+    }),
+  disconnectMetaPage: (pageId: string) =>
+    fetchApi<void>("/integrations/meta/disconnect/", {
+      method: "POST",
+      body: JSON.stringify({ page_id: pageId }),
+    }),
 
   // AI follow-up drafts
   getFollowUpDrafts: (status: string = "pending") =>
