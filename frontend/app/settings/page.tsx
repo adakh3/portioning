@@ -18,6 +18,7 @@ import ChoiceOptionsSettings from "@/components/ChoiceOptionsSettings";
 import TimelineStepExtras from "@/components/TimelineStepExtras";
 import ServiceStyleExtras from "@/components/ServiceStyleExtras";
 import ProductLinesSettings from "@/components/ProductLinesSettings";
+import DishesSettings from "@/components/DishesSettings";
 import CommissionSettings from "@/components/CommissionSettings";
 import ClientCommunicationsSettings from "@/components/ClientCommunicationsSettings";
 import BillingPanel from "@/components/BillingPanel";
@@ -405,6 +406,12 @@ export default function SettingsPage() {
       {tab === "branding" && (
       <div className="space-y-6 max-w-2xl">
         <ProductLinesSettings />
+      </div>
+      )}
+
+      {tab === "dishes" && (
+      <div className="space-y-6 max-w-4xl">
+        <DishesSettings />
       </div>
       )}
 

@@ -16,6 +16,7 @@ import {
   EventData,
   Dish,
   DishCategory,
+  DietaryTag,
   MenuTemplate,
   SiteSettingsData,
   MailboxStatus,
@@ -229,6 +230,20 @@ export function useDishes() {
 export function useCategories() {
   return useSWR<DishCategory[]>("categories", () => api.getCategories(), {
     dedupingInterval: 60000,
+  });
+}
+
+// Management list for Settings — includes inactive dishes.
+export function useManagedDishes() {
+  return useSWR<Dish[]>("managed-dishes", () => api.getManagedDishes(), {
+    revalidateOnFocus: false,
+  });
+}
+
+export function useDietaryTags() {
+  return useSWR<DietaryTag[]>("dietary-tags", () => api.getDietaryTags(), {
+    dedupingInterval: 300000,
+    revalidateOnFocus: false,
   });
 }
 

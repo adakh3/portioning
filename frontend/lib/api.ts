@@ -240,8 +240,13 @@ export interface Dish {
   selling_price_override: boolean;
   margin_percent: number | null;
   is_vegetarian: boolean;
-  /** Dietary/allergen labels; a dish with none is simply untagged. Edited in Django admin. */
+  is_active?: boolean;
+  /** Read-only per-head surcharge for adding this dish (auto-derived from cost). */
+  addition_surcharge?: string;
+  /** Dietary/allergen labels; a dish with none is simply untagged. */
   dietary_tags?: DietaryTag[];
+  /** Write-only: the dietary-tag ids to set (the manage endpoint). */
+  dietary_tag_ids?: number[];
   notes: string;
 }
 
@@ -1506,6 +1511,15 @@ export const api = {
 
   getDishes: () => fetchList<Dish>("/dishes/?page_size=all"),
   getCategories: () => fetchList<DishCategory>("/categories/?page_size=all"),
+  getDietaryTags: () => fetchList<DietaryTag>("/dietary-tags/?page_size=all"),
+  // Dish catalog management (owner/admin) — includes inactive; supports create/update/delete.
+  getManagedDishes: () => fetchList<Dish>("/dishes/manage/?page_size=all"),
+  createDish: (data: Partial<Dish>) =>
+    fetchApi<Dish>("/dishes/manage/", { method: "POST", body: JSON.stringify(data) }),
+  updateDish: (id: number, data: Partial<Dish>) =>
+    fetchApi<Dish>(`/dishes/manage/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
+  deleteDish: (id: number) =>
+    fetchApi<void>(`/dishes/manage/${id}/`, { method: "DELETE" }),
   getMenus: () => fetchList<MenuTemplate>("/menus/?page_size=all"),
   getMenu: (id: number) => fetchApi<MenuTemplateDetail>(`/menus/${id}/`),
   getMenuPreview: (id: number) => fetchApi<CalculationResult>(`/menus/${id}/preview/`),

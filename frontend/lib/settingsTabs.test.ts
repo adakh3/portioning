@@ -21,6 +21,7 @@ describe("settingsTabsFor", () => {
       "pipeline",
       "options",
       "branding",
+      "dishes",
       "commission",
       "integrations",
     ]);
