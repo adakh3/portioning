@@ -1169,7 +1169,7 @@ export interface FollowUpDraft {
   status: "pending" | "sent" | "dismissed";
   model_used: string;
   /** The ledger row this became once sent, on either channel. */
-  client_message: number | null;
+  whatsapp_message: number | null;
   reviewed_by: number | null;
   reviewed_by_name: string | null;
   reviewed_at: string | null;

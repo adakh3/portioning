@@ -123,10 +123,11 @@ def _approve_draft(draft, user):
         description = 'Approved & sent an AI-drafted follow-up'
 
     draft.status = 'sent'
-    draft.client_message = msg
+    # Named for WhatsApp, holds either channel — see the model's own note.
+    draft.whatsapp_message = msg
     draft.reviewed_by = user
     draft.reviewed_at = timezone.now()
-    draft.save(update_fields=['status', 'client_message', 'reviewed_by', 'reviewed_at', 'updated_at'])
+    draft.save(update_fields=['status', 'whatsapp_message', 'reviewed_by', 'reviewed_at', 'updated_at'])
     log_activity(
         draft.lead, 'updated', user=user,
         field_name='followup_draft',

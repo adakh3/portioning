@@ -55,7 +55,7 @@ const DRAFT = {
   id: 7, lead: 10, lead_name: "Quiet Lead", lead_phone: "+923001269792",
   lead_email: "rizvi@example.com",
   body: "Hello Ms Rizvi,", subject: "", reasoning: "", status: "pending",
-  model_used: "openai:gpt-test", channel: "whatsapp", client_message: null,
+  model_used: "openai:gpt-test", channel: "whatsapp", whatsapp_message: null,
   email_available: false,
   reviewed_by: null, reviewed_by_name: null, reviewed_at: null, created_at: "2026-07-18",
 };
@@ -129,7 +129,7 @@ describe("Generate follow-ups (preview → select → generate)", () => {
   it("only generates for still-selected leads, one call per lead", async () => {
     generateFollowUpDraft.mockResolvedValue({
       status: "created",
-      draft: { id: 99, lead: 10, lead_name: "Quiet Lead", body: "Hi!", reasoning: "", status: "pending", model_used: "openai:gpt-test", channel: "whatsapp", subject: "", client_message: null, reviewed_by: null, reviewed_by_name: null, reviewed_at: null, created_at: "2026-07-15" },
+      draft: { id: 99, lead: 10, lead_name: "Quiet Lead", body: "Hi!", reasoning: "", status: "pending", model_used: "openai:gpt-test", channel: "whatsapp", subject: "", whatsapp_message: null, reviewed_by: null, reviewed_by_name: null, reviewed_at: null, created_at: "2026-07-15" },
     });
     await openDraftsPreview();
     // Deselect "Silent Lead" — the human said no.
@@ -143,7 +143,7 @@ describe("Generate follow-ups (preview → select → generate)", () => {
 
   it("reports AI skips with their reasoning in the summary", async () => {
     generateFollowUpDraft
-      .mockResolvedValueOnce({ status: "created", draft: { id: 99, lead: 10, lead_name: "Quiet Lead", body: "Hi!", reasoning: "", status: "pending", model_used: "openai:gpt-test", channel: "whatsapp", subject: "", client_message: null, reviewed_by: null, reviewed_by_name: null, reviewed_at: null, created_at: "2026-07-15" } })
+      .mockResolvedValueOnce({ status: "created", draft: { id: 99, lead: 10, lead_name: "Quiet Lead", body: "Hi!", reasoning: "", status: "pending", model_used: "openai:gpt-test", channel: "whatsapp", subject: "", whatsapp_message: null, reviewed_by: null, reviewed_by_name: null, reviewed_at: null, created_at: "2026-07-15" } })
       .mockResolvedValueOnce({ status: "skipped", reasoning: "They asked for space." });
     await openDraftsPreview();
     fireEvent.click(screen.getByRole("button", { name: "Create 2 drafts" }));

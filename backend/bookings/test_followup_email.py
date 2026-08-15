@@ -317,7 +317,7 @@ class ApproveEmailTests(TestCase):
 
         self.draft.refresh_from_db()
         self.assertEqual(self.draft.status, 'sent')
-        self.assertEqual(self.draft.client_message_id, msg.id)
+        self.assertEqual(self.draft.whatsapp_message_id, msg.id)
         self.assertEqual(self.draft.reviewed_by, self.user)
 
     def test_the_rep_can_edit_the_subject_before_sending(self):
@@ -532,7 +532,7 @@ class ExistingDraftTests(TestCase):
         self.assertEqual(res.status_code, 200, res.content)
         self.assertEqual(email_service.outbox, [])
         self.draft.refresh_from_db()
-        self.assertEqual(self.draft.client_message_id, msg.id)
+        self.assertEqual(self.draft.whatsapp_message_id, msg.id)
 
     def test_still_marks_sent_through_the_shortcut(self):
         res = self.client.post(f'{self.BASE}{self.draft.id}/mark-sent/', {}, format='json')

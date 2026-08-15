@@ -53,7 +53,7 @@ const WA_DRAFT = {
   reasoning: "Quiet for a month.",
   status: "pending",
   model_used: "openai:gpt-test",
-  client_message: null,
+  whatsapp_message: null,
   email_available: true,
   reviewed_by: null,
   reviewed_by_name: null,

@@ -364,7 +364,7 @@ class FollowupApiTests(TestCase):
         self.assertEqual(res.status_code, 200, res.content)
         self.draft.refresh_from_db()
         self.assertEqual(self.draft.status, 'sent')
-        self.assertEqual(self.draft.client_message_id, msg.id)
+        self.assertEqual(self.draft.whatsapp_message_id, msg.id)
         self.assertEqual(self.draft.reviewed_by, self.user)
 
     def test_approve_with_edited_body(self):

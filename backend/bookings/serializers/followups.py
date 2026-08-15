@@ -93,7 +93,7 @@ class FollowUpDraftSerializer(serializers.ModelSerializer):
             'lead_event_date', 'lead_guest_estimate', 'lead_assigned_to_name',
             'lead_days_stale', 'email_available', 'email_reason',
             'channel', 'subject', 'body', 'reasoning',
-            'status', 'model_used', 'client_message',
+            'status', 'model_used', 'whatsapp_message',
             'reviewed_by', 'reviewed_by_name', 'reviewed_at', 'created_at',
         ]
         # `channel` and `subject` are changed through the approve endpoint, which
@@ -101,7 +101,7 @@ class FollowUpDraftSerializer(serializers.ModelSerializer):
         # PATCH of the draft.
         read_only_fields = [
             'id', 'lead', 'channel', 'subject', 'reasoning', 'status', 'model_used',
-            'client_message', 'reviewed_by', 'reviewed_at', 'created_at',
+            'whatsapp_message', 'reviewed_by', 'reviewed_at', 'created_at',
         ]
 
     def get_lead_name(self, obj):

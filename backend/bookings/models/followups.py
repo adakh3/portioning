@@ -50,8 +50,13 @@ class FollowUpDraft(OrgScopedModel, models.Model):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     model_used = models.CharField(max_length=64, blank=True, default='')
     # Set when the draft is approved and dispatched. WhatsAppMessage is the
-    # ledger for every client channel despite its name, so one FK covers both.
-    client_message = models.ForeignKey(
+    # ledger for every client channel despite its name, so this one FK covers
+    # email too — which is why the field's own name is now a lie. It was going
+    # to be renamed `client_message`; that was dropped because renaming a column
+    # has no safe deploy ordering (old code reads the old name, new code the
+    # new one, and one of them is always wrong for the length of a rollout).
+    # A misleading name is the cheaper of the two problems. See REL-501.
+    whatsapp_message = models.ForeignKey(
         'bookings.WhatsAppMessage', null=True, blank=True,
         on_delete=models.SET_NULL, related_name='followup_draft',
     )
