@@ -153,3 +153,42 @@ class RefusesToBootTests(SimpleTestCase):
             TOKEN_ENCRYPTION_KEY='',
         )
         self.assertEqual(result.returncode, 0, result.stderr)
+
+
+class ThrottleRateDefaultTests(SimpleTestCase):
+    """The rate limits are env-overridable so a CI stack can lift them (REL-501).
+
+    That is a loaded gun pointed at production: the same knob that unblocks a
+    test run could quietly disable the limit that makes credential stuffing
+    expensive. Nothing sets these vars in a deployment, so this pins what an
+    unconfigured environment — which is what prod is — actually gets.
+    """
+
+    def test_an_unconfigured_environment_keeps_the_production_rates(self):
+        from django.conf import settings
+        rates = settings.REST_FRAMEWORK['DEFAULT_THROTTLE_RATES']
+        self.assertEqual(rates['anon'], '100/hour')
+        self.assertEqual(rates['user'], '1000/hour')
+        self.assertEqual(rates['demo_requests'], '10/hour')
+        # The two sign-in scopes are overridable for the same CI reason and are
+        # the same loaded gun — more so, since these are the limits standing in
+        # front of the login itself (REL-485).
+        self.assertEqual(rates['login'], '10/min')
+        self.assertEqual(rates['token_refresh'], '30/min')
+
+    def test_the_throttle_classes_are_still_applied_by_default(self):
+        """A rate is worth nothing if nothing enforces it."""
+        from django.conf import settings
+        classes = settings.REST_FRAMEWORK['DEFAULT_THROTTLE_CLASSES']
+        self.assertIn('rest_framework.throttling.AnonRateThrottle', classes)
+        self.assertIn('rest_framework.throttling.UserRateThrottle', classes)
+
+    def test_the_throttle_key_cannot_be_chosen_by_the_caller(self):
+        """NUM_PROXIES is what makes every rate above mean anything.
+
+        Unset, DRF keys on the whole client-supplied X-Forwarded-For chain, and
+        varying it by a byte per request mints a fresh bucket every time — the
+        limits are then decorative (REL-485).
+        """
+        from django.conf import settings
+        self.assertEqual(settings.REST_FRAMEWORK['NUM_PROXIES'], 1)

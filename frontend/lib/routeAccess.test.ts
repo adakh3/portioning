@@ -17,6 +17,15 @@ describe("routeAccess", () => {
     expect(canAccess("/team", "owner")).toBe(true);
   });
 
+  it("restricts admin tooling (/menus, /equipment) to owner/admin", () => {
+    for (const path of ["/menus", "/equipment"]) {
+      expect(canAccess(path, "salesperson")).toBe(false);
+      expect(canAccess(path, "manager")).toBe(false);
+      expect(canAccess(path, "admin")).toBe(true);
+      expect(canAccess(path, "owner")).toBe(true);
+    }
+  });
+
   it("matches nested paths under a protected prefix", () => {
     expect(canAccess("/settings/billing", "salesperson")).toBe(false);
     expect(canAccess("/settings/billing", "owner")).toBe(true);

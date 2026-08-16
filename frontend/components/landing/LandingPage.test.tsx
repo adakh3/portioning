@@ -15,9 +15,9 @@ describe("LandingPage (REL-482)", () => {
   it("renders the hero, product section and footer (AC1)", () => {
     render(<LandingPage />);
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
-      "From the first inquiry to the last gram.",
+      "Quote fast. Win more.",
     );
-    expect(screen.getByText("A lead comes in. The kitchen gets grams.")).toBeInTheDocument();
+    expect(screen.getByText("Every inquiry, quoted and closed.")).toBeInTheDocument();
     expect(screen.getByText("© 2026 Relogue Catering")).toBeInTheDocument();
   });
 
@@ -65,22 +65,24 @@ describe("LandingPage (REL-482)", () => {
     }
   });
 
-  it("switches between the five product screens (AC5)", () => {
+  it("switches between the product screens (AC5)", () => {
     render(<LandingPage />);
     // Leads kanban is the default screen.
     expect(screen.getByText("Negotiating")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Event Form" }));
-    expect(screen.getByText("Save Event")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "Portioning" }));
-    expect(screen.getByText("Engine Rec")).toBeInTheDocument();
-    expect(screen.getByText("All clear — your portions are within all constraints.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Quote Builder" }));
+    expect(screen.getByText("Save Quote")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "AI Drafting" }));
     expect(screen.getByText("Message History")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "AI Lead Triage" }));
     expect(screen.getByText("Lead filled by AI")).toBeInTheDocument();
+  });
+
+  it("does not mention portioning anywhere — it is hidden until launch", () => {
+    const { container } = render(<LandingPage />);
+    expect(container.textContent).not.toMatch(/portion|grams?\b|per person.*g\b/i);
+    expect(screen.queryByRole("button", { name: "Portioning" })).not.toBeInTheDocument();
   });
 });

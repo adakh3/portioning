@@ -6,18 +6,17 @@ import { Card, CardContent } from "@/components/ui/card";
 
 interface Props {
   templates: MenuTemplate[];
+  /** When true, each card links into the portioning calculator. Off while the
+   *  operations suite is hidden — cards then render as plain, non-linked tiles. */
+  linkToCalculator?: boolean;
 }
 
-export default function MenuTemplateList({ templates }: Props) {
+export default function MenuTemplateList({ templates, linkToCalculator }: Props) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      {templates.map((t) => (
-        <Link
-          key={t.id}
-          href={`/calculate?template=${t.id}`}
-          className="block"
-        >
-          <Card className="hover:shadow-lg hover:border-primary/30 transition-all">
+      {templates.map((t) => {
+        const card = (
+          <Card className={linkToCalculator ? "hover:shadow-lg hover:border-primary/30 transition-all" : ""}>
             <CardContent className="p-6">
               <h3 className="text-lg font-semibold text-foreground">{t.name}</h3>
               <p className="text-sm text-muted-foreground mt-1">{t.description}</p>
@@ -29,8 +28,15 @@ export default function MenuTemplateList({ templates }: Props) {
               </div>
             </CardContent>
           </Card>
-        </Link>
-      ))}
+        );
+        return linkToCalculator ? (
+          <Link key={t.id} href={`/calculate?template=${t.id}`} className="block">
+            {card}
+          </Link>
+        ) : (
+          <div key={t.id}>{card}</div>
+        );
+      })}
     </div>
   );
 }

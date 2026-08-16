@@ -116,10 +116,25 @@ jobs:
       SECRET_KEY: ci-insecure-test-key
       DEBUG: "True"
       ALLOWED_HOSTS: "localhost,127.0.0.1"
-      # The whole suite signs in ~30 times from one host, which is exactly what
-      # the production login limit exists to stop. Lift it here rather than
-      # weaken it in settings — and there are no retries, so a throttled login
-      # would be a hard, confusing failure (REL-485).
+      # The operations suite (portioning, kitchen, staffing) is hidden in the
+      # product by default, but its pages/engine still exist and their e2e specs
+      # (calculate, kitchen, menu-choices, booking-*) drive those surfaces —
+      # so the e2e stack runs with the launch flag ON to exercise them.
+      OPERATIONS_ENABLED: "True"
+      # One suite run is ~30 logins and several hundred API calls from a single
+      # IP inside two minutes. The production rate limits are sized for real
+      # humans, so the run trips `anon` (100/hour) at whichever spec happens to
+      # be last — a red PR that says nothing about the code under test. Lift
+      # them here ONLY; nothing sets these in a deployment, so prod keeps the
+      # defaults in settings.py.
+      THROTTLE_ANON: "10000/hour"
+      THROTTLE_USER: "100000/hour"
+      THROTTLE_DEMO_REQUESTS: "1000/hour"
+      # Same reasoning for the two sign-in scopes REL-485 adds. The login limit
+      # only charges FAILED attempts, so the suite's ~30 successful sign-ins no
+      # longer trip it on their own — but a spec that deliberately drives a bad
+      # password still can, and there are no retries, so a throttled login would
+      # be a hard, confusing failure.
       LOGIN_RATE_LIMIT: "1000/min"
       TOKEN_REFRESH_RATE_LIMIT: "1000/min"
     steps:

@@ -767,6 +767,10 @@ export interface SiteSettingsData {
   followup_gap_final_days?: number;
   followup_max_drafts_per_lead?: number;
   followup_auto_generate?: boolean;
+  /** Platform launch flag (env OPERATIONS_ENABLED). Hidden for now; gates the
+   *  operations suite — portioning, kitchen events, staffing and the portioning
+   *  Help page. Equipment/Menu Templates are admin-only, not gated by this. */
+  operations_enabled?: boolean;
 }
 
 export interface CommissionPlanConfig {
@@ -1147,16 +1151,28 @@ export interface FollowUpDraft {
   lead: number;
   lead_name: string | null;
   lead_phone?: string;
+  lead_email?: string;
   lead_event_type?: string;
   lead_event_date?: string | null;
   lead_guest_estimate?: number | null;
   lead_assigned_to_name?: string | null;
   lead_days_stale?: number | null;
-  channel: string;
+  /** Whether email could actually be used for this lead right now — the org's
+   * mailbox works AND the lead has a valid address. Decided by the backend,
+   * which is the only side that can see the mailbox. */
+  email_available?: boolean;
+  /** Why not, when it can't — the same reasons the send modal branches on, so
+   * "connect your email" and "reconnect it" stay different problems. */
+  email_reason?: ChannelBlockedReason | null;
+  /** The channel this draft was written for — the rep can still switch it. */
+  channel: ClientChannel;
+  /** Email only; a WhatsApp draft has no subject and leaves this empty. */
+  subject: string;
   body: string;
   reasoning: string;
   status: "pending" | "sent" | "dismissed";
   model_used: string;
+  /** The ledger row this became once sent, on either channel. */
   whatsapp_message: number | null;
   reviewed_by: number | null;
   reviewed_by_name: string | null;
@@ -2044,17 +2060,29 @@ export const api = {
     if (dateTo) params.set("date_to", dateTo);
     return fetchApi<FollowUpStats>(`/bookings/followup-drafts/stats/?${params.toString()}`);
   },
-  approveFollowUpDraft: (id: number, body?: string) =>
+  /** Approve and send. `channel`/`subject` are the rep's overrides at send
+   * time — only sent when they actually changed something, so the draft's own
+   * values stay authoritative. */
+  approveFollowUpDraft: (
+    id: number,
+    overrides: { body?: string; channel?: ClientChannel; subject?: string } = {},
+  ) =>
     fetchApi<FollowUpDraft>(`/bookings/followup-drafts/${id}/approve/`, {
       method: "POST",
-      body: JSON.stringify(body !== undefined ? { body } : {}),
+      body: JSON.stringify(overrides),
     }),
   dismissFollowUpDraft: (id: number) =>
     fetchApi<FollowUpDraft>(`/bookings/followup-drafts/${id}/dismiss/`, { method: "POST" }),
-  markFollowUpSent: (id: number, body?: string) =>
+  /** The rep sent it from their own WhatsApp. Takes the same overrides as
+   * approve, so a draft written for email that the rep chose to hand off by
+   * WhatsApp is recorded rather than refused. */
+  markFollowUpSent: (
+    id: number,
+    overrides: { body?: string; channel?: ClientChannel } = {},
+  ) =>
     fetchApi<FollowUpDraft>(`/bookings/followup-drafts/${id}/mark-sent/`, {
       method: "POST",
-      body: JSON.stringify(body != null ? { body } : {}),
+      body: JSON.stringify(overrides),
     }),
   logLeadReply: (leadId: number) =>
     fetchApi<{ logged: boolean }>(`/bookings/leads/${leadId}/log-reply/`, { method: "POST" }),

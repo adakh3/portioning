@@ -49,6 +49,19 @@ SEED_STARTER_CATALOG_ON_ORG_CREATE = os.environ.get(
     'False' if 'test' in sys.argv else 'True',
 ).lower() in ('true', '1', 'yes')
 
+# The "operations" suite — portioning calculator, kitchen events, staffing and
+# the portioning Help explainer — is hidden from the product for now: the
+# current story is sharply revenue/CRM-focused and these features are
+# reintroduced together at a later stage. This flag gates only the USER-FACING
+# surfaces (nav items, /calculate, /kitchen, /staff, /help, related CTAs) — the
+# portioning engine still runs internally when a signed quote becomes an event.
+# Equipment and Menu Templates are NOT gated here: they stay available to admins
+# via the admin menu. Default OFF; flip to launch. Echoed to the frontend via
+# the /bookings/settings/ payload as `operations_enabled`.
+OPERATIONS_ENABLED = os.environ.get(
+    'OPERATIONS_ENABLED', 'False',
+).lower() in ('true', '1', 'yes')
+
 ALLOWED_HOSTS = [
     h.strip() for h in os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 ]
@@ -320,15 +333,22 @@ REST_FRAMEWORK = {
         'rest_framework.throttling.AnonRateThrottle',
         'rest_framework.throttling.UserRateThrottle',
     ],
+    # Overridable by environment so a test stack can lift them, and ONLY for
+    # that: the defaults are the production values and nothing sets these vars
+    # in a deployment. The e2e suite drives ~30 real logins from one IP in two
+    # minutes, which is indistinguishable from credential stuffing to a limit
+    # sized for real humans — it crossed 100/hour once the suite grew past ~25
+    # specs, and every PR after that would have failed at whichever spec ran
+    # last. Raising the ceiling for CI is right; lowering it for clients is not.
     'DEFAULT_THROTTLE_RATES': {
-        'anon': '100/hour',
-        'demo_requests': '10/hour',
-        'user': '1000/hour',
+        'anon': os.environ.get('THROTTLE_ANON', '100/hour'),
+        'demo_requests': os.environ.get('THROTTLE_DEMO_REQUESTS', '10/hour'),
+        'user': os.environ.get('THROTTLE_USER', '1000/hour'),
         # Cheap first line in front of the per-account lockout: it costs an
         # attacker nothing to be locked out of an account they don't own, but
-        # it does cost them request volume. Tunable because the key is an
-        # address, and a whole office behind one NAT shares it — as does the
-        # e2e stack, which signs in ~30 times from one host in a few minutes.
+        # it does cost them request volume. Tunable for the same reason as the
+        # three above — and because the key is an address, which a whole office
+        # behind one NAT shares.
         'login': os.environ.get('LOGIN_RATE_LIMIT', '10/min'),
         'token_refresh': os.environ.get('TOKEN_REFRESH_RATE_LIMIT', '30/min'),
     },

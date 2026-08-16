@@ -10,6 +10,7 @@ import { formatCurrency } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { ValidatedInput } from "@/components/ui/validated-input";
 import { Textarea } from "@/components/ui/textarea";
 import ActivityTimeline from "@/components/ActivityTimeline";
@@ -1057,8 +1058,14 @@ function LeadFollowUpDraftCard({ draft, leadId, onDone }: {
   onDone: () => void;
 }) {
   const [body, setBody] = useState(draft.body);
+  const [subject, setSubject] = useState(draft.subject ?? "");
   const [busy, setBusy] = useState<"" | "approve" | "dismiss">("");
   const [error, setError] = useState("");
+
+  // The drafted channel stands here — switching it is a review-queue decision
+  // (Follow-ups), not something to bury on the lead page. This card only has to
+  // send it correctly and say which channel it is going on.
+  const isEmail = draft.channel === "email";
 
   const refresh = () => {
     onDone();
@@ -1069,7 +1076,12 @@ function LeadFollowUpDraftCard({ draft, leadId, onDone }: {
     setBusy("approve");
     setError("");
     try {
-      await api.approveFollowUpDraft(draft.id, body !== draft.body ? body : undefined);
+      // What is on screen, always — not a diff against the cached draft, which
+      // goes stale the moment a failed send persists the rep's last edit.
+      await api.approveFollowUpDraft(draft.id, {
+        body,
+        ...(isEmail ? { subject } : {}),
+      });
       refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to send");
@@ -1096,11 +1108,27 @@ function LeadFollowUpDraftCard({ draft, leadId, onDone }: {
       {draft.reasoning && (
         <p className="text-xs text-muted-foreground italic">{draft.reasoning}</p>
       )}
+      {isEmail && (
+        <div>
+          <label
+            htmlFor={`lead-draft-subject-${draft.id}`}
+            className="mb-1 block text-xs font-medium text-muted-foreground"
+          >
+            Subject
+          </label>
+          <Input
+            id={`lead-draft-subject-${draft.id}`}
+            value={subject}
+            maxLength={300}
+            onChange={(e) => setSubject(e.target.value)}
+          />
+        </div>
+      )}
       <Textarea value={body} onChange={(e) => setBody(e.target.value)} rows={3} />
       {error && <p className="text-sm text-destructive">{error}</p>}
       <div className="flex items-center gap-2">
         <Button size="sm" onClick={handleApprove} disabled={!!busy || !body.trim()}>
-          {busy === "approve" ? "Sending..." : "Approve & Send"}
+          {busy === "approve" ? "Sending..." : isEmail ? "Send via Email" : "Approve & Send"}
         </Button>
         <Button size="sm" variant="ghost" onClick={handleDismiss} disabled={!!busy}>
           {busy === "dismiss" ? "Deleting..." : "Delete"}
@@ -1208,10 +1236,15 @@ function LeadWhatsApp({ leadId, contactPhone, contactName, eventType, eventDate 
   const handleTemplateChange = (template: string) => {
     setSelectedTemplate(template);
     if (!template) { setBody(""); return; }
-    // Preview template text client-side
+    // Preview template text client-side. These MUST stay word-for-word with
+    // backend/bookings/services/whatsapp_templates.py — the rep approves what
+    // they read here and the backend renders what it sends, so a divergence
+    // means the client receives a different message from the one reviewed.
+    // (That is also why neither says "enquiry": it is British, and this text
+    // reaches US clients unchanged — REL-501 AC10.)
     const previews: Record<string, string> = {
       reminder: `Hi ${contactName}, this is a friendly reminder about your upcoming ${eventType} on ${eventDate || "TBD"}. Please let us know if you have any questions!`,
-      follow_up: `Hi ${contactName}, thank you for your interest in our catering services. We wanted to follow up on your enquiry for ${eventType}. Would you like to discuss your requirements?`,
+      follow_up: `Hi ${contactName}, thank you for your interest in our catering services. We wanted to follow up about your ${eventType}. Would you like to discuss your requirements?`,
     };
     setBody(previews[template] || "");
   };
@@ -1275,8 +1308,9 @@ function LeadWhatsApp({ leadId, contactPhone, contactName, eventType, eventDate 
           <div className="space-y-3 mb-4 p-3 border rounded-lg bg-muted/30">
             {error && <p className="text-sm text-destructive">{error}</p>}
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Template (optional)</label>
+              <label htmlFor="wa-template" className="block text-sm font-medium text-foreground mb-1">Template (optional)</label>
               <select
+                id="wa-template"
                 value={selectedTemplate}
                 onChange={(e) => handleTemplateChange(e.target.value)}
                 className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
