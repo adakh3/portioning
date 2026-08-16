@@ -18,6 +18,7 @@ import {
   DishCategory,
   DietaryTag,
   MenuTemplate,
+  ManagedMenu,
   SiteSettingsData,
   MailboxStatus,
   ChannelAvailability,
@@ -250,6 +251,13 @@ export function useDietaryTags() {
 export function useMenus() {
   return useSWR<MenuTemplate[]>("menus", () => api.getMenus(), {
     dedupingInterval: 60000,
+  });
+}
+
+// Management list for the /menus editor — includes inactive templates.
+export function useManagedMenus() {
+  return useSWR<ManagedMenu[]>("managed-menus", () => api.getManagedMenus(), {
+    revalidateOnFocus: false,
   });
 }
 

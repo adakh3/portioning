@@ -1,6 +1,8 @@
 from decimal import Decimal
 
 from rest_framework import serializers
+
+from users.mixins import get_request_org
 from .models import MenuTemplate, MenuDishPortion, MenuTemplatePriceTier, MenuCourse
 
 
@@ -92,3 +94,135 @@ class MenuTemplateDetailSerializer(serializers.ModelSerializer):
         index_by_id = {c.id: i for i, c in enumerate(obj.courses.all())}
         return {str(p.dish_id): index_by_id[p.course_id]
                 for p in obj.portions.all() if p.course_id in index_by_id}
+
+
+def _auto_portion_grams(template, dish_ids):
+    """Per-dish portion (grams) for a template's dish set, so a caterer never has
+    to enter grams. Runs the real portioning engine for the template's default
+    gents/ladies split and takes each dish's per-gent base grams; if the engine
+    can't place a dish it falls back to that dish's own standard portion."""
+    if not dish_ids:
+        return {}
+    grams = {}
+    try:
+        from calculator.engine.calculator import calculate_portions
+        result = calculate_portions(
+            dish_ids,
+            {'gents': template.default_gents, 'ladies': template.default_ladies},
+            org=template.organisation,
+        )
+        grams = {p['dish_id']: round(p['grams_per_gent'], 1) for p in result.get('portions', [])}
+    except Exception:
+        grams = {}
+    # Fill any gaps (engine returned nothing for a dish, or blew up) with the
+    # dish's own standard portion — the snapshot is required and a preview aid;
+    # the booking re-runs the calculator with real numbers anyway.
+    from dishes.models import Dish
+    missing = [i for i in dish_ids if i not in grams]
+    if missing:
+        for d in Dish.objects.filter(id__in=missing, organisation=template.organisation):
+            grams[d.id] = d.default_portion_grams
+    return grams
+
+
+class MenuTemplateManageSerializer(serializers.ModelSerializer):
+    """Create/edit a menu template and its composition in one payload (Settings/
+    /menus, owner/admin). The editor is compose-only: send the scalar fields plus
+
+      courses:     [{name, sort_order}]              (order = the list order)
+      dishes:      [{dish_id, course}]               (course = index into courses, or null)
+      price_tiers: [{min_guests, price_per_head}]    (optional)
+
+    Portion grams are auto-computed by the engine — never sent. Each collection is
+    replaced wholesale (templates are small and edited as a unit)."""
+    courses = serializers.ListField(child=serializers.DictField(), required=False, write_only=True)
+    dishes = serializers.ListField(child=serializers.DictField(), required=False, write_only=True)
+    price_tiers = serializers.ListField(child=serializers.DictField(), required=False, write_only=True)
+
+    class Meta:
+        model = MenuTemplate
+        fields = ['id', 'name', 'description', 'menu_type', 'default_gents', 'default_ladies',
+                  'is_active', 'courses', 'dishes', 'price_tiers']
+
+    def validate_dishes(self, dishes):
+        org = get_request_org(self.context['request'])
+        ids = [d.get('dish_id') for d in dishes]
+        if None in ids:
+            raise serializers.ValidationError('Each dish needs a dish_id.')
+        if org and ids:
+            from dishes.models import Dish
+            valid = set(Dish.objects.filter(id__in=ids, organisation=org).values_list('id', flat=True))
+            missing = [i for i in ids if i not in valid]
+            if missing:
+                raise serializers.ValidationError(f'Dishes not in your organisation: {missing}')
+        return dishes
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)  # scalar fields only (nested are write_only)
+        courses = list(instance.courses.all())
+        index_by_course_id = {c.id: i for i, c in enumerate(courses)}
+        data['courses'] = [{'name': c.name, 'sort_order': c.sort_order} for c in courses]
+        data['dishes'] = [
+            {'dish_id': p.dish_id, 'dish_name': p.dish.name,
+             'category_name': p.dish.category.display_name,
+             'portion_grams': p.portion_grams,
+             'course': index_by_course_id.get(p.course_id)}
+            for p in instance.portions.all()
+        ]
+        data['price_tiers'] = [
+            {'min_guests': t.min_guests, 'price_per_head': str(t.price_per_head)}
+            for t in instance.price_tiers.all()
+        ]
+        return data
+
+    def create(self, validated_data):
+        nested = self._pop_nested(validated_data)
+        template = MenuTemplate.objects.create(**validated_data)
+        self._sync(template, **nested)
+        return template
+
+    def update(self, instance, validated_data):
+        nested = self._pop_nested(validated_data)
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        self._sync(instance, **nested)
+        return instance
+
+    @staticmethod
+    def _pop_nested(validated_data):
+        return {
+            'courses': validated_data.pop('courses', None),
+            'dishes': validated_data.pop('dishes', None),
+            'price_tiers': validated_data.pop('price_tiers', None),
+        }
+
+    def _sync(self, template, courses, dishes, price_tiers):
+        if courses is not None:
+            template.courses.all().delete()
+            course_objs = [
+                MenuCourse.objects.create(
+                    menu=template, name=c.get('name', ''), sort_order=c.get('sort_order', i),
+                )
+                for i, c in enumerate(courses)
+            ]
+        else:
+            course_objs = list(template.courses.all())
+
+        if dishes is not None:
+            template.portions.all().delete()
+            grams = _auto_portion_grams(template, [d['dish_id'] for d in dishes])
+            for d in dishes:
+                idx = d.get('course')
+                course = course_objs[idx] if (isinstance(idx, int) and 0 <= idx < len(course_objs)) else None
+                MenuDishPortion.objects.create(
+                    menu=template, dish_id=d['dish_id'],
+                    portion_grams=grams.get(d['dish_id'], 0), course=course,
+                )
+
+        if price_tiers is not None:
+            template.price_tiers.all().delete()
+            for t in price_tiers:
+                MenuTemplatePriceTier.objects.create(
+                    menu=template, min_guests=t['min_guests'], price_per_head=t['price_per_head'],
+                )

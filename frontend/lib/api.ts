@@ -276,6 +276,31 @@ export interface MenuDishPortion {
   portion_grams: number;
 }
 
+// The compose-only shape the /menus editor round-trips (portions auto-computed).
+export interface ManagedMenuCourse {
+  name: string;
+  sort_order?: number;
+}
+export interface ManagedMenuDish {
+  dish_id: number;
+  dish_name?: string;      // read-only, for display
+  category_name?: string;  // read-only, for display
+  portion_grams?: number;  // read-only, auto-computed
+  course: number | null;   // index into `courses`, or null (unassigned)
+}
+export interface ManagedMenu {
+  id: number;
+  name: string;
+  description: string;
+  menu_type: string;
+  default_gents: number;
+  default_ladies: number;
+  is_active: boolean;
+  courses: ManagedMenuCourse[];
+  dishes: ManagedMenuDish[];
+  price_tiers: PriceTier[];
+}
+
 export interface MenuTemplateDetail extends MenuTemplate {
   portions: MenuDishPortion[];
   courses: CourseData[];                     // REL-417 — carried onto a booking on apply
@@ -1522,6 +1547,15 @@ export const api = {
     fetchApi<void>(`/dishes/manage/${id}/`, { method: "DELETE" }),
   getMenus: () => fetchList<MenuTemplate>("/menus/?page_size=all"),
   getMenu: (id: number) => fetchApi<MenuTemplateDetail>(`/menus/${id}/`),
+  // Menu-template management (owner/admin) — compose-only; includes inactive.
+  getManagedMenus: () => fetchList<ManagedMenu>("/menus/manage/?page_size=all"),
+  getManagedMenu: (id: number) => fetchApi<ManagedMenu>(`/menus/manage/${id}/`),
+  createMenu: (data: Partial<ManagedMenu>) =>
+    fetchApi<ManagedMenu>("/menus/manage/", { method: "POST", body: JSON.stringify(data) }),
+  updateMenu: (id: number, data: Partial<ManagedMenu>) =>
+    fetchApi<ManagedMenu>(`/menus/manage/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
+  deleteMenu: (id: number) =>
+    fetchApi<void>(`/menus/manage/${id}/`, { method: "DELETE" }),
   getMenuPreview: (id: number) => fetchApi<CalculationResult>(`/menus/${id}/preview/`),
   menuPriceCheck: (templateId: number, data: { guest_count: number; dish_ids: number[] }) =>
     fetchApi<PriceCheckResult>(`/menus/${templateId}/price-check/`, {

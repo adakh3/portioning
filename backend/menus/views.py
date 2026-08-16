@@ -3,8 +3,11 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from users.mixins import OrgQuerySetMixin, apply_org_filter, get_request_org
+from bookings.permissions import IsAdminOrOwner
 from .models import MenuTemplate, MenuTemplatePriceTier
-from .serializers import MenuTemplateListSerializer, MenuTemplateDetailSerializer
+from .serializers import (
+    MenuTemplateListSerializer, MenuTemplateDetailSerializer, MenuTemplateManageSerializer,
+)
 
 
 class MenuTemplateListView(OrgQuerySetMixin, generics.ListAPIView):
@@ -20,6 +23,28 @@ class MenuTemplateDetailView(OrgQuerySetMixin, generics.RetrieveAPIView):
     queryset = MenuTemplate.objects.filter(is_active=True).prefetch_related(
         'portions__dish__category', 'price_tiers')
     serializer_class = MenuTemplateDetailSerializer
+
+
+# Prefetch everything the manage serializer's to_representation reads, so listing/
+# fetching templates for the editor doesn't N+1 on courses/portions/tiers.
+_MANAGE_PREFETCH = ('courses', 'portions__dish__category', 'price_tiers')
+
+
+class MenuTemplateManageListCreateView(OrgQuerySetMixin, generics.ListCreateAPIView):
+    """Manage menu templates from the /menus editor (owner/admin). Lists ALL
+    templates (incl. inactive) so they can be edited/reactivated."""
+    queryset = MenuTemplate.objects.all().prefetch_related(*_MANAGE_PREFETCH).order_by('name')
+    serializer_class = MenuTemplateManageSerializer
+    permission_classes = [IsAdminOrOwner]
+
+    def perform_create(self, serializer):
+        serializer.save(organisation=get_request_org(self.request))
+
+
+class MenuTemplateManageDetailView(OrgQuerySetMixin, generics.RetrieveUpdateDestroyAPIView):
+    queryset = MenuTemplate.objects.all().prefetch_related(*_MANAGE_PREFETCH)
+    serializer_class = MenuTemplateManageSerializer
+    permission_classes = [IsAdminOrOwner]
 
 
 def _template_segments(menu):
