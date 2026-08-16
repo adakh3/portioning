@@ -37,16 +37,22 @@ CALLBACK_PATH = '/api/integrations/meta/callback/'
 # complete, so this stays generous, matching the mailbox flow.
 HTTP_TIMEOUT = 20
 
-# The permissions the connect flow asks for. The five that gate lead + DM
-# capture (REL-505 submits these for App Review) plus pages_show_list, which is
-# what lets us enumerate the user's Pages in the picker at all.
+# The permissions the connect flow asks for: the ones that gate lead capture
+# (REL-507) and Messenger DMs (REL-508), plus pages_show_list, which is what
+# lets us enumerate the user's Pages in the picker at all.
+#
+# `instagram_manage_messages` (Instagram DMs) is deliberately NOT requested yet.
+# It is only a *valid* scope once the app's Instagram-messaging product is
+# configured; requesting it before then hard-errors the OAuth for app
+# admins/testers, and App Review rejects permissions that have no demonstrable
+# feature behind them. It will be added back with REL-508, which builds the
+# Instagram DM feature it's for.
 SCOPES = [
     'pages_show_list',
     'pages_manage_metadata',   # required to subscribe the app to a Page's webhooks
     'pages_manage_ads',
     'leads_retrieval',
     'pages_messaging',
-    'instagram_manage_messages',
 ]
 
 # Which webhook fields we subscribe each connected Page to. leadgen powers
