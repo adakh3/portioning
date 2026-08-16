@@ -109,3 +109,27 @@ class RefusesToBootTests(SimpleTestCase):
     def test_the_same_env_with_debug_on_boots_fine(self):
         result = self._check(DEBUG='True', FRONTEND_BASE_URL='http://localhost:3000')
         self.assertEqual(result.returncode, 0, result.stderr)
+
+
+class ThrottleRateDefaultTests(SimpleTestCase):
+    """The rate limits are env-overridable so a CI stack can lift them (REL-501).
+
+    That is a loaded gun pointed at production: the same knob that unblocks a
+    test run could quietly disable the limit that makes credential stuffing
+    expensive. Nothing sets these vars in a deployment, so this pins what an
+    unconfigured environment — which is what prod is — actually gets.
+    """
+
+    def test_an_unconfigured_environment_keeps_the_production_rates(self):
+        from django.conf import settings
+        rates = settings.REST_FRAMEWORK['DEFAULT_THROTTLE_RATES']
+        self.assertEqual(rates['anon'], '100/hour')
+        self.assertEqual(rates['user'], '1000/hour')
+        self.assertEqual(rates['demo_requests'], '10/hour')
+
+    def test_the_throttle_classes_are_still_applied_by_default(self):
+        """A rate is worth nothing if nothing enforces it."""
+        from django.conf import settings
+        classes = settings.REST_FRAMEWORK['DEFAULT_THROTTLE_CLASSES']
+        self.assertIn('rest_framework.throttling.AnonRateThrottle', classes)
+        self.assertIn('rest_framework.throttling.UserRateThrottle', classes)

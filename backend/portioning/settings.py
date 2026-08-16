@@ -251,10 +251,17 @@ REST_FRAMEWORK = {
         'rest_framework.throttling.AnonRateThrottle',
         'rest_framework.throttling.UserRateThrottle',
     ],
+    # Overridable by environment so a test stack can lift them, and ONLY for
+    # that: the defaults are the production values and nothing sets these vars
+    # in a deployment. The e2e suite drives ~30 real logins from one IP in two
+    # minutes, which is indistinguishable from credential stuffing to a limit
+    # sized for real humans — it crossed 100/hour once the suite grew past ~25
+    # specs, and every PR after that would have failed at whichever spec ran
+    # last. Raising the ceiling for CI is right; lowering it for clients is not.
     'DEFAULT_THROTTLE_RATES': {
-        'anon': '100/hour',
-        'demo_requests': '10/hour',
-        'user': '1000/hour',
+        'anon': os.environ.get('THROTTLE_ANON', '100/hour'),
+        'demo_requests': os.environ.get('THROTTLE_DEMO_REQUESTS', '10/hour'),
+        'user': os.environ.get('THROTTLE_USER', '1000/hour'),
     },
     'EXCEPTION_HANDLER': 'portioning.exception_handler.custom_exception_handler',
     'DEFAULT_PAGINATION_CLASS': 'bookings.pagination.OptionalPagination',

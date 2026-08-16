@@ -121,6 +121,15 @@ jobs:
       # (calculate, kitchen, menu-choices, booking-*) drive those surfaces —
       # so the e2e stack runs with the launch flag ON to exercise them.
       OPERATIONS_ENABLED: "True"
+      # One suite run is ~30 logins and several hundred API calls from a single
+      # IP inside two minutes. The production rate limits are sized for real
+      # humans, so the run trips `anon` (100/hour) at whichever spec happens to
+      # be last — a red PR that says nothing about the code under test. Lift
+      # them here ONLY; nothing sets these in a deployment, so prod keeps the
+      # defaults in settings.py.
+      THROTTLE_ANON: "10000/hour"
+      THROTTLE_USER: "100000/hour"
+      THROTTLE_DEMO_REQUESTS: "1000/hour"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
