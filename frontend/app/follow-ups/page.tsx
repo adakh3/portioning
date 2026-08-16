@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { api, Reminder, FollowUpDraft, FollowUpPreview } from "@/lib/api";
+import {
+  api, ChannelBlockedReason, ClientChannel, Reminder, FollowUpDraft, FollowUpPreview,
+} from "@/lib/api";
 import { useReminders, useDateFormat, useFollowUpDrafts, useUsers, useSiteSettings } from "@/lib/hooks";
 import { revalidate } from "@/lib/hooks";
 import { useAuth } from "@/lib/auth";
@@ -13,8 +15,9 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
-import { Sparkles, MessageCircle } from "lucide-react";
+import { Sparkles, MessageCircle, Mail } from "lucide-react";
 import { canWhatsApp, waLink } from "@/lib/whatsapp";
+import { Input } from "@/components/ui/input";
 
 function formatDue(dateStr: string, dateFormat: string) {
   const d = new Date(dateStr);
@@ -298,11 +301,100 @@ function RemindersTab() {
   );
 }
 
+/** The Email / WhatsApp segmented control, same shape and rules as the send
+ * modal on quotes and events (`SendToClientModal`) — a rep should not have to
+ * learn two ways of choosing a channel. An unavailable channel is shown and
+ * disabled rather than hidden, so it is obvious that the option exists and
+ * something is missing, with the reason underneath. */
+/** Matches FollowUpDraft.subject / WhatsAppMessage.subject — Postgres enforces
+ * it, so the box has to stop the rep before the send does. */
+const SUBJECT_MAX = 300;
+
+function emailBlockedText(reason: ChannelBlockedReason | null | undefined): string {
+  // The three causes have three different fixes; collapsing them tells a
+  // caterer whose grant was revoked to go and "connect" something they already
+  // connected. Same split as SendToClientModal.
+  if (reason === "mailbox_needs_reconnect") {
+    return "Your email connection needs renewing in Settings.";
+  }
+  if (reason === "no_email_address") {
+    return "This lead has no valid email address on file.";
+  }
+  return "Connect your email in Settings to send by email.";
+}
+
+function ChannelToggle({
+  channel, onChange, emailAvailable, emailReason, whatsappAvailable, address, disabled,
+}: {
+  channel: ClientChannel;
+  onChange: (c: ClientChannel) => void;
+  emailAvailable: boolean;
+  emailReason?: ChannelBlockedReason | null;
+  whatsappAvailable: boolean;
+  address?: string;
+  disabled?: boolean;
+}) {
+  // A disabled option must say why on hover, not only when it happens to be the
+  // one selected — otherwise the commonest case (WhatsApp draft, Email greyed
+  // out) is a dead button with no explanation anywhere on screen.
+  const options = [
+    {
+      value: "email" as const, label: "Email", enabled: emailAvailable,
+      why: emailAvailable ? undefined : emailBlockedText(emailReason),
+    },
+    {
+      value: "whatsapp" as const, label: "WhatsApp", enabled: whatsappAvailable,
+      why: whatsappAvailable ? undefined : "This lead has no valid WhatsApp number.",
+    },
+  ];
+  const blocked = channel === "email" && !emailAvailable
+    ? emailBlockedText(emailReason)
+    : channel === "whatsapp" && !whatsappAvailable
+      ? "This lead has no valid WhatsApp number."
+      : "";
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center gap-3">
+        <div className="flex w-fit overflow-hidden rounded-md border border-input">
+          {options.map((opt) => (
+            // The title lives on the wrapper, not the button: a disabled button
+            // receives no mouse events in Chrome, so its own tooltip never shows.
+            <span key={opt.value} title={opt.why} className="flex">
+              <button
+                type="button"
+                disabled={disabled || !opt.enabled}
+                aria-pressed={channel === opt.value}
+                onClick={() => onChange(opt.value)}
+                className={cn(
+                  "h-7 px-3 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-45",
+                  channel === opt.value
+                    ? "bg-primary font-medium text-primary-foreground"
+                    : "bg-background text-muted-foreground hover:bg-accent",
+                )}
+              >
+                {opt.label}
+              </button>
+            </span>
+          ))}
+        </div>
+        {address && <span className="text-xs text-muted-foreground truncate">{address}</span>}
+      </div>
+      {/* Spelled out under the control when the rep has actually landed on the
+          dead channel; the hover covers the rest. */}
+      {blocked && <p className="text-xs text-muted-foreground">{blocked}</p>}
+    </div>
+  );
+}
+
 function DraftReviewCard({ draft, onDone }: { draft: FollowUpDraft; onDone: () => void }) {
   const dateFormat = useDateFormat();
   const shortcutsMode = useShortcutsMode();
   const [awaitingConfirm, setAwaitingConfirm] = useState(false);
   const [body, setBody] = useState(draft.body);
+  const [subject, setSubject] = useState(draft.subject ?? "");
+  // The channel the AI drafted for, which the rep may override before sending.
+  const [channel, setChannel] = useState<ClientChannel>(draft.channel);
   // Size the editor to the message so the whole draft is readable at once.
   const rows = Math.min(
     14,
@@ -311,11 +403,29 @@ function DraftReviewCard({ draft, onDone }: { draft: FollowUpDraft; onDone: () =
   const [busy, setBusy] = useState<"" | "approve" | "dismiss">("");
   const [error, setError] = useState("");
 
+  // Both answers come from the backend: whether the org's mailbox works is not
+  // something this card can see, and a number that wa.me will reject is not a
+  // WhatsApp option (same rule as the reminder shortcut above).
+  const emailAvailable = draft.email_available ?? false;
+  const whatsappAvailable = canWhatsApp(draft.lead_phone);
+  const isEmail = channel === "email";
+
+  // Post what is on screen, always — never a diff against `draft`. The server
+  // persists these before it attempts the send and keeps them when the send
+  // fails, so a rep who edits, fails, then reverts would otherwise send the
+  // text they just took back: the diff says "unchanged", the row says
+  // otherwise. Cheap to send; impossible to get wrong.
+  const overrides = () => ({
+    body,
+    channel,
+    ...(isEmail ? { subject } : {}),
+  });
+
   const handleApprove = async () => {
     setBusy("approve");
     setError("");
     try {
-      await api.approveFollowUpDraft(draft.id, body !== draft.body ? body : undefined);
+      await api.approveFollowUpDraft(draft.id, overrides());
       revalidate("followup-draft-count");
       onDone();
     } catch (err) {
@@ -333,13 +443,27 @@ function DraftReviewCard({ draft, onDone }: { draft: FollowUpDraft; onDone: () =
     setBusy("approve");
     setError("");
     try {
-      await api.markFollowUpSent(draft.id, body !== draft.body ? body : undefined);
+      // The channel goes too: an email draft the rep chose to hand off by
+      // WhatsApp has already reached the client by the time they press this,
+      // and the ledger has to be allowed to record it.
+      await api.markFollowUpSent(draft.id, { body, channel });
       revalidate("followup-draft-count");
       onDone();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to mark as sent");
       setBusy("");
     }
+  };
+
+  // Switching an email-less WhatsApp draft to email leaves the subject box
+  // empty; the backend would substitute a plain one, which means sending a
+  // subject the rep never saw. Show them the suggestion instead.
+  const switchChannel = (next: ClientChannel) => {
+    if (next === "email" && !subject.trim()) {
+      const occasion = draft.lead_event_type?.trim();
+      setSubject(occasion ? `Your ${occasion} catering` : "Following up on your catering");
+    }
+    setChannel(next);
   };
 
   const handleDismiss = async () => {
@@ -356,7 +480,7 @@ function DraftReviewCard({ draft, onDone }: { draft: FollowUpDraft; onDone: () =
   };
 
   return (
-    <div className="p-3 border border-border rounded-lg flex gap-3">
+    <div data-testid="followup-draft" className="p-3 border border-border rounded-lg flex gap-3">
       <div className="flex-1 min-w-0 space-y-2">
         <div className="flex items-center gap-2">
           <Link href={`/leads/${draft.lead}`} className="text-sm font-medium text-primary hover:underline truncate">
@@ -365,10 +489,48 @@ function DraftReviewCard({ draft, onDone }: { draft: FollowUpDraft; onDone: () =
           <Badge variant="secondary">AI</Badge>
         </div>
         {draft.reasoning && <p className="text-xs text-muted-foreground italic">{draft.reasoning}</p>}
+
+        <ChannelToggle
+          channel={channel}
+          onChange={switchChannel}
+          emailAvailable={emailAvailable}
+          emailReason={draft.email_reason}
+          whatsappAvailable={whatsappAvailable}
+          address={isEmail ? draft.lead_email : draft.lead_phone}
+          disabled={!!busy || awaitingConfirm}
+        />
+
+        {isEmail && (
+          <div>
+            <label
+              htmlFor={`draft-subject-${draft.id}`}
+              className="mb-1 block text-xs font-medium text-muted-foreground"
+            >
+              Subject
+            </label>
+            <Input
+              id={`draft-subject-${draft.id}`}
+              value={subject}
+              maxLength={SUBJECT_MAX}
+              onChange={(e) => setSubject(e.target.value)}
+            />
+          </div>
+        )}
+
         <Textarea value={body} onChange={(e) => setBody(e.target.value)} rows={rows} />
         {error && <p className="text-sm text-destructive">{error}</p>}
         <div className="flex items-center gap-2">
-          {shortcutsMode ? (
+          {isEmail ? (
+            <Button
+              size="sm"
+              onClick={handleApprove}
+              disabled={!!busy || !body.trim() || !emailAvailable}
+              title={emailAvailable ? undefined : "Email isn't available for this lead"}
+            >
+              <Mail className="w-3.5 h-3.5 mr-1" aria-hidden />
+              {busy === "approve" ? "Sending..." : "Send via Email"}
+            </Button>
+          ) : shortcutsMode ? (
             awaitingConfirm ? (
               <>
                 <span className="text-sm text-muted-foreground">Did you send it?</span>
@@ -689,15 +851,26 @@ function DraftsTab() {
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkError, setBulkError] = useState("");
 
+  // In shortcuts mode a WhatsApp draft can only leave from the rep's own phone,
+  // one tap at a time — so "send all" only ever means the email drafts, and it
+  // says so rather than queueing sends that must fail.
+  const emailDrafts = list.filter((d) => d.channel === "email");
+  const bulkTargets = shortcutsMode ? emailDrafts : list;
+  const bulkLabel = shortcutsMode
+    ? `Send all emails (${emailDrafts.length})`
+    : `Approve & send all (${list.length})`;
+
   const handleBulkApprove = async () => {
     setBulkBusy(true);
     setBulkError("");
     try {
-      const res = await api.bulkApproveFollowUpDrafts();
+      const res = await api.bulkApproveFollowUpDrafts(
+        shortcutsMode ? emailDrafts.map((d) => d.id) : undefined,
+      );
       revalidate("followup-draft-count");
       await mutate();
       if (res.failed.length > 0) {
-        setBulkError(`${res.sent.length} sent, ${res.failed.length} failed (check WhatsApp is configured).`);
+        setBulkError(`${res.sent.length} sent, ${res.failed.length} failed — open a draft to see why.`);
       }
     } catch (err) {
       setBulkError(err instanceof Error ? err.message : "Bulk approve failed");
@@ -729,9 +902,9 @@ function DraftsTab() {
             <p className="text-sm text-muted-foreground">
               {list.length} draft{list.length === 1 ? "" : "s"} awaiting your review.
             </p>
-            {!shortcutsMode && (
+            {bulkTargets.length > 0 && (
               <Button size="sm" onClick={handleBulkApprove} disabled={bulkBusy}>
-                {bulkBusy ? "Sending..." : `Approve & send all (${list.length})`}
+                {bulkBusy ? "Sending..." : bulkLabel}
               </Button>
             )}
           </div>

@@ -1,3 +1,9 @@
+# Static text, sent as-is to clients in any market — so it carries no word that
+# is right in one English and wrong in another. 'enquiry' used to live in
+# follow_up and reads as foreign to a US client; the phrasing below sidesteps
+# the whole enquiry/inquiry split rather than needing a variant per country
+# (REL-501). The AI drafters, which DO vary by region, get their spelling rule
+# from users/country_defaults.py instead.
 TEMPLATES = {
     'reminder': (
         'Hi {contact_name}, this is a friendly reminder about your upcoming '
@@ -5,7 +11,7 @@ TEMPLATES = {
     ),
     'follow_up': (
         'Hi {contact_name}, thank you for your interest in our catering services. '
-        'We wanted to follow up on your enquiry for {event_type}. '
+        'We wanted to follow up about your {event_type}. '
         'Would you like to discuss your requirements?'
     ),
 }
