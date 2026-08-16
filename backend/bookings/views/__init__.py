@@ -58,3 +58,6 @@ from .locked_dates import LockedDateListCreateView, LockedDateDeleteView
 from .mailbox import (
     MailboxStatusView, MailboxConnectView, MailboxCallbackView, MailboxDisconnectView,
 )
+from .meta import (
+    MetaStatusView, MetaConnectView, MetaCallbackView, MetaPagesView, MetaDisconnectView,
+)

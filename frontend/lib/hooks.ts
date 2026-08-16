@@ -19,6 +19,7 @@ import {
   MenuTemplate,
   SiteSettingsData,
   MailboxStatus,
+  MetaStatus,
   ChannelAvailability,
   ClientMessageParent,
   ProductLine,
@@ -139,6 +140,12 @@ export function useSiteSettings() {
 
 export function useConnectedMailbox() {
   return useSWR<MailboxStatus>("connected-mailbox", () => api.getConnectedMailbox(), {
+    revalidateOnFocus: false,
+  });
+}
+
+export function useMetaStatus() {
+  return useSWR<MetaStatus>("meta-status", () => api.getMetaStatus(), {
     revalidateOnFocus: false,
   });
 }

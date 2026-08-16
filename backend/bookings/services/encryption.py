@@ -50,17 +50,49 @@ def _fernet_for(material: str, *, is_secret_key: bool) -> Fernet:
     return Fernet(_derive_from_passphrase(material))
 
 
+def _fallback_fernets(material: str) -> list:
+    """Every key a fallback entry could mean, as decrypt-only candidates.
+
+    A fallback is ambiguous in a way the primary is not. `SECRET_KEY` reaches
+    this module by two different routes — as the primary it is SHA-256-derived
+    (`_derive_from_secret_key`), but listed in TOKEN_ENCRYPTION_KEY_FALLBACKS
+    it is just a string, which the passphrase branch would stretch with PBKDF2
+    into a completely different key. That asymmetry silently broke the one
+    migration this setting exists for: adopting TOKEN_ENCRYPTION_KEY on an
+    environment that had been running on the SECRET_KEY fallback, with the old
+    SECRET_KEY listed as a fallback. Ciphertext written under SHA-256 could not
+    be read back under PBKDF2, so every connected mailbox would have gone dark.
+
+    Rather than make the operator know which rule wrote the bytes they need to
+    read, offer both. These never encrypt, so a candidate that matches nothing
+    costs one failed HMAC check.
+    """
+    try:
+        return [Fernet(material.encode())]
+    except (ValueError, binascii.Error):
+        pass
+    return [
+        Fernet(_derive_from_secret_key(material)),
+        Fernet(_derive_from_passphrase(material)),
+    ]
+
+
 @lru_cache(maxsize=8)
 def _build(primary: str, fallbacks: tuple, primary_is_secret_key: bool) -> MultiFernet:
     keys = [_fernet_for(primary, is_secret_key=primary_is_secret_key)]
     # Old keys decrypt but never encrypt, which is what makes a rotation
     # possible without asking every caterer to reconnect their mailbox.
-    keys += [_fernet_for(key, is_secret_key=False) for key in fallbacks]
+    for key in fallbacks:
+        keys.extend(_fallback_fernets(key))
     return MultiFernet(keys)
 
 
 def _get_fernet() -> MultiFernet:
     """Encrypt under TOKEN_ENCRYPTION_KEY when set, else under SECRET_KEY.
+
+    The SECRET_KEY fallback is a *dev* convenience only: settings refuse to boot
+    without a dedicated key when DEBUG=False (REL-487), so in production this
+    always takes the first branch.
 
     When a dedicated key is configured it is used *alone* — SECRET_KEY is
     deliberately not kept as a silent second decryption key, or compromising

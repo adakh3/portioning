@@ -1,6 +1,7 @@
 from django.db import models
 from bookings.names import TITLE_CHOICES
 from users.managers import TenantManager
+from users.model_mixins import OrgScopedModel
 
 
 class AccountType(models.TextChoices):
@@ -64,7 +65,10 @@ class Account(models.Model):
         return self.name
 
 
-class Contact(models.Model):
+class Contact(OrgScopedModel, models.Model):
+    # OrgScopedModel is the backstop under the serializer fix: it rejects an
+    # `account` in another org on every write path DRF can't see — admin, the
+    # shell, management commands (REL-483).
     objects = TenantManager()
 
     # The PERSON is the primary customer and is org-scoped directly. The

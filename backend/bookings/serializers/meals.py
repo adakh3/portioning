@@ -7,6 +7,7 @@ from dishes.models import Dish
 from dishes.ordering import dish_ids_in_added_order
 from events.models import BookingMeal, BookingMealDishComment
 from rules.models import GuestSegment
+from users.serializer_mixins import OrgScopedModelSerializer
 
 
 class BookingMealDishCommentSerializer(serializers.ModelSerializer):
@@ -19,7 +20,12 @@ class BookingMealDishCommentSerializer(serializers.ModelSerializer):
         extra_kwargs = {'comment': {'max_length': 2000}}
 
 
-class BookingMealSerializer(serializers.ModelSerializer):
+class BookingMealSerializer(OrgScopedModelSerializer):
+    # Org-scoped so the FKs the parent doesn't hand-wire are still narrowed to
+    # the caller's org: `based_on_template` (another org's MenuTemplate) and the
+    # `dishes` M2M, which is writable and was left on Dish.objects.all() while
+    # only its `dish_ids` twin got scoped (REL-483). The mixin reaches a nested
+    # serializer because `context` resolves through the parent to the root.
     dish_ids = serializers.PrimaryKeyRelatedField(
         many=True, source='dishes', queryset=Dish.objects.none(), write_only=True, required=False
     )

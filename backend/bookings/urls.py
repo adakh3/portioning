@@ -42,6 +42,7 @@ from bookings.views import (
     PublicBookingView, PublicBookingSignView, PublicBookingPDFView,
     QuoteSendForSignatureView, EventSendForSignatureView,
     MailboxStatusView, MailboxConnectView, MailboxCallbackView, MailboxDisconnectView,
+    MetaStatusView, MetaConnectView, MetaCallbackView, MetaPagesView, MetaDisconnectView,
 )
 from bookings.views.client_messages import (
     ClientMessageDraftView, ClientMessageListView, ClientMessageSendView,
@@ -190,4 +191,11 @@ urlpatterns = [
     path('integrations/email/connect/', MailboxConnectView.as_view(), name='mailbox-connect'),
     path('integrations/email/callback/', MailboxCallbackView.as_view(), name='mailbox-callback'),
     path('integrations/email/disconnect/', MailboxDisconnectView.as_view(), name='mailbox-disconnect'),
+
+    # Meta (Facebook/Instagram) Page connection (OAuth) — behind META_LEADS_ENABLED (REL-506)
+    path('integrations/meta/', MetaStatusView.as_view(), name='meta-status'),
+    path('integrations/meta/connect/', MetaConnectView.as_view(), name='meta-connect'),
+    path('integrations/meta/callback/', MetaCallbackView.as_view(), name='meta-callback'),
+    path('integrations/meta/pages/', MetaPagesView.as_view(), name='meta-pages'),
+    path('integrations/meta/disconnect/', MetaDisconnectView.as_view(), name='meta-disconnect'),
 ]

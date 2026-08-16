@@ -63,3 +63,66 @@ def defaults_for_country(country_code):
     """Return a dict of OrgSettings field defaults for an ISO country code,
     falling back to USD for unmapped/blank countries."""
     return COUNTRY_DEFAULTS.get((country_code or '').upper(), FALLBACK_DEFAULTS)
+
+
+# ── how the AI should write for this market ──────────────────────────────────
+#
+# The drafters used to say "enquiry" to everyone, which reads as foreign to a US
+# client — and the fix is NOT to hardcode American English, because a UK caterer
+# writing "inquiry" and "check" to their own clients is the same bug pointed the
+# other way. So the org's country picks the variant, exactly like currency and
+# date format above.
+#
+# Deliberately short: these are the words that actually reach clients in this
+# app (an enquiry, a date, a phone number, a payment), not a style guide.
+
+LANGUAGE_VARIANTS = {
+    'US': (
+        "- Write in American English. Spell it 'inquiry' (never 'enquiry'), "
+        "'check' (never 'cheque'), 'canceled', 'catalog', 'favorite'. Say "
+        "'cell' rather than 'mobile'. Write dates American style, month first "
+        "(e.g. March 14, 2026 or 3/14/2026), never day first.\n"
+    ),
+    'GB': (
+        "- Write in British English. Spell it 'enquiry' (never 'inquiry'), "
+        "'cheque' (never 'check' for a payment), 'cancelled', 'catalogue', "
+        "'favourite'. Say 'mobile' rather than 'cell'. Write dates British "
+        "style, day first (e.g. 14 March 2026 or 14/03/2026), never month "
+        "first.\n"
+    ),
+}
+
+# Countries with no variant of their own follow the market they trade with;
+# unmapped and blank both land here, which keeps the app's existing US default.
+FALLBACK_LANGUAGE = LANGUAGE_VARIANTS['US']
+
+_LANGUAGE_BY_COUNTRY = {
+    **LANGUAGE_VARIANTS,
+    # English-speaking markets that write British rather than American.
+    'IE': LANGUAGE_VARIANTS['GB'], 'AU': LANGUAGE_VARIANTS['GB'],
+    'NZ': LANGUAGE_VARIANTS['GB'], 'ZA': LANGUAGE_VARIANTS['GB'],
+    'IN': LANGUAGE_VARIANTS['GB'], 'PK': LANGUAGE_VARIANTS['GB'],
+    'AE': LANGUAGE_VARIANTS['GB'],
+}
+
+
+def language_rule_for_country(country_code):
+    """The prompt bullet telling a drafter which English to write in.
+
+    Returned as a ready-to-concatenate rule line so every drafter injects it the
+    same way and none of them has to know what the variants are.
+    """
+    return _LANGUAGE_BY_COUNTRY.get((country_code or '').upper(), FALLBACK_LANGUAGE)
+
+
+def language_rule_for_org(org):
+    """The language rule for an organisation, tolerating a missing org."""
+    return language_rule_for_country(getattr(org, 'country', '') or '')
+
+
+def writes_month_first(country_code):
+    """True where a written-out date reads 'March 14, 2026' rather than
+    '14 March 2026'. Same split as the English variants — the countries that
+    write American spell dates American — so the two can never disagree."""
+    rule = _LANGUAGE_BY_COUNTRY.get((country_code or '').upper(), FALLBACK_LANGUAGE)
+    return rule is LANGUAGE_VARIANTS['US']
