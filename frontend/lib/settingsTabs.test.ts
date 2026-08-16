@@ -22,6 +22,7 @@ describe("settingsTabsFor", () => {
       "options",
       "branding",
       "addons",
+      "dishes",
       "commission",
       "integrations",
     ]);

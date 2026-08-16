@@ -19,6 +19,7 @@ import TimelineStepExtras from "@/components/TimelineStepExtras";
 import ServiceStyleExtras from "@/components/ServiceStyleExtras";
 import ProductLinesSettings from "@/components/ProductLinesSettings";
 import AddOnsSettings from "@/components/AddOnsSettings";
+import DishesSettings from "@/components/DishesSettings";
 import CommissionSettings from "@/components/CommissionSettings";
 import ClientCommunicationsSettings from "@/components/ClientCommunicationsSettings";
 import ConnectMetaSettings from "@/components/ConnectMetaSettings";
@@ -413,6 +414,12 @@ export default function SettingsPage() {
       {tab === "addons" && (
       <div className="space-y-6 max-w-4xl">
         <AddOnsSettings />
+      </div>
+      )}
+
+      {tab === "dishes" && (
+      <div className="space-y-6 max-w-4xl">
+        <DishesSettings />
       </div>
       )}
 

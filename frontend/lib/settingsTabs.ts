@@ -12,6 +12,7 @@ export const SETTINGS_TABS: SettingsTab[] = [
   { id: "options", label: "Options" },
   { id: "branding", label: "Product Lines" },
   { id: "addons", label: "Add-ons" },
+  { id: "dishes", label: "Dishes" },
   { id: "commission", label: "Commission" },
   { id: "integrations", label: "Integrations" },
 ];

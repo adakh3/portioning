@@ -240,8 +240,13 @@ export interface Dish {
   selling_price_override: boolean;
   margin_percent: number | null;
   is_vegetarian: boolean;
-  /** Dietary/allergen labels; a dish with none is simply untagged. Edited in Django admin. */
+  is_active?: boolean;
+  /** Read-only per-head surcharge for adding this dish (auto-derived from cost). */
+  addition_surcharge?: string;
+  /** Dietary/allergen labels; a dish with none is simply untagged. */
   dietary_tags?: DietaryTag[];
+  /** Write-only: the dietary-tag ids to set (the manage endpoint). */
+  dietary_tag_ids?: number[];
   notes: string;
 }
 
@@ -269,6 +274,31 @@ export interface MenuDishPortion {
   dish_name: string;
   category_name: string;
   portion_grams: number;
+}
+
+// The compose-only shape the /menus editor round-trips (portions auto-computed).
+export interface ManagedMenuCourse {
+  name: string;
+  sort_order?: number;
+}
+export interface ManagedMenuDish {
+  dish_id: number;
+  dish_name?: string;      // read-only, for display
+  category_name?: string;  // read-only, for display
+  portion_grams?: number;  // read-only, auto-computed
+  course: number | null;   // index into `courses`, or null (unassigned)
+}
+export interface ManagedMenu {
+  id: number;
+  name: string;
+  description: string;
+  menu_type: string;
+  default_gents: number;
+  default_ladies: number;
+  is_active: boolean;
+  courses: ManagedMenuCourse[];
+  dishes: ManagedMenuDish[];
+  price_tiers: PriceTier[];
 }
 
 export interface MenuTemplateDetail extends MenuTemplate {
@@ -1556,8 +1586,26 @@ export const api = {
 
   getDishes: () => fetchList<Dish>("/dishes/?page_size=all"),
   getCategories: () => fetchList<DishCategory>("/categories/?page_size=all"),
+  getDietaryTags: () => fetchList<DietaryTag>("/dietary-tags/?page_size=all"),
+  // Dish catalog management (owner/admin) — includes inactive; supports create/update/delete.
+  getManagedDishes: () => fetchList<Dish>("/dishes/manage/?page_size=all"),
+  createDish: (data: Partial<Dish>) =>
+    fetchApi<Dish>("/dishes/manage/", { method: "POST", body: JSON.stringify(data) }),
+  updateDish: (id: number, data: Partial<Dish>) =>
+    fetchApi<Dish>(`/dishes/manage/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
+  deleteDish: (id: number) =>
+    fetchApi<void>(`/dishes/manage/${id}/`, { method: "DELETE" }),
   getMenus: () => fetchList<MenuTemplate>("/menus/?page_size=all"),
   getMenu: (id: number) => fetchApi<MenuTemplateDetail>(`/menus/${id}/`),
+  // Menu-template management (owner/admin) — compose-only; includes inactive.
+  getManagedMenus: () => fetchList<ManagedMenu>("/menus/manage/?page_size=all"),
+  getManagedMenu: (id: number) => fetchApi<ManagedMenu>(`/menus/manage/${id}/`),
+  createMenu: (data: Partial<ManagedMenu>) =>
+    fetchApi<ManagedMenu>("/menus/manage/", { method: "POST", body: JSON.stringify(data) }),
+  updateMenu: (id: number, data: Partial<ManagedMenu>) =>
+    fetchApi<ManagedMenu>(`/menus/manage/${id}/`, { method: "PATCH", body: JSON.stringify(data) }),
+  deleteMenu: (id: number) =>
+    fetchApi<void>(`/menus/manage/${id}/`, { method: "DELETE" }),
   getMenuPreview: (id: number) => fetchApi<CalculationResult>(`/menus/${id}/preview/`),
   menuPriceCheck: (templateId: number, data: { guest_count: number; dish_ids: number[] }) =>
     fetchApi<PriceCheckResult>(`/menus/${templateId}/price-check/`, {

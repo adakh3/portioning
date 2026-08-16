@@ -40,6 +40,7 @@ export const primaryNav: NavPage[] = [
 
 /** Admin/owner tooling — surfaced in the top-right user menu, not the main bar. */
 export const adminNav: NavPage[] = [
+  { label: "Dishes", href: "/settings?tab=dishes", roles: ["owner", "admin"] },
   { label: "Menu Templates", href: "/menus", roles: ["owner", "admin"] },
   { label: "Equipment", href: "/equipment", roles: ["owner", "admin"] },
   { label: "Staff", href: "/staff", roles: ["owner", "admin"], flag: "operations" },

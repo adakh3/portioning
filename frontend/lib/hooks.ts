@@ -16,7 +16,9 @@ import {
   EventData,
   Dish,
   DishCategory,
+  DietaryTag,
   MenuTemplate,
+  ManagedMenu,
   SiteSettingsData,
   MailboxStatus,
   MetaStatus,
@@ -246,9 +248,30 @@ export function useCategories() {
   });
 }
 
+// Management list for Settings — includes inactive dishes.
+export function useManagedDishes() {
+  return useSWR<Dish[]>("managed-dishes", () => api.getManagedDishes(), {
+    revalidateOnFocus: false,
+  });
+}
+
+export function useDietaryTags() {
+  return useSWR<DietaryTag[]>("dietary-tags", () => api.getDietaryTags(), {
+    dedupingInterval: 300000,
+    revalidateOnFocus: false,
+  });
+}
+
 export function useMenus() {
   return useSWR<MenuTemplate[]>("menus", () => api.getMenus(), {
     dedupingInterval: 60000,
+  });
+}
+
+// Management list for the /menus editor — includes inactive templates.
+export function useManagedMenus() {
+  return useSWR<ManagedMenu[]>("managed-menus", () => api.getManagedMenus(), {
+    revalidateOnFocus: false,
   });
 }
 
