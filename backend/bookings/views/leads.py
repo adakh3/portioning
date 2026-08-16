@@ -194,11 +194,10 @@ class LeadListCreateView(generics.ListCreateAPIView):
         if requested and LeadStatusOption.objects.filter(organisation=org, value=requested).exists():
             extra['status'] = requested
         else:
-            # Fall back to the org's configured default stage.
-            default = (
-                LeadStatusOption.objects.filter(organisation=org, is_default=True)
-                .values_list('value', flat=True).first()
-            )
+            # Fall back to the org's configured default stage (shared with the
+            # Meta lead-ads ingestion path, REL-507).
+            from bookings.services.leads import default_status_for
+            default = default_status_for(org)
             if default:
                 extra['status'] = default
         lead = serializer.save(created_by=user, organisation=org, **extra)

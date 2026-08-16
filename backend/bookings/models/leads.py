@@ -126,6 +126,10 @@ class Lead(OrgScopedModel, models.Model):
         null=True, blank=True,
         help_text="Date the lead was originally generated (e.g. from ad platform)",
     )
+    # Meta lead-ad submission id (REL-507). Set only for leads ingested from a
+    # Facebook/Instagram lead form; the uniqueness of this value per submission
+    # is what makes webhook retries and the backfill sweep idempotent.
+    meta_leadgen_id = models.CharField(max_length=64, blank=True, default='', db_index=True)
     lost_reason_option = models.ForeignKey(
         'bookings.LostReasonOption', null=True, blank=True,
         on_delete=models.SET_NULL, related_name='leads',
