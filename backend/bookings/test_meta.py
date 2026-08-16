@@ -246,7 +246,11 @@ class TestMetaConnect(TestCase):
         self.assertIn('client_id=app-id', url)
         self.assertIn('leads_retrieval', url)
         self.assertIn('pages_manage_metadata', url)
-        self.assertIn('instagram_manage_messages', url)
+        self.assertIn('pages_messaging', url)
+        # Instagram DMs (instagram_manage_messages) is deferred to REL-508 — it
+        # must not be requested until the app supports it (else the OAuth
+        # hard-errors for app admins and App Review rejects it).
+        self.assertNotIn('instagram_manage_messages', url)
         self.assertIn('catering.example.com%2Fapi%2Fintegrations%2Fmeta%2Fcallback%2F', url)
 
     @override_settings(**APP_CONFIGURED)
