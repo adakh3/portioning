@@ -117,8 +117,14 @@ def recipient_for(parent):
 
 # ── what this org can actually do right now ──────────────────────────────────
 
-def _valid_email(value):
-    """The address if it is one, else ''. Never raises."""
+def valid_email(value):
+    """The address if it is one, else ''. Never raises.
+
+    Public because "is this actually an address" must have ONE answer: an
+    importer will happily store 'n/a' in a contact_email, and anything deciding
+    whether email is a usable channel has to reject that the same way the send
+    does (REL-501).
+    """
     from django.core.exceptions import ValidationError
     from django.core.validators import validate_email
     address = (value or '').strip()
@@ -347,7 +353,7 @@ def send_client_email(parent, *, subject, body, sent_by=None, attachment=None,
     """
     org = parent.organisation
     who = recipient_for(parent)
-    address = _valid_email(to_email or who['email'])
+    address = valid_email(to_email or who['email'])
     blocker = _email_blocker(org, address)
     if blocker is not None:
         raise ChannelUnavailable(_EMAIL_BLOCKER_MESSAGES[blocker], reason=blocker)
@@ -532,7 +538,7 @@ def send_signed_copy(booking, signature):
     # caterer's own mailbox send a booking document wherever they liked. The
     # contact on record wins; the signer's address is only used when we have no
     # other, and only when it is actually an address.
-    email_address = who['email'] or _valid_email(
+    email_address = who['email'] or valid_email(
         getattr(signature, 'signer_email', ''),
     )
 

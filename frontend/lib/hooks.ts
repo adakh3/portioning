@@ -21,6 +21,7 @@ import {
   ManagedMenu,
   SiteSettingsData,
   MailboxStatus,
+  MetaStatus,
   ChannelAvailability,
   ClientMessageParent,
   ProductLine,
@@ -119,6 +120,13 @@ export function useAddOnProducts() {
   });
 }
 
+// Management list for Settings — includes inactive products and all their variants.
+export function useManagedAddOnProducts() {
+  return useSWR<AddOnProduct[]>("managed-addon-products", () => api.getManagedAddOnProducts(), {
+    revalidateOnFocus: false,
+  });
+}
+
 export function useVenues() {
   return useSWR<Venue[]>("venues", () => api.getVenues(), {
     dedupingInterval: 60000,
@@ -134,6 +142,12 @@ export function useSiteSettings() {
 
 export function useConnectedMailbox() {
   return useSWR<MailboxStatus>("connected-mailbox", () => api.getConnectedMailbox(), {
+    revalidateOnFocus: false,
+  });
+}
+
+export function useMetaStatus() {
+  return useSWR<MetaStatus>("meta-status", () => api.getMetaStatus(), {
     revalidateOnFocus: false,
   });
 }

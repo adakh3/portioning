@@ -29,6 +29,7 @@ from bookings.views import (
     TimelinePresetManageListCreateView, TimelinePresetManageDetailView,
     LostReasonManageListCreateView, LostReasonManageDetailView,
     AddOnProductListView,
+    AddOnProductManageListCreateView, AddOnProductManageDetailView,
     ReminderListCreateView, ReminderDetailView,
     LeadReminderListCreateView, ReminderCountsView,
     WhatsAppMessageListView, WhatsAppSendView, WhatsAppMarkReadView, TwilioWebhookView,
@@ -41,6 +42,7 @@ from bookings.views import (
     PublicBookingView, PublicBookingSignView, PublicBookingPDFView,
     QuoteSendForSignatureView, EventSendForSignatureView,
     MailboxStatusView, MailboxConnectView, MailboxCallbackView, MailboxDisconnectView,
+    MetaStatusView, MetaConnectView, MetaCallbackView, MetaPagesView, MetaDisconnectView,
 )
 from bookings.views.client_messages import (
     ClientMessageDraftView, ClientMessageListView, ClientMessageSendView,
@@ -168,6 +170,8 @@ urlpatterns = [
     path('bookings/settings/timeline-presets/<int:pk>/', TimelinePresetManageDetailView.as_view(), name='timeline-preset-manage-detail'),
 
     path('bookings/addon-products/', AddOnProductListView.as_view(), name='addon-product-list'),
+    path('bookings/settings/addon-products/', AddOnProductManageListCreateView.as_view(), name='addon-product-manage-list'),
+    path('bookings/settings/addon-products/<int:pk>/', AddOnProductManageDetailView.as_view(), name='addon-product-manage-detail'),
 
     # WhatsApp
     path('bookings/leads/<int:lead_pk>/whatsapp/', WhatsAppMessageListView.as_view(), name='whatsapp-message-list'),
@@ -187,4 +191,11 @@ urlpatterns = [
     path('integrations/email/connect/', MailboxConnectView.as_view(), name='mailbox-connect'),
     path('integrations/email/callback/', MailboxCallbackView.as_view(), name='mailbox-callback'),
     path('integrations/email/disconnect/', MailboxDisconnectView.as_view(), name='mailbox-disconnect'),
+
+    # Meta (Facebook/Instagram) Page connection (OAuth) — behind META_LEADS_ENABLED (REL-506)
+    path('integrations/meta/', MetaStatusView.as_view(), name='meta-status'),
+    path('integrations/meta/connect/', MetaConnectView.as_view(), name='meta-connect'),
+    path('integrations/meta/callback/', MetaCallbackView.as_view(), name='meta-callback'),
+    path('integrations/meta/pages/', MetaPagesView.as_view(), name='meta-pages'),
+    path('integrations/meta/disconnect/', MetaDisconnectView.as_view(), name='meta-disconnect'),
 ]

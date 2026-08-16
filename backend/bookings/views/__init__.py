@@ -36,7 +36,10 @@ from .choices import (
     LostReasonManageListCreateView, LostReasonManageDetailView,
     TimelinePresetManageListCreateView, TimelinePresetManageDetailView,
 )
-from .addons import AddOnProductListView
+from .addons import (
+    AddOnProductListView,
+    AddOnProductManageListCreateView, AddOnProductManageDetailView,
+)
 from .reminders import (
     ReminderListCreateView, ReminderDetailView,
     LeadReminderListCreateView, ReminderCountsView,
@@ -54,4 +57,7 @@ from .followups import (
 from .locked_dates import LockedDateListCreateView, LockedDateDeleteView
 from .mailbox import (
     MailboxStatusView, MailboxConnectView, MailboxCallbackView, MailboxDisconnectView,
+)
+from .meta import (
+    MetaStatusView, MetaConnectView, MetaCallbackView, MetaPagesView, MetaDisconnectView,
 )

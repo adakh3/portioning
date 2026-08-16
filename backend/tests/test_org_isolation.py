@@ -5,6 +5,7 @@ Proves that a user in Org B cannot access Org A's resources via any API endpoint
 from datetime import date, timedelta
 from decimal import Decimal
 
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
 
@@ -246,6 +247,124 @@ class TestStaffIsolation(OrgIsolationTestBase):
         self.assertEqual(resp.status_code, 200)
         ids = [m["id"] for m in resp.data]
         self.assertNotIn(self.staff_a.id, ids)
+
+
+class TestCrossOrgWriteIsolation(OrgIsolationTestBase):
+    """Writes, not reads (REL-483).
+
+    Every test above proves Org B cannot *read* Org A's rows. These prove it
+    cannot *plant* one either: a writable FK that isn't org-scoped accepts any
+    PK in the table, so Org B could attach its own row to an Org A parent and
+    have it surface inside Org A's legitimately-scoped views.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        cls.contact_b = Contact.objects.create(
+            organisation=cls.org_b, name="Contact B", email="contact@orgb.com",
+        )
+
+    # ── Contact.account ──
+
+    def test_create_contact_against_other_org_account_is_rejected(self):
+        resp = self.client.post("/api/bookings/contacts/", {
+            "first_name": "Mallory", "phone": "+15551234567",
+            "account": self.account_a.id,
+        }, format="json")
+        self.assertEqual(resp.status_code, 400, resp.content)
+        self.assertIn("account", resp.data)
+        self.assertFalse(
+            Contact.objects.filter(account=self.account_a, organisation=self.org_b).exists()
+        )
+
+    def test_patch_contact_onto_other_org_account_is_rejected(self):
+        resp = self.client.patch(
+            f"/api/bookings/contacts/{self.contact_b.id}/",
+            {"account": self.account_a.id}, format="json",
+        )
+        self.assertEqual(resp.status_code, 400, resp.content)
+        self.contact_b.refresh_from_db()
+        self.assertIsNone(self.contact_b.account_id)
+
+    def test_injected_contact_does_not_appear_in_the_victims_account(self):
+        """The payload the exploit in REL-483 used, checked from Org A's side."""
+        self.client.post("/api/bookings/contacts/", {
+            "first_name": "Mallory", "phone": "+15551234567",
+            "account": self.account_a.id,
+        }, format="json")
+
+        victim = APIClient()
+        victim.force_authenticate(user=self.user_a)
+        resp = victim.get(f"/api/bookings/accounts/{self.account_a.id}/")
+        self.assertEqual(resp.status_code, 200, resp.content)
+        names = [c["name"] for c in resp.data["contacts"]]
+        self.assertNotIn("Mallory", names)
+
+    def test_model_layer_rejects_a_cross_org_account(self):
+        """Backstop for the write paths DRF never sees (admin, shell, commands)."""
+        with self.assertRaises(DjangoValidationError) as ctx:
+            Contact.objects.create(
+                organisation=self.org_b, name="Mallory", account=self.account_a,
+            )
+        self.assertIn("account", ctx.exception.message_dict)
+
+    # ── StaffMember.roles (M2M) ──
+
+    def test_create_staff_member_with_other_org_role_is_rejected(self):
+        resp = self.client.post("/api/staff/members/", {
+            "first_name": "Mallory", "roles": [self.role_a.id],
+        }, format="json")
+        self.assertEqual(resp.status_code, 400, resp.content)
+        self.assertIn("roles", resp.data)
+
+    def test_patch_staff_member_onto_other_org_role_is_rejected(self):
+        member = StaffMember.objects.create(organisation=self.org_b, name="Staff B")
+        resp = self.client.patch(
+            f"/api/staff/members/{member.id}/",
+            {"roles": [self.role_a.id]}, format="json",
+        )
+        self.assertEqual(resp.status_code, 400, resp.content)
+        self.assertEqual(member.roles.count(), 0)
+
+    # ── BookingMeal.based_on_template / dishes, nested in a quote ──
+
+    def _quote_payload(self, meal):
+        return {
+            "primary_contact": self.contact_b.id,
+            "event_date": str(date.today() + timedelta(days=30)),
+            "guest_count": 20, "price_per_head": "50.00", "tax_rate": "0",
+            "additional_meals": [meal],
+        }
+
+    def test_meal_based_on_other_org_template_is_rejected(self):
+        resp = self.client.post("/api/bookings/quotes/", self._quote_payload({
+            "label": "Welcome drinks", "guest_count": 20,
+            "based_on_template": self.menu_a.id,
+        }), format="json")
+        self.assertEqual(resp.status_code, 400, resp.content)
+        self.assertFalse(Quote.objects.filter(organisation=self.org_b).exists())
+
+    def test_meal_with_other_org_dish_is_rejected(self):
+        """`dishes` is writable too, and was scoped only via its `dish_ids` twin."""
+        resp = self.client.post("/api/bookings/quotes/", self._quote_payload({
+            "label": "Welcome drinks", "guest_count": 20,
+            "dishes": [self.dish_a.id],
+        }), format="json")
+        self.assertEqual(resp.status_code, 400, resp.content)
+        self.assertFalse(Quote.objects.filter(organisation=self.org_b).exists())
+
+    def test_own_org_meal_template_still_saves(self):
+        """The scoping must narrow the queryset, not empty it."""
+        menu_b = MenuTemplate.objects.create(organisation=self.org_b, name="Menu B")
+        resp = self.client.post("/api/bookings/quotes/", self._quote_payload({
+            "label": "Welcome drinks", "guest_count": 20,
+            "based_on_template": menu_b.id,
+        }), format="json")
+        self.assertEqual(resp.status_code, 201, resp.content)
+        self.assertEqual(
+            resp.data["additional_meals"][0]["based_on_template"], menu_b.id,
+        )
 
 
 class TestEquipmentIsolation(OrgIsolationTestBase):

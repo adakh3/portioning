@@ -16,9 +16,39 @@ from django.utils import timezone
 
 from bookings.activity import log_activity
 from bookings.models import FollowUpDraft, Lead, OrgSettings, WhatsAppMessage
+from bookings.services import email as email_service
 from bookings.services.followup_drafter import draft_followup
 
 logger = logging.getLogger(__name__)
+
+CHANNEL_EMAIL = WhatsAppMessage.CHANNEL_EMAIL
+CHANNEL_WHATSAPP = WhatsAppMessage.CHANNEL_WHATSAPP
+
+
+def choose_channel(lead, *, mailbox_usable=None):
+    """Which channel this lead's follow-up should be drafted for, or None.
+
+    Email wins whenever it is actually possible — the US market, where this
+    feature has to earn its keep, does not do business over WhatsApp. WhatsApp
+    is the fallback for a lead we only have a number for, and None means we
+    cannot reach them at all, which is a reason not to draft rather than a
+    reason to draft something unsendable.
+
+    `mailbox_usable` is passed in by callers looping over many leads, since it
+    is an org-level fact and re-reading the mailbox per lead is the N+1 this
+    module keeps having to avoid.
+    """
+    from bookings.services.messaging import valid_email
+    if mailbox_usable is None:
+        mailbox_usable = email_service.mailbox_is_usable(lead.organisation)
+    # Validated, not merely non-empty: lead imports store whatever the source
+    # had, and 'n/a' in contact_email would otherwise send a perfectly
+    # phone-reachable lead down a channel that can never deliver.
+    if mailbox_usable and valid_email(lead.contact_email):
+        return CHANNEL_EMAIL
+    if lead.contact_phone:
+        return CHANNEL_WHATSAPP
+    return None
 
 
 def find_stale_leads(org, settings):
@@ -37,7 +67,8 @@ def find_stale_leads(org, settings):
     reply older than the gap re-enters the cadence instead of shelving the
     lead forever.
 
-    Also: active lead, has a phone, event date not already in the past,
+    Also: active lead, reachable on some channel (a phone, or an email address
+    when the org has a working mailbox), event date not already in the past,
     no pending draft, and fewer than `followup_max_drafts_per_lead` follow-ups
     REVIEWED (sent or dismissed). A dismissal is treated exactly like a send
     for the cadence — that stage is skipped, the next gap starts from the
@@ -84,10 +115,17 @@ def find_stale_leads(org, settings):
         ).filter(Q(is_won=True) | Q(is_lost=True)).values_list('value', flat=True)
     )
 
+    # Reachability, in the same terms choose_channel decides in: a number is
+    # always enough; an address only counts while the org's mailbox works, so an
+    # org that never connected email sees exactly the leads it saw before.
+    reachable = ~Q(contact_phone='')
+    if email_service.mailbox_is_usable(org):
+        reachable |= ~Q(contact_email='')
+
     return (
         Lead.objects.for_org(org)
         .exclude(status__in=terminal)
-        .exclude(contact_phone='')          # can't WhatsApp without a number
+        .filter(reachable)
         .exclude(event_date__lt=now.date())  # the event already happened — nothing to chase
         .exclude(followup_drafts__status='pending')  # don't pile up unreviewed drafts
         .annotate(
@@ -142,13 +180,21 @@ def run_for_org(org, dry_run=False):
         return {'org': org.pk, 'skipped': 'not configured', 'created': 0}
 
     created = skipped = 0
+    # One mailbox read for the whole run, not one per lead.
+    mailbox_usable = email_service.mailbox_is_usable(org)
 
     for lead in find_stale_leads(org, settings).distinct():
         if dry_run:
             created += 1
             continue
 
-        result = draft_followup(lead)
+        channel = choose_channel(lead, mailbox_usable=mailbox_usable)
+        if channel is None:
+            # The mailbox died between the query and here — nothing to draft.
+            skipped += 1
+            continue
+
+        result = draft_followup(lead, channel=channel)
         if not result or not result.get('should_follow_up'):
             skipped += 1
             continue
@@ -156,6 +202,8 @@ def run_for_org(org, dry_run=False):
         draft = FollowUpDraft.objects.create(
             organisation=org,
             lead=lead,
+            channel=channel,
+            subject=result.get('subject', ''),
             body=result['message'],
             reasoning=result.get('reasoning', ''),
             model_used=result.get('model_used', ''),

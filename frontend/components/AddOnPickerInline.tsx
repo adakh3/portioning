@@ -100,7 +100,7 @@ export default function AddOnPickerInline({
                           ) : (
                             <>
                               <span aria-hidden="true" className="text-primary">+</span>{" "}
-                              {v.name || p.name} · {fmt(v.unit_price)}
+                              {v.name || p.name} · {fmt(v.unit_price ?? p.unit_price)}
                             </>
                           )}
                         </button>
@@ -113,7 +113,7 @@ export default function AddOnPickerInline({
                 (() => {
                   const v = p.variants[0];
                   const onQuote = v ? hasVariant(items, v.id) : hasProduct(items, p);
-                  const price = v ? v.unit_price : p.unit_price;
+                  const price = v ? (v.unit_price ?? p.unit_price) : p.unit_price;
                   return (
                     <button
                       type="button"

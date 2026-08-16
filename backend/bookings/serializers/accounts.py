@@ -1,9 +1,14 @@
 from rest_framework import serializers
 
 from bookings.models import Account, Contact
+from users.serializer_mixins import OrgScopedModelSerializer
 
 
-class ContactSerializer(serializers.ModelSerializer):
+class ContactSerializer(OrgScopedModelSerializer):
+    # Org-scoped, not a plain ModelSerializer: `account` is writable on the flat
+    # /bookings/contacts/ route, where nothing else org-checks it. Unscoped, a
+    # client could attach their contact to another tenant's account and have it
+    # surface in that tenant's customer list (REL-483).
     # The display name is composed from first/last on save; forms send parts.
     name = serializers.CharField(required=False, allow_blank=True, max_length=200)
 

@@ -49,7 +49,9 @@ export function variantLine(product: AddOnProduct, variant: AddOnVariant): LineI
     description: variantDescription(product, variant),
     quantity: "1",
     unit: product.default_unit,
-    unit_price: variant.unit_price,
+    // On the read endpoint the variant price is always resolved; fall back to the
+    // product's base price for the manage-shape (null = inherit) to stay type-safe.
+    unit_price: variant.unit_price ?? product.unit_price,
   };
 }
 

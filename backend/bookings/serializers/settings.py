@@ -28,6 +28,10 @@ class OrgSettingsSerializer(serializers.ModelSerializer):
     # echoed here so the frontend can gate its nav items and routes. Read-only;
     # flip the env var to launch.
     operations_enabled = serializers.SerializerMethodField()
+    # Meta (Facebook/Instagram) lead capture is a platform-level launch flag
+    # (env: META_LEADS_ENABLED), echoed here so the frontend can gate its
+    # Settings card. Read-only; flip the env var to launch. (REL-506)
+    meta_leads_enabled = serializers.SerializerMethodField()
     # The org's guest segments (read-only) — so the frontend can decide whether to
     # show the gents/ladies split UI (only when the org's in-count segments are
     # exactly Gents + Ladies). Fetched app-wide via useSiteSettings().
@@ -59,11 +63,16 @@ class OrgSettingsSerializer(serializers.ModelSerializer):
             'followup_auto_generate',
             'ai_followups_configured',
             'operations_enabled',
+            'meta_leads_enabled',
         ]
 
     def get_operations_enabled(self, obj):
         from django.conf import settings as django_settings
         return bool(getattr(django_settings, 'OPERATIONS_ENABLED', False))
+
+    def get_meta_leads_enabled(self, obj):
+        from django.conf import settings as django_settings
+        return bool(getattr(django_settings, 'META_LEADS_ENABLED', False))
 
     def get_guest_segments(self, obj):
         from rules.models import GuestSegment

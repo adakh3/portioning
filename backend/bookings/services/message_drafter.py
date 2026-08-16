@@ -12,9 +12,12 @@ import logging
 import re
 
 from bookings.services.greeting import GREETING_RULE, greeting_context_lines
-from bookings.services.message_templates import format_event_date, render_client_message
+from bookings.services.message_templates import (
+    format_event_date, org_country, render_client_message,
+)
 from bookings.services.messaging_kinds import KIND_COMPOSE, KIND_SIGN_LINK, KIND_SIGNED_COPY
 from portioning import llm
+from users.country_defaults import language_rule_for_org
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +51,13 @@ SYSTEM_PROMPT = (
     "- The subject line is for email only: short, specific, no marketing tone. "
     "Always provide one even for WhatsApp; it will be ignored."
 )
+
+
+def build_system_prompt(org):
+    """The system prompt for this org — the shared rules plus the English its
+    market actually writes in (REL-501). A UK caterer keeps writing British."""
+    return SYSTEM_PROMPT + '\n' + language_rule_for_org(org)
+
 
 DRAFT_SCHEMA = {
     "type": "object",
@@ -124,7 +134,7 @@ def build_context(booking, kind, channel, *, url='', attachment_name=''):
 
     # Written out, never ISO: the model copies what it is given, and
     # "2027-03-14" in a message to a client reads like a database leak.
-    event_date = format_event_date(data.get('event_date'))
+    event_date = format_event_date(data.get('event_date'), org_country(booking))
     if event_date:
         lines.append(f"Event date: {event_date}")
 
@@ -160,7 +170,7 @@ def build_context(booking, kind, channel, *, url='', attachment_name=''):
 
 
 def _lead_context(lead, kind, channel, *, url=''):
-    """A lead has an enquiry, not a booking — far fewer facts, same discipline.
+    """A lead has asked about us, not booked — far fewer facts, same discipline.
 
     Nothing from the lead's internal record (budget, pipeline status, notes)
     reaches the model here: those are things the client never said to us in
@@ -170,7 +180,9 @@ def _lead_context(lead, kind, channel, *, url=''):
         f"Our business name: {lead.organisation.name}",
         f"Channel: {'email' if channel == 'email' else 'WhatsApp'}",
         _STAGE_NOTE.get(kind, _STAGE_NOTE[KIND_COMPOSE]),
-        "This is an enquiry, not a confirmed booking. Nothing has been agreed.",
+        # No 'enquiry'/'inquiry' here: the spelling is the org's to choose, and
+        # a word in the CONTEXT gets copied into the message (REL-501).
+        "This is a new lead, not a confirmed booking. Nothing has been agreed.",
     ]
     lines.extend(greeting_context_lines(
         name=lead.contact_name,
@@ -181,7 +193,7 @@ def _lead_context(lead, kind, channel, *, url=''):
     ))
     if lead.event_type:
         lines.append(f"Event type: {lead.event_type}")
-    event_date = format_event_date(lead.event_date)
+    event_date = format_event_date(lead.event_date, org_country(lead))
     if event_date:
         lines.append(f"Event date: {event_date}")
     if lead.guest_estimate:
@@ -232,7 +244,7 @@ def draft_client_message(booking, kind, channel, *, url='', attachment_name=''):
     try:
         data, model_used = llm.complete_structured(
             MODEL_SETTING,
-            SYSTEM_PROMPT,
+            build_system_prompt(booking.organisation),
             'Draft this client message.\n\n' + context,
             DRAFT_SCHEMA,
         )

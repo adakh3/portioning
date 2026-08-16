@@ -18,9 +18,11 @@ import ChoiceOptionsSettings from "@/components/ChoiceOptionsSettings";
 import TimelineStepExtras from "@/components/TimelineStepExtras";
 import ServiceStyleExtras from "@/components/ServiceStyleExtras";
 import ProductLinesSettings from "@/components/ProductLinesSettings";
+import AddOnsSettings from "@/components/AddOnsSettings";
 import DishesSettings from "@/components/DishesSettings";
 import CommissionSettings from "@/components/CommissionSettings";
 import ClientCommunicationsSettings from "@/components/ClientCommunicationsSettings";
+import ConnectMetaSettings from "@/components/ConnectMetaSettings";
 import BillingPanel from "@/components/BillingPanel";
 
 // default_tax_rate is stored as a fraction (0.20 = 20%); show it as a percentage.
@@ -409,6 +411,12 @@ export default function SettingsPage() {
       </div>
       )}
 
+      {tab === "addons" && (
+      <div className="space-y-6 max-w-4xl">
+        <AddOnsSettings />
+      </div>
+      )}
+
       {tab === "dishes" && (
       <div className="space-y-6 max-w-4xl">
         <DishesSettings />
@@ -427,6 +435,8 @@ export default function SettingsPage() {
             question — "how do my messages reach clients?" (REL-445). */}
         <ClientCommunicationsSettings settings={settings} onSave={() => mutateSettings()} />
         <AIFollowUpSettings settings={settings} onSave={() => mutateSettings()} />
+        {/* Behind the META_LEADS_ENABLED launch flag — hidden until launch (REL-506). */}
+        {settings?.meta_leads_enabled && <ConnectMetaSettings />}
       </div>
       )}
 
