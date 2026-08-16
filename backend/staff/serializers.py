@@ -12,7 +12,10 @@ class LaborRoleSerializer(serializers.ModelSerializer):
         extra_kwargs = {'description': {'max_length': 2000}}
 
 
-class StaffMemberSerializer(serializers.ModelSerializer):
+class StaffMemberSerializer(OrgScopedModelSerializer):
+    # Org-scoped for the writable `roles` M2M: unscoped it accepted another
+    # tenant's LaborRole, and `role_names` then read that org's label back
+    # out (REL-483).
     role_names = serializers.SerializerMethodField()
     # The display name is composed from first/last on save; forms send parts.
     name = serializers.CharField(required=False, allow_blank=True, max_length=200)

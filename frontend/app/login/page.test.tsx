@@ -43,7 +43,29 @@ describe("Login page (REL-482)", () => {
   });
 
   it("shows the inline error on bad credentials (AC13)", async () => {
-    login.mockRejectedValue(new Error("bad"));
+    // What the backend's 401 actually says; the api layer surfaces `detail`.
+    login.mockRejectedValue(new Error("Invalid email or password."));
+    render(<LoginPage />);
+    fillAndSubmit();
+    expect(await screen.findByText("Invalid email or password.")).toBeInTheDocument();
+  });
+
+  it("shows the lockout reason rather than a credentials error (REL-485)", async () => {
+    // A locked-out account answers 429 with the reason. Rewriting that as
+    // "invalid password" tells the user to keep retrying the thing that is
+    // locking them out.
+    login.mockRejectedValue(
+      new Error("Too many failed sign-in attempts for this account. Try again later."),
+    );
+    render(<LoginPage />);
+    fillAndSubmit();
+    expect(await screen.findByText(/Too many failed sign-in attempts/)).toBeInTheDocument();
+    expect(screen.queryByText("Invalid email or password.")).not.toBeInTheDocument();
+  });
+
+  it("falls back to the generic message when the failure has no detail", async () => {
+    // e.g. the network dropped — there is nothing specific to tell them.
+    login.mockRejectedValue(new Error("   "));
     render(<LoginPage />);
     fillAndSubmit();
     expect(await screen.findByText("Invalid email or password.")).toBeInTheDocument();

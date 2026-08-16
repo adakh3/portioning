@@ -162,8 +162,17 @@ describe("api follow-up drafts", () => {
   });
 
   it("approve with an edited body sends it", async () => {
-    await api.approveFollowUpDraft(7, "Edited text");
+    await api.approveFollowUpDraft(7, { body: "Edited text" });
     expect(JSON.parse(lastInit().body as string)).toEqual({ body: "Edited text" });
+  });
+
+  it("approve carries the rep's channel and subject overrides", async () => {
+    await api.approveFollowUpDraft(7, {
+      channel: "email", subject: "Your March 14 wedding", body: "Hello,",
+    });
+    expect(JSON.parse(lastInit().body as string)).toEqual({
+      channel: "email", subject: "Your March 14 wedding", body: "Hello,",
+    });
   });
 
   it("dismiss posts to the dismiss route", async () => {

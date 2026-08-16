@@ -7,3 +7,4 @@ class PaymentsConfig(AppConfig):
 
     def ready(self):
         import payments.signals  # noqa: F401
+        import payments.checks  # noqa: F401  — registers the deploy checks

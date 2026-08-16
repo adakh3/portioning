@@ -563,3 +563,115 @@ class WebhookViewTests(TestCase):
                                content_type="application/json")
         self.assertEqual(res.status_code, 200)
         mock_handle.assert_called_once()
+
+
+class WebhookEmptySecretTests(TestCase):
+    """The webhook must fail closed when STRIPE_WEBHOOK_SECRET is unset (REL-484).
+
+    Nothing about an empty secret is inert: Stripe's construct_event() HMACs the
+    payload with whatever key it is handed, and an empty key is one the attacker
+    knows too. These tests sign a real event the way an attacker would and prove
+    it never reaches a handler.
+    """
+
+    # A real, well-formed event — `object` and a fresh timestamp included — so
+    # that with the guard removed this genuinely verifies and dispatches. A
+    # stale timestamp or a malformed body would be rejected by the SDK for
+    # reasons that have nothing to do with the secret, and the test would pass
+    # while proving nothing.
+    FORGED = (
+        b'{"id":"evt_forged","object":"event","type":"customer.subscription.created",'
+        b'"data":{"object":{"id":"sub_x","customer":"cus_own","status":"active",'
+        b'"items":{"data":[{"price":{"id":"price_x"}}]}}}}'
+    )
+
+    def _sign(self, body: bytes, secret: str) -> str:
+        """The Stripe-Signature header an attacker computes for themselves.
+
+        With `secret=""` the HMAC key is the empty string — a value the attacker
+        knows as well as we do, which is the whole bug.
+        """
+        import hashlib
+        import hmac
+        import time
+        timestamp = int(time.time())
+        signature = hmac.new(
+            secret.encode(), f"{timestamp}.".encode() + body, hashlib.sha256,
+        ).hexdigest()
+        return f"t={timestamp},v1={signature}"
+
+    def test_the_forgery_is_otherwise_valid(self):
+        """Guard on the guard: prove the payload really would be accepted.
+
+        If this ever stops passing, the tests below are green for the wrong
+        reason and the empty-secret path is no longer being exercised.
+        """
+        import stripe
+        stripe.api_key = "sk_test_x"
+        event = stripe.Webhook.construct_event(
+            self.FORGED, self._sign(self.FORGED, ""), "",
+        )
+        self.assertEqual(event["id"], "evt_forged")
+
+    @override_settings(STRIPE_WEBHOOK_SECRET="")
+    @patch("payments.views.webhook_handlers.handle_event")
+    def test_forged_event_is_rejected_when_the_secret_is_empty(self, mock_handle):
+        res = APIClient().post(
+            "/api/billing/webhook/", data=self.FORGED,
+            content_type="application/json",
+            HTTP_STRIPE_SIGNATURE=self._sign(self.FORGED, ""),
+        )
+        # 500 (misconfiguration), not 200 — and above all, not dispatched.
+        self.assertEqual(res.status_code, 500)
+        mock_handle.assert_not_called()
+
+    @override_settings(STRIPE_WEBHOOK_SECRET="")
+    def test_no_subscription_is_activated_when_the_secret_is_empty(self):
+        """The bite of the bug: the webhook is the only path to a paid state."""
+        org = Organisation.objects.create(name="Forge", slug="forge", country="US")
+        sub = org.subscription
+        sub.stripe_customer_id = "cus_own"
+        sub.save(update_fields=["stripe_customer_id"])
+
+        APIClient().post(
+            "/api/billing/webhook/", data=self.FORGED,
+            content_type="application/json",
+            HTTP_STRIPE_SIGNATURE=self._sign(self.FORGED, ""),
+        )
+        sub.refresh_from_db()
+        self.assertNotEqual(sub.status, SubscriptionStatus.ACTIVE)
+
+    @override_settings(STRIPE_WEBHOOK_SECRET="")
+    def test_gateway_raises_before_reaching_construct_event(self):
+        """Fail closed *before* the SDK, not by trusting it to refuse."""
+        from django.core.exceptions import ImproperlyConfigured
+
+        from .services import stripe_gateway
+
+        with patch("stripe.Webhook.construct_event") as mock_construct:
+            with self.assertRaises(ImproperlyConfigured):
+                stripe_gateway.verify_webhook_event(b"{}", "t=1,v1=x")
+        mock_construct.assert_not_called()
+
+    @override_settings(STRIPE_SECRET_KEY="")
+    def test_api_calls_refuse_an_empty_secret_key(self):
+        from django.core.exceptions import ImproperlyConfigured
+
+        from .services import stripe_gateway
+
+        org = Organisation.objects.create(name="NoKey", slug="nokey", country="US")
+        with self.assertRaises(ImproperlyConfigured):
+            stripe_gateway.get_or_create_customer(org.subscription)
+
+    @override_settings(STRIPE_WEBHOOK_SECRET="", STRIPE_SECRET_KEY="")
+    def test_deploy_check_flags_both_missing_credentials(self):
+        from .checks import check_stripe_credentials
+
+        ids = {e.id for e in check_stripe_credentials(None)}
+        self.assertEqual(ids, {"payments.E001", "payments.E002"})
+
+    @override_settings(STRIPE_WEBHOOK_SECRET="whsec_x", STRIPE_SECRET_KEY="sk_x")
+    def test_deploy_check_passes_when_both_are_set(self):
+        from .checks import check_stripe_credentials
+
+        self.assertEqual(check_stripe_credentials(None), [])

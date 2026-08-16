@@ -1,8 +1,8 @@
 from django.core.exceptions import ValidationError
-from django.db.models.signals import m2m_changed, post_save
+from django.db.models.signals import m2m_changed, post_save, pre_save
 from django.dispatch import receiver
 
-from users.models import Organisation
+from users.models import Organisation, User
 from users.model_mixins import model_is_org_scoped
 
 
@@ -113,4 +113,56 @@ def block_cross_org_m2m(sender, instance, action, reverse, model, pk_set, **kwar
     ):
         raise ValidationError(
             f'Cannot link {model.__name__} from a different organisation.'
+        )
+
+
+# ── Credential changes end existing sessions (REL-486) ──
+#
+# Placed on the model rather than in UserManageSerializer so it holds for every
+# path that can change a credential: the admin/owner user-management API, the
+# Django admin's "Set / reset password" field, a management command, the shell.
+# The scenario that matters is the ordinary one — "this employee is leaving,
+# reset their password" — where the account is expected to be locked out now,
+# not in seven days.
+
+_CREDENTIAL_FIELDS = frozenset({'password', 'is_active'})
+
+
+@receiver(pre_save, sender=User)
+def flag_credential_change(sender, instance, raw=False, update_fields=None, **kwargs):
+    """Record whether this save changes a credential, before the row is written.
+
+    Reading the old row has to happen in pre_save; acting on it waits for
+    post_save, so a save that fails never revokes a working session.
+    """
+    instance._revoke_tokens_on_save = False
+    if raw or instance.pk is None:
+        return
+    if update_fields is not None and not _CREDENTIAL_FIELDS & set(update_fields):
+        # Notably every login, which writes only last_login — no query needed.
+        return
+    previous = (
+        sender._base_manager.filter(pk=instance.pk)
+        .values('password', 'is_active').first()
+    )
+    if previous is None:
+        return
+    instance._revoke_tokens_on_save = (
+        previous['password'] != instance.password
+        or (previous['is_active'] and not instance.is_active)
+    )
+
+
+@receiver(post_save, sender=User)
+def revoke_tokens_on_credential_change(sender, instance, created, **kwargs):
+    if created or not getattr(instance, '_revoke_tokens_on_save', False):
+        return
+    instance._revoke_tokens_on_save = False
+    from users.tokens import revoke_user_tokens
+    revoked = revoke_user_tokens(instance)
+    if revoked:
+        import logging
+        logging.getLogger('tenant.audit').info(
+            "Revoked %s outstanding token(s) for user %s (pk=%s) after a "
+            "credential change", revoked, instance.email, instance.pk,
         )
