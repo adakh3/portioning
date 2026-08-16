@@ -127,6 +127,36 @@ describe("DishesSettings", () => {
     await waitFor(() => expect(screen.getByRole("alert").textContent).toMatch(/cannot be deleted/i));
   });
 
+  it("paginates a large catalogue at 25 per page", () => {
+    dishes = Array.from({ length: 30 }, (_, i) => ({
+      id: 100 + i, name: `Dish ${String(i).padStart(2, "0")}`, category: 1, category_name: "Entrées",
+      cost_per_gram: 0.01, selling_price_per_gram: "0.03", addition_surcharge: "5.00",
+      is_active: true, dietary_tags: [], notes: "",
+    }));
+    render(<DishesSettings />);
+    // Page 1 shows exactly 25 rows.
+    expect(screen.getAllByTestId("dish-row-name")).toHaveLength(25);
+    expect(screen.getByText("Page 1 of 2")).toBeTruthy();
+    // Next → shows the remaining 5.
+    fireEvent.click(screen.getByText("Next →"));
+    expect(screen.getAllByTestId("dish-row-name")).toHaveLength(5);
+    expect(screen.getByText("Page 2 of 2")).toBeTruthy();
+  });
+
+  it("resets to page 1 when the search filter changes", () => {
+    dishes = Array.from({ length: 30 }, (_, i) => ({
+      id: 100 + i, name: `Dish ${String(i).padStart(2, "0")}`, category: 1, category_name: "Entrées",
+      cost_per_gram: 0.01, selling_price_per_gram: "0.03", addition_surcharge: "5.00",
+      is_active: true, dietary_tags: [], notes: "",
+    }));
+    render(<DishesSettings />);
+    fireEvent.click(screen.getByText("Next →"));
+    expect(screen.getByText("Page 2 of 2")).toBeTruthy();
+    // Filtering resets to page 1 (and here narrows below one page, hiding the pager).
+    fireEvent.change(screen.getByPlaceholderText(/Search dishes/i), { target: { value: "Dish 0" } });
+    expect(screen.queryByText(/Page 2 of/)).toBeNull();
+  });
+
   it("deletes a dish and refreshes dish-dependent caches", async () => {
     render(<DishesSettings />);
     fireEvent.click(screen.getByLabelText("Delete Chocolate Cake"));

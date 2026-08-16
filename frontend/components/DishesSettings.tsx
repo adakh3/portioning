@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { api, Dish, DishCategory, DietaryTag } from "@/lib/api";
 import { useManagedDishes, useCategories, useDietaryTags, useSiteSettings, revalidate } from "@/lib/hooks";
 import { Button } from "@/components/ui/button";
@@ -30,6 +30,7 @@ const sortValue = (d: Dish, key: SortKey): string | number => {
 };
 
 const selectClass = "h-8 rounded border border-input bg-transparent px-2 text-sm";
+const PAGE_SIZE = 25;
 
 /** Manage the dish catalog (Settings, owner/admin): the client-facing surface —
  * name, category, cost, dietary tags, active, notes. Portioning/kitchen internals
@@ -51,6 +52,7 @@ export default function DishesSettings() {
   const [categoryFilter, setCategoryFilter] = useState<number | "all">("all");
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDir, setSortDir] = useState<SortDir>("asc");
+  const [page, setPage] = useState(1);
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -72,6 +74,13 @@ export default function DishesSettings() {
     }
     return rows;
   }, [dishes, search, categoryFilter, sortKey, sortDir]);
+
+  // Paginate the filtered/sorted rows so a ~100-dish catalogue stays scannable.
+  const pageCount = Math.max(1, Math.ceil(visible.length / PAGE_SIZE));
+  const safePage = Math.min(page, pageCount);
+  const pageRows = visible.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+  // Any change to the filter/sort resets to the first page.
+  useEffect(() => { setPage(1); }, [search, categoryFilter, sortKey, sortDir]);
 
   async function run(fn: () => Promise<unknown>) {
     setBusy(true);
@@ -149,7 +158,7 @@ export default function DishesSettings() {
             ) : (
               <SortHeader sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
             )}
-            {visible.map((d) =>
+            {pageRows.map((d) =>
               editingId === d.id ? (
                 <DishEditor
                   key={d.id} d={d} symbol={symbol} busy={busy} categories={categories} tags={tags}
@@ -164,6 +173,28 @@ export default function DishesSettings() {
             )}
             {dishes.length > 0 && visible.length === 0 && (
               <p className="text-muted-foreground text-sm px-3 py-4">No dishes match.</p>
+            )}
+
+            {pageCount > 1 && (
+              <div className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
+                <button
+                  type="button"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={safePage <= 1}
+                  className="text-xs px-2 py-1 rounded border border-input disabled:opacity-40"
+                >
+                  ← Prev
+                </button>
+                <span className="text-xs text-muted-foreground">Page {safePage} of {pageCount}</span>
+                <button
+                  type="button"
+                  onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+                  disabled={safePage >= pageCount}
+                  className="text-xs px-2 py-1 rounded border border-input disabled:opacity-40"
+                >
+                  Next →
+                </button>
+              </div>
             )}
 
             <div className="flex items-center gap-2 px-3 py-2">

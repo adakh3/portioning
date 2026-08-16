@@ -103,13 +103,14 @@ describe("admin menu gating", () => {
       expect(labels(role)).not.toContain("Team");
       expect(labels(role)).not.toContain("Equipment");
       expect(labels(role)).not.toContain("Menu Templates");
+      expect(labels(role)).not.toContain("Dishes");
     }
   });
 
-  it("gives admins Settings, Team, Equipment and Menu Templates now", () => {
+  it("gives admins Dishes, Menu Templates, Settings, Team and Equipment now", () => {
     for (const role of ["admin", "owner"]) {
       expect(labels(role)).toEqual(
-        expect.arrayContaining(["Menu Templates", "Equipment", "Settings", "Team"]),
+        expect.arrayContaining(["Dishes", "Menu Templates", "Equipment", "Settings", "Team"]),
       );
     }
   });
