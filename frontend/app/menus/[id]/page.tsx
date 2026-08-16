@@ -45,7 +45,11 @@ export default function MenuEditorPage() {
   const [isActive, setIsActive] = useState(true);
   const [courses, setCourses] = useState<string[]>([]);
   const [dishes, setDishes] = useState<DishRow[]>([]);
-  const [tiers, setTiers] = useState<Tier[]>([]);
+  // A brand-new menu starts with one blank tier so there's always a price-per-head
+  // to fill in (a menu with no tier has no volume price and dead-ends the pricer).
+  // It's just a starting row — leaving the price blank saves nothing, and it can
+  // be removed. Existing menus load their own tiers below.
+  const [tiers, setTiers] = useState<Tier[]>(isNew ? [{ min_guests: "1", price_per_head: "" }] : []);
 
   useEffect(() => {
     if (isNew) return;

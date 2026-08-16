@@ -54,8 +54,7 @@ describe("MenuEditorPage (new)", () => {
     fireEvent.click(screen.getByLabelText("Add Grilled Chicken"));
     fireEvent.change(screen.getByLabelText("Course for Grilled Chicken"), { target: { value: "0" } });
 
-    // A price tier.
-    fireEvent.click(screen.getByText("+ Add tier"));
+    // A price tier — new menus already have a default Tier 1 row to fill in.
     fireEvent.change(screen.getByLabelText("Tier 1 minimum guests"), { target: { value: "50" } });
     fireEvent.change(screen.getByLabelText("Tier 1 price per head"), { target: { value: "45.00" } });
 
@@ -73,6 +72,24 @@ describe("MenuEditorPage (new)", () => {
     // portion_grams is never sent (auto-computed on the backend).
     expect(payload.dishes[0]).not.toHaveProperty("portion_grams");
     await waitFor(() => expect(push).toHaveBeenCalledWith("/menus"));
+  });
+
+  it("starts a new menu with one default (blank) price tier at 1 guest", () => {
+    render(<MenuEditorPage />);
+    const minGuests = screen.getByLabelText("Tier 1 minimum guests") as HTMLInputElement;
+    const price = screen.getByLabelText("Tier 1 price per head") as HTMLInputElement;
+    expect(minGuests.value).toBe("1");
+    expect(price.value).toBe("");           // blank — user fills it in
+    expect(screen.queryByLabelText("Tier 2 minimum guests")).toBeNull();
+  });
+
+  it("does not save the default tier when its price is left blank", async () => {
+    render(<MenuEditorPage />);
+    fireEvent.change(screen.getByLabelText("Menu name"), { target: { value: "No tier" } });
+    fireEvent.click(screen.getByText("Create menu"));
+    await waitFor(() => expect(createMenu).toHaveBeenCalled());
+    // A blank-price default row is filtered out — nothing persisted.
+    expect(createMenu.mock.calls[0][0].price_tiers).toEqual([]);
   });
 
   it("removing a course unassigns dishes that were in it", async () => {
