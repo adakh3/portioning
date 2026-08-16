@@ -60,4 +60,5 @@ from .mailbox import (
 )
 from .meta import (
     MetaStatusView, MetaConnectView, MetaCallbackView, MetaPagesView, MetaDisconnectView,
+    MetaDisconnectAccountView,
 )

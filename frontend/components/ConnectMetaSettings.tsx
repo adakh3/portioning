@@ -112,6 +112,22 @@ export default function ConnectMetaSettings() {
     }
   }
 
+  async function handleDisconnectAccount() {
+    setBusy("disconnect-account");
+    setError("");
+    setSuccess("");
+    try {
+      await api.disconnectMetaAccount();
+      setSelected(new Set());
+      setAvailable(null);
+      await mutate();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not disconnect the Meta account");
+    } finally {
+      setBusy(null);
+    }
+  }
+
   function toggle(pageId: string) {
     setSelected((prev) => {
       const next = new Set(prev);
@@ -225,6 +241,21 @@ export default function ConnectMetaSettings() {
                     </p>
                   )
                 )}
+
+                {/* The way out of the "authorised but no Pages" state, and a full
+                    reset: drops the account token and every Page. */}
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={handleDisconnectAccount}
+                    disabled={busy !== null}
+                    className="text-sm text-destructive hover:underline disabled:opacity-50"
+                  >
+                    {busy === "disconnect-account"
+                      ? "Disconnecting…"
+                      : "Disconnect Facebook account"}
+                  </button>
+                </div>
               </div>
             )}
           </div>
