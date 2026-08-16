@@ -16,9 +16,13 @@ vi.mock("@/lib/auth", () => ({
   useAuth: () => ({ user: loggedIn ? { role } : null, loading: false }),
 }));
 
-// Sidebar/TopNav pull in many hooks; stub them — they're not under test here.
-vi.mock("@/components/Sidebar", () => ({ default: () => <div data-testid="sidebar" /> }));
+// TopNav pulls in many hooks; stub it — it's not under test here.
 vi.mock("@/components/TopNav", () => ({ default: () => <div data-testid="topnav" /> }));
+
+// AppShell (and OrgLocaleProvider) read site settings; stub the hook.
+vi.mock("@/lib/hooks", () => ({
+  useSiteSettings: () => ({ data: { operations_enabled: false } }),
+}));
 
 import AppShell from "./AppShell";
 
@@ -60,7 +64,6 @@ describe("AppShell public landing at /", () => {
     pathname = "/";
     render(<AppShell><div>LANDING</div></AppShell>);
     expect(screen.getByText("LANDING")).toBeInTheDocument();
-    expect(screen.queryByTestId("sidebar")).not.toBeInTheDocument();
     expect(screen.queryByTestId("topnav")).not.toBeInTheDocument();
     expect(replace).not.toHaveBeenCalled();
   });
@@ -69,7 +72,7 @@ describe("AppShell public landing at /", () => {
     pathname = "/";
     render(<AppShell><div>DASHBOARD</div></AppShell>);
     expect(screen.getByText("DASHBOARD")).toBeInTheDocument();
-    expect(screen.getByTestId("sidebar")).toBeInTheDocument();
+    expect(screen.getByTestId("topnav")).toBeInTheDocument();
   });
 
   it("shows a logged-out visitor nothing on a protected route", () => {

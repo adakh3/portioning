@@ -23,6 +23,11 @@ class OrgSettingsSerializer(serializers.ModelSerializer):
     commission_basis_choices = serializers.SerializerMethodField()
     fiscal_year_start_month_choices = serializers.SerializerMethodField()
     ai_followups_configured = serializers.BooleanField(read_only=True)
+    # Operations suite (portioning, kitchen, staffing, help) is a platform-level
+    # launch flag (env: OPERATIONS_ENABLED), not per-org config — hidden for now,
+    # echoed here so the frontend can gate its nav items and routes. Read-only;
+    # flip the env var to launch.
+    operations_enabled = serializers.SerializerMethodField()
     # The org's guest segments (read-only) — so the frontend can decide whether to
     # show the gents/ladies split UI (only when the org's in-count segments are
     # exactly Gents + Ladies). Fetched app-wide via useSiteSettings().
@@ -53,7 +58,12 @@ class OrgSettingsSerializer(serializers.ModelSerializer):
             'followup_gap_final_days', 'followup_max_drafts_per_lead',
             'followup_auto_generate',
             'ai_followups_configured',
+            'operations_enabled',
         ]
+
+    def get_operations_enabled(self, obj):
+        from django.conf import settings as django_settings
+        return bool(getattr(django_settings, 'OPERATIONS_ENABLED', False))
 
     def get_guest_segments(self, obj):
         from rules.models import GuestSegment

@@ -156,9 +156,11 @@ function Dashboard() {
           <Button asChild size="sm">
             <Link href="/events/new">New Event</Link>
           </Button>
-          <Button asChild size="sm" variant="secondary">
-            <Link href="/calculate">Calculator</Link>
-          </Button>
+          {rawSettings?.operations_enabled && (
+            <Button asChild size="sm" variant="secondary">
+              <Link href="/calculate">Calculator</Link>
+            </Button>
+          )}
         </div>
       </div>
 

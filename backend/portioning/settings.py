@@ -49,6 +49,19 @@ SEED_STARTER_CATALOG_ON_ORG_CREATE = os.environ.get(
     'False' if 'test' in sys.argv else 'True',
 ).lower() in ('true', '1', 'yes')
 
+# The "operations" suite — portioning calculator, kitchen events, staffing and
+# the portioning Help explainer — is hidden from the product for now: the
+# current story is sharply revenue/CRM-focused and these features are
+# reintroduced together at a later stage. This flag gates only the USER-FACING
+# surfaces (nav items, /calculate, /kitchen, /staff, /help, related CTAs) — the
+# portioning engine still runs internally when a signed quote becomes an event.
+# Equipment and Menu Templates are NOT gated here: they stay available to admins
+# via the admin menu. Default OFF; flip to launch. Echoed to the frontend via
+# the /bookings/settings/ payload as `operations_enabled`.
+OPERATIONS_ENABLED = os.environ.get(
+    'OPERATIONS_ENABLED', 'False',
+).lower() in ('true', '1', 'yes')
+
 ALLOWED_HOSTS = [
     h.strip() for h in os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 ]

@@ -767,6 +767,10 @@ export interface SiteSettingsData {
   followup_gap_final_days?: number;
   followup_max_drafts_per_lead?: number;
   followup_auto_generate?: boolean;
+  /** Platform launch flag (env OPERATIONS_ENABLED). Hidden for now; gates the
+   *  operations suite — portioning, kitchen events, staffing and the portioning
+   *  Help page. Equipment/Menu Templates are admin-only, not gated by this. */
+  operations_enabled?: boolean;
 }
 
 export interface CommissionPlanConfig {

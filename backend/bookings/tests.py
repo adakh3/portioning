@@ -1531,6 +1531,29 @@ class TestSiteSettingsAPI(TestCase):
         self.assertIn("currency_symbol", data)
         self.assertIn("target_food_cost_percentage", data)
 
+    def test_operations_enabled_reflects_launch_flag(self):
+        """The operations launch flag (OPERATIONS_ENABLED env → settings) is
+        echoed read-only so the frontend can gate the portioning/kitchen suite.
+        Defaults off; the frontend hides those nav items and routes."""
+        from django.test import override_settings
+
+        with override_settings(OPERATIONS_ENABLED=False):
+            data = self.client.get("/api/bookings/settings/").json()
+            self.assertIs(data["operations_enabled"], False)
+
+        with override_settings(OPERATIONS_ENABLED=True):
+            data = self.client.get("/api/bookings/settings/").json()
+            self.assertIs(data["operations_enabled"], True)
+
+    def test_operations_flag_is_read_only(self):
+        """It's a platform env flag, not per-org config — PATCH can't change it."""
+        res = self.client.patch(
+            "/api/bookings/settings/", {"operations_enabled": True}, format="json",
+        )
+        self.assertEqual(res.status_code, 200)
+        # Ignored: still reflects the (default-off) setting, not the payload.
+        self.assertIs(res.json()["operations_enabled"], False)
+
     def test_patch_target_food_cost(self):
         res = self.client.patch(
             "/api/bookings/settings/",
