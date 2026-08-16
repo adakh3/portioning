@@ -1,5 +1,6 @@
 from decimal import Decimal
 
+from django.db import transaction
 from rest_framework import serializers
 
 from users.mixins import get_request_org
@@ -157,6 +158,29 @@ class MenuTemplateManageSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError(f'Dishes not in your organisation: {missing}')
         return dishes
 
+    def validate_price_tiers(self, tiers):
+        # The tiers are written with bare .create() (which skips the model's
+        # field validators), so guard their values here.
+        for t in tiers:
+            try:
+                min_guests = int(t.get('min_guests'))
+                price = Decimal(str(t.get('price_per_head')))
+            except (TypeError, ValueError, ArithmeticError):
+                raise serializers.ValidationError('Each price tier needs a whole-number guest count and a price.')
+            if min_guests < 1:
+                raise serializers.ValidationError('A price tier needs a guest count of at least 1.')
+            if price < 0:
+                raise serializers.ValidationError('A price tier price cannot be negative.')
+        # A tier is unique per (menu, min_guests); catch a repeated threshold here
+        # so it's a clean 400 rather than an IntegrityError 500 mid-save.
+        thresholds = [t.get('min_guests') for t in tiers]
+        dupes = {g for g in thresholds if thresholds.count(g) > 1}
+        if dupes:
+            raise serializers.ValidationError(
+                f'Only one price tier per guest-count threshold (repeated: {sorted(dupes)}).'
+            )
+        return tiers
+
     def to_representation(self, instance):
         data = super().to_representation(instance)  # scalar fields only (nested are write_only)
         courses = list(instance.courses.all())
@@ -175,12 +199,14 @@ class MenuTemplateManageSerializer(serializers.ModelSerializer):
         ]
         return data
 
+    @transaction.atomic
     def create(self, validated_data):
         nested = self._pop_nested(validated_data)
         template = MenuTemplate.objects.create(**validated_data)
         self._sync(template, **nested)
         return template
 
+    @transaction.atomic
     def update(self, instance, validated_data):
         nested = self._pop_nested(validated_data)
         for attr, value in validated_data.items():

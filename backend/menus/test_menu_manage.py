@@ -127,6 +127,48 @@ class MenuManageTests(TestCase):
         self.assertEqual(res.status_code, 204)
         self.assertFalse(MenuTemplate.objects.filter(id=menu.id).exists())
 
+    def test_duplicate_price_tier_thresholds_are_a_clean_400_not_a_500(self):
+        # Two tiers at the same guest count violate unique(menu, min_guests) —
+        # caught as validation, not an IntegrityError mid-save.
+        res = self.client.post(MANAGE, {
+            "name": "Dup Tiers",
+            "price_tiers": [
+                {"min_guests": 50, "price_per_head": "40.00"},
+                {"min_guests": 50, "price_per_head": "60.00"},
+            ],
+        }, format="json")
+        self.assertEqual(res.status_code, 400, res.content)
+        # And nothing was written — the failed save must not leave a partial menu.
+        self.assertFalse(MenuTemplate.objects.filter(organisation=self.org, name="Dup Tiers").exists())
+
+    def test_negative_or_zero_price_tiers_are_rejected(self):
+        neg = self.client.post(MANAGE, {
+            "name": "Neg", "price_tiers": [{"min_guests": 10, "price_per_head": "-5"}],
+        }, format="json")
+        self.assertEqual(neg.status_code, 400, neg.content)
+        self.assertFalse(MenuTemplate.objects.filter(organisation=self.org, name="Neg").exists())
+
+        zero_guests = self.client.post(MANAGE, {
+            "name": "ZeroG", "price_tiers": [{"min_guests": 0, "price_per_head": "10"}],
+        }, format="json")
+        self.assertEqual(zero_guests.status_code, 400, zero_guests.content)
+
+    def test_a_failed_save_rolls_back_completely(self):
+        # A duplicate tier fails AFTER the template/dishes are created; the whole
+        # thing must roll back rather than persist a half-built menu.
+        before = MenuTemplate.objects.filter(organisation=self.org).count()
+        res = self.client.post(MANAGE, {
+            "name": "Rollback", "courses": [{"name": "C"}],
+            "dishes": [{"dish_id": self.chicken.id, "course": 0}],
+            "price_tiers": [
+                {"min_guests": 10, "price_per_head": "1"},
+                {"min_guests": 10, "price_per_head": "2"},
+            ],
+        }, format="json")
+        self.assertEqual(res.status_code, 400, res.content)
+        self.assertEqual(MenuTemplate.objects.filter(organisation=self.org).count(), before)
+        self.assertFalse(MenuCourse.objects.filter(name="C", menu__organisation=self.org).exists())
+
 
 class MenuManageScopingTests(TestCase):
     def test_cannot_touch_another_orgs_template_or_use_its_dishes(self):
