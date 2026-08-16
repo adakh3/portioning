@@ -801,6 +801,9 @@ export interface SiteSettingsData {
    *  operations suite — portioning, kitchen events, staffing and the portioning
    *  Help page. Equipment/Menu Templates are admin-only, not gated by this. */
   operations_enabled?: boolean;
+  /** Platform launch flag (env META_LEADS_ENABLED). Off by default; gates the
+   *  "Connect Facebook & Instagram" card in Settings → Integrations (REL-506). */
+  meta_leads_enabled?: boolean;
 }
 
 export interface CommissionPlanConfig {
@@ -1160,6 +1163,39 @@ export interface MailboxStatus {
   providers_available: MailboxProvider[];
 }
 
+// Meta (Facebook/Instagram) connected Pages — REL-506
+export interface ConnectedMetaPage {
+  id: number;
+  page_id: string;
+  page_name: string;
+  instagram_account_id: string;
+  instagram_username: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MetaStatus {
+  /** Whether this deployment has a real Meta app (vs. local-dev fake mode). */
+  app_configured: boolean;
+  /** The org has completed Meta consent — its Pages can be listed/connected. */
+  authorized: boolean;
+  pages: ConnectedMetaPage[];
+}
+
+/** A Page offered in the picker after consent. Never carries a token. */
+export interface MetaAvailablePage {
+  page_id: string;
+  page_name: string;
+  instagram_account_id: string;
+  instagram_username: string;
+  connected: boolean;
+}
+
+export interface MetaPagesResult {
+  pages: ConnectedMetaPage[];
+  errors: { page_id: string; detail: string }[];
+}
+
 // AI follow-up drafts
 export interface FollowUpStatsRow {
   user_id: number | null;
@@ -1181,16 +1217,28 @@ export interface FollowUpDraft {
   lead: number;
   lead_name: string | null;
   lead_phone?: string;
+  lead_email?: string;
   lead_event_type?: string;
   lead_event_date?: string | null;
   lead_guest_estimate?: number | null;
   lead_assigned_to_name?: string | null;
   lead_days_stale?: number | null;
-  channel: string;
+  /** Whether email could actually be used for this lead right now — the org's
+   * mailbox works AND the lead has a valid address. Decided by the backend,
+   * which is the only side that can see the mailbox. */
+  email_available?: boolean;
+  /** Why not, when it can't — the same reasons the send modal branches on, so
+   * "connect your email" and "reconnect it" stay different problems. */
+  email_reason?: ChannelBlockedReason | null;
+  /** The channel this draft was written for — the rep can still switch it. */
+  channel: ClientChannel;
+  /** Email only; a WhatsApp draft has no subject and leaves this empty. */
+  subject: string;
   body: string;
   reasoning: string;
   status: "pending" | "sent" | "dismissed";
   model_used: string;
+  /** The ledger row this became once sent, on either channel. */
   whatsapp_message: number | null;
   reviewed_by: number | null;
   reviewed_by_name: string | null;
@@ -2083,6 +2131,22 @@ export const api = {
   disconnectMailbox: () =>
     fetchApi<void>("/integrations/email/disconnect/", { method: "POST" }),
 
+  // Meta (Facebook/Instagram) Page connection — REL-506
+  getMetaStatus: () => fetchApi<MetaStatus>("/integrations/meta/"),
+  startMetaConnect: () =>
+    fetchApi<{ auth_url: string }>("/integrations/meta/connect/"),
+  getMetaPages: () => fetchApi<MetaAvailablePage[]>("/integrations/meta/pages/"),
+  connectMetaPages: (pageIds: string[]) =>
+    fetchApi<MetaPagesResult>("/integrations/meta/pages/", {
+      method: "POST",
+      body: JSON.stringify({ page_ids: pageIds }),
+    }),
+  disconnectMetaPage: (pageId: string) =>
+    fetchApi<void>("/integrations/meta/disconnect/", {
+      method: "POST",
+      body: JSON.stringify({ page_id: pageId }),
+    }),
+
   // AI follow-up drafts
   getFollowUpDrafts: (status: string = "pending") =>
     fetchList<FollowUpDraft>(`/bookings/followup-drafts/?page_size=all&status=${status}`),
@@ -2096,17 +2160,29 @@ export const api = {
     if (dateTo) params.set("date_to", dateTo);
     return fetchApi<FollowUpStats>(`/bookings/followup-drafts/stats/?${params.toString()}`);
   },
-  approveFollowUpDraft: (id: number, body?: string) =>
+  /** Approve and send. `channel`/`subject` are the rep's overrides at send
+   * time — only sent when they actually changed something, so the draft's own
+   * values stay authoritative. */
+  approveFollowUpDraft: (
+    id: number,
+    overrides: { body?: string; channel?: ClientChannel; subject?: string } = {},
+  ) =>
     fetchApi<FollowUpDraft>(`/bookings/followup-drafts/${id}/approve/`, {
       method: "POST",
-      body: JSON.stringify(body !== undefined ? { body } : {}),
+      body: JSON.stringify(overrides),
     }),
   dismissFollowUpDraft: (id: number) =>
     fetchApi<FollowUpDraft>(`/bookings/followup-drafts/${id}/dismiss/`, { method: "POST" }),
-  markFollowUpSent: (id: number, body?: string) =>
+  /** The rep sent it from their own WhatsApp. Takes the same overrides as
+   * approve, so a draft written for email that the rep chose to hand off by
+   * WhatsApp is recorded rather than refused. */
+  markFollowUpSent: (
+    id: number,
+    overrides: { body?: string; channel?: ClientChannel } = {},
+  ) =>
     fetchApi<FollowUpDraft>(`/bookings/followup-drafts/${id}/mark-sent/`, {
       method: "POST",
-      body: JSON.stringify(body != null ? { body } : {}),
+      body: JSON.stringify(overrides),
     }),
   logLeadReply: (leadId: number) =>
     fetchApi<{ logged: boolean }>(`/bookings/leads/${leadId}/log-reply/`, { method: "POST" }),

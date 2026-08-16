@@ -9,13 +9,31 @@ so tests can run without real keys.
 """
 import stripe
 from django.conf import settings
+from django.core.exceptions import ImproperlyConfigured
 
 from payments.models import Subscription
 
 
+def _require_setting(name: str) -> str:
+    """Return a Stripe credential, refusing to run on an empty one (REL-484).
+
+    An unset credential must stop the call, never soften it. That matters most
+    for the webhook secret: ``stripe.Webhook.construct_event`` does not reject
+    an empty key, it just HMACs with one — and an empty key is a key the caller
+    knows, so anyone can sign an event we would then trust. Since the webhook is
+    the only thing that flips a Subscription to active/trialing, a missing
+    secret is the difference between "billing is broken" and "billing is free
+    for whoever asks". The former is loud and recoverable.
+    """
+    value = (getattr(settings, name, '') or '').strip()
+    if not value:
+        raise ImproperlyConfigured(f"{name} is not configured.")
+    return value
+
+
 def _client():
     """Return the configured ``stripe`` module."""
-    stripe.api_key = settings.STRIPE_SECRET_KEY
+    stripe.api_key = _require_setting('STRIPE_SECRET_KEY')
     return stripe
 
 
@@ -75,8 +93,9 @@ def verify_webhook_event(payload: bytes, sig_header: str):
     """Verify a webhook payload's signature and return the parsed Event.
 
     Raises ``stripe.error.SignatureVerificationError`` (or ``ValueError`` for a
-    malformed payload) if verification fails — the view turns that into a 400.
+    malformed payload) if verification fails — the view turns that into a 400 —
+    or ``ImproperlyConfigured`` if the secret is unset, which the view turns
+    into a 500 without ever reaching ``construct_event``.
     """
-    return stripe.Webhook.construct_event(
-        payload, sig_header, settings.STRIPE_WEBHOOK_SECRET
-    )
+    secret = _require_setting('STRIPE_WEBHOOK_SECRET')
+    return stripe.Webhook.construct_event(payload, sig_header, secret)
