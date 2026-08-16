@@ -665,7 +665,7 @@ class DrafterContextTests(TestCase):
         ctx = _build_context(lead)
         self.assertIn('Follow-ups already sent to this lead: 1', ctx)
         self.assertIn('Most recent follow-up sent:', ctx)
-        self.assertIn('The lead has never replied on WhatsApp.', ctx)
+        self.assertIn('The lead has never replied to us.', ctx)
         # pipeline status is aspiration, not fact — it is no longer shared
         self.assertNotIn('pipeline status', ctx)
 

@@ -10,6 +10,7 @@ import logging
 
 import stripe
 from django.conf import settings
+from django.core.exceptions import ImproperlyConfigured
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework import status as http_status
@@ -206,6 +207,16 @@ class StripeWebhookView(APIView):
         sig_header = request.META.get('HTTP_STRIPE_SIGNATURE', '')
         try:
             event = stripe_gateway.verify_webhook_event(request.body, sig_header)
+        except ImproperlyConfigured:
+            # No webhook secret configured. 500, not 400: nothing is wrong with
+            # the caller's request, and Stripe retrying is exactly what we want
+            # once the secret is set. Never fall through to handling the event —
+            # unverified, it could be anyone's (REL-484).
+            logger.error(
+                "Stripe webhook rejected: STRIPE_WEBHOOK_SECRET is not configured, "
+                "so no event can be verified."
+            )
+            return Response(status=http_status.HTTP_500_INTERNAL_SERVER_ERROR)
         except (ValueError, stripe.error.SignatureVerificationError):
             logger.warning("Rejected Stripe webhook with bad signature")
             return Response(status=http_status.HTTP_400_BAD_REQUEST)

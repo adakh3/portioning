@@ -13,15 +13,21 @@ from bookings.services.messaging_kinds import KIND_SIGN_LINK, KIND_SIGNED_COPY, 
 CHANNEL_EMAIL = 'email'
 
 
-def format_event_date(value):
-    """'14 March 2026' from a date — or from the string one that hasn't been
-    round-tripped through the database yet.
+def format_event_date(value, country=''):
+    """'14 March 2026' — or 'March 14, 2026' for a US org — from a date, or
+    from the string one that hasn't been round-tripped through the database yet.
+
+    The order follows the org's country, not the developer's: a date written
+    day-first to an American client is at best jarring and at worst read as the
+    wrong day (REL-501). Callers that genuinely have no org pass nothing and get
+    the US default, matching `Organisation.country`'s own default.
 
     A model instance created in memory still holds whatever was assigned to it,
     so a freshly built booking can carry `event_date` as a string. Formatting
     that with a date format specifier raises, and a message must never fail to
     render over the shape of a date.
     """
+    from users.country_defaults import writes_month_first
     if not value:
         return ''
     if isinstance(value, str):
@@ -30,7 +36,16 @@ def format_event_date(value):
         if parsed is None:
             return value
         value = parsed
+    if writes_month_first(country):
+        # %-d, not %d: 'March 04' is not how anyone writes it.
+        return f'{value:%B} {value.day}, {value:%Y}'
     return f'{value:%d %B %Y}'
+
+
+def org_country(obj):
+    """The ISO country of whatever record we're writing about."""
+    org = getattr(obj, 'organisation', None)
+    return getattr(org, 'country', '') or ''
 
 
 def _first_name(full_name):
@@ -54,7 +69,7 @@ def _event_phrase(booking):
         label = (option.label if option else event_type).lower()
 
     subject = f'your {label}' if label else 'your event'
-    date = format_event_date(getattr(booking, 'event_date', None))
+    date = format_event_date(getattr(booking, 'event_date', None), org_country(booking))
     return f'{subject} on {date}' if date else subject
 
 

@@ -103,6 +103,39 @@ def _require_public_url(name, value, *, debug):
         )
     return value
 
+
+def _require_token_encryption_key(value, *, debug):
+    """Refuse to boot in production without a dedicated mailbox-token key (REL-487).
+
+    Left unset, `bookings.services.encryption` falls back to a SECRET_KEY-derived
+    key. That fallback is convenient in dev and a real exposure in production: it
+    makes one value both the JWT/OAuth-state signing key and the key to every
+    caterer's Gmail/Outlook refresh token, so a single leak forges sessions *and*
+    decrypts live mailbox credentials. They should fail independently.
+
+    To adopt the key on an environment that has been running on the fallback,
+    list the current SECRET_KEY in TOKEN_ENCRYPTION_KEY_FALLBACKS — fallbacks
+    decrypt only, so existing ciphertext keeps reading while every new write goes
+    out under the dedicated key.
+
+    `debug` is a parameter rather than a read of the module global so the rule is
+    testable without reimporting settings.
+    """
+    if debug:
+        return value
+    if not (value or '').strip():
+        raise ImproperlyConfigured(
+            "TOKEN_ENCRYPTION_KEY must be set when DEBUG=False. Without it, "
+            "mailbox refresh tokens are encrypted under a SECRET_KEY-derived "
+            "key, so leaking SECRET_KEY would also expose every connected "
+            "mailbox. Generate one with "
+            "`python -c \"from cryptography.fernet import Fernet; "
+            "print(Fernet.generate_key().decode())\"`. If this environment has "
+            "been running without it, also set TOKEN_ENCRYPTION_KEY_FALLBACKS "
+            "to the current SECRET_KEY so existing tokens still decrypt."
+        )
+    return value
+
 # ── Platform integrations (shared across all orgs) ──
 # Twilio is the platform's single account; each org configures only its own
 # WhatsApp sender number (OrgSettings.twilio_whatsapp_number). LLM keys are
@@ -141,13 +174,16 @@ OAUTH_REDIRECT_BASE = _require_public_url(
     os.environ.get('OAUTH_REDIRECT_BASE', 'http://localhost:8000'),
     debug=DEBUG,
 )
-# Key for encrypting mailbox refresh tokens at rest. Optional: falls back to
-# SECRET_KEY-derived. Set it in prod so rotating SECRET_KEY doesn't make every
-# caterer reconnect — and so the JWT signing key isn't also the key to their
+# Key for encrypting mailbox refresh tokens at rest. REQUIRED when DEBUG=False
+# (see _require_token_encryption_key); in dev it falls back to a SECRET_KEY-
+# derived key. Having its own key means rotating SECRET_KEY doesn't make every
+# caterer reconnect — and that the JWT signing key isn't also the key to their
 # mailboxes. When set it is used alone; to change keys without stranding
 # existing ciphertext, list the previous one (or SECRET_KEY) in the fallbacks,
 # which decrypt only.
-TOKEN_ENCRYPTION_KEY = os.environ.get('TOKEN_ENCRYPTION_KEY', '')
+TOKEN_ENCRYPTION_KEY = _require_token_encryption_key(
+    os.environ.get('TOKEN_ENCRYPTION_KEY', ''), debug=DEBUG,
+)
 TOKEN_ENCRYPTION_KEY_FALLBACKS = os.environ.get('TOKEN_ENCRYPTION_KEY_FALLBACKS', '')
 
 # Capture outgoing client email instead of calling a provider, for local dev and
@@ -205,9 +241,51 @@ INSTALLED_APPS = [
     'users',
     'payments',
     'rest_framework_simplejwt.token_blacklist',
+    'axes',
 ]
 
 AUTH_USER_MODEL = "users.User"
+
+# ── Brute-force protection (REL-485) ──
+# AxesStandaloneBackend must come first: it is a gate, not a backend that can
+# authenticate anyone. It raises for a locked-out identity before ModelBackend
+# gets to spend a password hash on the attempt.
+AUTHENTICATION_BACKENDS = [
+    'axes.backends.AxesStandaloneBackend',
+    'django.contrib.auth.backends.ModelBackend',
+]
+
+# Lock the ACCOUNT, not the IP. Credential-stuffing against one known email is
+# distributed by definition — a per-IP limit is one rented proxy away from
+# useless, while a per-account limit costs the attacker the thing they cannot
+# spread across hosts.
+AXES_LOCKOUT_PARAMETERS = ['username']
+AXES_FAILURE_LIMIT = int(os.environ.get('AXES_FAILURE_LIMIT', '8'))
+# Auto-expiring, so a locked-out colleague is never waiting on an admin. Long
+# enough that 8-per-30-minutes is hopeless for guessing, short enough that
+# someone who genuinely forgot their password can retry over a coffee.
+AXES_COOLOFF_TIME = timedelta(
+    minutes=int(os.environ.get('AXES_COOLOFF_MINUTES', '30')),
+)
+AXES_RESET_ON_SUCCESS = True
+# The API authenticates with `email=`, and a DRF JSON body never populates
+# request.POST — so the form-field lookup axes uses by default would read every
+# attempt as an empty username and lock one shared bucket for all accounts.
+AXES_USERNAME_CALLABLE = 'users.throttling.axes_username'
+AXES_USERNAME_FORM_FIELD = 'email'
+# Only ever trust the hop our own proxy appended; see users.throttling.
+AXES_IPWARE_PROXY_COUNT = int(os.environ.get('NUM_PROXIES', '1'))
+AXES_IPWARE_META_PRECEDENCE_ORDER = ['HTTP_X_FORWARDED_FOR', 'REMOTE_ADDR']
+# Never silently pass an attempt through because the lockout store is unhappy.
+AXES_ENABLE_ACCESS_FAILURE_LOG = True
+
+# axes.W006 objects that AXES_LOCKOUT_PARAMETERS omits 'ip_address'. That is the
+# point: including it would let an attacker with a pool of addresses keep getting
+# a fresh allowance for the same account, which is precisely the credential-
+# stuffing shape this exists to stop. The accepted cost is that someone can
+# deliberately lock a colleague out by failing their login on purpose —
+# time-boxed by AXES_COOLOFF_TIME, which expires on its own.
+SILENCED_SYSTEM_CHECKS = ['axes.W006']
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -222,6 +300,10 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'users.middleware.CSPMiddleware',
+    # Last: it turns the PermissionDenied that AxesStandaloneBackend raises for
+    # a locked-out identity into a real lockout response, so it has to wrap the
+    # view that calls authenticate().
+    'axes.middleware.AxesMiddleware',
 ]
 
 # Stripe (SaaS subscription billing — see the `payments` app)
@@ -266,11 +348,31 @@ REST_FRAMEWORK = {
         'rest_framework.throttling.AnonRateThrottle',
         'rest_framework.throttling.UserRateThrottle',
     ],
+    # Overridable by environment so a test stack can lift them, and ONLY for
+    # that: the defaults are the production values and nothing sets these vars
+    # in a deployment. The e2e suite drives ~30 real logins from one IP in two
+    # minutes, which is indistinguishable from credential stuffing to a limit
+    # sized for real humans — it crossed 100/hour once the suite grew past ~25
+    # specs, and every PR after that would have failed at whichever spec ran
+    # last. Raising the ceiling for CI is right; lowering it for clients is not.
     'DEFAULT_THROTTLE_RATES': {
-        'anon': '100/hour',
-        'demo_requests': '10/hour',
-        'user': '1000/hour',
+        'anon': os.environ.get('THROTTLE_ANON', '100/hour'),
+        'demo_requests': os.environ.get('THROTTLE_DEMO_REQUESTS', '10/hour'),
+        'user': os.environ.get('THROTTLE_USER', '1000/hour'),
+        # Cheap first line in front of the per-account lockout: it costs an
+        # attacker nothing to be locked out of an account they don't own, but
+        # it does cost them request volume. Tunable for the same reason as the
+        # three above — and because the key is an address, which a whole office
+        # behind one NAT shares.
+        'login': os.environ.get('LOGIN_RATE_LIMIT', '10/min'),
+        'token_refresh': os.environ.get('TOKEN_REFRESH_RATE_LIMIT', '30/min'),
     },
+    # How many proxies sit in front of the app, so the throttle key is the hop
+    # OUR proxy appended rather than whatever the client put in X-Forwarded-For.
+    # Left unset, DRF keys on the entire client-supplied header, and varying it
+    # by one byte per request mints a fresh bucket every time — the limit may as
+    # well not exist (REL-485).
+    'NUM_PROXIES': int(os.environ.get('NUM_PROXIES', '1')),
     'EXCEPTION_HANDLER': 'portioning.exception_handler.custom_exception_handler',
     'DEFAULT_PAGINATION_CLASS': 'bookings.pagination.OptionalPagination',
     'PAGE_SIZE': 50,
