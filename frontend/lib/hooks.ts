@@ -118,6 +118,13 @@ export function useAddOnProducts() {
   });
 }
 
+// Management list for Settings — includes inactive products and all their variants.
+export function useManagedAddOnProducts() {
+  return useSWR<AddOnProduct[]>("managed-addon-products", () => api.getManagedAddOnProducts(), {
+    revalidateOnFocus: false,
+  });
+}
+
 export function useVenues() {
   return useSWR<Venue[]>("venues", () => api.getVenues(), {
     dedupingInterval: 60000,
