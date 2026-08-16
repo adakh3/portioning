@@ -26,6 +26,7 @@ CONNECT_URL = '/api/integrations/meta/connect/'
 CALLBACK_URL = '/api/integrations/meta/callback/'
 PAGES_URL = '/api/integrations/meta/pages/'
 DISCONNECT_URL = '/api/integrations/meta/disconnect/'
+DISCONNECT_ACCOUNT_URL = '/api/integrations/meta/disconnect-account/'
 
 # The three deployment shapes. ENABLED + a real app; ENABLED + no app (the
 # local-dev fake mode); and (by omission) the flag off, which is the default.
@@ -659,6 +660,70 @@ class TestMetaDisconnect(TestCase):
             (401, 403),
         )
         self.assertTrue(ConnectedMetaPage.objects.exists())
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Disconnect the whole account (AC6-adjacent)
+# ──────────────────────────────────────────────────────────────────────
+
+class TestMetaDisconnectAccount(TestCase):
+    def setUp(self):
+        self.user = get_test_user()
+        self.org = self.user.organisation
+        self.client = APIClient()
+        self.client.force_authenticate(self.user)
+
+    @override_settings(**FAKE_MODE)
+    def test_removes_the_connection_and_every_page(self):
+        connection = _make_connection(self.org)
+        _make_page(self.org, connection=connection, page_id='PAGE1')
+        _make_page(self.org, connection=connection, page_id='PAGE2')
+
+        response = self.client.post(DISCONNECT_ACCOUNT_URL)
+        self.assertEqual(response.status_code, 204)
+        self.assertFalse(MetaAccountConnection.objects.filter(organisation=self.org).exists())
+        self.assertFalse(ConnectedMetaPage.objects.filter(organisation=self.org).exists())
+
+    @override_settings(**APP_CONFIGURED)
+    @patch('bookings.services.meta.requests.delete')
+    def test_unsubscribes_each_page_and_revokes_the_grant(self, delete):
+        connection = _make_connection(self.org)
+        _make_page(self.org, connection=connection, page_id='PAGE1', token='page-token-1')
+        delete.return_value = _response(200, {'success': True})
+
+        self.client.post(DISCONNECT_ACCOUNT_URL)
+
+        called = [c[0][0] for c in delete.call_args_list]
+        self.assertTrue(any('/PAGE1/subscribed_apps' in u for u in called))
+        self.assertTrue(any('/me/permissions' in u for u in called))
+
+    @override_settings(**FAKE_MODE)
+    def test_404_when_no_account_is_connected(self):
+        self.assertEqual(self.client.post(DISCONNECT_ACCOUNT_URL).status_code, 404)
+
+    @override_settings(META_LEADS_ENABLED=False)
+    def test_flag_off_is_404(self):
+        _make_connection(self.org)
+        self.assertEqual(self.client.post(DISCONNECT_ACCOUNT_URL).status_code, 404)
+
+    @override_settings(**FAKE_MODE)
+    def test_cannot_disconnect_another_orgs_account(self):
+        """AC6 — org B's disconnect must never touch org A's connection."""
+        other = _other_org()
+        _make_connection(other)
+        response = self.client.post(DISCONNECT_ACCOUNT_URL)
+        self.assertEqual(response.status_code, 404)
+        self.assertTrue(MetaAccountConnection.objects.filter(organisation=other).exists())
+
+    @override_settings(**FAKE_MODE)
+    def test_managers_cannot_disconnect_the_account(self):
+        _make_connection(self.org)
+        manager = User.objects.create(email='mgr-acct@test.com', role='manager',
+                                      organisation=self.org, is_active=True)
+        client = APIClient()
+        client.force_authenticate(manager)
+        self.assertIn(client.post(DISCONNECT_ACCOUNT_URL).status_code, (401, 403))
+        self.assertTrue(MetaAccountConnection.objects.exists())
 
 
 # ──────────────────────────────────────────────────────────────────────

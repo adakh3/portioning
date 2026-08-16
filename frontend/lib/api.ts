@@ -2156,6 +2156,8 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ page_id: pageId }),
     }),
+  disconnectMetaAccount: () =>
+    fetchApi<void>("/integrations/meta/disconnect-account/", { method: "POST" }),
 
   // AI follow-up drafts
   getFollowUpDrafts: (status: string = "pending") =>

@@ -31,6 +31,7 @@ const startMetaConnect = vi.fn();
 const getMetaPages = vi.fn();
 const connectMetaPages = vi.fn();
 const disconnectMetaPage = vi.fn();
+const disconnectMetaAccount = vi.fn();
 vi.mock("@/lib/api", () => ({
   api: {
     updateSiteSettings: vi.fn(),
@@ -38,6 +39,7 @@ vi.mock("@/lib/api", () => ({
     getMetaPages: () => getMetaPages(),
     connectMetaPages: (ids: string[]) => connectMetaPages(ids),
     disconnectMetaPage: (id: string) => disconnectMetaPage(id),
+    disconnectMetaAccount: () => disconnectMetaAccount(),
   },
 }));
 
@@ -87,6 +89,7 @@ beforeEach(() => {
   getMetaPages.mockReset().mockResolvedValue(AVAILABLE_BOTH);
   connectMetaPages.mockReset().mockResolvedValue({ pages: [], errors: [] });
   disconnectMetaPage.mockReset().mockResolvedValue(undefined);
+  disconnectMetaAccount.mockReset().mockResolvedValue(undefined);
   mutateMeta.mockClear();
   mockSearchParams = new URLSearchParams();
   mockSettings = { currency_symbol: "$", currency_code: "USD", date_format: "MM/DD/YYYY", meta_leads_enabled: true };
@@ -186,5 +189,22 @@ describe("Settings → Integrations → Facebook & Instagram", () => {
     fireEvent.click(card().getByRole("button", { name: "Connect selected Pages" }));
 
     await waitFor(() => expect(card().getByText(/Some Pages couldn't be connected: PAGE2/)).toBeTruthy());
+  });
+
+  it("offers a full account disconnect once authorised, and calls it", async () => {
+    mockMeta = AUTHORIZED_NO_PAGES;
+    render(<SettingsPage />);
+
+    const button = await card().findByRole("button", { name: /Disconnect Facebook account/ });
+    fireEvent.click(button);
+
+    await waitFor(() => expect(disconnectMetaAccount).toHaveBeenCalled());
+    await waitFor(() => expect(mutateMeta).toHaveBeenCalled());
+  });
+
+  it("does not offer the account disconnect before Meta is authorised", () => {
+    mockMeta = NOT_AUTHORIZED;
+    render(<SettingsPage />);
+    expect(card().queryByRole("button", { name: /Disconnect Facebook account/ })).toBeNull();
   });
 });
