@@ -37,6 +37,9 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
   // app chrome, and without waiting on the staff auth bootstrap.
   if (pathname.startsWith("/b/")) return <>{children}</>;
 
+  // Public legal page — reachable without a login (linked from Meta app config).
+  if (pathname === "/privacy") return <>{children}</>;
+
   // Show nothing while checking auth (prevents flash)
   if (loading) return null;
 
