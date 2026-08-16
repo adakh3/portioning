@@ -9,7 +9,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('bookings', '0082_contact_title'),
+        ('bookings', '0083_followupdraft_subject_alter_followupdraft_channel'),
         ('users', '0008_demorequest'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
