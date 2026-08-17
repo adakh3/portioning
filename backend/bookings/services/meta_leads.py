@@ -14,10 +14,11 @@ lead is by normalized email/phone.
 import logging
 from datetime import datetime
 
+from django.db import IntegrityError, transaction
 from django.db.models import Q
 
 from bookings.activity import log_activity
-from bookings.models import ConnectedMetaPage, Lead
+from bookings.models import ConnectedMetaPage, Lead, MetaIngestedLead
 from bookings.phones import normalize_phone
 from bookings.services import meta
 from bookings.services.leads import default_status_for, terminal_statuses_for
@@ -39,8 +40,10 @@ def ingest_from_webhook(page: ConnectedMetaPage, value: dict):
 
 def ingest_lead(page: ConnectedMetaPage, leadgen_id: str):
     """Fetch a single submission by id and create/dedup a Lead."""
-    if Lead.objects.for_org(page.organisation).filter(meta_leadgen_id=leadgen_id).exists():
-        return None  # idempotent: already ingested (webhook retry / overlap with backfill)
+    # Cheap pre-check to skip the Graph round trip on an obvious retry; the
+    # atomic guard in _build_lead is what actually enforces idempotency.
+    if MetaIngestedLead.objects.for_org(page.organisation).filter(leadgen_id=leadgen_id).exists():
+        return None
     raw = meta.fetch_lead(leadgen_id, page.page_access_token)
     lead, _created = _build_lead(page, raw)
     return lead
@@ -73,20 +76,27 @@ def backfill_all() -> int:
 # ── mapping + dedup ──
 
 def _build_lead(page: ConnectedMetaPage, raw: dict):
-    """Create a Lead from a raw Graph lead object, or dedup. Returns (lead, created)."""
+    """Create a Lead from a raw Graph lead object, or dedup. Returns (lead, created).
+
+    The (org, leadgen_id) ledger row is the idempotency primitive: claiming it
+    atomically means the very first delivery wins and every retry / backfill
+    re-sighting / concurrent race is skipped — covering the merge path too, so
+    the backfill never re-logs a duplicate activity.
+    """
     org = page.organisation
     leadgen_id = str(raw.get('id') or '')
 
-    # Idempotency guard again (backfill may see an id the webhook just created).
-    existing = Lead.objects.for_org(org).filter(meta_leadgen_id=leadgen_id).first()
-    if existing:
-        return existing, False
+    try:
+        with transaction.atomic():
+            ref = MetaIngestedLead.objects.create(organisation=org, leadgen_id=leadgen_id)
+    except IntegrityError:
+        return None, False  # already ingested (retry / backfill overlap / race)
 
     answers = _answers(raw.get('field_data'))
     first = answers.pop('first_name', '')
     last = answers.pop('last_name', '')
     full = answers.pop('full_name', '') or ' '.join(p for p in (first, last) if p)
-    email = answers.pop('email', '')
+    email = answers.pop('email', '').strip()
     phone = answers.pop('phone_number', '')
 
     # Any remaining answers (event date, guest count, …) go to notes verbatim.
@@ -101,6 +111,8 @@ def _build_lead(page: ConnectedMetaPage, raw: dict):
             dup, 'updated',
             description='New Meta lead-form submission received for this contact.',
         )
+        ref.lead = dup
+        ref.save(update_fields=['lead'])
         return dup, False
 
     lead = Lead(
@@ -119,6 +131,8 @@ def _build_lead(page: ConnectedMetaPage, raw: dict):
     if default:
         lead.status = default
     lead.save()
+    ref.lead = lead
+    ref.save(update_fields=['lead'])
     log_activity(lead, 'created', description=f'Created lead "{lead.contact_name}" from a Meta lead form')
     return lead, True
 

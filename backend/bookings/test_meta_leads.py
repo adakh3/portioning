@@ -197,6 +197,29 @@ class TestMetaLeadIngestion(TestCase):
         self.assertTrue(ActivityLog.objects.filter(action='updated', object_id=existing.pk).exists())
 
     @patch('bookings.services.meta.fetch_lead')
+    @patch('bookings.services.meta.list_form_leads')
+    @patch('bookings.services.meta.list_lead_forms')
+    def test_a_merged_submission_is_not_relogged_by_the_backfill(self, forms, form_leads, fetch):
+        """Regression: the idempotency ledger must cover the merge path, or the
+        hourly backfill re-logs a duplicate activity on the matched lead forever."""
+        existing = Lead.objects.create(
+            organisation=self.org, contact_name='Jane D',
+            contact_email='jane@example.com', status=default_status_for(self.org) or 'new',
+        )
+        fetch.return_value = _lead_object()
+        _post(self.client, _leadgen_payload())  # merges via webhook, logs one activity
+        self.assertEqual(ActivityLog.objects.filter(action='updated', object_id=existing.pk).count(), 1)
+
+        # The hourly sweep re-sees the very same submission.
+        forms.return_value = ['FORM1']
+        form_leads.return_value = [_lead_object()]
+        meta_leads.backfill_all()
+
+        # No second activity, no stray Lead.
+        self.assertEqual(ActivityLog.objects.filter(action='updated', object_id=existing.pk).count(), 1)
+        self.assertFalse(Lead.objects.filter(meta_leadgen_id='LEAD1').exists())
+
+    @patch('bookings.services.meta.fetch_lead')
     def test_a_transient_fetch_failure_keeps_the_raw_event_for_backfill(self, fetch):
         """AC5 — nothing lost; the event is stored with an error."""
         fetch.side_effect = meta_leads.meta.MetaApiError('graph down')

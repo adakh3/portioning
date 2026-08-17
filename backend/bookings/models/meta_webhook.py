@@ -44,3 +44,40 @@ class MetaWebhookEvent(OrgScopedModel, models.Model):
 
     def __str__(self):
         return f'MetaWebhookEvent {self.field or "?"} page={self.page_id or "?"} #{self.pk}'
+
+
+class MetaIngestedLead(OrgScopedModel, models.Model):
+    """Idempotency ledger for Meta lead-ad submissions (REL-507).
+
+    One row per (org, leadgen_id), written atomically the first time a submission
+    is handled — whether it created a new Lead or merged into an existing one.
+    Every later delivery (webhook retry, the hourly backfill re-seeing the same
+    submission within Meta's 90-day window, or a race between the two) hits the
+    unique constraint and is skipped. Without this the *merge* path had no marker,
+    so the backfill re-logged a "new submission" activity on the matched lead
+    every hour; and the unique constraint also closes the check-then-create race
+    that could otherwise duplicate a Lead.
+    """
+
+    objects = TenantManager()
+
+    organisation = models.ForeignKey(
+        'users.Organisation', on_delete=models.CASCADE, related_name='meta_ingested_leads',
+    )
+    leadgen_id = models.CharField(max_length=64)
+    # The Lead this submission created or merged into (nullable belt-and-braces).
+    lead = models.ForeignKey(
+        'bookings.Lead', null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='meta_ingested_refs',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['organisation', 'leadgen_id'], name='unique_org_meta_leadgen',
+            ),
+        ]
+
+    def __str__(self):
+        return f'MetaIngestedLead org={self.organisation_id} leadgen={self.leadgen_id}'

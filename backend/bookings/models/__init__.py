@@ -15,4 +15,4 @@ from .locked_dates import LockedDate
 from .commission import CommissionPlan, CommissionBand, SalesTarget, RepCommissionPlan
 from .email_account import ConnectedMailbox
 from .meta_account import MetaAccountConnection, ConnectedMetaPage
-from .meta_webhook import MetaWebhookEvent
+from .meta_webhook import MetaWebhookEvent, MetaIngestedLead

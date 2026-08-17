@@ -76,7 +76,13 @@ class MetaWebhookView(APIView):
         value = change.get('value') or {}
         # Resolve the org by page_id (a Page belongs to whichever org connected
         # it). Unknown page ⇒ record + ignore, never an error (AC6).
-        page = ConnectedMetaPage.objects.unscoped().filter(page_id=page_id).select_related('organisation').first()
+        # Deterministic if the same Page were ever connected by two orgs (the
+        # unique constraint is per-(org, page_id)): oldest connection wins.
+        page = (
+            ConnectedMetaPage.objects.unscoped()
+            .filter(page_id=page_id).select_related('organisation')
+            .order_by('id').first()
+        )
         org = page.organisation if page else None
 
         event = MetaWebhookEvent.objects.create(
