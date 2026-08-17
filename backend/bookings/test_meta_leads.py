@@ -381,6 +381,30 @@ class TestMetaLeadAutoAssign(TestCase):
         ).exists())
 
     @patch('bookings.services.meta.fetch_lead')
+    def test_round_robin_rotates_across_reps_and_advances_the_index(self, fetch):
+        """Two ingests for one product line hit different reps and the per-line
+        index advances by two — pins the rotation the race-fix must preserve."""
+        sp1 = _salesperson(self.org, 'sp1@t.com')
+        sp2 = _salesperson(self.org, 'sp2@t.com')
+        pl = _product_line(self.org, 'Catering', salespeople=[sp1, sp2])
+        self._opt_in(True)
+        fetch.side_effect = [
+            _lead_object(leadgen_id='L1', email='a@x.com', phone='+15551110000'),
+            _lead_object(leadgen_id='L2', email='b@x.com', phone='+15552220000'),
+        ]
+
+        meta_leads.ingest_lead(self.page, 'L1')
+        meta_leads.ingest_lead(self.page, 'L2')
+
+        assigned = set(
+            Lead.objects.filter(meta_leadgen_id__in=['L1', 'L2'])
+            .values_list('assigned_to_id', flat=True)
+        )
+        self.assertEqual(assigned, {sp1.pk, sp2.pk})  # rotated, not the same rep twice
+        pl.refresh_from_db()
+        self.assertEqual(pl.round_robin_index, 2)
+
+    @patch('bookings.services.meta.fetch_lead')
     def test_toggle_on_but_no_resolvable_product_stays_unassigned(self, fetch):
         """AC5 — never misroute a productless lead."""
         _product_line(self.org, 'Weddings')

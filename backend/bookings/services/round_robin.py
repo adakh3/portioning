@@ -1,4 +1,5 @@
 from django.contrib.contenttypes.models import ContentType
+from django.db import transaction
 
 from bookings.models import Lead, ProductLine
 from bookings.models.activity import ActivityLog
@@ -121,21 +122,30 @@ def assign_lead(lead, actor=None):
 
     if lead.assigned_to_id or lead.product_id is None:
         return None
-    product_line = ProductLine.objects.filter(
-        pk=lead.product_id, organisation_id=lead.organisation_id,
-    ).first()
-    if product_line is None:
-        return None
-    salespeople = list(product_line.salespeople.filter(is_active=True).order_by('pk'))
-    if not salespeople:
-        return None
 
-    idx = product_line.round_robin_index
-    sp = salespeople[idx % len(salespeople)]
-    lead.assigned_to = sp
-    lead.save(update_fields=['assigned_to'])
-    # Atomic bump so concurrent ingests don't hand the same rep two leads.
-    ProductLine.objects.filter(pk=product_line.pk).update(round_robin_index=idx + 1)
+    # The read-of-index → pick → bump must be serialized, or two concurrent
+    # ingests for the same product line (webhook × webhook, or webhook × the
+    # hourly backfill) both read the same index, pick the *same* rep, and each
+    # write index+1 — handing one rep two leads and skipping the next, which
+    # then mis-attributes commission. A row lock on the ProductLine makes the
+    # whole rotation atomic. (SQLite in dev ignores the lock; prod is Postgres.)
+    with transaction.atomic():
+        product_line = (
+            ProductLine.objects.select_for_update()
+            .filter(pk=lead.product_id, organisation_id=lead.organisation_id)
+            .first()
+        )
+        if product_line is None:
+            return None
+        salespeople = list(product_line.salespeople.filter(is_active=True).order_by('pk'))
+        if not salespeople:
+            return None
+
+        idx = product_line.round_robin_index
+        sp = salespeople[idx % len(salespeople)]
+        ProductLine.objects.filter(pk=product_line.pk).update(round_robin_index=idx + 1)
+        lead.assigned_to = sp
+        lead.save(update_fields=['assigned_to'])
 
     sp_name = f"{sp.first_name} {sp.last_name}".strip() or sp.email
     log_activity(
