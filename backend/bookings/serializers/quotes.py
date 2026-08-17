@@ -128,6 +128,7 @@ class QuoteSerializer(OrgScopedModelSerializer):
             'courses', 'dish_courses', 'menu_choices', 'menu_lines',
             'additional_meals', 'timeline_entries',
             'notes', 'internal_notes',
+            'proposal_prose', 'proposal_assumptions',
             'sent_at', 'accepted_at',
             'public_token', 'signature',
             'event', 'event_id',
@@ -390,7 +391,9 @@ class QuoteSerializer(OrgScopedModelSerializer):
 # signature does a per-row query (latest_signature); it's a detail-view concern.
 QUOTE_LIST_EXCLUDE = {'line_items', 'dishes', 'dish_ids', 'dish_names', 'additional_meals',
                       'courses', 'dish_courses', 'menu_choices', 'menu_lines', 'timeline_entries',
-                      'signature', 'public_token'}
+                      'signature', 'public_token',
+                      # Heavy proposal JSON — detail-view only, keeps list payloads lean.
+                      'proposal_prose', 'proposal_assumptions'}
 
 
 class QuoteListSerializer(QuoteSerializer):

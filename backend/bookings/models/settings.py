@@ -187,6 +187,15 @@ class OrgSettings(models.Model):
         help_text='When the scheduled run last generated for this org (guards against double runs).',
     )
 
+    # AI Proposal Builder (REL-413). Org-level opt-in, same pattern as
+    # ai_followups_enabled. Off by default so existing orgs are untouched and the
+    # "Draft proposal" button never appears until an admin turns it on.
+    proposal_agent_enabled = models.BooleanField(
+        default=False,
+        help_text='Let the AI draft full proposals (menu, plan, prose, pricing) from a lead. '
+                  'Always reviewed and never auto-sent.',
+    )
+
     class Meta:
         verbose_name = 'Organisation Settings'
         verbose_name_plural = 'Organisation Settings'
@@ -217,6 +226,17 @@ class OrgSettings(models.Model):
         return bool(
             self.ai_followups_enabled
             and llm.is_configured('LLM_FOLLOWUP_DRAFTER')
+        )
+
+    @property
+    def proposal_agent_configured(self):
+        """Whether the AI can draft proposals for this org: opted-in AND the
+        proposal LLM nodes have a configured model + key (REL-413). All three
+        nodes share provider keys, so checking the questions model is sufficient."""
+        from portioning import llm
+        return bool(
+            self.proposal_agent_enabled
+            and llm.is_configured('LLM_PROPOSAL_QUESTIONS')
         )
 
     @property

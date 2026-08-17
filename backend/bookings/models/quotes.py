@@ -124,6 +124,14 @@ class Quote(OrgScopedModel, models.Model):
     )
     notes = models.TextField(blank=True, help_text='Customer-visible notes')
     internal_notes = models.TextField(blank=True, help_text='Staff-only notes')
+    # AI Proposal Builder prose (REL-413). Additive + nullable: a quote with
+    # empty/null prose renders exactly as today (snapshot-gate safe). `proposal_prose`
+    # holds the client-facing sections {intro, section_descriptions, whats_included,
+    # day_of_outline, closing}; `proposal_assumptions` the list of guesses the agent
+    # made [{field, value, reason}] shown in the editor's Assumptions panel. Never
+    # money: pricing stays in the totals engine.
+    proposal_prose = models.JSONField(null=True, blank=True, help_text='AI proposal prose sections (client-facing).')
+    proposal_assumptions = models.JSONField(null=True, blank=True, help_text='AI proposal assumptions [{field, value, reason}].')
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, null=True, blank=True,
         on_delete=models.SET_NULL, related_name='created_quotes',

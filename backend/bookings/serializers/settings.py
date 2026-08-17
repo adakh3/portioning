@@ -23,6 +23,7 @@ class OrgSettingsSerializer(serializers.ModelSerializer):
     commission_basis_choices = serializers.SerializerMethodField()
     fiscal_year_start_month_choices = serializers.SerializerMethodField()
     ai_followups_configured = serializers.BooleanField(read_only=True)
+    proposal_agent_configured = serializers.BooleanField(read_only=True)
     # Operations suite (portioning, kitchen, staffing, help) is a platform-level
     # launch flag (env: OPERATIONS_ENABLED), not per-org config — hidden for now,
     # echoed here so the frontend can gate its nav items and routes. Read-only;
@@ -62,6 +63,8 @@ class OrgSettingsSerializer(serializers.ModelSerializer):
             'followup_gap_final_days', 'followup_max_drafts_per_lead',
             'followup_auto_generate',
             'ai_followups_configured',
+            # AI Proposal Builder (REL-413)
+            'proposal_agent_enabled', 'proposal_agent_configured',
             'operations_enabled',
             'meta_leads_enabled',
         ]

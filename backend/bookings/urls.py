@@ -49,6 +49,10 @@ from bookings.views.client_messages import (
     ClientMessageDraftView, ClientMessageListView, ClientMessageSendView,
     ClientMessagingStatusView,
 )
+from bookings.views.proposals import (
+    LeadDraftProposalView, ProposalDraftDetailView,
+    ProposalDraftAnswerView, ProposalDraftRegenerateView,
+)
 
 urlpatterns = [
     # Public (unauthenticated) client-facing e-signature — resolved by token
@@ -90,6 +94,11 @@ urlpatterns = [
     path('bookings/leads/<int:pk>/activity/', LeadActivityView.as_view(), name='lead-activity'),
     path('bookings/leads/<int:pk>/reminders/', LeadReminderListCreateView.as_view(), name='lead-reminder-list'),
     path('bookings/leads/<int:pk>/followup-drafts/', LeadFollowUpDraftListView.as_view(), name='lead-followup-draft-list'),
+    # AI Proposal Builder (REL-413)
+    path('bookings/leads/<int:pk>/draft-proposal/', LeadDraftProposalView.as_view(), name='lead-draft-proposal'),
+    path('bookings/proposal-drafts/<int:pk>/', ProposalDraftDetailView.as_view(), name='proposal-draft-detail'),
+    path('bookings/proposal-drafts/<int:pk>/answer/', ProposalDraftAnswerView.as_view(), name='proposal-draft-answer'),
+    path('bookings/proposal-drafts/<int:pk>/regenerate/', ProposalDraftRegenerateView.as_view(), name='proposal-draft-regenerate'),
 
     # AI follow-up drafts (review queue)
     path('bookings/followup-drafts/', FollowUpDraftListView.as_view(), name='followup-draft-list'),

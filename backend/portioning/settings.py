@@ -229,6 +229,14 @@ LLM_AGENT_INQUIRY_EXTRACTION = os.environ.get(
 # cases that ask for it; deterministic assertion evaluators need no LLM.
 LLM_AGENT_EVAL_JUDGE = os.environ.get('LLM_AGENT_EVAL_JUDGE', 'openai:gpt-5.4-nano')
 
+# AI Proposal Builder nodes (REL-413). Three LLM steps, each swappable per env.
+# These do harder work than a follow-up blurb (compose a menu, write persuasive
+# multi-section prose), so they default to a stronger tier than the nano drafters —
+# still a one-env-var change. Deterministic nodes (pricing, validation) use no LLM.
+LLM_PROPOSAL_QUESTIONS = os.environ.get('LLM_PROPOSAL_QUESTIONS', 'anthropic:claude-haiku-4-5')
+LLM_PROPOSAL_MENU = os.environ.get('LLM_PROPOSAL_MENU', 'anthropic:claude-haiku-4-5')
+LLM_PROPOSAL_PROSE = os.environ.get('LLM_PROPOSAL_PROSE', 'anthropic:claude-haiku-4-5')
+
 # ── Agent tracing (REL-511, LangSmith) — dev/eval ONLY ──
 # LangSmith is a third-party SaaS and agent traces would carry org customer data
 # (lead names, message content), so tracing is OFF by default and enabled only by

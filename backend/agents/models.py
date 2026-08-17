@@ -63,3 +63,65 @@ class AgentThread(OrgScopedModel, models.Model):
 
     def __str__(self):
         return f"{self.thread_key} ({self.status})"
+
+
+class ProposalDraft(OrgScopedModel, models.Model):
+    """The REL-413 proposal-builder run for one lead (the first real agent).
+
+    Follows the pattern REL-510 set out: it FKs an ``AgentThread`` (the generic
+    checkpoint keying + audit record) and adds the proposal-specific columns —
+    the lead it drafts for, the questions/answers of the human-in-the-loop step,
+    and the ``Quote`` it produces once assembled. Org-scoped like everything else.
+    """
+
+    # Human-in-the-loop lifecycle. Created ``QUESTIONS_PENDING`` (parked at the
+    # smart-form interrupt), advances to ``DRAFTING`` on resume, then ``DRAFTED``
+    # once the quote is assembled. ``FAILED`` on an unrecoverable error;
+    # ``ABANDONED`` if the caterer walks away.
+    QUESTIONS_PENDING = 'questions_pending'
+    DRAFTING = 'drafting'
+    DRAFTED = 'drafted'
+    FAILED = 'failed'
+    ABANDONED = 'abandoned'
+    STATUS_CHOICES = [
+        (QUESTIONS_PENDING, 'Questions pending'),
+        (DRAFTING, 'Drafting'),
+        (DRAFTED, 'Drafted'),
+        (FAILED, 'Failed'),
+        (ABANDONED, 'Abandoned'),
+    ]
+
+    objects = TenantManager()
+
+    organisation = models.ForeignKey(
+        'users.Organisation', on_delete=models.CASCADE, related_name='proposal_drafts',
+    )
+    lead = models.ForeignKey(
+        'bookings.Lead', on_delete=models.CASCADE, related_name='proposal_drafts',
+    )
+    # The generic run/audit + checkpoint keying record. One AgentThread per draft.
+    agent_thread = models.OneToOneField(
+        AgentThread, on_delete=models.CASCADE, related_name='proposal_draft',
+    )
+    # Set once assemble_draft runs. SET_NULL so deleting a draft-quote doesn't take
+    # the audit row with it.
+    quote = models.ForeignKey(
+        'bookings.Quote', null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='proposal_drafts',
+    )
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=QUESTIONS_PENDING)
+    # The clarifying form the agent generated, and the caterer's answers.
+    questions = models.JSONField(default=list, blank=True)
+    answers = models.JSONField(default=dict, blank=True)
+    error = models.TextField(blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['organisation', 'lead', 'status']),
+        ]
+
+    def __str__(self):
+        return f"ProposalDraft #{self.pk} lead={self.lead_id} ({self.status})"
