@@ -19,3 +19,12 @@ jobs:
           curl -fsS -X POST \
             -H "X-Cron-Secret: ${{ secrets.CRON_SECRET }}" \
             https://catering.relogue.com/api/bookings/cron/run-followups/
+
+      # Backfill any Meta lead-ad submissions the webhook missed (REL-507). The
+      # sweep is idempotent, so hourly calls are safe; it only creates leads for
+      # submissions whose leadgen_id we don't already have.
+      - name: Trigger Meta lead-ads backfill
+        run: |
+          curl -fsS -X POST \
+            -H "X-Cron-Secret: ${{ secrets.CRON_SECRET }}" \
+            https://catering.relogue.com/api/bookings/cron/sync-meta-leads/

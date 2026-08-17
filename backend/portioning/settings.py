@@ -208,6 +208,9 @@ META_APP_SECRET = os.environ.get('META_APP_SECRET', '')
 META_LEADS_ENABLED = os.environ.get(
     'META_LEADS_ENABLED', 'False',
 ).lower() in ('true', '1', 'yes')
+# Shared secret echoed back to Meta during the webhook verification handshake
+# (REL-507). Set the same value in the Meta app's webhook configuration.
+META_WEBHOOK_VERIFY_TOKEN = os.environ.get('META_WEBHOOK_VERIFY_TOKEN', '')
 
 # Which model each AI task runs on, as 'provider:model' — see portioning/llm.py.
 # Switching supplier or model per task is a one-env-var change, nothing else.

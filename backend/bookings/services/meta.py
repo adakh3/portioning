@@ -193,6 +193,54 @@ def revoke(user_access_token: str) -> None:
     _delete(f'{GRAPH}/me/permissions', {'access_token': user_access_token})
 
 
+# ── Lead ads (REL-507) ──
+
+# The lead-object fields we read, for both the webhook fetch and the backfill.
+_LEAD_FIELDS = 'id,created_time,field_data,ad_id,form_id,platform'
+
+
+def fetch_lead(leadgen_id: str, page_access_token: str) -> dict:
+    """Fetch one lead-ad submission's answers by its leadgen id.
+
+    Returns the raw Graph object: {'id', 'created_time', 'field_data': [...],
+    'platform', ...}.
+    """
+    return _get_json(f'{GRAPH}/{leadgen_id}', {
+        'fields': _LEAD_FIELDS,
+        'access_token': page_access_token,
+    })
+
+
+def list_lead_forms(page_id: str, page_access_token: str) -> list:
+    """The ids of a Page's lead-gen forms (for the backfill sweep)."""
+    forms = []
+    url = f'{GRAPH}/{page_id}/leadgen_forms'
+    params = {'access_token': page_access_token, 'limit': 100}
+    for _ in range(20):
+        data = _get_json(url, params)
+        forms.extend(f.get('id') for f in data.get('data', []) if f.get('id'))
+        next_url = (data.get('paging') or {}).get('next')
+        if not next_url:
+            break
+        url, params = next_url, None
+    return forms
+
+
+def list_form_leads(form_id: str, page_access_token: str) -> list:
+    """Every submission for a form (Meta retains ~90 days) — for the backfill."""
+    leads = []
+    url = f'{GRAPH}/{form_id}/leads'
+    params = {'fields': _LEAD_FIELDS, 'access_token': page_access_token, 'limit': 100}
+    for _ in range(50):
+        data = _get_json(url, params)
+        leads.extend(data.get('data', []))
+        next_url = (data.get('paging') or {}).get('next')
+        if not next_url:
+            break
+        url, params = next_url, None
+    return leads
+
+
 # ── HTTP helpers ──
 
 def _get_json(url: str, params) -> dict:

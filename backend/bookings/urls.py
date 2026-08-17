@@ -44,6 +44,7 @@ from bookings.views import (
     MailboxStatusView, MailboxConnectView, MailboxCallbackView, MailboxDisconnectView,
     MetaStatusView, MetaConnectView, MetaCallbackView, MetaPagesView, MetaDisconnectView,
     MetaDisconnectAccountView,
+    MetaWebhookView, MetaLeadsCronView,
 )
 from bookings.views.client_messages import (
     ClientMessageDraftView, ClientMessageListView, ClientMessageSendView,
@@ -209,4 +210,8 @@ urlpatterns = [
     path('integrations/meta/pages/', MetaPagesView.as_view(), name='meta-pages'),
     path('integrations/meta/disconnect/', MetaDisconnectView.as_view(), name='meta-disconnect'),
     path('integrations/meta/disconnect-account/', MetaDisconnectAccountView.as_view(), name='meta-disconnect-account'),
+
+    # Meta webhooks (lead ads → REL-507; DM messages → REL-508 reuse the same endpoint)
+    path('bookings/meta/webhook/', MetaWebhookView.as_view(), name='meta-webhook'),
+    path('bookings/cron/sync-meta-leads/', MetaLeadsCronView.as_view(), name='cron-sync-meta-leads'),
 ]
