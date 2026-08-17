@@ -1,9 +1,39 @@
 """Unit tests for the proposal agent's deterministic tools/nodes (no LLM)."""
 from decimal import Decimal
 
-from django.test import TestCase
+from django.test import SimpleTestCase, TestCase
 
 from agents.proposal import nodes, tools
+from agents.proposal.schemas import MENU_PLAN_SCHEMA, PROSE_SCHEMA, QUESTIONS_SCHEMA
+
+
+class OpenAIStrictSchemaTests(SimpleTestCase):
+    """OpenAI's strict structured outputs reject a schema unless every object lists
+    ALL its properties in `required`, sets additionalProperties=false, and has no
+    free-form object. Regression guard for the live bug where generate_questions
+    400'd because `suggested`/`options` were optional (and prose used a free-form
+    section_descriptions map)."""
+
+    def _assert_strict(self, schema, path='$'):
+        types = schema.get('type')
+        allowed = [types] if isinstance(types, str) else (types or [])
+        if 'object' in allowed:
+            props = schema.get('properties', {})
+            self.assertTrue(props, f"{path}: object has no properties (free-form not allowed by strict mode)")
+            self.assertIs(schema.get('additionalProperties'), False,
+                          f"{path}: additionalProperties must be False")
+            self.assertEqual(set(schema.get('required', [])), set(props),
+                             f"{path}: every property must be in `required`")
+            for name, sub in props.items():
+                self._assert_strict(sub, f"{path}.{name}")
+        if 'array' in allowed and 'items' in schema:
+            self._assert_strict(schema['items'], f"{path}[]")
+
+    def test_all_proposal_schemas_are_openai_strict_compatible(self):
+        for name, schema in [('questions', QUESTIONS_SCHEMA), ('menu', MENU_PLAN_SCHEMA),
+                             ('prose', PROSE_SCHEMA)]:
+            with self.subTest(schema=name):
+                self._assert_strict(schema)
 from bookings.models import Lead, OrgSettings
 from dishes.models import Dish, DishCategory
 from menus.models import MenuTemplate, MenuTemplatePriceTier

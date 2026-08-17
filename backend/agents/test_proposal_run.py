@@ -51,7 +51,7 @@ class ProposalRunTests(TransactionTestCase):
     def _questions(self):
         return json.dumps({'questions': [
             {'id': 'service_style', 'text': 'Buffet or plated?', 'kind': 'choice',
-             'suggested': 'buffet', 'impact': 'low'},
+             'suggested': 'buffet', 'options': ['buffet', 'plated'], 'impact': 'low'},
         ]})
 
     def _menu(self, dish_ids=None):
@@ -64,7 +64,7 @@ class ProposalRunTests(TransactionTestCase):
     def _prose(self):
         return json.dumps({
             'intro': 'Thank you for considering us.',
-            'section_descriptions': {'Mains': 'Hearty mains.'},
+            'section_descriptions': [{'name': 'Mains', 'description': 'Hearty mains.'}],
             'whats_included': ['Menu', 'Service'],
             'day_of_outline': 'Setup, service, breakdown.',
             'closing': 'We would love to cater this.',

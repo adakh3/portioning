@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { api, type ProposalDraft, type ProposalQuestion } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -26,13 +26,22 @@ export function ProposalFormModal({
   const [phase, setPhase] = useState<"starting" | "questions" | "drafting">("starting");
   const [error, setError] = useState("");
 
-  // Start the run on open → parks at the clarifying form.
+  // Start the run on open → parks at the clarifying form. Guard against a
+  // double-start: React StrictMode double-invokes effects in dev (and a stray
+  // re-render could too), and each start_proposal mints a new run — so two rapid
+  // calls race on the unique thread key and one 500s. Start exactly once.
+  // NB: no cancel-on-cleanup flag here — with the once-guard, StrictMode's
+  // mount→unmount→remount would set cancelled=true on the first run and the guard
+  // would block a second fetch, discarding the only result (stuck "Starting…").
+  // The single fetch always applies its result; a late setState after a real
+  // unmount is a harmless no-op in React 18.
+  const startedRef = useRef(false);
   useEffect(() => {
-    let cancelled = false;
+    if (startedRef.current) return;
+    startedRef.current = true;
     (async () => {
       try {
         const d = await api.draftProposal(leadId);
-        if (cancelled) return;
         if (d.status === "questions_pending") {
           setDraft(d);
           setAnswers(prefill(d.questions));
@@ -41,12 +50,9 @@ export function ProposalFormModal({
           setError(d.error || "The proposal agent could not start.");
         }
       } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : "Failed to start the proposal.");
+        setError(err instanceof Error ? err.message : "Failed to start the proposal.");
       }
     })();
-    return () => {
-      cancelled = true;
-    };
   }, [leadId]);
 
   async function submit() {

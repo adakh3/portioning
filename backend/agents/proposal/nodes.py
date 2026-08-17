@@ -257,6 +257,11 @@ def write_prose(state):
         assumptions.append({'field': 'prose', 'value': 'minimal',
                             'reason': 'prose generation failed; left a stub to edit'})
         return {'prose': _stub_prose(params), 'assumptions': assumptions}
+    # The schema returns section_descriptions as an array (OpenAI-strict-safe);
+    # store it as the {name: description} map the surfaces render.
+    data['section_descriptions'] = {
+        item['name']: item['description'] for item in data.get('section_descriptions', [])
+    }
     return {'prose': data}
 
 

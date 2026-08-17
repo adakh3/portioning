@@ -7,6 +7,7 @@ so Regenerate is a fresh attempt, never a collision with the prior one.
 """
 import logging
 
+from django.db import IntegrityError, transaction
 from langgraph.types import Command
 
 from agents.checkpointer import make_checkpointer
@@ -24,17 +25,30 @@ class ProposalRunError(Exception):
 def start_proposal(*, organisation, lead, checkpointer=None):
     """Start a proposal for ``lead``. Returns the ProposalDraft, parked at
     ``QUESTIONS_PENDING`` with the generated questions, or ``FAILED``."""
-    attempt = ProposalDraft.objects.for_org(organisation).filter(lead=lead).count() + 1
-    key = f"{AGENT_NAME}:{organisation.id}:{lead.id}:{attempt}"
-
-    thread = AgentThread.objects.create(
-        organisation=organisation, agent=AGENT_NAME, thread_key=key,
-        status=AgentThread.RUNNING,
-    )
-    draft = ProposalDraft.objects.create(
-        organisation=organisation, lead=lead, agent_thread=thread,
-        status=ProposalDraft.QUESTIONS_PENDING,
-    )
+    # The thread key numbers attempts per lead. Two near-simultaneous starts for
+    # the same lead (a double-click, or React StrictMode firing the modal's start
+    # effect twice) would compute the same attempt and collide on the unique key —
+    # so retry on that collision with the next number instead of 500ing.
+    thread = draft = None
+    for _ in range(5):
+        attempt = ProposalDraft.objects.for_org(organisation).filter(lead=lead).count() + 1
+        key = f"{AGENT_NAME}:{organisation.id}:{lead.id}:{attempt}"
+        try:
+            with transaction.atomic():
+                thread = AgentThread.objects.create(
+                    organisation=organisation, agent=AGENT_NAME, thread_key=key,
+                    status=AgentThread.RUNNING,
+                )
+                draft = ProposalDraft.objects.create(
+                    organisation=organisation, lead=lead, agent_thread=thread,
+                    status=ProposalDraft.QUESTIONS_PENDING,
+                )
+            break
+        except IntegrityError:
+            thread = draft = None
+            continue
+    if draft is None:
+        raise ProposalRunError(f"Could not start a proposal run for lead {lead.id} (key contention).")
 
     initial = {
         'org_id': organisation.id, 'lead_id': lead.id,
