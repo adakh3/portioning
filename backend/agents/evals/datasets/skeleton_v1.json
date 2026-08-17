@@ -1,0 +1,12 @@
+{
+  "agent": "skeleton",
+  "cases": [
+    {
+      "id": "skeleton-generates-valid-question",
+      "target": "skeleton",
+      "input": {},
+      "expected": {},
+      "constraints": ["schema_valid"]
+    }
+  ]
+}

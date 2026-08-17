@@ -21,6 +21,7 @@ from langgraph.types import Command
 from agents.checkpointer import make_checkpointer, thread_key
 from agents.graphs.skeleton import AGENT_NAME, build_skeleton_graph
 from agents.models import AgentThread
+from agents.tracing import configure_tracing
 
 logger = logging.getLogger(__name__)
 
@@ -109,6 +110,9 @@ def _invoke(key, invoke_arg, checkpointer):
     re-opens the store.
     """
     own = checkpointer is None
+    # Opt-in LangSmith tracing (dev/eval only; a no-op unless explicitly enabled
+    # with a key — never in CI/prod, see agents/tracing.py). Off ⇒ no network.
+    configure_tracing()
     saver = checkpointer or make_checkpointer()
     try:
         app = build_skeleton_graph().compile(checkpointer=saver)
