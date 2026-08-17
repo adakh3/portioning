@@ -18,22 +18,22 @@ test.describe("AI Proposal Builder", () => {
   });
 
   test("lead → draft proposal → drafted quote shows the AI proposal", async ({ page }) => {
-    // Open the first lead in the pipeline.
+    // Navigate straight to a real lead-detail URL (avoid /leads/kanban etc.).
     await page.goto("/leads");
     await page.waitForLoadState("networkidle");
+    const hrefs = await page
+      .locator("a[href]")
+      .evaluateAll((els) => els.map((e) => e.getAttribute("href")));
+    const leadHref = hrefs.find((h) => h && /^\/leads\/\d+$/.test(h));
+    test.skip(!leadHref, "No lead detail in the demo pipeline to draft from.");
+    await page.goto(leadHref as string);
 
-    // Find any lead detail link; if the pipeline is empty, skip.
-    const leadLink = page.locator('a[href^="/leads/"]').first();
-    if ((await leadLink.count()) === 0) {
-      test.skip(true, "No leads in the demo pipeline to draft from.");
-    }
-    await leadLink.click();
-    await page.waitForURL(/\/leads\/\d+$/, { timeout: 15_000 });
-
+    // The button only renders when the org has a CONFIGURED proposal agent
+    // (toggle + LLM key). CI has no key, so it's absent → skip; runs for real
+    // where the agent is configured.
     const draftBtn = page.getByRole("button", { name: "Draft Proposal" });
-    if ((await draftBtn.count()) === 0) {
-      test.skip(true, "Proposal agent not configured for this org (no LLM key) — button absent.");
-    }
+    await page.waitForLoadState("networkidle");
+    test.skip((await draftBtn.count()) === 0, "Proposal agent not configured (no LLM key) — button absent.");
 
     await draftBtn.click();
     // The smart form appears with the agent's questions.
