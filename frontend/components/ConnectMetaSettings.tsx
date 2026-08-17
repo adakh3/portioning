@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { api, MetaAvailablePage } from "@/lib/api";
-import { useMetaStatus } from "@/lib/hooks";
+import { useMetaStatus, useProductLines, useSiteSettings } from "@/lib/hooks";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -20,6 +20,8 @@ const ERROR_MESSAGES: Record<string, string> = {
 
 export default function ConnectMetaSettings() {
   const { data, isLoading, mutate } = useMetaStatus();
+  const { data: productLines } = useProductLines();
+  const { data: settings, mutate: mutateSettings } = useSiteSettings();
   const searchParams = useSearchParams();
 
   const [available, setAvailable] = useState<MetaAvailablePage[] | null>(null);
@@ -128,6 +130,36 @@ export default function ConnectMetaSettings() {
     }
   }
 
+  async function handleSetProduct(pageId: string, productLineId: number | null) {
+    setBusy(`product-${pageId}`);
+    setError("");
+    setSuccess("");
+    try {
+      await api.setMetaPageProduct(pageId, productLineId);
+      await mutate();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not set the product line");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function handleToggleAutoAssign() {
+    setBusy("auto-assign");
+    setError("");
+    setSuccess("");
+    try {
+      await api.updateSiteSettings({
+        auto_assign_integration_leads: !settings?.auto_assign_integration_leads,
+      });
+      await mutateSettings();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not update the setting");
+    } finally {
+      setBusy(null);
+    }
+  }
+
   function toggle(pageId: string) {
     setSelected((prev) => {
       const next = new Set(prev);
@@ -145,6 +177,10 @@ export default function ConnectMetaSettings() {
     );
 
   const pickable = (available ?? []).filter((p) => !p.connected);
+  // Single-product orgs need no per-Page mapping (the sole line is used
+  // automatically); only show the picker when there's a real choice to make.
+  const activeLines = (productLines ?? []).filter((p) => p.is_active);
+  const showProductPicker = activeLines.length > 1;
 
   return (
     <Card data-testid="settings-meta-card">
@@ -175,12 +211,38 @@ export default function ConnectMetaSettings() {
                     key={page.page_id}
                     className="flex items-center justify-between rounded-md border p-3"
                   >
-                    <div className="text-sm">
-                      <span className="font-medium text-foreground">{page.page_name}</span>
-                      {page.instagram_username && (
-                        <span className="text-muted-foreground">
-                          {" · "}@{page.instagram_username}
-                        </span>
+                    <div className="text-sm space-y-2">
+                      <div>
+                        <span className="font-medium text-foreground">{page.page_name}</span>
+                        {page.instagram_username && (
+                          <span className="text-muted-foreground">
+                            {" · "}@{page.instagram_username}
+                          </span>
+                        )}
+                      </div>
+                      {showProductPicker && (
+                        <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                          Leads go to:
+                          <select
+                            aria-label={`Product line for ${page.page_name}`}
+                            className="h-8 rounded-md border border-input bg-transparent px-2 text-sm text-foreground"
+                            value={page.default_product_line ?? ""}
+                            disabled={busy !== null}
+                            onChange={(e) =>
+                              handleSetProduct(
+                                page.page_id,
+                                e.target.value ? Number(e.target.value) : null,
+                              )
+                            }
+                          >
+                            <option value="">— Unassigned —</option>
+                            {activeLines.map((pl) => (
+                              <option key={pl.id} value={pl.id}>
+                                {pl.name}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
                       )}
                     </div>
                     <Button
@@ -193,6 +255,19 @@ export default function ConnectMetaSettings() {
                   </li>
                 ))}
               </ul>
+            )}
+
+            {/* Auto-assign incoming leads to a rep (round-robin by product). */}
+            {connectedPages.length > 0 && (
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={!!settings?.auto_assign_integration_leads}
+                  disabled={busy !== null}
+                  onChange={handleToggleAutoAssign}
+                />
+                Auto-assign new leads to salespeople (round-robin by product)
+              </label>
             )}
 
             {!authorized ? (

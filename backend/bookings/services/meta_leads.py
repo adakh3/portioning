@@ -18,10 +18,11 @@ from django.db import IntegrityError, transaction
 from django.db.models import Q
 
 from bookings.activity import log_activity
-from bookings.models import ConnectedMetaPage, Lead, MetaIngestedLead
+from bookings.models import ConnectedMetaPage, Lead, MetaIngestedLead, OrgSettings, ProductLine
 from bookings.phones import normalize_phone
 from bookings.services import meta
 from bookings.services.leads import default_status_for, terminal_statuses_for
+from bookings.services.round_robin import assign_lead
 
 logger = logging.getLogger(__name__)
 
@@ -126,6 +127,7 @@ def _build_lead(page: ConnectedMetaPage, raw: dict):
         lead_date=_parse_created_date(raw.get('created_time')),
         notes=notes,
         meta_leadgen_id=leadgen_id,
+        product=_product_for(page),  # REL-512: so round-robin can route it
     )
     default = default_status_for(org)
     if default:
@@ -134,7 +136,30 @@ def _build_lead(page: ConnectedMetaPage, raw: dict):
     ref.lead = lead
     ref.save(update_fields=['lead'])
     log_activity(lead, 'created', description=f'Created lead "{lead.contact_name}" from a Meta lead form')
+    _maybe_auto_assign(lead)
     return lead, True
+
+
+def _product_for(page: ConnectedMetaPage):
+    """The product line to stamp on this Page's leads: the Page's explicit
+    mapping, else the org's single active line (smart default), else None."""
+    if page.default_product_line_id:
+        return page.default_product_line
+    active = list(ProductLine.objects.filter(organisation=page.organisation, is_active=True)[:2])
+    return active[0] if len(active) == 1 else None
+
+
+def _maybe_auto_assign(lead):
+    """Round-robin the new lead to a rep if the org opted in (REL-512)."""
+    if lead.product_id is None:
+        return
+    opted_in = (
+        OrgSettings.objects.filter(organisation_id=lead.organisation_id)
+        .values_list('auto_assign_integration_leads', flat=True)
+        .first()
+    )
+    if opted_in:
+        assign_lead(lead)
 
 
 def _answers(field_data) -> dict:

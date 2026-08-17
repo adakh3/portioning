@@ -93,6 +93,14 @@ class ConnectedMetaPage(OrgScopedModel, models.Model):
     # Fernet ciphertext — read/write through the page_access_token property.
     page_access_token_encrypted = models.TextField(blank=True, default='')
 
+    # Which product line leads from this Page belong to, so ingested leads carry
+    # a product and can be routed by round-robin (REL-512). Nullable: single-
+    # product orgs fall back to their sole line without configuring this.
+    default_product_line = models.ForeignKey(
+        'bookings.ProductLine', null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='meta_pages',
+    )
+
     connected_by = models.ForeignKey(
         'users.User', null=True, blank=True,
         on_delete=models.SET_NULL, related_name='connected_meta_pages',
