@@ -374,6 +374,40 @@ class MetaPagesView(MetaFeatureView):
         return _fake_pages()
 
 
+class MetaPageProductView(MetaFeatureView):
+    """POST /api/integrations/meta/page-product/ — set which product line a
+    connected Page's leads belong to (REL-512). Body: {page_id, product_line_id};
+    a null/empty product_line_id clears the mapping."""
+
+    permission_classes = [IsAdminOrOwner]
+
+    def post(self, request):
+        org = get_request_org(request)
+        page = (
+            ConnectedMetaPage.objects.for_org(org)
+            .filter(page_id=request.data.get('page_id') or '').first()
+            if org else None
+        )
+        if page is None:
+            return Response(
+                {'detail': 'No such connected Page.'}, status=status.HTTP_404_NOT_FOUND,
+            )
+
+        product_line_id = request.data.get('product_line_id')
+        if product_line_id in (None, ''):
+            page.default_product_line = None
+        else:
+            from bookings.models import ProductLine
+            product = ProductLine.objects.filter(pk=product_line_id, organisation=org).first()
+            if product is None:
+                return Response(
+                    {'detail': 'Unknown product line.'}, status=status.HTTP_400_BAD_REQUEST,
+                )
+            page.default_product_line = product
+        page.save(update_fields=['default_product_line', 'updated_at'])
+        return Response(ConnectedMetaPageSerializer(page).data)
+
+
 class MetaDisconnectView(MetaFeatureView):
     """POST /api/integrations/meta/disconnect/ — forget one connected Page."""
 

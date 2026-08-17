@@ -16,10 +16,13 @@ vi.mock("@/lib/useQueryState", () => ({
 // stable reference per test — a fresh `{}` per call re-fires the effect forever.
 let mockSettings: Record<string, unknown>;
 let mockMeta: MetaStatus;
+let mockProductLines: { id: number; name: string; is_active: boolean }[] = [];
 const mutateMeta = vi.fn();
+const mutateSettings = vi.fn();
 vi.mock("@/lib/hooks", () => ({
-  useSiteSettings: () => ({ data: mockSettings, isLoading: false, mutate: vi.fn() }),
+  useSiteSettings: () => ({ data: mockSettings, isLoading: false, mutate: mutateSettings }),
   useMetaStatus: () => ({ data: mockMeta, isLoading: false, mutate: mutateMeta }),
+  useProductLines: () => ({ data: mockProductLines }),
 }));
 
 let mockSearchParams = new URLSearchParams();
@@ -32,14 +35,17 @@ const getMetaPages = vi.fn();
 const connectMetaPages = vi.fn();
 const disconnectMetaPage = vi.fn();
 const disconnectMetaAccount = vi.fn();
+const setMetaPageProduct = vi.fn();
+const updateSiteSettings = vi.fn();
 vi.mock("@/lib/api", () => ({
   api: {
-    updateSiteSettings: vi.fn(),
+    updateSiteSettings: (d: unknown) => updateSiteSettings(d),
     startMetaConnect: () => startMetaConnect(),
     getMetaPages: () => getMetaPages(),
     connectMetaPages: (ids: string[]) => connectMetaPages(ids),
     disconnectMetaPage: (id: string) => disconnectMetaPage(id),
     disconnectMetaAccount: () => disconnectMetaAccount(),
+    setMetaPageProduct: (id: string, plId: number | null) => setMetaPageProduct(id, plId),
   },
 }));
 
@@ -61,6 +67,7 @@ const CONNECTED: MetaStatus = {
   pages: [{
     id: 1, page_id: "PAGE1", page_name: "Acme Catering",
     instagram_account_id: "IG1", instagram_username: "acme_ig",
+    default_product_line: null, default_product_line_name: null,
     created_at: "2026-08-01T10:00:00Z", updated_at: "2026-08-01T10:00:00Z",
   }],
 };
@@ -90,7 +97,11 @@ beforeEach(() => {
   connectMetaPages.mockReset().mockResolvedValue({ pages: [], errors: [] });
   disconnectMetaPage.mockReset().mockResolvedValue(undefined);
   disconnectMetaAccount.mockReset().mockResolvedValue(undefined);
+  setMetaPageProduct.mockReset().mockResolvedValue(undefined);
+  updateSiteSettings.mockReset().mockResolvedValue(undefined);
   mutateMeta.mockClear();
+  mutateSettings.mockClear();
+  mockProductLines = [];
   mockSearchParams = new URLSearchParams();
   mockSettings = { currency_symbol: "$", currency_code: "USD", date_format: "MM/DD/YYYY", meta_leads_enabled: true };
   mockMeta = NOT_AUTHORIZED;
@@ -206,5 +217,53 @@ describe("Settings → Integrations → Facebook & Instagram", () => {
     mockMeta = NOT_AUTHORIZED;
     render(<SettingsPage />);
     expect(card().queryByRole("button", { name: /Disconnect Facebook account/ })).toBeNull();
+  });
+
+  it("shows a per-Page product picker only when the org has multiple lines (REL-512)", () => {
+    mockMeta = CONNECTED;
+    getMetaPages.mockResolvedValue(AVAILABLE_ONE_CONNECTED);
+
+    mockProductLines = [{ id: 1, name: "Weddings", is_active: true }];
+    const { unmount } = render(<SettingsPage />);
+    expect(card().queryByRole("combobox", { name: /Product line for Acme Catering/ })).toBeNull();
+    unmount();
+
+    mockProductLines = [
+      { id: 1, name: "Weddings", is_active: true },
+      { id: 2, name: "Corporate", is_active: true },
+    ];
+    render(<SettingsPage />);
+    expect(card().getByRole("combobox", { name: /Product line for Acme Catering/ })).toBeTruthy();
+  });
+
+  it("saves the chosen product line for a Page (REL-512)", async () => {
+    mockMeta = CONNECTED;
+    getMetaPages.mockResolvedValue(AVAILABLE_ONE_CONNECTED);
+    mockProductLines = [
+      { id: 1, name: "Weddings", is_active: true },
+      { id: 2, name: "Corporate", is_active: true },
+    ];
+    render(<SettingsPage />);
+
+    fireEvent.change(card().getByRole("combobox", { name: /Product line for Acme Catering/ }), {
+      target: { value: "2" },
+    });
+
+    await waitFor(() => expect(setMetaPageProduct).toHaveBeenCalledWith("PAGE1", 2));
+    await waitFor(() => expect(mutateMeta).toHaveBeenCalled());
+  });
+
+  it("toggles auto-assign for integration leads (REL-512)", async () => {
+    mockMeta = CONNECTED;
+    getMetaPages.mockResolvedValue(AVAILABLE_ONE_CONNECTED);
+    mockSettings = { ...mockSettings, auto_assign_integration_leads: false };
+    render(<SettingsPage />);
+
+    fireEvent.click(card().getByRole("checkbox", { name: /Auto-assign new leads to salespeople/ }));
+
+    await waitFor(() =>
+      expect(updateSiteSettings).toHaveBeenCalledWith({ auto_assign_integration_leads: true }),
+    );
+    await waitFor(() => expect(mutateSettings).toHaveBeenCalled());
   });
 });

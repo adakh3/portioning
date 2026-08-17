@@ -806,6 +806,9 @@ export interface SiteSettingsData {
   /** Platform launch flag (env META_LEADS_ENABLED). Off by default; gates the
    *  "Connect Facebook & Instagram" card in Settings → Integrations (REL-506). */
   meta_leads_enabled?: boolean;
+  /** Auto-assign leads that arrive via integrations to a salesperson by
+   *  round-robin on ingest (REL-512). Default off. */
+  auto_assign_integration_leads?: boolean;
 }
 
 export interface CommissionPlanConfig {
@@ -1172,6 +1175,8 @@ export interface ConnectedMetaPage {
   page_name: string;
   instagram_account_id: string;
   instagram_username: string;
+  default_product_line: number | null;
+  default_product_line_name: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -2158,6 +2163,11 @@ export const api = {
     }),
   disconnectMetaAccount: () =>
     fetchApi<void>("/integrations/meta/disconnect-account/", { method: "POST" }),
+  setMetaPageProduct: (pageId: string, productLineId: number | null) =>
+    fetchApi<ConnectedMetaPage>("/integrations/meta/page-product/", {
+      method: "POST",
+      body: JSON.stringify({ page_id: pageId, product_line_id: productLineId }),
+    }),
 
   // AI follow-up drafts
   getFollowUpDrafts: (status: string = "pending") =>

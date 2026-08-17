@@ -106,3 +106,40 @@ def run_round_robin(triggered_by_user, org=None, dry_run=False):
         'skipped_no_staff': skipped_no_staff,
         'assignments': assignments,
     }
+
+
+def assign_lead(lead, actor=None):
+    """Round-robin-assign a single unassigned lead to the next salesperson for
+    its product line, advancing that line's index (REL-512).
+
+    Reuses the same per-`ProductLine.round_robin_index` rotation as
+    `run_round_robin`, but for one lead on ingest rather than an org-wide sweep.
+    No-op (returns None) when the lead is already assigned, has no product, or
+    the product line has no active salespeople. Returns the assigned user.
+    """
+    from bookings.activity import log_activity
+
+    if lead.assigned_to_id or lead.product_id is None:
+        return None
+    product_line = ProductLine.objects.filter(
+        pk=lead.product_id, organisation_id=lead.organisation_id,
+    ).first()
+    if product_line is None:
+        return None
+    salespeople = list(product_line.salespeople.filter(is_active=True).order_by('pk'))
+    if not salespeople:
+        return None
+
+    idx = product_line.round_robin_index
+    sp = salespeople[idx % len(salespeople)]
+    lead.assigned_to = sp
+    lead.save(update_fields=['assigned_to'])
+    # Atomic bump so concurrent ingests don't hand the same rep two leads.
+    ProductLine.objects.filter(pk=product_line.pk).update(round_robin_index=idx + 1)
+
+    sp_name = f"{sp.first_name} {sp.last_name}".strip() or sp.email
+    log_activity(
+        lead, 'updated', user=actor, field_name='assigned_to', new_value=str(sp.pk),
+        description=f"Auto-assigned to {sp_name} via round-robin",
+    )
+    return sp
