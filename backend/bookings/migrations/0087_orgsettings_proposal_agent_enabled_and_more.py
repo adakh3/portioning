@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('bookings', '0084_metaaccountconnection_connectedmetapage'),
+        ('bookings', '0086_metaingestedlead'),
     ]
 
     operations = [

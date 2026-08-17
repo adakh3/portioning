@@ -9,7 +9,7 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ('agents', '0001_initial'),
-        ('bookings', '0085_orgsettings_proposal_agent_enabled_and_more'),
+        ('bookings', '0087_orgsettings_proposal_agent_enabled_and_more'),
         ('users', '0008_demorequest'),
     ]
 
