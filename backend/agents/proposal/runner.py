@@ -83,7 +83,11 @@ def regenerate_proposal(*, organisation, draft_id, checkpointer=None):
         raise ProposalRunError(f"No proposal draft {draft_id} for this organisation.")
 
     draft = start_proposal(organisation=organisation, lead=prior.lead, checkpointer=checkpointer)
-    if draft.status == ProposalDraft.QUESTIONS_PENDING and prior.answers:
+    # Reuse the prior answers if that draft ever advanced past the form — including
+    # when the caterer accepted every suggestion and submitted an empty {} (a valid
+    # resume). Only a prior still stuck at the form has nothing to replay.
+    prior_answered = prior.status != ProposalDraft.QUESTIONS_PENDING
+    if draft.status == ProposalDraft.QUESTIONS_PENDING and prior_answered:
         draft = resume_proposal(
             organisation=organisation, draft_id=draft.id, answers=prior.answers,
             checkpointer=checkpointer,

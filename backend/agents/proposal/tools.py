@@ -170,19 +170,39 @@ def price_per_head_for(org, resolved, event_params):
     }
 
 
+def line_total_for(unit, category, unit_price, quantity, guests):
+    """Replicate ``BookingLineItem.save``'s line-total derivation exactly, so the
+    price we compute equals the price the row will store: per-guest lines scale by
+    headcount, discounts go negative, everything else is quantity × unit price."""
+    from bookings.models.quotes import LineItemCategory, LineItemUnit
+
+    if unit == LineItemUnit.PER_GUEST:
+        return (unit_price * guests).quantize(Decimal('0.01'))
+    if category == LineItemCategory.DISCOUNT:
+        return -(abs(quantity * unit_price)).quantize(Decimal('0.01'))
+    return (quantity * unit_price).quantize(Decimal('0.01'))
+
+
 def price_quote(org, event_params, resolved):
-    """Materialize all money via ``compute_booking_totals`` — the SAME engine the
-    quote will run on assembly, so the persisted totals must match to the cent."""
+    """Materialize all money via ``compute_booking_totals`` — replicating exactly
+    what ``Quote.recalculate_totals`` (segment-priced food) and
+    ``BookingLineItem.save`` (unit/discount-aware line totals) will do on assembly,
+    so the persisted totals match the priced totals to the cent for every org
+    config (per-guest add-ons, discounts, non-1.0 default segment multipliers)."""
     from bookings.models import OrgSettings
     from bookings.models.addons import AddOnVariant
-    from bookings.services.totals import compute_booking_totals
+    from bookings.services.totals import compute_booking_totals, segment_food_total
+    from events.models import resolve_legacy_segments
 
     settings_obj = OrgSettings.for_org(org)
     guests = event_params.get('headcount') or 0
     ppp, ppp_assumption = price_per_head_for(org, resolved, event_params)
-    food_total = (ppp * guests).quantize(Decimal('0.01'))
+    # Food priced through the SAME segment resolver a freshly-assembled quote uses
+    # (no gender split, no per-segment rows → whole headcount under the org's
+    # default segment, honouring its price multiplier).
+    segments = resolve_legacy_segments(org, guests, 0, 0, has_split=False)
+    food_total = segment_food_total(ppp, segments)
 
-    # Build add-on line rows (one per resolved variant) with computed line totals.
     line_items = []
     variants = {
         v.id: v for v in AddOnVariant.objects.for_org(org).filter(
@@ -194,14 +214,17 @@ def price_quote(org, event_params, resolved):
         if v is None:
             continue
         unit_price = Decimal(v.effective_price)
-        line_total = unit_price.quantize(Decimal('0.01'))  # quantity 1 in v1
+        quantity = Decimal('1')  # v1: one of each proposed add-on
+        line_total = line_total_for(
+            v.product.default_unit, v.product.category, unit_price, quantity, guests,
+        )
         line_items.append({
             'variant_id': v.id,
             'description': str(v),
             'category': v.product.category,
             'unit': v.product.default_unit,
             'unit_price': str(unit_price),
-            'quantity': '1',
+            'quantity': str(quantity),
             'is_taxable': v.product.is_taxable,
             'line_total': str(line_total),
         })

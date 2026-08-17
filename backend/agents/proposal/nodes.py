@@ -332,13 +332,14 @@ def assemble_draft(state):
             )
         quote.recalculate_totals()
         validate_booking_totals(quote)
-
-    # Parity guard: the totals engine on the persisted quote must equal the price
-    # the agent computed. A divergence is a bug, not a soft warning.
-    if quote.total != Decimal(pricing['total']):
-        raise AssertionError(
-            f"totals parity failed: quote.total={quote.total} != priced {pricing['total']}"
-        )
+        # Parity guard INSIDE the transaction: the totals engine on the persisted
+        # quote must equal the price the agent computed. A divergence is a bug —
+        # raising here rolls the whole write back, so no mispriced quote is ever
+        # committed.
+        if quote.total != Decimal(pricing['total']):
+            raise AssertionError(
+                f"totals parity failed: quote.total={quote.total} != priced {pricing['total']}"
+            )
     return {'quote_id': quote.id}
 
 

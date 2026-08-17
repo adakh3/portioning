@@ -90,11 +90,43 @@ class ProposalRunTests(TransactionTestCase):
         self.assertEqual(quote.price_per_head, Decimal('50.00'))
         self.assertEqual(quote.guest_count, 100)
         self.assertEqual(quote.dishes.count(), 2)
-        # food = 50 * 100 = 5000; total must be > 0 and parity held (no assertion raised).
-        self.assertEqual(quote.total, quote.total)  # persisted
-        self.assertGreater(quote.total, Decimal('5000.00'))
+        # food = 50 * 100 = 5000, no add-ons → subtotal exactly 5000; DRAFTED means
+        # the in-code parity guard passed (persisted total == priced total).
+        self.assertEqual(quote.subtotal, Decimal('5000.00'))
+        self.assertGreaterEqual(quote.total, Decimal('5000.00'))
         self.assertEqual(quote.proposal_prose['intro'], 'Thank you for considering us.')
         self.assertIsInstance(quote.proposal_assumptions, list)
+
+    def test_per_guest_addon_prices_correctly_and_parity_holds(self):
+        # Regression for the add-on parity bug: a per-guest add-on's line total must
+        # scale by headcount both when priced and when persisted, or assembly's
+        # parity guard would fail. 100 guests × $5/head = $500 added to $5000 food.
+        from bookings.models.addons import AddOnProduct, AddOnVariant
+        from bookings.models.quotes import LineItemUnit
+        product = AddOnProduct.objects.create(
+            organisation=self.org, name='Signature Cocktail', unit_price=Decimal('5.00'),
+            default_unit=LineItemUnit.PER_GUEST, is_taxable=True)
+        variant = AddOnVariant.objects.create(organisation=self.org, product=product, name='Mojito')
+        menu = json.dumps({
+            'template_id': self.template.id, 'tier_id': self.tier.id,
+            'sections': [{'name': 'Mains', 'dish_ids': [self.d1.id]}],
+            'addon_variant_ids': [variant.id], 'meals': [], 'assumptions': [],
+        })
+        with patch('portioning.llm._call_openai',
+                   side_effect=[self._questions(), menu, self._prose()]):
+            saver = self._saver()
+            draft = start_proposal(organisation=self.org, lead=self.lead, checkpointer=saver)
+            saver.conn.close()
+            saver2 = self._saver()
+            draft = resume_proposal(organisation=self.org, draft_id=draft.id,
+                                    answers={'service_style': 'buffet'}, checkpointer=saver2)
+            saver2.conn.close()
+
+        self.assertEqual(draft.status, ProposalDraft.DRAFTED)
+        quote = draft.quote
+        line = quote.line_items.get()
+        self.assertEqual(line.line_total, Decimal('500.00'))   # 5 × 100 guests
+        self.assertEqual(quote.subtotal, Decimal('5500.00'))   # 5000 food + 500
 
     def test_out_of_catalog_dish_retries_then_degrades(self):
         # Menu always references a bogus dish id → 3 compose attempts (1 + 2 retries)
@@ -117,6 +149,28 @@ class ProposalRunTests(TransactionTestCase):
         self.assertEqual(draft.quote.dishes.count(), 1)
         reasons = [a['field'] for a in draft.quote.proposal_assumptions]
         self.assertIn('menu', reasons)
+
+    def test_regenerate_reuses_prior_answers_including_empty(self):
+        from agents.proposal import regenerate_proposal
+        # Draft once, resuming with EMPTY answers (caterer accepted all suggestions).
+        with patch('portioning.llm._call_openai',
+                   side_effect=[self._questions(), self._menu(), self._prose()]):
+            saver = self._saver()
+            draft = start_proposal(organisation=self.org, lead=self.lead, checkpointer=saver)
+            saver.conn.close()
+            saver2 = self._saver()
+            draft = resume_proposal(organisation=self.org, draft_id=draft.id, answers={}, checkpointer=saver2)
+            saver2.conn.close()
+        self.assertEqual(draft.status, ProposalDraft.DRAFTED)
+
+        # Regenerate must reuse the (empty) prior answers and produce a NEW drafted
+        # quote — not strand the fresh draft at the form.
+        with patch('portioning.llm._call_openai',
+                   side_effect=[self._questions(), self._menu(), self._prose()]):
+            new = regenerate_proposal(organisation=self.org, draft_id=draft.id, checkpointer=self._saver())
+        self.assertEqual(new.status, ProposalDraft.DRAFTED)
+        self.assertNotEqual(new.id, draft.id)
+        self.assertIsNotNone(new.quote)
 
     def test_resume_scoped_to_wrong_org_is_rejected(self):
         other = Organisation.objects.create(name='Rival', slug='rival')
