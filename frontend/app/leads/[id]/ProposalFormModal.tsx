@@ -51,6 +51,15 @@ export function ProposalFormModal({
 
   async function submit() {
     if (!draft) return;
+    // Honour the required (*) marker on high-impact questions — don't submit with
+    // one blank, since the agent would otherwise fall back / assume for it.
+    const missing = draft.questions.find(
+      (q) => q.impact === "high" && !String(answers[q.id] ?? "").trim(),
+    );
+    if (missing) {
+      setError(`Please answer: ${missing.text}`);
+      return;
+    }
     setPhase("drafting");
     setError("");
     try {

@@ -144,6 +144,9 @@ class QuoteSerializer(OrgScopedModelSerializer):
             'service_charge', 'gratuity',  # stored amounts, computed by recalculate_totals
             'sent_at', 'accepted_at', 'event',
             'created_by',
+            # Agent-authored (REL-413); the client reads them, never writes them —
+            # a forged non-list assumptions payload would crash the editor panel.
+            'proposal_prose', 'proposal_assumptions',
             'created_at', 'updated_at',
         ]
         extra_kwargs = {

@@ -51,7 +51,6 @@ class ProposalDraftDetailView(APIView):
     """GET /api/bookings/proposal-drafts/<pk>/ — read a draft (poll/resume UI)."""
 
     def get(self, request, pk):
-        org = get_request_org(request)
         draft = get_org_object_or_404(ProposalDraft, request, pk=pk)
         return Response(ProposalDraftSerializer(draft).data)
 

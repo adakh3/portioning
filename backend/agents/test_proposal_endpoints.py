@@ -88,6 +88,14 @@ class ProposalEndpointTests(TestCase):
         self.assertEqual(res.status_code, 404)
         resume.assert_not_called()
 
+    def test_quote_prose_fields_are_read_only(self):
+        # Agent-authored: a client must not be able to write proposal prose/assumptions
+        # (a forged non-list assumptions would crash the editor panel).
+        from bookings.serializers.quotes import QuoteSerializer
+        s = QuoteSerializer()
+        self.assertTrue(s.fields['proposal_prose'].read_only)
+        self.assertTrue(s.fields['proposal_assumptions'].read_only)
+
     @override_settings(**CONFIGURED)
     def test_detail_read_is_org_scoped(self):
         other = Organisation.objects.create(name='Org B', slug='org-b')
