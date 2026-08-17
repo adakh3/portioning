@@ -8,6 +8,7 @@ import { useLead, useSiteSettings, useDateFormat, useFormatDateTime, useProductL
 import { formatDate, formatDateTime } from "@/lib/dateFormat";
 import { formatCurrency } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { ProposalFormModal } from "./ProposalFormModal";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -205,6 +206,7 @@ export default function LeadDetailPage() {
   const [lostNotesInput, setLostNotesInput] = useState("");
   const [showWonDialog, setShowWonDialog] = useState(false);
   const [creatingQuote, setCreatingQuote] = useState(false);
+  const [showProposalModal, setShowProposalModal] = useState(false);
   const [showOverflow, setShowOverflow] = useState(false);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [fieldStatus, setFieldStatus] = useState<Record<string, FieldStatus>>({});
@@ -537,6 +539,13 @@ export default function LeadDetailPage() {
                 </Button>
               )}
 
+              {/* AI Proposal Builder (REL-413) — only when the org has it configured. */}
+              {showCreateQuoteButton && rawSettings?.proposal_agent_configured && (
+                <Button size="sm" onClick={() => setShowProposalModal(true)}>
+                  Draft Proposal
+                </Button>
+              )}
+
               {/* Primary action button */}
               {wonNeedsEvent ? (
                 <Button size="sm" variant="success" onClick={handleCreateEventFromLead} disabled={transitioning}>
@@ -797,6 +806,17 @@ export default function LeadDetailPage() {
       </Card>
 
       {/* Mark Won Dialog */}
+      {showProposalModal && lead && (
+        <ProposalFormModal
+          leadId={lead.id}
+          onClose={() => setShowProposalModal(false)}
+          onDrafted={(quoteId) => {
+            setShowProposalModal(false);
+            router.push(`/quotes/${quoteId}`);
+          }}
+        />
+      )}
+
       {showWonDialog && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-background rounded-lg shadow-lg p-6 w-full max-w-md mx-4 border-2 border-success/30">

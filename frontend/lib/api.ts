@@ -489,6 +489,45 @@ export interface Lead {
   has_unread_whatsapp: boolean;
 }
 
+/** A clarifying question the proposal agent asks, pre-filled with a suggestion. */
+export interface ProposalQuestion {
+  id: string;
+  text: string;
+  kind: "free_text" | "choice" | "number" | "date";
+  suggested?: string | number | null;
+  options?: string[];
+  impact: "high" | "low";
+}
+
+/** One assumption the agent recorded (shown in the quote's Assumptions panel). */
+export interface ProposalAssumption {
+  field: string;
+  value: string;
+  reason: string;
+}
+
+/** The client-facing proposal prose sections stored on a Quote. */
+export interface ProposalProse {
+  intro?: string;
+  section_descriptions?: Record<string, string>;
+  whats_included?: string[];
+  day_of_outline?: string;
+  closing?: string;
+}
+
+/** A proposal-builder run (REL-413). */
+export interface ProposalDraft {
+  id: number;
+  lead: number;
+  status: "questions_pending" | "drafting" | "drafted" | "failed" | "abandoned";
+  questions: ProposalQuestion[];
+  answers: Record<string, unknown>;
+  quote_id: number | null;
+  error: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface QuoteLineItem {
   id: number;
   quote: number | null;
@@ -566,6 +605,10 @@ export interface Quote {
   based_on_template: number | null;
   notes: string;
   internal_notes: string;
+  /** AI Proposal Builder prose sections + assumptions (REL-413); null on non-AI quotes. */
+  proposal_prose: ProposalProse | null;
+  proposal_assumptions: ProposalAssumption[] | null;
+  proposal_draft_id?: number | null;
   sent_at: string | null;
   accepted_at: string | null;
   public_token: string | null;
@@ -2214,6 +2257,19 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ lead: leadId }),
     }),
+
+  // AI Proposal Builder (REL-413)
+  draftProposal: (leadId: number) =>
+    fetchApi<ProposalDraft>(`/bookings/leads/${leadId}/draft-proposal/`, { method: "POST" }),
+  getProposalDraft: (draftId: number) =>
+    fetchApi<ProposalDraft>(`/bookings/proposal-drafts/${draftId}/`),
+  answerProposal: (draftId: number, answers: Record<string, unknown>) =>
+    fetchApi<ProposalDraft>(`/bookings/proposal-drafts/${draftId}/answer/`, {
+      method: "POST",
+      body: JSON.stringify({ answers }),
+    }),
+  regenerateProposal: (draftId: number) =>
+    fetchApi<ProposalDraft>(`/bookings/proposal-drafts/${draftId}/regenerate/`, { method: "POST" }),
   bulkApproveFollowUpDrafts: (ids?: number[]) =>
     fetchApi<{ sent: number[]; failed: { id: number; error: string }[] }>(
       `/bookings/followup-drafts/bulk-approve/`,

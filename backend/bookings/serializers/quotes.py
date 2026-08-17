@@ -79,6 +79,9 @@ class QuoteSerializer(OrgScopedModelSerializer):
     # E-signature status (for the staff-side "send for signature" flow)
     public_token = serializers.CharField(read_only=True)
     signature = serializers.SerializerMethodField()
+    # The proposal draft that produced this quote (REL-413), if any — lets the quote
+    # editor offer Regenerate. Newest first; null on a hand-built quote.
+    proposal_draft_id = serializers.SerializerMethodField()
 
     # Menu fields
     dish_ids = serializers.PrimaryKeyRelatedField(
@@ -128,7 +131,7 @@ class QuoteSerializer(OrgScopedModelSerializer):
             'courses', 'dish_courses', 'menu_choices', 'menu_lines',
             'additional_meals', 'timeline_entries',
             'notes', 'internal_notes',
-            'proposal_prose', 'proposal_assumptions',
+            'proposal_prose', 'proposal_assumptions', 'proposal_draft_id',
             'sent_at', 'accepted_at',
             'public_token', 'signature',
             'event', 'event_id',
@@ -232,6 +235,10 @@ class QuoteSerializer(OrgScopedModelSerializer):
 
     def get_event_id(self, obj):
         return obj.event_id
+
+    def get_proposal_draft_id(self, obj):
+        draft = obj.proposal_drafts.order_by('-created_at').first()
+        return draft.id if draft else None
 
     def get_created_by_name(self, obj):
         u = obj.created_by
@@ -392,8 +399,8 @@ class QuoteSerializer(OrgScopedModelSerializer):
 QUOTE_LIST_EXCLUDE = {'line_items', 'dishes', 'dish_ids', 'dish_names', 'additional_meals',
                       'courses', 'dish_courses', 'menu_choices', 'menu_lines', 'timeline_entries',
                       'signature', 'public_token',
-                      # Heavy proposal JSON — detail-view only, keeps list payloads lean.
-                      'proposal_prose', 'proposal_assumptions'}
+                      # Heavy proposal JSON + per-row draft lookup — detail-view only.
+                      'proposal_prose', 'proposal_assumptions', 'proposal_draft_id'}
 
 
 class QuoteListSerializer(QuoteSerializer):

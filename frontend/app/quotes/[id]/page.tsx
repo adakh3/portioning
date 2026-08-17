@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { api, ChannelAvailability, ClientChannel, ClientMessageKind, Contact, EventMealData, CourseData, MenuChoices } from "@/lib/api";
+import { ProposalPanel } from "./ProposalPanel";
 import { useQuote, useAccounts, useContacts, useSiteSettings, useDateFormat, useFormatDateTime, useEventTypes, useServiceStyles, useMealTypes, useTimelinePresets, useAllLeads, useProductLines, useUsers, useClientMessages, useMessagingStatus, revalidate } from "@/lib/hooks";
 import { useAuth } from "@/lib/auth";
 import { formatDate, formatInstantDate, todayISO } from "@/lib/dateFormat";
@@ -763,6 +764,10 @@ export default function QuoteDetailPage() {
       </Button>
 
       {error && <p className="text-destructive">{error}</p>}
+
+      {/* AI proposal prose + assumptions + Regenerate (REL-413); renders nothing
+          on a hand-built quote. */}
+      <ProposalPanel quote={q} onRegenerated={(newId) => router.push(`/quotes/${newId}`)} />
 
       {/* Header */}
       <Card>
