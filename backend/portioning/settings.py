@@ -217,6 +217,16 @@ LLM_FOLLOWUP_DRAFTER = os.environ.get('LLM_FOLLOWUP_DRAFTER', 'openai:gpt-5.4-na
 LLM_CLIENT_MESSAGE_DRAFTER = os.environ.get(
     'LLM_CLIENT_MESSAGE_DRAFTER', 'openai:gpt-5.4-nano',
 )
+# The walking-skeleton agent's LLM node (REL-510 / agents app). A cheap-and-fast
+# tier is fine — it drafts one clarifying question a human then answers.
+LLM_AGENT_SKELETON = os.environ.get('LLM_AGENT_SKELETON', 'openai:gpt-5.4-nano')
+
+# Where LangGraph persists agent checkpoints in dev (SQLite). Prod uses the
+# Postgres checkpointer over DATABASE_URL instead — see agents/checkpointer.py.
+# Kept out of db.sqlite3 so it never collides with Django's test database.
+AGENT_CHECKPOINT_DB = os.environ.get(
+    'AGENT_CHECKPOINT_DB', str(BASE_DIR / 'agent_checkpoints.sqlite3'),
+)
 
 
 # Application definition
@@ -240,6 +250,7 @@ INSTALLED_APPS = [
     'equipment',
     'users',
     'payments',
+    'agents',
     'rest_framework_simplejwt.token_blacklist',
     'axes',
 ]
