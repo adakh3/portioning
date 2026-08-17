@@ -135,6 +135,14 @@ function BookingView({
         </section>
       )}
 
+      {/* AI proposal intro (REL-413) — a warm lead-in before the menu when the
+          booking was AI-drafted. Nothing renders on a hand-built booking. */}
+      {booking.proposal?.intro && (
+        <section className="mt-4 rounded-xl border border-neutral-200 bg-white p-5">
+          <p className="whitespace-pre-line text-sm text-neutral-700">{booking.proposal.intro}</p>
+        </section>
+      )}
+
       {/* Menu */}
       {booking.menu.length > 0 && (
         <section className="mt-4 rounded-xl border border-neutral-200 bg-white p-5">
@@ -234,6 +242,29 @@ function BookingView({
           <Row label="Total" value={money(booking.total)} bold />
         </div>
       </section>
+
+      {/* AI proposal details (REL-413): what's included, day-of outline, closing. */}
+      {booking.proposal && (booking.proposal.whats_included?.length || booking.proposal.day_of_outline || booking.proposal.closing) && (
+        <section className="mt-4 rounded-xl border border-neutral-200 bg-white p-5 space-y-3">
+          {booking.proposal.whats_included && booking.proposal.whats_included.length > 0 && (
+            <div>
+              <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">What&apos;s included</h2>
+              <ul className="list-disc pl-5 text-sm text-neutral-600">
+                {booking.proposal.whats_included.map((item, i) => <li key={i}>{item}</li>)}
+              </ul>
+            </div>
+          )}
+          {booking.proposal.day_of_outline && (
+            <div>
+              <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">Day-of outline</h2>
+              <p className="whitespace-pre-line text-sm text-neutral-600">{booking.proposal.day_of_outline}</p>
+            </div>
+          )}
+          {booking.proposal.closing && (
+            <p className="whitespace-pre-line text-sm text-neutral-700">{booking.proposal.closing}</p>
+          )}
+        </section>
+      )}
 
       {booking.notes && (
         <section className="mt-4 rounded-xl border border-neutral-200 bg-white p-5">

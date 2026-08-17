@@ -1,0 +1,20 @@
+{
+  "agent": "proposal_menu",
+  "_note": "REL-413 proposal composer gating. Grades that the AI-composed menu proposes only dishes in the org catalog (catalog_subset) and echoes the given headcount. Synthetic params only; run against an org with a real catalog.",
+  "cases": [
+    {
+      "id": "wedding-buffet",
+      "target": "proposal_menu",
+      "event_params": { "occasion": "wedding", "headcount": 120, "service_style": "buffet", "date": null },
+      "expected": { "event_date": null, "headcount": 120 },
+      "constraints": ["schema_valid", "catalog_subset", "headcount_echoed"]
+    },
+    {
+      "id": "corporate-plated",
+      "target": "proposal_menu",
+      "event_params": { "occasion": "corporate dinner", "headcount": 60, "service_style": "plated", "date": null },
+      "expected": { "event_date": null, "headcount": 60 },
+      "constraints": ["schema_valid", "catalog_subset", "headcount_echoed"]
+    }
+  ]
+}

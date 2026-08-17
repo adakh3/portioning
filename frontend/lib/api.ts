@@ -1569,6 +1569,8 @@ export interface PublicBooking {
   gratuity: string;
   total: string;
   notes: string;
+  /** AI proposal prose (REL-413); null on a hand-built booking. */
+  proposal: ProposalProse | null;
   status: string;
   is_signed: boolean;
   signable: boolean;

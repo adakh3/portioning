@@ -62,10 +62,35 @@ def _catalog_names(org):
     return set(Dish.objects.for_org(org).values_list('name', flat=True))
 
 
+def proposal_menu_target(case, org):
+    """Run the REL-413 proposal composer (LLM) for a case's event params and report
+    the dishes it proposed *as names* — mapping the RAW proposed ids (not the
+    catalog-stripped ones) so ``catalog_subset`` actually grades whether the model
+    stayed in-catalog. This is how the eval harness gates proposal quality."""
+    from dishes.models import Dish
+    from agents.proposal import nodes as pnodes
+    from agents.proposal.tools import get_catalog_digest as proposal_catalog_digest
+
+    state = {
+        'org_id': org.id,
+        'context': {'lead': {}, 'catalog': proposal_catalog_digest(org)},
+        'event_params': case.get('event_params', {}),
+    }
+    result = pnodes.compose_menu(state)
+    plan = result.get('menu_plan', {})
+    raw_ids = [d for section in plan.get('sections', []) for d in section.get('dish_ids', [])]
+    names_by_id = dict(Dish.objects.filter(id__in=raw_ids).values_list('id', 'name'))
+    proposed = [names_by_id.get(i, f'unknown-{i}') for i in raw_ids]
+    params = case.get('event_params', {})
+    return {'proposed_dishes': proposed, 'event_date': params.get('date'),
+            'headcount': params.get('headcount')}
+
+
 # Name -> (target_fn, output_schema). Cases reference a target by name.
 TARGETS = {
     'skeleton': (skeleton_target, SKELETON_QUESTION_SCHEMA),
     'inquiry_extraction': (inquiry_extraction_target, INQUIRY_EXTRACTION_SCHEMA),
+    'proposal_menu': (proposal_menu_target, INQUIRY_EXTRACTION_SCHEMA),
 }
 
 

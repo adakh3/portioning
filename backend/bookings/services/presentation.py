@@ -275,6 +275,10 @@ def booking_presentation(booking, signature=None):
         'total': str(booking.total),
         # Extras
         'notes': booking.notes or '',
+        # AI Proposal Builder prose (REL-413): the client-facing sections when this
+        # booking was AI-drafted; None otherwise so a hand-built quote/event renders
+        # byte-identically to before. Only Quotes carry the field today.
+        'proposal': getattr(booking, 'proposal_prose', None),
         'timeline': timeline,
         'signature': sig_block,
     }

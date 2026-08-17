@@ -136,9 +136,10 @@ required CI check. The evaluator *mechanics* are covered by the normal suite wit
 the fake provider (`test_evals.py`).
 
 **Pieces:**
-- `evals/targets.py` — the systems under test (`skeleton`, `inquiry_extraction`),
-  each paired with its output schema. A target is `(case, org) -> dict`, going
-  through `ask_structured` (so, `llm.py` only).
+- `evals/targets.py` — the systems under test (`skeleton`, `inquiry_extraction`,
+  and `proposal_menu` = the REL-413 proposal composer, graded on staying in the org
+  catalog), each paired with its output schema. A target is `(case, org) -> dict`,
+  going through `ask_structured` (so, `llm.py` only).
 - `evals/evaluators.py` — **deterministic assertions first** (`schema_valid`,
   `catalog_subset` = proposed dishes ⊆ org catalog, `date_not_invented`,
   `headcount_echoed`) plus `llm_judge` for prose/tone only.

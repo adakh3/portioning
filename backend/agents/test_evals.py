@@ -109,6 +109,32 @@ class RunEvalsTests(TestCase):
         self.assertFalse(report.regressed)
         self.assertEqual(report.passed_count, len(report.results))
 
+    def test_proposal_menu_in_catalog_passes_out_of_catalog_regresses(self):
+        # REL-413 gating: the proposal composer must stay in-catalog.
+        import json as _json
+        good = _json.dumps({'template_id': None, 'tier_id': None,
+                            'sections': [{'name': 'Mains', 'dish_ids': [self.roast_id()]}],
+                            'addon_variant_ids': [], 'meals': [], 'assumptions': []})
+        bad = _json.dumps({'template_id': None, 'tier_id': None,
+                           'sections': [{'name': 'Mains', 'dish_ids': [999999]}],
+                           'addon_variant_ids': [], 'meals': [], 'assumptions': []})
+        dataset = {'agent': 'proposal_menu', 'cases': [{
+            'id': 'wedding', 'target': 'proposal_menu',
+            'event_params': {'headcount': 120, 'occasion': 'wedding'},
+            'expected': {'event_date': None, 'headcount': 120},
+            'constraints': ['schema_valid', 'catalog_subset', 'headcount_echoed'],
+        }]}
+        with override_settings(LLM_PROPOSAL_MENU='openai:gpt-test'):
+            with patch('portioning.llm._call_openai', return_value=good):
+                self.assertFalse(run_evals(dataset, self.org).regressed)
+            with patch('portioning.llm._call_openai', return_value=bad):
+                report = run_evals(dataset, self.org)
+        self.assertTrue(report.regressed)
+        self.assertIn('catalog_subset', [o.evaluator for o in report.results[0].failures()])
+
+    def roast_id(self):
+        return Dish.objects.for_org(self.org).get(name='Roast Chicken').id
+
     def test_skeleton_target_baseline(self):
         # Baseline the skeleton: its generated question is schema-valid.
         with override_settings(LLM_AGENT_SKELETON='openai:gpt-test'):

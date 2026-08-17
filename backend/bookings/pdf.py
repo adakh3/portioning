@@ -779,6 +779,30 @@ def generate_quote_pdf(quote, signature=None):
         elements.append(addon_table)
         elements.append(Spacer(1, 6 * mm))
 
+    # ── 4b. AI proposal prose (REL-413) — the narrative sections, when present.
+    # Absent on a hand-built quote, so the PDF is byte-identical to before there.
+    prose = pres.get('proposal')
+    if prose:
+        if prose.get('intro'):
+            elements.append(Paragraph(_esc(prose['intro']), s['note']))
+            elements.append(Spacer(1, 3 * mm))
+        for name, desc in (prose.get('section_descriptions') or {}).items():
+            elements.append(Paragraph(f"<b>{_esc(name)}:</b> {_esc(desc)}", s['note']))
+        included = prose.get('whats_included') or []
+        if included:
+            elements.append(Spacer(1, 2 * mm))
+            elements.append(Paragraph("<b>What's included:</b>", s['body_bold']))
+            for item in included:
+                elements.append(Paragraph(f"• {_esc(item)}", s['note']))
+        if prose.get('day_of_outline'):
+            elements.append(Spacer(1, 2 * mm))
+            elements.append(Paragraph('<b>Day-of outline:</b>', s['body_bold']))
+            elements.append(Paragraph(_esc(prose['day_of_outline']), s['note']))
+        if prose.get('closing'):
+            elements.append(Spacer(1, 2 * mm))
+            elements.append(Paragraph(_esc(prose['closing']), s['note']))
+        elements.append(Spacer(1, 6 * mm))
+
     # ── 5. Notes (customer-visible only; internal notes are never in the PDF) ──
     if pres['notes']:
         elements.append(Spacer(1, 2 * mm))

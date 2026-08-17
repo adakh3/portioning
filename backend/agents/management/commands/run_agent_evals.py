@@ -18,6 +18,7 @@ from agents.management.commands._org import resolve_org
 DEFAULT_DATASETS = {
     'skeleton': 'skeleton_v1',
     'inquiry_extraction': 'inquiry_v1',
+    'proposal_menu': 'proposal_v1',
 }
 
 
