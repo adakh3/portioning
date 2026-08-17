@@ -1,0 +1,56 @@
+{
+  "agent": "inquiry_extraction",
+  "_note": "Synthetic/demo inquiries only — never real customer records. proposed_dishes are graded ⊆ the target org's catalog; expected date/headcount are the stated ground truth (null = not stated, must not be invented).",
+  "cases": [
+    {
+      "id": "rich-lead",
+      "target": "inquiry_extraction",
+      "input": {
+        "inquiry": "Hi there, we're organising a corporate dinner for 120 guests on 12 September 2026 at our downtown office. We'd love a plated three-course meal. Can you help?"
+      },
+      "expected": { "event_date": "2026-09-12", "headcount": 120 },
+      "constraints": ["schema_valid", "catalog_subset", "date_not_invented", "headcount_echoed"]
+    },
+    {
+      "id": "sparse-lead",
+      "target": "inquiry_extraction",
+      "input": { "inquiry": "Do you cater weddings?" },
+      "expected": { "event_date": null, "headcount": null },
+      "constraints": ["schema_valid", "catalog_subset", "date_not_invented", "headcount_echoed"]
+    },
+    {
+      "id": "dietary-constraints",
+      "target": "inquiry_extraction",
+      "input": {
+        "inquiry": "Planning a team lunch for 40 people. Several of us are vegetarian and two colleagues are gluten-free, so please keep that in mind."
+      },
+      "expected": { "event_date": null, "headcount": 40 },
+      "constraints": ["schema_valid", "catalog_subset", "date_not_invented", "headcount_echoed"]
+    },
+    {
+      "id": "missing-date",
+      "target": "inquiry_extraction",
+      "input": {
+        "inquiry": "We'd like catering for a birthday party, about 25 people. We haven't locked in a date yet, still deciding."
+      },
+      "expected": { "event_date": null, "headcount": 25 },
+      "constraints": ["schema_valid", "catalog_subset", "date_not_invented", "headcount_echoed"]
+    },
+    {
+      "id": "budget-hints",
+      "target": "inquiry_extraction",
+      "input": {
+        "inquiry": "Looking for a canapé reception for around 60 guests on 3 October 2026. Our budget is roughly $30 per person if that works."
+      },
+      "expected": { "event_date": "2026-10-03", "headcount": 60 },
+      "constraints": ["schema_valid", "catalog_subset", "date_not_invented", "headcount_echoed"]
+    },
+    {
+      "id": "non-lead-chatter",
+      "target": "inquiry_extraction",
+      "input": { "inquiry": "Thanks so much, got your brochure — will be in touch soon!" },
+      "expected": { "event_date": null, "headcount": null },
+      "constraints": ["schema_valid", "catalog_subset", "date_not_invented", "headcount_echoed"]
+    }
+  ]
+}

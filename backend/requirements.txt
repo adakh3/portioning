@@ -17,3 +17,6 @@ cryptography>=42.0
 requests>=2.31
 anthropic>=0.40
 openai>=1.60
+langgraph>=1.2,<2.0
+langgraph-checkpoint-sqlite>=3.0
+langgraph-checkpoint-postgres>=3.0

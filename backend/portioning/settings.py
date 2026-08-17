@@ -217,6 +217,35 @@ LLM_FOLLOWUP_DRAFTER = os.environ.get('LLM_FOLLOWUP_DRAFTER', 'openai:gpt-5.4-na
 LLM_CLIENT_MESSAGE_DRAFTER = os.environ.get(
     'LLM_CLIENT_MESSAGE_DRAFTER', 'openai:gpt-5.4-nano',
 )
+# The walking-skeleton agent's LLM node (REL-510 / agents app). A cheap-and-fast
+# tier is fine — it drafts one clarifying question a human then answers.
+LLM_AGENT_SKELETON = os.environ.get('LLM_AGENT_SKELETON', 'openai:gpt-5.4-nano')
+# The eval harness's inquiry-extraction target (REL-511). The first evaluatable
+# structured output; REL-413's proposal builder reuses/extends it.
+LLM_AGENT_INQUIRY_EXTRACTION = os.environ.get(
+    'LLM_AGENT_INQUIRY_EXTRACTION', 'openai:gpt-5.4-nano',
+)
+# Optional LLM-as-judge for prose/tone eval cases (REL-511). Only invoked by
+# cases that ask for it; deterministic assertion evaluators need no LLM.
+LLM_AGENT_EVAL_JUDGE = os.environ.get('LLM_AGENT_EVAL_JUDGE', 'openai:gpt-5.4-nano')
+
+# ── Agent tracing (REL-511, LangSmith) — dev/eval ONLY ──
+# LangSmith is a third-party SaaS and agent traces would carry org customer data
+# (lead names, message content), so tracing is OFF by default and enabled only by
+# an explicit env var. It is deliberately NOT set in DigitalOcean prod; revisit
+# (redaction / self-hosted Langfuse) before any prod enablement. When enabled,
+# agents/tracing.py exports the LangChain/LangSmith env so LangGraph auto-traces.
+LANGSMITH_TRACING = os.environ.get('LANGSMITH_TRACING', 'False').lower() in ('true', '1', 'yes')
+LANGSMITH_API_KEY = os.environ.get('LANGSMITH_API_KEY', '')
+LANGSMITH_PROJECT = os.environ.get('LANGSMITH_PROJECT', 'relogue-agents')
+LANGSMITH_ENDPOINT = os.environ.get('LANGSMITH_ENDPOINT', 'https://api.smith.langchain.com')
+
+# Where LangGraph persists agent checkpoints in dev (SQLite). Prod uses the
+# Postgres checkpointer over DATABASE_URL instead — see agents/checkpointer.py.
+# Kept out of db.sqlite3 so it never collides with Django's test database.
+AGENT_CHECKPOINT_DB = os.environ.get(
+    'AGENT_CHECKPOINT_DB', str(BASE_DIR / 'agent_checkpoints.sqlite3'),
+)
 
 
 # Application definition
@@ -240,6 +269,7 @@ INSTALLED_APPS = [
     'equipment',
     'users',
     'payments',
+    'agents',
     'rest_framework_simplejwt.token_blacklist',
     'axes',
 ]

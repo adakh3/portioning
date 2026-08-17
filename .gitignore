@@ -2,6 +2,7 @@ venv/
 __pycache__/
 *.pyc
 db.sqlite3
+agent_checkpoints*.sqlite3
 .env
 node_modules/
 .next/
