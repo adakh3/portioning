@@ -732,8 +732,9 @@ class TestMetaDisconnectAccount(TestCase):
 
 class TestMetaService(TestCase):
     @override_settings(**APP_CONFIGURED)
+    @patch('bookings.services.meta._business_pages', return_value=[])
     @patch('bookings.services.meta.requests.get')
-    def test_list_pages_follows_paging(self, get):
+    def test_list_pages_follows_paging(self, get, _biz):
         get.side_effect = [
             _response(200, {
                 'data': [{'id': 'P1', 'name': 'One', 'access_token': 't1'}],
@@ -748,12 +749,63 @@ class TestMetaService(TestCase):
         self.assertEqual(get.call_count, 2)
 
     @override_settings(**APP_CONFIGURED)
+    @patch('bookings.services.meta._business_pages', return_value=[])
     @patch('bookings.services.meta.requests.get')
-    def test_a_graph_error_never_echoes_the_app_secret(self, get):
+    def test_a_graph_error_never_echoes_the_app_secret(self, get, _biz):
         get.return_value = _response(400, {'error': {'message': 'bad'}})
         with self.assertRaises(meta.MetaApiError) as caught:
             meta.list_pages('user-token')
         self.assertNotIn('app-secret', str(caught.exception))
+
+    @override_settings(**APP_CONFIGURED)
+    @patch('bookings.services.meta._business_pages')
+    @patch('bookings.services.meta._accounts_pages')
+    def test_list_pages_merges_business_pages_deduped_direct_wins(self, accounts, business):
+        """REL-513 AC1 — business Pages appear alongside direct ones; a Page in
+        both keeps the direct entry (which reliably has a token)."""
+        accounts.return_value = [
+            {'page_id': 'A', 'page_name': 'Direct', 'page_access_token': 'direct-tok',
+             'instagram_account_id': '', 'instagram_username': ''},
+        ]
+        business.return_value = [
+            {'page_id': 'A', 'page_name': 'Direct (biz view)', 'page_access_token': 'biz-tok',
+             'instagram_account_id': '', 'instagram_username': ''},
+            {'page_id': 'B', 'page_name': 'Biz Only', 'page_access_token': 'b-tok',
+             'instagram_account_id': '', 'instagram_username': ''},
+        ]
+        pages = {p['page_id']: p for p in meta.list_pages('user-token')}
+        self.assertEqual(set(pages), {'A', 'B'})
+        self.assertEqual(pages['A']['page_access_token'], 'direct-tok')  # direct wins
+
+    @override_settings(**APP_CONFIGURED)
+    @patch('bookings.services.meta.requests.get')
+    def test_business_pages_span_owned_and_client_and_skip_tokenless(self, get):
+        get.side_effect = [
+            _response(200, {'data': [{'id': 'B1'}]}),  # /me/businesses
+            _response(200, {'data': [                   # B1/owned_pages
+                {'id': 'PT', 'name': 'Tokened', 'access_token': 'tt'},
+                {'id': 'PN', 'name': 'No token'},       # no access_token ⇒ skipped
+            ]}),
+            _response(200, {'data': [                   # B1/client_pages
+                {'id': 'PC', 'name': 'Client', 'access_token': 'ct'},
+            ]}),
+        ]
+        pages = meta._business_pages('user-token')
+        self.assertEqual([p['page_id'] for p in pages], ['PT', 'PC'])
+
+    @override_settings(**APP_CONFIGURED)
+    @patch('bookings.services.meta._accounts_pages')
+    @patch('bookings.services.meta.requests.get')
+    def test_business_lookup_degrades_gracefully_when_not_granted(self, get, accounts):
+        """REL-513 AC2 — if business_management isn't granted, the picker still
+        returns directly-owned Pages instead of erroring."""
+        accounts.return_value = [
+            {'page_id': 'A', 'page_name': 'Direct', 'page_access_token': 't',
+             'instagram_account_id': '', 'instagram_username': ''},
+        ]
+        get.return_value = _response(400, {'error': {'message': '(#200) requires business_management'}})
+        pages = meta.list_pages('user-token')
+        self.assertEqual([p['page_id'] for p in pages], ['A'])
 
     def test_app_configured_needs_both_id_and_secret(self):
         with override_settings(META_APP_ID='x', META_APP_SECRET=''):
