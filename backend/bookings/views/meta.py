@@ -406,3 +406,45 @@ class MetaDisconnectView(MetaFeatureView):
             meta.unsubscribe_page(page.page_id, page.page_access_token)
         except Exception:
             logger.info('Could not unsubscribe Meta Page %s on disconnect; deleting locally anyway', page.page_id)
+
+
+class MetaDisconnectAccountView(MetaFeatureView):
+    """POST /api/integrations/meta/disconnect-account/ — forget Meta entirely.
+
+    Removes every connected Page (unsubscribing each) *and* the stored account
+    authorisation, so the card returns to its clean unconnected state. Per-Page
+    disconnect keeps the account token (to re-add Pages without re-consent); this
+    is the way out of that state.
+    """
+
+    permission_classes = [IsAdminOrOwner]
+
+    def post(self, request):
+        org = get_request_org(request)
+        connection = MetaAccountConnection.objects.for_org(org).first() if org else None
+        if connection is None:
+            return Response(
+                {'detail': 'No Meta account is connected.'}, status=status.HTTP_404_NOT_FOUND,
+            )
+
+        for page in ConnectedMetaPage.objects.for_org(org):
+            MetaDisconnectView._best_effort_unsubscribe(page)
+            page.delete()
+        self._best_effort_revoke(connection)
+        # Delete the row outright: no lingering user token anywhere.
+        connection.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @staticmethod
+    def _best_effort_revoke(connection):
+        """Ask Meta to drop the whole grant, so it also disappears from the
+        user's Facebook business-integrations page. Never blocks the disconnect."""
+        if not (meta.app_configured() and connection.user_access_token_encrypted):
+            return
+        try:
+            meta.revoke(connection.user_access_token)
+        except Exception:
+            logger.info(
+                'Could not revoke the Meta grant for org %s on disconnect; deleting locally anyway',
+                connection.organisation_id,
+            )

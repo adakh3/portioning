@@ -187,6 +187,12 @@ def unsubscribe_page(page_id: str, page_access_token: str) -> None:
     _delete(f'{GRAPH}/{page_id}/subscribed_apps', {'access_token': page_access_token})
 
 
+def revoke(user_access_token: str) -> None:
+    """Revoke the app's entire grant for this user (all permissions), so the
+    connection also disappears from the user's Facebook business integrations."""
+    _delete(f'{GRAPH}/me/permissions', {'access_token': user_access_token})
+
+
 # ── Lead ads (REL-507) ──
 
 # The lead-object fields we read, for both the webhook fetch and the backfill.
