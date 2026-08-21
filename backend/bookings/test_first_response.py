@@ -66,7 +66,10 @@ class TestFirstResponseMarking(TestCase):
         self.client = APIClient()
         self.client.force_authenticate(user=self.user)
 
-    def test_manual_create_flags_lead_when_enabled(self):
+    def test_manual_create_never_flags_even_when_enabled(self):
+        """A hand-created lead is NOT flagged for a first response even with the
+        feature on: whoever typed it in has almost always already engaged the
+        client, so the auto-draft is scoped to integration leads only (REL-515)."""
         _enable(self.org)
         resp = self.client.post('/api/bookings/leads/', {
             'contact_name': 'Manual Lead', 'contact_email': 'manual@example.com',
@@ -74,15 +77,7 @@ class TestFirstResponseMarking(TestCase):
         }, format='json')
         self.assertEqual(resp.status_code, 201, resp.content)
         lead = Lead.objects.get(pk=resp.data['id'])
-        self.assertTrue(lead.needs_first_response)
-
-    def test_manual_create_does_not_flag_when_disabled(self):
-        _enable(self.org, first_response_on=False)
-        resp = self.client.post('/api/bookings/leads/', {
-            'contact_name': 'Manual Lead', 'contact_phone': '+15551234567',
-        }, format='json')
-        self.assertEqual(resp.status_code, 201, resp.content)
-        self.assertFalse(Lead.objects.get(pk=resp.data['id']).needs_first_response)
+        self.assertFalse(lead.needs_first_response)
 
     def test_mark_helper_is_idempotent_and_single_field(self):
         _enable(self.org)

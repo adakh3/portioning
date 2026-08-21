@@ -553,11 +553,11 @@ function AIFollowUpSettings({ settings, onSave }: { settings: SiteSettingsData |
 
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-foreground">Draft a first response to new leads</p>
+              <p className="text-sm font-medium text-foreground">Draft a first response to incoming leads</p>
               <p className="text-xs text-muted-foreground">
-                The moment a lead arrives (including from Facebook &amp; Instagram), draft an
-                instant first reply into the queue above. Independent of the follow-up cadence,
-                and always reviewed before it&apos;s sent.
+                When a lead arrives from an integration (Facebook &amp; Instagram lead ads),
+                draft an instant first reply into the queue above. Leads you add by hand are
+                skipped, since you&apos;re already in touch. Always reviewed before it&apos;s sent.
               </p>
             </div>
             <Button
