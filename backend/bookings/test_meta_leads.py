@@ -21,7 +21,7 @@ from bookings.services import meta_leads
 from bookings.services.leads import default_status_for
 from payments.models import Subscription
 from tests.base import get_test_user
-from users.models import Organisation
+from users.models import Organisation, User
 
 WEBHOOK_URL = '/api/bookings/meta/webhook/'
 CRON_URL = '/api/bookings/cron/sync-meta-leads/'
@@ -282,3 +282,189 @@ class TestMetaLeadBackfill(TestCase):
         self.assertEqual(
             client.post(CRON_URL, HTTP_X_CRON_SECRET='cron-secret').status_code, 200,
         )
+
+
+# ──────────────────────────────────────────────────────────────────────
+# REL-512 — product mapping + auto-assign on ingest
+# ──────────────────────────────────────────────────────────────────────
+
+from bookings.models import OrgSettings, ProductLine  # noqa: E402
+from bookings.serializers.settings import OrgSettingsSerializer  # noqa: E402
+
+PAGE_PRODUCT_URL = '/api/integrations/meta/page-product/'
+
+
+def _product_line(org, name='Weddings', salespeople=()):
+    pl = ProductLine.objects.create(organisation=org, name=name, is_active=True)
+    for sp in salespeople:
+        pl.salespeople.add(sp)
+    return pl
+
+
+def _salesperson(org, email):
+    return User.objects.create(email=email, role='salesperson', organisation=org, is_active=True)
+
+
+@override_settings(**APP)
+class TestMetaLeadProduct(TestCase):
+    def setUp(self):
+        self.user = get_test_user()
+        self.org = self.user.organisation
+        self.page = _connect_page(self.org)
+        ProductLine.objects.filter(organisation=self.org).delete()  # start clean
+
+    @patch('bookings.services.meta.fetch_lead')
+    def test_per_page_mapping_stamps_that_product(self, fetch):
+        """AC1."""
+        weddings = _product_line(self.org, 'Weddings')
+        _product_line(self.org, 'Corporate')  # a second line, so no smart default
+        self.page.default_product_line = weddings
+        self.page.save()
+        fetch.return_value = _lead_object()
+
+        meta_leads.ingest_lead(self.page, 'LEAD1')
+        self.assertEqual(Lead.objects.get(meta_leadgen_id='LEAD1').product, weddings)
+
+    @patch('bookings.services.meta.fetch_lead')
+    def test_single_product_org_gets_that_line_automatically(self, fetch):
+        """AC2 — zero config for single-product orgs."""
+        only = _product_line(self.org, 'Catering')
+        fetch.return_value = _lead_object()
+
+        meta_leads.ingest_lead(self.page, 'LEAD1')
+        self.assertEqual(Lead.objects.get(meta_leadgen_id='LEAD1').product, only)
+
+    @patch('bookings.services.meta.fetch_lead')
+    def test_multi_product_without_mapping_leaves_product_null(self, fetch):
+        _product_line(self.org, 'Weddings')
+        _product_line(self.org, 'Corporate')
+        fetch.return_value = _lead_object()
+
+        meta_leads.ingest_lead(self.page, 'LEAD1')
+        self.assertIsNone(Lead.objects.get(meta_leadgen_id='LEAD1').product_id)
+
+
+@override_settings(**APP)
+class TestMetaLeadAutoAssign(TestCase):
+    def setUp(self):
+        self.user = get_test_user()
+        self.org = self.user.organisation
+        self.page = _connect_page(self.org)
+        ProductLine.objects.filter(organisation=self.org).delete()
+
+    def _opt_in(self, on=True):
+        OrgSettings.objects.filter(organisation=self.org).update(auto_assign_integration_leads=on)
+
+    @patch('bookings.services.meta.fetch_lead')
+    def test_toggle_off_leaves_the_lead_unassigned(self, fetch):
+        """AC3."""
+        _product_line(self.org, 'Catering', salespeople=[_salesperson(self.org, 'sp1@t.com')])
+        self._opt_in(False)
+        fetch.return_value = _lead_object()
+
+        meta_leads.ingest_lead(self.page, 'LEAD1')
+        self.assertIsNone(Lead.objects.get(meta_leadgen_id='LEAD1').assigned_to_id)
+
+    @patch('bookings.services.meta.fetch_lead')
+    def test_toggle_on_assigns_by_round_robin_with_activity(self, fetch):
+        """AC4."""
+        sp = _salesperson(self.org, 'sp1@t.com')
+        _product_line(self.org, 'Catering', salespeople=[sp])
+        self._opt_in(True)
+        fetch.return_value = _lead_object()
+
+        meta_leads.ingest_lead(self.page, 'LEAD1')
+        lead = Lead.objects.get(meta_leadgen_id='LEAD1')
+        self.assertEqual(lead.assigned_to_id, sp.pk)
+        self.assertTrue(ActivityLog.objects.filter(
+            action='updated', field_name='assigned_to', object_id=lead.pk,
+        ).exists())
+
+    @patch('bookings.services.meta.fetch_lead')
+    def test_round_robin_rotates_across_reps_and_advances_the_index(self, fetch):
+        """Two ingests for one product line hit different reps and the per-line
+        index advances by two — pins the rotation the race-fix must preserve."""
+        sp1 = _salesperson(self.org, 'sp1@t.com')
+        sp2 = _salesperson(self.org, 'sp2@t.com')
+        pl = _product_line(self.org, 'Catering', salespeople=[sp1, sp2])
+        self._opt_in(True)
+        fetch.side_effect = [
+            _lead_object(leadgen_id='L1', email='a@x.com', phone='+15551110000'),
+            _lead_object(leadgen_id='L2', email='b@x.com', phone='+15552220000'),
+        ]
+
+        meta_leads.ingest_lead(self.page, 'L1')
+        meta_leads.ingest_lead(self.page, 'L2')
+
+        assigned = set(
+            Lead.objects.filter(meta_leadgen_id__in=['L1', 'L2'])
+            .values_list('assigned_to_id', flat=True)
+        )
+        self.assertEqual(assigned, {sp1.pk, sp2.pk})  # rotated, not the same rep twice
+        pl.refresh_from_db()
+        self.assertEqual(pl.round_robin_index, 2)
+
+    @patch('bookings.services.meta.fetch_lead')
+    def test_toggle_on_but_no_resolvable_product_stays_unassigned(self, fetch):
+        """AC5 — never misroute a productless lead."""
+        _product_line(self.org, 'Weddings')
+        _product_line(self.org, 'Corporate')  # multi-product, no mapping ⇒ no product
+        self._opt_in(True)
+        fetch.return_value = _lead_object()
+
+        meta_leads.ingest_lead(self.page, 'LEAD1')
+        self.assertIsNone(Lead.objects.get(meta_leadgen_id='LEAD1').assigned_to_id)
+
+
+@override_settings(**APP)
+class TestMetaPageProductEndpoint(TestCase):
+    def setUp(self):
+        self.user = get_test_user()
+        self.org = self.user.organisation
+        self.page = _connect_page(self.org)
+        self.client = APIClient()
+        self.client.force_authenticate(self.user)
+
+    def test_sets_and_clears_the_product_mapping(self):
+        pl = _product_line(self.org, 'Weddings')
+        resp = self.client.post(PAGE_PRODUCT_URL, {'page_id': 'PAGE1', 'product_line_id': pl.pk}, format='json')
+        self.assertEqual(resp.status_code, 200)
+        self.page.refresh_from_db()
+        self.assertEqual(self.page.default_product_line_id, pl.pk)
+
+        self.client.post(PAGE_PRODUCT_URL, {'page_id': 'PAGE1', 'product_line_id': None}, format='json')
+        self.page.refresh_from_db()
+        self.assertIsNone(self.page.default_product_line_id)
+
+    def test_rejects_a_product_line_from_another_org(self):
+        other_pl = ProductLine.objects.create(organisation=_other_org(), name='Foreign', is_active=True)
+        resp = self.client.post(PAGE_PRODUCT_URL, {'page_id': 'PAGE1', 'product_line_id': other_pl.pk}, format='json')
+        self.assertEqual(resp.status_code, 400)
+
+    def test_cannot_map_another_orgs_page(self):
+        _connect_page(_other_org(), page_id='RIVAL')
+        resp = self.client.post(PAGE_PRODUCT_URL, {'page_id': 'RIVAL', 'product_line_id': None}, format='json')
+        self.assertEqual(resp.status_code, 404)
+
+    @override_settings(META_LEADS_ENABLED=False)
+    def test_flag_off_is_404(self):
+        self.assertEqual(
+            self.client.post(PAGE_PRODUCT_URL, {'page_id': 'PAGE1'}, format='json').status_code, 404,
+        )
+
+    def test_managers_cannot_set_the_mapping(self):
+        mgr = User.objects.create(email='mgr@t.com', role='manager', organisation=self.org, is_active=True)
+        client = APIClient()
+        client.force_authenticate(mgr)
+        self.assertIn(client.post(PAGE_PRODUCT_URL, {'page_id': 'PAGE1'}, format='json').status_code, (401, 403))
+
+
+class TestAutoAssignSettingSerialized(TestCase):
+    def test_toggle_is_exposed_and_writable(self):
+        org = get_test_user().organisation
+        settings_row = OrgSettings.objects.get(organisation=org)
+        ser = OrgSettingsSerializer(settings_row, data={'auto_assign_integration_leads': True}, partial=True)
+        self.assertTrue(ser.is_valid(), ser.errors)
+        ser.save()
+        settings_row.refresh_from_db()
+        self.assertTrue(settings_row.auto_assign_integration_leads)

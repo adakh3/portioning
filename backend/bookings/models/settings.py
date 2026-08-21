@@ -106,6 +106,10 @@ class OrgSettings(models.Model):
     # settings.TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN. Each org configures only
     # its own WhatsApp sender number.
     whatsapp_enabled = models.BooleanField(default=False)
+    # Auto-assign leads that arrive via integrations (Meta lead ads today, more
+    # later) to a salesperson by round-robin on ingest, instead of leaving them
+    # unassigned for a manager to distribute (REL-512). Default off.
+    auto_assign_integration_leads = models.BooleanField(default=False)
     whatsapp_shortcuts_enabled = models.BooleanField(
         default=True,
         help_text="Show 'open WhatsApp with the message prefilled' shortcut "
