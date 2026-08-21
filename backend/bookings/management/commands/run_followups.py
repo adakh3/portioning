@@ -23,9 +23,25 @@ class Command(BaseCommand):
             "--dry-run", action="store_true",
             help="Report which leads would get a draft without calling the AI or writing anything.",
         )
+        parser.add_argument(
+            "--first-responses", action="store_true",
+            help="Draft AI FIRST responses for newly-created flagged leads (REL-515) "
+                 "instead of quiet-lead follow-ups. What the frequent cron calls.",
+        )
 
     def handle(self, *args, **options):
         dry_run = options["dry_run"]
+
+        if options["first_responses"]:
+            from bookings.services import first_response
+            summaries = first_response.run_all()
+            total_created = sum(s.get("created", 0) for s in summaries)
+            for s in summaries:
+                self.stdout.write(str(s))
+            self.stdout.write(self.style.SUCCESS(
+                f"First responses done — created {total_created} draft(s) across {len(summaries)} org(s)."
+            ))
+            return
 
         if options["scheduled"]:
             summaries = run_scheduled()

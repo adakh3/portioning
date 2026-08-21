@@ -51,6 +51,7 @@ from .followups import (
     FollowUpDraftBulkApproveView, FollowUpDraftCountView,
     FollowUpStatsView,
     CronRunFollowupsView,
+    CronRunFirstResponsesView,
     FollowUpPreviewView, FollowUpGenerateView,
     FollowUpDraftMarkSentView, LeadLogReplyView,
 )

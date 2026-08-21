@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import {
   api, ChannelBlockedReason, ClientChannel, Reminder, FollowUpDraft, FollowUpPreview,
@@ -37,6 +37,16 @@ function formatDue(dateStr: string, dateFormat: string) {
   if (diffMins < 60) return `in ${diffMins}m`;
   if (diffHours < 24) return `in ${diffHours}h`;
   return fallback;
+}
+
+/** "waiting Xm" for a first-response draft — how long the new lead has sat in the
+ * queue unanswered. Speed-to-lead is the whole point, so this reads in minutes. */
+function formatWaiting(createdAt: string): string {
+  const mins = Math.max(0, Math.round((Date.now() - new Date(createdAt).getTime()) / 60000));
+  if (mins < 60) return `waiting ${mins}m`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `waiting ${hours}h`;
+  return `waiting ${Math.round(hours / 24)}d`;
 }
 
 function ReminderCard({
@@ -409,6 +419,7 @@ function DraftReviewCard({ draft, onDone }: { draft: FollowUpDraft; onDone: () =
   const emailAvailable = draft.email_available ?? false;
   const whatsappAvailable = canWhatsApp(draft.lead_phone);
   const isEmail = channel === "email";
+  const isFirstResponse = draft.kind === "first_response";
 
   // Post what is on screen, always — never a diff against `draft`. The server
   // persists these before it attempts the send and keeps them when the send
@@ -480,13 +491,31 @@ function DraftReviewCard({ draft, onDone }: { draft: FollowUpDraft; onDone: () =
   };
 
   return (
-    <div data-testid="followup-draft" className="p-3 border border-border rounded-lg flex gap-3">
+    <div
+      data-testid="followup-draft"
+      data-kind={draft.kind}
+      className={cn(
+        "p-3 border rounded-lg flex gap-3",
+        // Pinned first responses read as urgent — a coloured edge sets them
+        // apart from the follow-ups stacked below.
+        isFirstResponse ? "border-primary/50 bg-primary/5" : "border-border",
+      )}
+    >
       <div className="flex-1 min-w-0 space-y-2">
         <div className="flex items-center gap-2">
           <Link href={`/leads/${draft.lead}`} className="text-sm font-medium text-primary hover:underline truncate">
             {draft.lead_name || `Lead #${draft.lead}`}
           </Link>
-          <Badge variant="secondary">AI</Badge>
+          {isFirstResponse ? (
+            <Badge variant="warning">First response</Badge>
+          ) : (
+            <Badge variant="secondary">AI</Badge>
+          )}
+          {isFirstResponse && (
+            <span className="text-xs font-medium text-amber-600">
+              {formatWaiting(draft.created_at)}
+            </span>
+          )}
         </div>
         {draft.reasoning && <p className="text-xs text-muted-foreground italic">{draft.reasoning}</p>}
 
@@ -847,7 +876,19 @@ function DraftSkeleton() {
 function DraftsTab() {
   const shortcutsMode = useShortcutsMode();
   const { data: drafts, isLoading, mutate } = useFollowUpDrafts("pending");
-  const list = drafts ?? [];
+  // First responses are pinned above follow-ups (speed-to-lead), oldest-waiting
+  // first within them; follow-ups keep newest-first below.
+  const list = useMemo(() => {
+    const arr = [...(drafts ?? [])];
+    arr.sort((a, b) => {
+      const rank = (d: FollowUpDraft) => (d.kind === "first_response" ? 0 : 1);
+      if (rank(a) !== rank(b)) return rank(a) - rank(b);
+      const at = new Date(a.created_at).getTime();
+      const bt = new Date(b.created_at).getTime();
+      return rank(a) === 0 ? at - bt : bt - at;
+    });
+    return arr;
+  }, [drafts]);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkError, setBulkError] = useState("");
 

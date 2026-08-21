@@ -14,7 +14,7 @@ import re
 
 from django.contrib.contenttypes.models import ContentType
 
-from bookings.models import ActivityLog, WhatsAppMessage
+from bookings.models import ActivityLog, FollowUpDraft, WhatsAppMessage
 from bookings.services.greeting import GREETING_RULE
 from bookings.services.message_templates import format_event_date, org_country
 from portioning import llm
@@ -202,7 +202,11 @@ def _build_context(lead, channel=CHANNEL_WHATSAPP):
 
     # The authoritative follow-up ledger — the model must base "how many times
     # have we nudged them" on THIS, never on counting messages in the thread.
-    sent = lead.followup_drafts.filter(status='sent').order_by('-reviewed_at')
+    # Follow-ups only — a first response is not a "follow-up already sent"; it
+    # shows in the message thread below either way (REL-515).
+    sent = lead.followup_drafts.filter(
+        status='sent', kind=FollowUpDraft.KIND_FOLLOWUP,
+    ).order_by('-reviewed_at')
     sent_count = sent.count()
     lines.append(f"\nFollow-ups already sent to this lead: {sent_count}")
     if sent_count:
@@ -261,6 +265,86 @@ def draft_followup(lead, channel=CHANNEL_WHATSAPP):
         data["message"] = re.sub(r"\s*\u2014\s*", ", ", data["message"])
     # An email whose subject the model dropped still has to be sendable \u2014 a
     # blank subject line is worse than a plain one (AC5).
+    subject = (data.get("subject") or '').strip() if is_email else ''
+    data["subject"] = subject or (fallback_subject(lead) if is_email else '')
+    data["model_used"] = model_used
+    return data
+
+
+# ── First response (REL-515) ──
+#
+# The speed-to-lead reply, drafted the moment a NEW lead arrives — a different
+# job from chasing a quiet one, so a distinct prompt. It acknowledges the
+# enquiry, reflects back what they told us, and asks ONE thing to move it
+# forward — never a price, never an apology (nobody has gone quiet yet).
+FIRST_RESPONSE_SYSTEM_PROMPT = (
+    "You are a sales assistant for a catering company. A brand-new enquiry has "
+    "just come in and you draft the very FIRST reply, so a human can review and "
+    "send it within minutes. Speed and warmth matter more than detail here.\n\n"
+    "Rules:\n"
+    "- Formal, professional tone — polite and warm, never chatty. No emoji.\n"
+    f"{GREETING_RULE}"
+    "- Thank them for getting in touch and acknowledge their enquiry.\n"
+    "- Reference the specific details they gave (event type, date, guest count) "
+    "when present, so the reply feels read and personal — never invent a detail "
+    "you were not given, and never restate the same detail twice.\n"
+    "- This is FIRST contact: never apologise for a delay, and never imply we "
+    "have spoken before.\n"
+    "- Never quote back anything internal (budget, pipeline status, notes, any "
+    "money figure). Only reference what the customer themselves told us.\n"
+    "- Do NOT commit to or mention any price, package cost, or discount — a human "
+    "prices later. You may offer to prepare options or a quote as the next step.\n"
+    "- End with exactly ONE clear next step: ask for the single most useful "
+    "missing detail (event date, guest count, or venue), or if you already have "
+    "those, offer to put together menu options and a quote.\n"
+    "- Use plain punctuation. Never use long dashes (the — or – "
+    "characters); use a comma or start a new sentence instead. The greeting "
+    "line ends with exactly one comma and nothing else (e.g. 'Hello Usman,').\n"
+    "- Sign off once at the end as the business's team using the business name "
+    "you were given (e.g. 'The Honey Flash Booth team') — never as a named "
+    "person, and don't repeat the business name elsewhere in the message.\n"
+    "- If the contact data looks like junk (no real name, gibberish, an obvious "
+    "test) or there is genuinely nothing useful to say, set should_follow_up to "
+    "false and leave message empty.\n"
+    "- Always give a one-sentence reasoning for your decision."
+)
+
+
+def build_first_response_system_prompt(org, channel):
+    """The first-response system prompt for this org and channel — same channel
+    register and org-language rules as a follow-up, different intent."""
+    return (
+        FIRST_RESPONSE_SYSTEM_PROMPT
+        + CHANNEL_RULES.get(channel, CHANNEL_RULES[CHANNEL_WHATSAPP])
+        + language_rule_for_org(org)
+    )
+
+
+def draft_first_response(lead, channel=CHANNEL_WHATSAPP):
+    """Ask the configured LLM to draft a first response for a brand-new lead, on
+    one channel. Same return shape and safeguards as `draft_followup` (returns
+    None on a declined/failed call), so callers treat the two identically —
+    `should_follow_up` here means "yes, draft a first reply"."""
+    is_email = channel == CHANNEL_EMAIL
+    context = _build_context(lead, channel)
+    instruction = (
+        "Draft the first email reply to this new enquiry, or decline if it looks like junk."
+        if is_email else
+        "Draft the first WhatsApp reply to this new enquiry, or decline if it looks like junk."
+    )
+    try:
+        data, model_used = llm.complete_structured(
+            MODEL_SETTING,
+            build_first_response_system_prompt(lead.organisation, channel),
+            instruction + "\n\n" + context,
+            EMAIL_DRAFT_SCHEMA if is_email else DRAFT_SCHEMA,
+        )
+    except Exception as exc:
+        logger.exception("First-response draft failed for lead %s: %s", lead.pk, exc)
+        return None
+
+    if data.get("message"):
+        data["message"] = re.sub(r"\s*—\s*", ", ", data["message"])
     subject = (data.get("subject") or '').strip() if is_email else ''
     data["subject"] = subject or (fallback_subject(lead) if is_email else '')
     data["model_used"] = model_used

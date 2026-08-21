@@ -799,6 +799,11 @@ export interface SiteSettingsData {
   followup_gap_final_days?: number;
   followup_max_drafts_per_lead?: number;
   followup_auto_generate?: boolean;
+  /** Speed-to-lead: draft an AI first response for every new lead, for review
+   * (REL-515). Independent of the follow-up toggles; never auto-sends. */
+  first_response_enabled?: boolean;
+  /** Read-only: first_response_enabled AND a drafting model/key is configured. */
+  first_response_configured?: boolean;
   /** Platform launch flag (env OPERATIONS_ENABLED). Hidden for now; gates the
    *  operations suite — portioning, kitchen events, staffing and the portioning
    *  Help page. Equipment/Menu Templates are admin-only, not gated by this. */
@@ -1237,6 +1242,10 @@ export interface FollowUpDraft {
   /** Why not, when it can't — the same reasons the send modal branches on, so
    * "connect your email" and "reconnect it" stay different problems. */
   email_reason?: ChannelBlockedReason | null;
+  /** What prompted the draft: a quiet-lead `followup`, or a speed-to-lead
+   * `first_response` drafted the moment a new lead arrived (REL-515). Pins and
+   * badges the card; the review/send actions are identical. */
+  kind: "followup" | "first_response";
   /** The channel this draft was written for — the rep can still switch it. */
   channel: ClientChannel;
   /** Email only; a WhatsApp draft has no subject and leaves this empty. */

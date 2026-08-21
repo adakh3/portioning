@@ -190,6 +190,14 @@ class OrgSettings(models.Model):
         null=True, blank=True,
         help_text='When the scheduled run last generated for this org (guards against double runs).',
     )
+    # Speed-to-lead: draft a first response the moment a NEW lead arrives, into
+    # the same review queue as follow-ups (REL-515). Independent of the
+    # follow-up toggles above — an org can want an instant first reply without
+    # the ongoing chase, or vice versa. Off by default; never auto-sends.
+    first_response_enabled = models.BooleanField(
+        default=False,
+        help_text='Draft an AI first response for every new lead, for review (never auto-sent).',
+    )
 
     class Meta:
         verbose_name = 'Organisation Settings'
@@ -220,6 +228,18 @@ class OrgSettings(models.Model):
         from portioning import llm
         return bool(
             self.ai_followups_enabled
+            and llm.is_configured('LLM_FOLLOWUP_DRAFTER')
+        )
+
+    @property
+    def first_response_configured(self):
+        """Whether the AI can draft a first response for this org: opted in AND a
+        drafting model is configured (same LLM_FOLLOWUP_DRAFTER + key as
+        follow-ups — see portioning/llm.py). Delivery stays a separate concern,
+        exactly as with `ai_followups_configured`."""
+        from portioning import llm
+        return bool(
+            self.first_response_enabled
             and llm.is_configured('LLM_FOLLOWUP_DRAFTER')
         )
 

@@ -62,6 +62,24 @@ describe("Settings → Integrations → AI follow-ups auto-generate", () => {
     expect(payload.followup_auto_generate).toBe(false);
     expect(payload.ai_followups_enabled).toBe(true);
   });
+
+  // REL-515 — the first-response toggle is independent of the follow-up dials
+  // and rides the same Save.
+  it("includes first_response_enabled in the AI settings save payload", async () => {
+    mockSettings = {
+      ...BASE,
+      twilio_configured: false,
+      ai_followups_enabled: true,
+      first_response_enabled: false,
+    };
+    render(<SettingsPage />);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Toggle AI first response for new leads" }));
+    fireEvent.click(screen.getByRole("button", { name: /Save/i }));
+    await waitFor(() => expect(updateSiteSettings).toHaveBeenCalled());
+    const payload = updateSiteSettings.mock.calls.at(-1)![0] as Record<string, unknown>;
+    expect(payload.first_response_enabled).toBe(true);
+  });
 });
 
 describe("Settings → Integrations → WhatsApp shortcuts toggle", () => {

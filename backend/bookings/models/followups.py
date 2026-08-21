@@ -23,6 +23,17 @@ class FollowUpDraft(OrgScopedModel, models.Model):
         ('sent', 'Approved & sent'),
         ('dismissed', 'Dismissed'),
     ]
+    # What prompted this draft. A `followup` chases a lead that has gone quiet;
+    # a `first_response` is the speed-to-lead reply drafted the moment a brand-new
+    # lead arrives (REL-515). Both flow through the same review/send machinery —
+    # the kind only changes how the queue pins and badges them. Legacy rows
+    # predate the split and read as `followup`, hence the default (no backfill).
+    KIND_FOLLOWUP = 'followup'
+    KIND_FIRST_RESPONSE = 'first_response'
+    KIND_CHOICES = [
+        (KIND_FOLLOWUP, 'Follow-up'),
+        (KIND_FIRST_RESPONSE, 'First response'),
+    ]
     # Mirrors WhatsAppMessage.CHANNEL_CHOICES — the ledger these drafts become.
     CHANNEL_CHOICES = [
         ('whatsapp', 'WhatsApp'),
@@ -37,6 +48,10 @@ class FollowUpDraft(OrgScopedModel, models.Model):
     )
     # Existing rows predate email and stay on WhatsApp, which is also what they
     # were drafted as — hence the default rather than a backfill.
+    kind = models.CharField(
+        max_length=20, choices=KIND_CHOICES, default=KIND_FOLLOWUP, db_index=True,
+        help_text='Whether this is a first-response draft or a quiet-lead follow-up.',
+    )
     channel = models.CharField(max_length=20, choices=CHANNEL_CHOICES, default='whatsapp')
     subject = models.CharField(
         max_length=300, blank=True, default='',
