@@ -190,13 +190,16 @@ class OrgSettings(models.Model):
         null=True, blank=True,
         help_text='When the scheduled run last generated for this org (guards against double runs).',
     )
-    # Speed-to-lead: draft a first response the moment a NEW lead arrives, into
-    # the same review queue as follow-ups (REL-515). Independent of the
-    # follow-up toggles above — an org can want an instant first reply without
-    # the ongoing chase, or vice versa. Off by default; never auto-sends.
+    # Speed-to-lead: draft a first response the moment an integration lead
+    # arrives (Meta lead ads), into the same review queue as follow-ups (REL-515).
+    # Independent of the follow-up toggles above — an org can want an instant
+    # first reply without the ongoing chase, or vice versa. ON by default: it
+    # only fires for leads that arrive with nobody watching, and every draft is
+    # reviewed before it's sent, so the safe default is to help. Orgs can switch
+    # it off in Settings.
     first_response_enabled = models.BooleanField(
-        default=False,
-        help_text='Draft an AI first response for every new lead, for review (never auto-sent).',
+        default=True,
+        help_text='Draft an AI first response for incoming integration leads, for review (never auto-sent).',
     )
 
     class Meta:

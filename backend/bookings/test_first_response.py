@@ -287,7 +287,8 @@ class TestFirstResponseRunAll(TestCase):
         _enable(on)
         _new_lead(on)
         off = Organisation.objects.create(name='Off', slug='off', country='US')
-        _new_lead(off)  # off has no first_response_enabled → never scanned
+        _enable(off, first_response_on=False)  # opted OUT of the on-by-default
+        _new_lead(off)  # off is disabled → never scanned
         summaries = first_response.run_all()
         self.assertEqual([s['org'] for s in summaries], [on.pk])
         self.assertEqual(FollowUpDraft.objects.filter(organisation=off).count(), 0)
@@ -358,6 +359,15 @@ class TestCadenceHandoff(TestCase):
 
 
 # ── Schema / legacy safety ──
+
+class TestFirstResponseDefaultOn(TestCase):
+    def test_new_org_defaults_to_first_response_on(self):
+        """REL-515: first response is ON by default — a newly-created org's
+        settings (made by the post_save signal) come up enabled, so a Meta-
+        connected org gets drafts without anyone flipping a switch."""
+        org = Organisation.objects.create(name='Fresh', slug='fresh', country='US')
+        self.assertTrue(OrgSettings.for_org(org).first_response_enabled)
+
 
 class TestKindDefault(TestCase):
     def test_legacy_row_reads_as_followup(self):
