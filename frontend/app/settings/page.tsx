@@ -457,6 +457,7 @@ function AIFollowUpSettings({ settings, onSave }: { settings: SiteSettingsData |
   const [gapFinal, setGapFinal] = useState("14");
   const [maxDrafts, setMaxDrafts] = useState("3");
   const [autoGenerate, setAutoGenerate] = useState(false);
+  const [firstResponse, setFirstResponse] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -469,6 +470,7 @@ function AIFollowUpSettings({ settings, onSave }: { settings: SiteSettingsData |
       setGapFinal(String(settings.followup_gap_final_days ?? 14));
       setMaxDrafts(String(settings.followup_max_drafts_per_lead ?? 3));
       setAutoGenerate(settings.followup_auto_generate === true);
+      setFirstResponse(settings.first_response_enabled === true);
     }
   }, [settings]);
 
@@ -484,6 +486,7 @@ function AIFollowUpSettings({ settings, onSave }: { settings: SiteSettingsData |
         followup_gap_final_days: Number(gapFinal),
         followup_max_drafts_per_lead: Number(maxDrafts),
         followup_auto_generate: autoGenerate,
+        first_response_enabled: firstResponse,
       });
       onSave();
       setSuccess("AI follow-up settings saved.");
@@ -545,6 +548,25 @@ function AIFollowUpSettings({ settings, onSave }: { settings: SiteSettingsData |
               aria-label="Toggle auto-generate follow-ups"
             >
               {autoGenerate ? "Enabled" : "Disabled"}
+            </Button>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-foreground">Draft a first response to new leads</p>
+              <p className="text-xs text-muted-foreground">
+                The moment a lead arrives (including from Facebook &amp; Instagram), draft an
+                instant first reply into the queue above. Independent of the follow-up cadence,
+                and always reviewed before it&apos;s sent.
+              </p>
+            </div>
+            <Button
+              variant={firstResponse ? "default" : "outline"}
+              size="sm"
+              onClick={() => setFirstResponse(!firstResponse)}
+              aria-label="Toggle AI first response for new leads"
+            >
+              {firstResponse ? "Enabled" : "Disabled"}
             </Button>
           </div>
 

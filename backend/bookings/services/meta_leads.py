@@ -137,6 +137,10 @@ def _build_lead(page: ConnectedMetaPage, raw: dict):
     ref.save(update_fields=['lead'])
     log_activity(lead, 'created', description=f'Created lead "{lead.contact_name}" from a Meta lead form')
     _maybe_auto_assign(lead)
+    # Flag for an AI first response if the org opted in (REL-515). Marking only:
+    # the webhook path must stay LLM-free — the cron does the drafting.
+    from bookings.services.first_response import mark_lead_for_first_response
+    mark_lead_for_first_response(lead)
     return lead, True
 
 

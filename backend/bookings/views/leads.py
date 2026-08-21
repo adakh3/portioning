@@ -202,6 +202,11 @@ class LeadListCreateView(generics.ListCreateAPIView):
                 extra['status'] = default
         lead = serializer.save(created_by=user, organisation=org, **extra)
         log_activity(lead, 'created', user=user, description=f"Created lead \"{lead.contact_name}\"")
+        # Speed-to-lead: flag the new lead so the frequent cron drafts a first
+        # response for review, if the org opted in (REL-515). Marking only —
+        # the LLM call happens in the cron, never in the request.
+        from bookings.services.first_response import mark_lead_for_first_response
+        mark_lead_for_first_response(lead)
 
     def get_queryset(self):
         qs = Lead.objects.select_related(

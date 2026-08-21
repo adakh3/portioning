@@ -1,0 +1,23 @@
+# Frequent trigger for AI first-response drafting (REL-515) — speed-to-lead, so
+# a new lead gets a drafted reply within minutes, not once a day. Separate from
+# followups-cron (which is hourly and gated to a morning window): this runs every
+# 10 minutes. The backend still decides whether anything happens — per-org
+# "first_response_enabled" toggle, a per-lead flag, and a "no prior draft" guard
+# make repeat calls cheap no-ops. Requires the CRON_SECRET repo secret to match
+# the CRON_SECRET env var on the DigitalOcean app.
+name: first-responses-cron
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger AI first-response generation
+        run: |
+          curl -fsS -X POST \
+            -H "X-Cron-Secret: ${{ secrets.CRON_SECRET }}" \
+            https://catering.relogue.com/api/bookings/cron/run-first-responses/

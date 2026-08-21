@@ -402,3 +402,41 @@ describe("Email follow-up drafts", () => {
     expect(screen.getByRole("button", { name: /Send via Email/ })).toBeTruthy();
   });
 });
+
+describe("First response drafts (REL-515)", () => {
+  beforeEach(() => {
+    mockUser = { id: 1, role: "admin" };
+    // Twilio active so a WhatsApp draft shows "Approve & Send", not shortcuts.
+    mockSettings = { twilio_configured: true, whatsapp_enabled: true };
+    approveFollowUpDraft.mockClear();
+  });
+
+  const followup = {
+    ...DRAFT, id: 1, kind: "followup", lead_name: "Quiet Lead",
+    created_at: "2026-07-10T00:00:00Z",
+  };
+  const firstResp = {
+    ...DRAFT, id: 2, kind: "first_response", lead_name: "New Lead",
+    channel: "email", email_available: true, subject: "Your wedding catering",
+    created_at: new Date(Date.now() - 5 * 60000).toISOString(),
+  };
+
+  it("pins the first response above the follow-up, with a badge and waiting time", () => {
+    mockDrafts = [followup, firstResp]; // deliberately out of order
+    render(<FollowUpsPage />);
+    const cards = screen.getAllByTestId("followup-draft");
+    expect(cards[0]).toHaveAttribute("data-kind", "first_response");
+    expect(cards[1]).toHaveAttribute("data-kind", "followup");
+    expect(screen.getByText("First response")).toBeTruthy();
+    expect(screen.getByText(/waiting \d+m/)).toBeTruthy();
+  });
+
+  it("approves a first response, sending its (edited) content on its channel", async () => {
+    mockDrafts = [firstResp];
+    render(<FollowUpsPage />);
+    fireEvent.click(screen.getByRole("button", { name: /Send via Email/ }));
+    await waitFor(() => expect(approveFollowUpDraft).toHaveBeenCalledTimes(1));
+    expect(approveFollowUpDraft).toHaveBeenCalledWith(
+      2, expect.objectContaining({ channel: "email", subject: "Your wedding catering" }));
+  });
+});

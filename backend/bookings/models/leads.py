@@ -135,6 +135,13 @@ class Lead(OrgScopedModel, models.Model):
         on_delete=models.SET_NULL, related_name='leads',
     )
     lost_notes = models.TextField(blank=True)
+    # Set the moment a lead is created while the org has AI first-response on
+    # (REL-515), and cleared once the frequent cron has had its one go at
+    # drafting the speed-to-lead reply. A flag, not the LLM call itself: the
+    # Meta webhook must stay LLM-free, so both creation paths only mark, and the
+    # cron does the drafting. "No prior draft" is the real idempotency guard;
+    # this just keeps the cron's candidate scan cheap.
+    needs_first_response = models.BooleanField(default=False, db_index=True)
     contacted_at = models.DateTimeField(null=True, blank=True)
     qualified_at = models.DateTimeField(null=True, blank=True)
     proposal_sent_at = models.DateTimeField(null=True, blank=True)

@@ -92,7 +92,7 @@ class FollowUpDraftSerializer(serializers.ModelSerializer):
             'id', 'lead', 'lead_name', 'lead_phone', 'lead_email', 'lead_event_type',
             'lead_event_date', 'lead_guest_estimate', 'lead_assigned_to_name',
             'lead_days_stale', 'email_available', 'email_reason',
-            'channel', 'subject', 'body', 'reasoning',
+            'kind', 'channel', 'subject', 'body', 'reasoning',
             'status', 'model_used', 'whatsapp_message',
             'reviewed_by', 'reviewed_by_name', 'reviewed_at', 'created_at',
         ]
@@ -100,7 +100,7 @@ class FollowUpDraftSerializer(serializers.ModelSerializer):
         # validates them against the send it is about to make — not by a blind
         # PATCH of the draft.
         read_only_fields = [
-            'id', 'lead', 'channel', 'subject', 'reasoning', 'status', 'model_used',
+            'id', 'lead', 'kind', 'channel', 'subject', 'reasoning', 'status', 'model_used',
             'whatsapp_message', 'reviewed_by', 'reviewed_at', 'created_at',
         ]
 

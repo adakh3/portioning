@@ -28,7 +28,10 @@ def _annotate_last_touch(qs):
     slow to open). Mirrors lead_last_touch's inputs exactly."""
     last_reviewed = (
         FollowUpDraft.objects
-        .filter(lead=OuterRef('lead'), status__in=('sent', 'dismissed'))
+        # Follow-ups only — a sent/dismissed first response doesn't move the
+        # follow-up "days quiet" clock (mirrors find_stale_leads, REL-515).
+        .filter(lead=OuterRef('lead'), status__in=('sent', 'dismissed'),
+                kind=FollowUpDraft.KIND_FOLLOWUP)
         .values('lead').annotate(m=Max('reviewed_at')).values('m')
     )
     last_message = (
@@ -273,6 +276,30 @@ class CronRunFollowupsView(generics.GenericAPIView):
         if request.headers.get('X-Cron-Secret') != secret:
             return Response({'detail': 'Forbidden.'}, status=status.HTTP_403_FORBIDDEN)
         summaries = run_scheduled()
+        return Response({
+            'orgs_run': len(summaries),
+            'created': sum(s.get('created', 0) for s in summaries),
+        })
+
+
+class CronRunFirstResponsesView(generics.GenericAPIView):
+    """POST /api/bookings/cron/run-first-responses/ — the speed-to-lead trigger,
+    hit every ~10 min by a GitHub Actions cron (separate, frequent schedule from
+    the once-daily follow-up gate). Same shared-secret gate as run-followups; the
+    per-lead flag + no-prior-draft guard make repeat calls harmless no-ops."""
+
+    authentication_classes = []
+    permission_classes = []
+
+    def post(self, request):
+        from bookings.services import first_response
+        secret = django_settings.CRON_SECRET
+        if not secret:
+            return Response({'detail': 'Cron endpoint not configured.'},
+                            status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        if request.headers.get('X-Cron-Secret') != secret:
+            return Response({'detail': 'Forbidden.'}, status=status.HTTP_403_FORBIDDEN)
+        summaries = first_response.run_all()
         return Response({
             'orgs_run': len(summaries),
             'created': sum(s.get('created', 0) for s in summaries),

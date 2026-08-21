@@ -127,15 +127,24 @@ def find_stale_leads(org, settings):
         .exclude(status__in=terminal)
         .filter(reachable)
         .exclude(event_date__lt=now.date())  # the event already happened — nothing to chase
+        # A pending draft of ANY kind blocks a new one — including a first
+        # response awaiting review (REL-515), so we never stack two drafts.
         .exclude(followup_drafts__status='pending')  # don't pile up unreviewed drafts
         .annotate(
+            # The cadence stage and per-lead cap count FOLLOW-UPS only: a sent
+            # first response is captured by last_outbound_at (its message row)
+            # for the "don't chase right after contact" clock, but it must not
+            # advance the follow-up stage or eat the follow-up cap (REL-515).
             reviewed_followups=Count(
                 'followup_drafts',
-                filter=Q(followup_drafts__status__in=('sent', 'dismissed')), distinct=True,
+                filter=Q(followup_drafts__status__in=('sent', 'dismissed'))
+                & Q(followup_drafts__kind=FollowUpDraft.KIND_FOLLOWUP),
+                distinct=True,
             ),
             last_reviewed_at=Max(
                 'followup_drafts__reviewed_at',
-                filter=Q(followup_drafts__status__in=('sent', 'dismissed')),
+                filter=Q(followup_drafts__status__in=('sent', 'dismissed'))
+                & Q(followup_drafts__kind=FollowUpDraft.KIND_FOLLOWUP),
             ),
             last_inbound_at=Subquery(latest_inbound_at),
             last_outbound_at=Subquery(latest_outbound_at),
@@ -166,8 +175,9 @@ def lead_last_touch(lead):
     quiet' always matches what the scheduler actually measures. Fires two
     aggregate queries — for lists, annotate instead and use
     last_touch_from_parts (see followup views)."""
-    last_reviewed = lead.followup_drafts.filter(status__in=('sent', 'dismissed')).aggregate(
-        m=Max('reviewed_at'))['m']
+    last_reviewed = lead.followup_drafts.filter(
+        status__in=('sent', 'dismissed'), kind=FollowUpDraft.KIND_FOLLOWUP,
+    ).aggregate(m=Max('reviewed_at'))['m']
     last_message = WhatsAppMessage.objects.filter(lead=lead).aggregate(
         m=Max('created_at'))['m']
     return last_touch_from_parts(lead.updated_at, last_reviewed, last_message)
