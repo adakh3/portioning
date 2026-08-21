@@ -17,6 +17,7 @@ Two things stay deliberately separate from the drafting:
 import logging
 from datetime import timedelta
 
+from django.db import transaction
 from django.db.models import Count, Q
 from django.utils import timezone
 
@@ -98,6 +99,15 @@ def run_for_org(org):
     model declining — so we never re-call the LLM for the same lead. It is left
     set only on a *transient* miss (mailbox momentarily unusable, or the LLM call
     failing) so the next tick retries, until the max-age window drops the lead.
+
+    The flag doubles as a claim token. Two cron ticks can overlap — a run that
+    takes longer than the 10-minute schedule while the next one fires — so the
+    flag is cleared with an atomic compare-and-swap (`filter(needs_first_response
+    =True).update(...)`) right before the draft is written, inside one
+    transaction. Overlapping ticks may both spend the LLM call, but only the one
+    that wins the swap creates the draft: never a duplicate. And because the
+    clear and the create commit together, a crash between them rolls the flag
+    back, so the next tick retries rather than dropping the lead.
     """
     settings = OrgSettings.for_org(org)
     if not settings.first_response_configured:
@@ -120,28 +130,36 @@ def run_for_org(org):
             skipped += 1
             continue
 
-        # Definitive outcome from here: don't ask the model about this lead again.
-        Lead.objects.filter(pk=lead.pk).update(needs_first_response=False)
+        with transaction.atomic():
+            # Compare-and-swap: only the worker that flips True->False proceeds.
+            # A lost swap means an overlapping tick already handled this lead.
+            claimed = Lead.objects.filter(
+                pk=lead.pk, needs_first_response=True,
+            ).update(needs_first_response=False)
+            if not claimed:
+                skipped += 1
+                continue
 
-        if not result.get('should_follow_up'):
-            skipped += 1
-            continue
+            if not result.get('should_follow_up'):
+                # Declined — flag stays cleared (committed) so we don't re-ask.
+                skipped += 1
+                continue
 
-        draft = FollowUpDraft.objects.create(
-            organisation=org,
-            lead=lead,
-            kind=FollowUpDraft.KIND_FIRST_RESPONSE,
-            channel=channel,
-            subject=result.get('subject', ''),
-            body=result['message'],
-            reasoning=result.get('reasoning', ''),
-            model_used=result.get('model_used', ''),
-        )
-        log_activity(
-            lead, 'updated',
-            field_name='followup_draft',
-            description='AI drafted a first response for review',
-        )
+            draft = FollowUpDraft.objects.create(
+                organisation=org,
+                lead=lead,
+                kind=FollowUpDraft.KIND_FIRST_RESPONSE,
+                channel=channel,
+                subject=result.get('subject', ''),
+                body=result['message'],
+                reasoning=result.get('reasoning', ''),
+                model_used=result.get('model_used', ''),
+            )
+            log_activity(
+                lead, 'updated',
+                field_name='followup_draft',
+                description='AI drafted a first response for review',
+            )
         created += 1
         logger.info("Created first-response draft %s for lead %s", draft.pk, lead.pk)
 

@@ -257,6 +257,24 @@ class TestFirstResponseRun(TestCase):
         self.assertEqual(FollowUpDraft.objects.count(), 1)
         self.assertEqual(mock_draft.call_count, 1)
 
+    def test_concurrent_tick_that_already_claimed_does_not_duplicate(self):
+        """Two overlapping cron ticks: the second reads the lead as eligible and
+        spends the LLM call, but by the time it goes to write, the first has
+        already claimed (flag cleared) the lead. The atomic compare-and-swap must
+        make the loser create NO draft — never a duplicate first response."""
+        lead = _new_lead(self.org)
+
+        def steal_then_return(_lead, channel):
+            # Simulate the other tick winning the claim mid-LLM-call.
+            Lead.objects.filter(pk=lead.pk).update(needs_first_response=False)
+            return DRAFT_OK
+
+        with patch('bookings.services.first_response.draft_first_response',
+                   side_effect=steal_then_return):
+            summary = first_response.run_for_org(self.org)
+        self.assertEqual(summary['created'], 0)
+        self.assertEqual(FollowUpDraft.objects.count(), 0)
+
     @patch('bookings.services.first_response.draft_first_response', return_value=DRAFT_OK)
     def test_not_configured_org_skips(self, mock_draft):
         _enable(self.org, first_response_on=False)
