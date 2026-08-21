@@ -66,7 +66,10 @@ class TestFirstResponseMarking(TestCase):
         self.client = APIClient()
         self.client.force_authenticate(user=self.user)
 
-    def test_manual_create_flags_lead_when_enabled(self):
+    def test_manual_create_never_flags_even_when_enabled(self):
+        """A hand-created lead is NOT flagged for a first response even with the
+        feature on: whoever typed it in has almost always already engaged the
+        client, so the auto-draft is scoped to integration leads only (REL-515)."""
         _enable(self.org)
         resp = self.client.post('/api/bookings/leads/', {
             'contact_name': 'Manual Lead', 'contact_email': 'manual@example.com',
@@ -74,15 +77,7 @@ class TestFirstResponseMarking(TestCase):
         }, format='json')
         self.assertEqual(resp.status_code, 201, resp.content)
         lead = Lead.objects.get(pk=resp.data['id'])
-        self.assertTrue(lead.needs_first_response)
-
-    def test_manual_create_does_not_flag_when_disabled(self):
-        _enable(self.org, first_response_on=False)
-        resp = self.client.post('/api/bookings/leads/', {
-            'contact_name': 'Manual Lead', 'contact_phone': '+15551234567',
-        }, format='json')
-        self.assertEqual(resp.status_code, 201, resp.content)
-        self.assertFalse(Lead.objects.get(pk=resp.data['id']).needs_first_response)
+        self.assertFalse(lead.needs_first_response)
 
     def test_mark_helper_is_idempotent_and_single_field(self):
         _enable(self.org)
@@ -292,7 +287,8 @@ class TestFirstResponseRunAll(TestCase):
         _enable(on)
         _new_lead(on)
         off = Organisation.objects.create(name='Off', slug='off', country='US')
-        _new_lead(off)  # off has no first_response_enabled → never scanned
+        _enable(off, first_response_on=False)  # opted OUT of the on-by-default
+        _new_lead(off)  # off is disabled → never scanned
         summaries = first_response.run_all()
         self.assertEqual([s['org'] for s in summaries], [on.pk])
         self.assertEqual(FollowUpDraft.objects.filter(organisation=off).count(), 0)
@@ -363,6 +359,15 @@ class TestCadenceHandoff(TestCase):
 
 
 # ── Schema / legacy safety ──
+
+class TestFirstResponseDefaultOn(TestCase):
+    def test_new_org_defaults_to_first_response_on(self):
+        """REL-515: first response is ON by default — a newly-created org's
+        settings (made by the post_save signal) come up enabled, so a Meta-
+        connected org gets drafts without anyone flipping a switch."""
+        org = Organisation.objects.create(name='Fresh', slug='fresh', country='US')
+        self.assertTrue(OrgSettings.for_org(org).first_response_enabled)
+
 
 class TestKindDefault(TestCase):
     def test_legacy_row_reads_as_followup(self):
