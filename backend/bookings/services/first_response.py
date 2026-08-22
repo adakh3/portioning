@@ -7,9 +7,11 @@ drafts that first reply into the SAME approve-and-send queue as follow-ups
 is auto-sent.
 
 Two things stay deliberately separate from the drafting:
-* **Marking.** Both creation paths (manual `LeadListCreateView.perform_create` and
-  Meta `meta_leads`) only ever *flag* a new lead (`Lead.needs_first_response`).
-  The Meta webhook must never call the LLM inline, so marking is all they do.
+* **Marking.** Only leads that arrive with nobody watching are flagged — the Meta
+  lead-ads ingestion path (`meta_leads`) sets `Lead.needs_first_response`. A
+  hand-created lead is NOT flagged: a salesperson typing one in has almost always
+  just spoken to the client, so an auto-drafted first reply is noise (REL-515).
+  The Meta webhook must never call the LLM inline, so marking is all it does.
 * **Drafting.** A frequent cron (every ~10 min, separate from the once-daily 7am
   follow-up gate) picks up flagged leads and drafts. "No prior draft of any kind"
   is the real idempotency guard — the flag just keeps the candidate scan cheap.

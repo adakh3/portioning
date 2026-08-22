@@ -202,11 +202,12 @@ class LeadListCreateView(generics.ListCreateAPIView):
                 extra['status'] = default
         lead = serializer.save(created_by=user, organisation=org, **extra)
         log_activity(lead, 'created', user=user, description=f"Created lead \"{lead.contact_name}\"")
-        # Speed-to-lead: flag the new lead so the frequent cron drafts a first
-        # response for review, if the org opted in (REL-515). Marking only —
-        # the LLM call happens in the cron, never in the request.
-        from bookings.services.first_response import mark_lead_for_first_response
-        mark_lead_for_first_response(lead)
+        # No AI first response for a hand-created lead (REL-515): a salesperson
+        # typing a lead in has almost always just spoken to the client, so an
+        # auto-drafted "first" reply is noise. First responses are for leads that
+        # arrive with nobody watching — the Meta ingestion path (meta_leads) marks
+        # those. Manual leads still get the on-demand "Generate" and the normal
+        # follow-up cadence.
 
     def get_queryset(self):
         qs = Lead.objects.select_related(
