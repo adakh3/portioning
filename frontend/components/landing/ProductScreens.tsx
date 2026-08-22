@@ -9,11 +9,12 @@ import { useState } from "react";
  * around them uses the warm marketing palette.
  */
 
-type TabId = "leads" | "eventform" | "drafting" | "triage";
+type TabId = "leads" | "eventform" | "copilot" | "drafting" | "triage";
 
 const TABS: { id: TabId; label: string }[] = [
   { id: "leads", label: "Leads" },
   { id: "eventform", label: "Quote Builder" },
+  { id: "copilot", label: "Sales Copilot" },
   { id: "drafting", label: "AI Drafting" },
   { id: "triage", label: "AI Lead Triage" },
 ];
@@ -21,6 +22,7 @@ const TABS: { id: TabId; label: string }[] = [
 const SCREEN_HEADERS: Record<TabId, { title: string; meta: string }> = {
   leads: { title: "Leads", meta: "Kanban · 6 statuses" },
   eventform: { title: "New Quote", meta: "Harper–Ross Wedding · draft" },
+  copilot: { title: "Harper–Ross Wedding", meta: "Quote v2 · Sales Copilot" },
   drafting: { title: "Send to Client", meta: "Quote v2 · $28,080.00" },
   triage: { title: "Lead Triage", meta: "1 new inquiry · WhatsApp" },
 };
@@ -95,12 +97,12 @@ const EXTRACTED = [
 ];
 
 const DRAFT_BODY =
-  "Hi Emily — the quote for March 14 is attached: plated service for 180, with the crostini " +
+  "Hi Emily, the quote for March 14 is attached: plated service for 180, with the crostini " +
   "and short rib you liked at the tasting. It holds until February 28. Sign on the link and " +
   "we'll lock the date.";
 
 const INQUIRY_TEXT =
-  "Hi! We're getting married at Cedar Ridge Barn on March 14 next year, about 180 guests — " +
+  "Hi! We're getting married at Cedar Ridge Barn on March 14 next year, about 180 guests, " +
   "150 adults and 30 kids. Looking for plated service, a couple of gluten-free and vegetarian " +
   "guests. Budget is around 30k. Can you send a menu?";
 
@@ -210,7 +212,7 @@ function DraftingScreen() {
               WhatsApp
             </span>
           </div>
-          <div className="text-xs text-[hsl(0_0%_45%)]">To — emily.harper@gmail.com · from hello@relogue.co</div>
+          <div className="text-xs text-[hsl(0_0%_45%)]">To: emily.harper@gmail.com · from hello@relogue.co</div>
           <div className="rounded-md border border-[hsl(0_0%_89.8%)] p-3 text-[13px] leading-relaxed text-[hsl(0_0%_20%)]">
             {DRAFT_BODY}
           </div>
@@ -245,7 +247,7 @@ function TriageScreen() {
     <div className="grid items-start gap-5 p-5 md:grid-cols-2">
       <div className="rounded-lg border border-[hsl(0_0%_89.8%)] p-3.5">
         <div className="mb-2.5 text-xs font-semibold uppercase tracking-[0.06em] text-[hsl(0_0%_25%)]">
-          Incoming inquiry — WhatsApp
+          Incoming inquiry · WhatsApp
         </div>
         <div className="text-[13px] leading-relaxed text-[hsl(0_0%_20%)]">{INQUIRY_TEXT}</div>
       </div>
@@ -273,9 +275,103 @@ function TriageScreen() {
   );
 }
 
+
+// The copilot thread (REL-514). The arithmetic continues the Quote Builder
+// screen's: 180 guests at $130.00/head = $23,400.00 food, and the proposal
+// lands at $112.00/head = $20,160.00 — an $18.00/head saving. Margin is stated
+// as FOOD margin only, and add-on/blended is explicitly unknown, because that
+// is exactly what the real tool returns while add-ons carry no cost data.
+const COPILOT_THREAD = [
+  {
+    who: "rep" as const,
+    text: "Give me a cheaper version. They're capped at $30k all in.",
+  },
+  {
+    who: "agent" as const,
+    text:
+      "Dropping the short rib and running the herb-roasted chicken as the single main takes you to " +
+      "$112.00 per head, or $20,160.00 for 180. Food margin goes from 68% to 71%. I can't give you a " +
+      "blended margin yet. There's no cost data on your add-ons.",
+  },
+];
+
+const COPILOT_PROPOSAL = [
+  { change: "Remove", dish: "Slow-braised short rib", delta: "\u2212$10,800.00" },
+  { change: "Increase", dish: "Herb-roasted chicken \u00b7 180 covers", delta: "+$7,560.00" },
+];
+
+const COPILOT_TOTALS = [
+  { label: "Per head", was: "$130.00", now: "$112.00" },
+  { label: "Food total", was: "$23,400.00", now: "$20,160.00" },
+  { label: "Food margin", was: "68%", now: "71%" },
+];
+
+function CopilotScreen() {
+  return (
+    <div className="grid items-start gap-5 p-5 md:grid-cols-2">
+      <div className="grid content-start gap-3">
+        {COPILOT_THREAD.map((m) => (
+          <div
+            key={m.who}
+            className={
+              m.who === "rep"
+                ? "justify-self-end rounded-lg rounded-br-sm bg-[hsl(221_83%_53%/.1)] px-3.5 py-2.5 text-[13px] leading-relaxed text-[hsl(0_0%_20%)] sm:max-w-[85%]"
+                : "justify-self-start rounded-lg rounded-bl-sm border border-[hsl(0_0%_89.8%)] px-3.5 py-2.5 text-[13px] leading-relaxed text-[hsl(0_0%_20%)] sm:max-w-[92%]"
+            }
+          >
+            {m.text}
+          </div>
+        ))}
+        <div className="text-xs text-[hsl(0_0%_45%)]">
+          Prices and margins computed by the pricing engine from your catalog.
+        </div>
+      </div>
+
+      <div className="overflow-hidden rounded-lg border border-[hsl(0_0%_89.8%)]">
+        <div className={PANE_HEAD}>Proposed change</div>
+        {COPILOT_PROPOSAL.map((row) => (
+          <div
+            key={row.dish}
+            className="flex items-center justify-between gap-3 border-b border-[hsl(0_0%_89.8%)] px-3 py-2.5"
+          >
+            <span className="flex items-center gap-2">
+              <span className="rounded bg-[hsl(0_0%_89.8%)] px-1.5 py-0.5 text-[10px] font-medium text-[hsl(0_0%_30%)]">
+                {row.change}
+              </span>
+              <span className="text-[13px]">{row.dish}</span>
+            </span>
+            <span className="min-w-20 text-right text-[13px] tabular-nums text-[hsl(0_0%_45%)]">{row.delta}</span>
+          </div>
+        ))}
+        <div className="grid gap-2 p-3.5">
+          {COPILOT_TOTALS.map((t) => (
+            <div key={t.label} className="flex items-baseline justify-between gap-3 text-[13px]">
+              <span className="text-[hsl(0_0%_45%)]">{t.label}</span>
+              <span className="flex items-baseline gap-2 tabular-nums">
+                <span className="text-[hsl(0_0%_45%)] line-through">{t.was}</span>
+                <span className="font-medium">{t.now}</span>
+              </span>
+            </div>
+          ))}
+          <div className="mt-1 flex gap-2">
+            <span className="inline-flex h-8 items-center rounded-md bg-primary px-3.5 text-[13px] font-medium text-primary-foreground">
+              Apply to quote
+            </span>
+            <span className="inline-flex h-8 items-center rounded-md border border-[hsl(0_0%_89.8%)] px-3.5 text-[13px]">
+              Dismiss
+            </span>
+          </div>
+          <div className="text-xs text-primary">Nothing changes on the quote until you apply it.</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const SCREENS: Record<TabId, () => React.ReactElement> = {
   leads: LeadsScreen,
   eventform: EventFormScreen,
+  copilot: CopilotScreen,
   drafting: DraftingScreen,
   triage: TriageScreen,
 };

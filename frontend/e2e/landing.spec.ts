@@ -11,7 +11,7 @@ import { login } from "./helpers";
 
 test("logged-out visitor sees the landing at / and is not redirected (AC1)", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: /Win more/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /AI sales agent/ })).toBeVisible();
   expect(new URL(page.url()).pathname).toBe("/");
 });
 
@@ -60,7 +60,7 @@ test("the demo form submits through the real API (AC8)", async ({ page }) => {
 test("landing stacks on a phone viewport without horizontal scroll (AC16)", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: /Win more/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /AI sales agent/ })).toBeVisible();
   const overflow = await page.evaluate(
     () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
   );

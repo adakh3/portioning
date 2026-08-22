@@ -22,8 +22,9 @@ const instrumentSerif = Instrument_Serif({
 });
 
 const SITE_DESCRIPTION =
-  "Win more catering revenue — capture every inquiry, quote in minutes, and close more " +
-  "events, with AI drafting the follow-ups and triaging your leads.";
+  "The AI sales agent for catering. Relogue works every lead from first inquiry to signed " +
+  "contract. It qualifies inquiries from Instagram, Facebook, WhatsApp and email, builds the " +
+  "quote, and chases the close, grounded in your menus, your costs and your win record.";
 
 // `/` is now the public front door, so these tags are what a search crawler or a
 // Slack/LinkedIn unfurl actually reads. The title stays short because it is also
@@ -33,14 +34,14 @@ export const metadata: Metadata = {
   title: "Relogue Catering",
   description: SITE_DESCRIPTION,
   openGraph: {
-    title: "Relogue Catering — quote fast, win more",
+    title: "Relogue Catering: the AI sales agent for catering",
     description: SITE_DESCRIPTION,
     type: "website",
     images: [{ url: "/landing/hero.jpg", width: 1536, height: 1024 }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Relogue Catering — quote fast, win more",
+    title: "Relogue Catering: the AI sales agent for catering",
     description: SITE_DESCRIPTION,
   },
 };
